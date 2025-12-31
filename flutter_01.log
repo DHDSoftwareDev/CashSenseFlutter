@@ -1,0 +1,155 @@
+Flutter crash report.
+Please report a bug at https://github.com/flutter/flutter/issues.
+
+## command
+
+flutter pub get
+
+## exception
+
+FileSystemException: FileSystemException: writeFrom failed, path = '/Users/siler/Desktop/DHDSoftware/CashSenseFlutter/ios/Flutter/ephemeral/flutter_lldbinit' (OS Error: Operation timed out, errno = 60)
+
+```
+#0      _checkForErrorResponse (dart:io/common.dart:58:9)
+#1      _RandomAccessFile.writeFrom.<anonymous closure> (dart:io/file_impl.dart:1001:7)
+#2      _rootRunUnary (dart:async/zone.dart:1538:47)
+#3      _CustomZone.runUnary (dart:async/zone.dart:1429:19)
+<asynchronous suspension>
+#4      _File.writeAsBytes.<anonymous closure>.<anonymous closure> (dart:io/file_impl.dart:735:23)
+<asynchronous suspension>
+#5      _RandomAccessFile.close (dart:io/file_impl.dart:856:3)
+<asynchronous suspension>
+#6      ForwardingFile.writeAsString (package:file/src/forwarding/forwarding_file.dart:136:12)
+<asynchronous suspension>
+#7      ErrorHandlingFile.writeAsString.<anonymous closure> (package:flutter_tools/src/base/error_handling_io.dart:238:9)
+<asynchronous suspension>
+#8      _run (package:flutter_tools/src/base/error_handling_io.dart:514:12)
+<asynchronous suspension>
+#9      IosProject._renderTemplateToFile (package:flutter_tools/src/xcode_project.dart:808:5)
+<asynchronous suspension>
+#10     IosProject._updateLLDBIfNeeded (package:flutter_tools/src/xcode_project.dart:790:7)
+<asynchronous suspension>
+#11     IosProject.ensureReadyForPlatformSpecificTooling (package:flutter_tools/src/xcode_project.dart:683:5)
+<asynchronous suspension>
+#12     FlutterProject.ensureReadyForPlatformSpecificTooling (package:flutter_tools/src/project.dart:390:7)
+<asynchronous suspension>
+#13     PackagesGetCommand.runCommand (package:flutter_tools/src/commands/packages.dart:395:9)
+<asynchronous suspension>
+#14     FlutterCommand.run.<anonymous closure> (package:flutter_tools/src/runner/flutter_command.dart:1559:27)
+<asynchronous suspension>
+#15     AppContext.run.<anonymous closure> (package:flutter_tools/src/base/context.dart:154:19)
+<asynchronous suspension>
+#16     CommandRunner.runCommand (package:args/command_runner.dart:212:13)
+<asynchronous suspension>
+#17     FlutterCommandRunner.runCommand.<anonymous closure> (package:flutter_tools/src/runner/flutter_command_runner.dart:487:9)
+<asynchronous suspension>
+#18     AppContext.run.<anonymous closure> (package:flutter_tools/src/base/context.dart:154:19)
+<asynchronous suspension>
+#19     FlutterCommandRunner.runCommand (package:flutter_tools/src/runner/flutter_command_runner.dart:422:5)
+<asynchronous suspension>
+#20     run.<anonymous closure>.<anonymous closure> (package:flutter_tools/runner.dart:104:11)
+<asynchronous suspension>
+#21     AppContext.run.<anonymous closure> (package:flutter_tools/src/base/context.dart:154:19)
+<asynchronous suspension>
+#22     main (package:flutter_tools/executable.dart:103:3)
+<asynchronous suspension>
+```
+
+## flutter doctor
+
+```
+[33m[!][39m Flutter (Channel stable, 3.38.3, on macOS
+    15.7.1 24G231 darwin-x64, locale en-US)
+    [1,114ms]
+    [32m•[39m Flutter version 3.38.3 on channel
+      stable at
+      /Users/siler/development/flutter
+    [33m![39m The flutter binary is not on your path.
+      Consider adding
+      /Users/siler/development/flutter/bin to
+      your path.
+    [33m![39m The dart binary is not on your path.
+      Consider adding
+      /Users/siler/development/flutter/bin to
+      your path.
+    [32m•[39m Upstream repository
+      https://github.com/flutter/flutter.git
+    [32m•[39m Framework revision 19074d12f7 (7 days
+      ago), 2025-11-20 17:53:13 -0500
+    [32m•[39m Engine revision 13e658725d
+    [32m•[39m Dart version 3.10.1
+    [32m•[39m DevTools version 2.51.1
+    [32m•[39m Feature flags: enable-web,
+      enable-linux-desktop,
+      enable-macos-desktop,
+      enable-windows-desktop, enable-android,
+      enable-ios, cli-animations,
+      enable-native-assets,
+      omit-legacy-version-file,
+      enable-lldb-debugging
+    [32m•[39m If those were intentional, you can
+      disregard the above warnings; however
+      it is recommended to use "git" directly
+      to perform update checks and upgrades.
+
+[32m[✓][39m Android toolchain - develop for Android
+    devices (Android SDK version 36.0.0)
+    [4.1s]
+    [32m•[39m Android SDK at
+      /Users/siler/Library/Android/sdk
+    [32m•[39m Emulator version 36.1.9.0 (build_id
+      13823996) (CL:N/A)
+    [32m•[39m Platform android-36, build-tools 36.0.0
+    [32m•[39m ANDROID_SDK_ROOT =
+      /Users/siler/Library/Android/sdk
+    [32m•[39m Java binary at: /Applications/Android
+      Studio.app/Contents/jbr/Contents/Home/b
+      in/java
+      This is the JDK bundled with the latest
+      Android Studio installation on this
+      machine.
+      To manually set the JDK path, use:
+      `flutter config
+      --jdk-dir="path/to/jdk"`.
+    [32m•[39m Java version OpenJDK Runtime
+      Environment (build
+      21.0.7+-13880790-b1038.58)
+    [32m•[39m All Android licenses accepted.
+
+[32m[✓][39m Xcode - develop for iOS and macOS (Xcode
+    16.2) [3.1s]
+    [32m•[39m Xcode at /Applications/Xcode
+      16.2.app/Contents/Developer
+    [32m•[39m Build 16C5032a
+    [32m•[39m CocoaPods version 1.16.2
+
+[32m[✓][39m Chrome - develop for the web [18ms]
+    [32m•[39m Chrome at /Applications/Google
+      Chrome.app/Contents/MacOS/Google Chrome
+
+[32m[✓][39m Connected device (4 available) [9.6s]
+    [32m•[39m iPhone (wireless) (mobile) •
+      00008120-000E4DCE2250C01E            •
+      ios            • iOS 26.2 23C5044b
+    [32m•[39m iPhone 13 Pro Max (mobile) •
+      54C5A19E-561D-40A4-B8E3-F8860F476FB0 •
+      ios            •
+      com.apple.CoreSimulator.SimRuntime.iOS-
+      18-6 (simulator)
+    [32m•[39m macOS (desktop)            • macos
+      • darwin-x64     • macOS 15.7.1 24G231
+      darwin-x64
+    [32m•[39m Chrome (web)               • chrome
+      • web-javascript • Google Chrome
+      142.0.7444.176
+    [33m![39m Error: Browsing on the local area
+      network for Crystal’s Apple Watch.
+      Ensure the device is unlocked and
+      discoverable via Bluetooth. (code -27)
+
+[32m[✓][39m Network resources [474ms]
+    [32m•[39m All expected network resources are
+      available.
+
+[33m![39m Doctor found issues in 1 category.
+```
