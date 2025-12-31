@@ -1,0 +1,9 @@
+{
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.957.0",
+    "@aws-sdk/lib-dynamodb": "^3.957.0",
+    "aws-sdk": "^2.1693.0",
+    "dotenv": "^17.2.3",
+    "firebase-admin": "^13.6.0"
+  }
+}

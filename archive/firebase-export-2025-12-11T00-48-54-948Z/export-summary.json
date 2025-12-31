@@ -1,0 +1,12 @@
+{
+  "exportDate": "2025-12-11T00:48:56.007Z",
+  "totalCollections": 5,
+  "totalDocuments": 0,
+  "collections": {
+    "users": "users.json",
+    "transactions": "transactions.json",
+    "categories": "categories.json",
+    "budgets": "budgets.json",
+    "settings": "settings.json"
+  }
+}
