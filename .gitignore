@@ -1,0 +1,20 @@
+# Flutter
+/build/
+/.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+
+# iOS / Xcode
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/ephemeral/
+*.xcuserstate
+*.xcuserdata/
+DerivedData/
+
+# iOS build outputs
+*.dSYM
+*.dSYM.zip
+*.ipa
+*.xcarchive
