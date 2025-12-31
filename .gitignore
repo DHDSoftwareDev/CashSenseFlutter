@@ -1,20 +1,24 @@
-# Flutter
-/build/
-/.dart_tool/
+# Flutter / Dart
+.dart_tool/
+.packages
+.pub/
+build/
 .flutter-plugins
 .flutter-plugins-dependencies
-.packages
 
-# iOS / Xcode
+# iOS
 ios/Pods/
 ios/.symlinks/
 ios/Flutter/ephemeral/
+ios/Flutter/Generated*.xcconfig
+ios/Flutter/flutter_export_environment*.sh
+
+# Xcode
 *.xcuserstate
 *.xcuserdata/
 DerivedData/
-
-# iOS build outputs
 *.dSYM
 *.dSYM.zip
-*.ipa
 *.xcarchive
+*.ipa
+
