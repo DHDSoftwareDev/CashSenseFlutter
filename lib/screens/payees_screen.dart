@@ -1,0 +1,672 @@
+// ignore_for_file: deprecated_member_use, use_build_context_synchronously, unused_import
+
+import 'package:flutter/material.dart';
+import '../utils/formatters.dart';
+import '../services/database_service.dart';
+import '../models/category.dart';
+import '../widgets/app_color_picker.dart';
+import '../widgets/category_selector_sheet.dart';
+import '../utils/root_scaffold.dart';
+
+class PayeesScreen extends StatefulWidget {
+  const PayeesScreen({super.key});
+
+  @override
+  State<PayeesScreen> createState() => _PayeesScreenState();
+}
+
+class _PayeesScreenState extends State<PayeesScreen> {
+  // true = show payees, false = show payers
+  bool _showPayee = true;
+  String _searchQuery = '';
+  List<Map<String, dynamic>> _payees = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPayees();
+    // Listen for payee changes made elsewhere in the app (e.g. add from selector)
+    DatabaseService.payeesVersion.addListener(_onPayeesChanged);
+  }
+
+  void _onPayeesChanged() {
+    if (!mounted) return;
+    _loadPayees();
+  }
+
+  // Opens a dialog with a search bar and list of available categories. Returns the selected category id or null.
+  Future<String?> _pickCategory(BuildContext parentContext, bool isPayeeChoice, String? currentSelected) async {
+    final selected = await showModalBottomSheet<String?>(
+      context: parentContext,
+      isScrollControlled: true,
+      // Use an explicit sheetContext so we can reliably pop the bottom sheet
+      builder: (sheetContext) => FractionallySizedBox(
+        heightFactor: 0.85,
+        child: Scaffold(
+          appBar: AppBar(
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () => Navigator.pop(sheetContext),
+            ),
+            title: const Text('Select Category'),
+            backgroundColor: Theme.of(parentContext).colorScheme.primary,
+            foregroundColor: Colors.white,
+            elevation: 0,
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.add),
+                tooltip: 'Add Category',
+                onPressed: () async {
+                  final nameController = TextEditingController();
+                  final imageController = TextEditingController();
+                  Color selectedColor = const Color(0xFF607D8B);
+                  final result = await showDialog<Category?>(
+                    context: parentContext,
+                    builder: (ctx) => StatefulBuilder(
+                      builder: (ctx, setState) => AlertDialog(
+                        title: const Text('Add Category'),
+                        content: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            TextField(
+                              controller: nameController,
+                              textCapitalization: TextCapitalization.sentences,
+                              decoration: const InputDecoration(labelText: 'Name'),
+                            ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: imageController,
+                              textCapitalization: TextCapitalization.sentences,
+                              decoration: const InputDecoration(
+                                labelText: 'Image (optional)',
+                                hintText: 'Image',
+                              ),
+                              onChanged: (v) {
+                                final chars = v.characters;
+                                final first = chars.isEmpty ? '' : chars.first;
+                                if (first != v) {
+                                  imageController.text = first;
+                                  imageController.selection = TextSelection.collapsed(offset: first.length);
+                                }
+                              },
+                            ),
+                            const SizedBox(height: 8),
+                            GestureDetector(
+                              onTap: () async {
+                                final picked = await showAppColorPicker(
+                                  context: parentContext,
+                                  initialColor: selectedColor,
+                                  title: 'Pick Category Color',
+                                );
+                                if (picked != null) setState(() => selectedColor = picked);
+                              },
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 20,
+                                    height: 20,
+                                    decoration: BoxDecoration(
+                                      color: selectedColor,
+                                      borderRadius: BorderRadius.circular(4),
+                                      border: Border.all(color: Colors.black26),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  const Text('Category Color'),
+                                  const Spacer(),
+                                  const Icon(Icons.color_lens_outlined, size: 20),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                          ],
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            child: const Text('Cancel'),
+                          ),
+                          ElevatedButton(
+                            onPressed: () {
+                              if (nameController.text.trim().isNotEmpty) {
+                                final newCat = Category(
+                                  name: nameController.text.trim(),
+                                  iconCodePoint: '0xe85d',
+                                  colorValue: selectedColor.value.toString(),
+                                  type: isPayeeChoice ? CategoryType.expense : CategoryType.income,
+                                  image: imageController.text.trim().isEmpty ? null : imageController.text.trim(),
+                                );
+                                Navigator.pop(ctx, newCat);
+                              }
+                            },
+                            child: const Text('Add'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                  if (result != null) {
+                    final newCatId = await DatabaseService.addCategory(result);
+                    // Pop the bottom sheet using the sheetContext so the
+                    // returned value reliably goes back to the caller of
+                    // showModalBottomSheet.
+                    Navigator.pop(sheetContext, newCatId);
+                  }
+                },
+              ),
+            ],
+          ),
+          body: CategorySelectorSheet(
+            categories: isPayeeChoice
+                ? DatabaseService.getAllCategories().where((c) => c.type == CategoryType.expense).toList()
+                : DatabaseService.getAllCategories().where((c) => c.type == CategoryType.income).toList(),
+            hideAddButton: true,
+          ),
+        ),
+      ),
+    );
+    return selected;
+  }
+
+  void _loadPayees() {
+    setState(() {
+      _payees = DatabaseService.getAllPayees();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Placeholder UI - actual payee/payer data can be wired to DatabaseService later
+    return Scaffold(
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.menu),
+          onPressed: openRootDrawer,
+        ),
+  title: const Text('Payees / Payers'),
+  centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add),
+            tooltip: 'Add payee/payer',
+            onPressed: () => _showAddPayeeDialog(),
+          ),
+        ],
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        foregroundColor: Colors.white,
+      ),
+      body: Column(
+        children: [
+          const SizedBox(height: 12),
+          Center(
+            child: ToggleButtons(
+              isSelected: [_showPayee, !_showPayee],
+              onPressed: (i) {
+                setState(() {
+                  _showPayee = (i == 0);
+                });
+              },
+              children: const [
+                Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('Payees')),
+                Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('Payers')),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: TextField(
+              textCapitalization: TextCapitalization.sentences,
+              decoration: const InputDecoration(
+                hintText: 'Search payees or payers',
+                prefixIcon: Icon(Icons.search),
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              onChanged: (v) {
+                setState(() {
+                  _searchQuery = v.trim();
+                });
+              },
+            ),
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: _buildPayeesList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    DatabaseService.payeesVersion.removeListener(_onPayeesChanged);
+    super.dispose();
+  }
+
+  String _buildPlaceholderText() {
+    final base = _showPayee ? 'No payees' : 'No payers';
+    if (_searchQuery.isEmpty) return '$base.';
+    return "$base found for '$_searchQuery'.";
+  }
+
+  void _showAddPayeeDialog() {
+    final nameCtrl = TextEditingController();
+    // Type is determined by _showPayee
+    String? selectedCategoryId;
+    String? categoryError;
+     Color selectedColor = const Color(0xFF607D8B);
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(builder: (context, setState) {
+        final allCats = DatabaseService.getAllCategories();
+        final availableCategories = allCats.where((c) {
+          return _showPayee ? c.type == CategoryType.expense : c.type == CategoryType.income;
+        }).toList();
+
+        if (availableCategories.isEmpty) {
+          selectedCategoryId = null;
+        } else if (selectedCategoryId != null && !availableCategories.any((c) => c.id == selectedCategoryId)) {
+          selectedCategoryId = null;
+        }
+
+        return AlertDialog(
+          actionsAlignment: MainAxisAlignment.center,
+          title: Center(child: Text('Add ${_showPayee ? 'Payee' : 'Payer'}')),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(controller: nameCtrl, textCapitalization: TextCapitalization.sentences, decoration: const InputDecoration(labelText: 'Name')),
+              const SizedBox(height: 8),
+              if (availableCategories.isNotEmpty) ...[
+                GestureDetector(
+                  onTap: () async {
+                    final picked = await _pickCategory(context, _showPayee, selectedCategoryId);
+                    if (picked != null) setState(() { selectedCategoryId = picked; categoryError = null; });
+                  },
+                  child: InputDecorator(
+                    decoration: const InputDecoration(labelText: 'Category'),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(child: Text(selectedCategoryId == null ? 'Select Category' : (DatabaseService.getCategoryById(selectedCategoryId ?? '')?.name ?? ''))),
+                        const Icon(Icons.arrow_drop_down),
+                      ],
+                    ),
+                  ),
+                ),
+                if (categoryError != null) ...[
+                  const SizedBox(height: 8),
+                  Text(categoryError!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                ],
+              ] else ...[
+                const SizedBox.shrink(),
+              ],
+               const SizedBox(height: 8),
+               GestureDetector(
+                 onTap: () async {
+                   final picked = await showAppColorPicker(
+                     context: context,
+                     initialColor: selectedColor,
+                     title: 'Pick Payee/Payer Color',
+                   );
+                   if (picked != null) setState(() => selectedColor = picked);
+                 },
+                 child: Row(
+                   children: [
+                     Container(
+                       width: 20,
+                       height: 20,
+                       decoration: BoxDecoration(
+                         color: selectedColor,
+                         borderRadius: BorderRadius.circular(4),
+                         border: Border.all(color: Colors.black26),
+                       ),
+                     ),
+                     const SizedBox(width: 12),
+                     const Text('Color'),
+                     const Spacer(),
+                     const Icon(Icons.color_lens_outlined, size: 20),
+                   ],
+                 ),
+               ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            TextButton(onPressed: () async {
+              final name = nameCtrl.text.trim();
+              if (name.isEmpty) return;
+              if (availableCategories.isEmpty) {
+                setState(() { categoryError = 'No ${_showPayee ? 'expense' : 'income'} categories available. Create one first.'; });
+                return;
+              }
+              if (selectedCategoryId == null) {
+                setState(() { categoryError = 'Please select a category.'; });
+                return;
+              }
+              final newPayee = {
+                'id': DateTime.now().microsecondsSinceEpoch.toString(),
+                'name': name,
+                'type': _showPayee ? 'payee' : 'payer',
+                'categoryId': selectedCategoryId,
+                 'color': selectedColor.value.toString(),
+              };
+              await DatabaseService.addPayee(newPayee);
+              Navigator.pop(context);
+              _loadPayees();
+            }, child: const Text('Add')),
+          ],
+        );
+      }),
+    );
+  }
+
+  Widget _buildPayeesList() {
+    // Filter by type and search
+    final filtered = _payees.where((p) {
+      final isPayee = (p['type'] == 'payee');
+      if (_showPayee != isPayee) return false;
+      if (_searchQuery.isEmpty) return true;
+      final name = (p['name'] ?? '').toString().toLowerCase();
+      return name.contains(_searchQuery.toLowerCase());
+    }).toList();
+
+    if (filtered.isEmpty) {
+      return Center(child: Text(_buildPlaceholderText()));
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.all(16),
+      itemCount: filtered.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 8),
+      itemBuilder: (context, index) {
+        final p = filtered[index];
+        return Card(
+          child: Builder(builder: (ctx) {
+            void handleMenuSelection(String v) async {
+              if (v == 'view') {
+                await _showPayeeDetails(Map<String, dynamic>.from(p));
+                return;
+              }
+              if (v == 'delete') {
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Delete'),
+                    content: Text('Delete "${p['name']}"? This cannot be undone.'),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+                      TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete')),
+                    ],
+                  ),
+                );
+                if (confirm == true) {
+                  await DatabaseService.deletePayee(p['id']);
+                  _loadPayees();
+                }
+              } else if (v == 'edit') {
+                await _showEditPayeeDialog(Map<String, dynamic>.from(p));
+              }
+            }
+
+            return ListTile(
+              title: Text(p['name'] ?? ''),
+              subtitle: p['categoryId'] != null ? Text(DatabaseService.getCategoryById(p['categoryId'])?.name ?? '') : null,
+              trailing: PopupMenuButton<String>(
+                onSelected: handleMenuSelection,
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: 'view', child: Text('View')),
+                  PopupMenuItem(value: 'edit', child: Text('Edit')),
+                  PopupMenuItem(value: 'delete', child: Text('Delete')),
+                ],
+              ),
+              onTap: () async {
+                // Show same menu when the list tile is tapped. Compute the position from the tile's RenderBox.
+                final renderBox = ctx.findRenderObject() as RenderBox?;
+                final offset = renderBox != null ? renderBox.localToGlobal(Offset.zero) : Offset.zero;
+                final selected = await showMenu<String>(
+                  context: context,
+                  position: RelativeRect.fromLTRB(offset.dx, offset.dy, offset.dx + (renderBox?.size.width ?? 0), offset.dy + (renderBox?.size.height ?? 0)),
+                  items: const [
+                    PopupMenuItem(value: 'view', child: Text('View')),
+                    PopupMenuItem(value: 'edit', child: Text('Edit')),
+                    PopupMenuItem(value: 'delete', child: Text('Delete')),
+                  ],
+                );
+                if (selected != null) handleMenuSelection(selected);
+              },
+            );
+          }),
+        );
+      },
+    );
+  }
+
+  Future<void> _showPayeeDetails(Map<String, dynamic> payee) async {
+    // Show dialog similar to category details: only Transaction Statistics -> count + total
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        actionsAlignment: MainAxisAlignment.center,
+        title: Row(
+          children: [
+            CircleAvatar(
+              backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.12),
+              child: Text(((payee['name'] ?? '') as String).isNotEmpty ? (payee['name'][0] ?? '').toString() : '?'),
+            ),
+            const SizedBox(width: 16),
+            Text(payee['name'] ?? 'Payee'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 8),
+            Text('Transaction Statistics', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            FutureBuilder<int>(
+              future: _getPayeeTransactionCount(payee),
+              builder: (context, snapshot) {
+                if (snapshot.hasData) {
+                  return Text('${snapshot.data} transactions');
+                } else {
+                  return const Text('Loading...');
+                }
+              },
+            ),
+            const SizedBox(height: 8),
+            FutureBuilder<double>(
+              future: _getPayeeTotalAmount(payee),
+              builder: (context, snap) {
+                if (snap.hasData) {
+                  return _buildDetailRow('Total', formatCurrency(snap.data));
+                } else {
+                  return const SizedBox.shrink();
+                }
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
+        ],
+      ),
+    );
+  }
+
+  Future<int> _getPayeeTransactionCount(Map<String, dynamic> payee) async {
+    final allTx = DatabaseService.getAllTransactions();
+    final id = payee['id']?.toString() ?? '';
+    final name = (payee['name'] ?? '').toString().toLowerCase();
+    final txs = allTx.where((t) {
+      try {
+        if (t.note != null && id.isNotEmpty && t.note!.contains(id)) return true;
+      } catch (_) {}
+      try {
+        if (t.description.toLowerCase().contains(name) && name.isNotEmpty) return true;
+      } catch (_) {}
+      return false;
+    }).toList();
+    return txs.length;
+  }
+
+  Future<double> _getPayeeTotalAmount(Map<String, dynamic> payee) async {
+    final allTx = DatabaseService.getAllTransactions();
+    final id = payee['id']?.toString() ?? '';
+    final name = (payee['name'] ?? '').toString().toLowerCase();
+    final txs = allTx.where((t) {
+      try {
+        if (t.note != null && id.isNotEmpty && t.note!.contains(id)) return true;
+      } catch (_) {}
+      try {
+        if (t.description.toLowerCase().contains(name) && name.isNotEmpty) return true;
+      } catch (_) {}
+      return false;
+    }).toList();
+    return txs.fold<double>(0.0, (acc, t) => acc + t.amount);
+  }
+
+  Widget _buildDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+                '$label:',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
+            ),
+          ),
+          Expanded(child: Text(value, style: Theme.of(context).textTheme.bodyMedium)),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showEditPayeeDialog(Map<String, dynamic> payee) async {
+    final nameCtrl = TextEditingController(text: payee['name'] ?? '');
+    final isPayeeChoice = (payee['type'] ?? 'payee') == 'payee';
+
+    // Start with no preselected category so the dropdown shows the hint; keep payee's existing selection if valid
+    String? selectedCategoryId = payee['categoryId'];
+    String? categoryError;
+     Color selectedColor = Color(int.tryParse(payee['color'] ?? '') ?? 0xFF607D8B);
+
+    await showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(builder: (context, setState) {
+        // Re-fetch categories so edits/adds done from the picker are visible immediately
+        final allCats = DatabaseService.getAllCategories();
+        final availableCategories = allCats.where((c) {
+          return isPayeeChoice ? c.type == CategoryType.expense : c.type == CategoryType.income;
+        }).toList();
+
+        if (availableCategories.isEmpty) {
+          selectedCategoryId = null;
+        } else if (selectedCategoryId != null && !availableCategories.any((c) => c.id == selectedCategoryId)) {
+          selectedCategoryId = null;
+        }
+
+        return AlertDialog(
+          actionsAlignment: MainAxisAlignment.center,
+          title: Center(child: Text('Edit ${isPayeeChoice ? 'Payee' : 'Payer'}')),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text('Type: ${isPayeeChoice ? 'Payee' : 'Payer'}', style: Theme.of(context).textTheme.bodyMedium),
+                ],
+              ),
+              const SizedBox(height: 8),
+              TextField(controller: nameCtrl, textCapitalization: TextCapitalization.sentences, decoration: const InputDecoration(labelText: 'Name')),
+              const SizedBox(height: 8),
+              if (availableCategories.isNotEmpty) ...[
+                GestureDetector(
+                  onTap: () async {
+                    final picked = await _pickCategory(context, isPayeeChoice, selectedCategoryId);
+                    if (picked != null) setState(() { selectedCategoryId = picked; categoryError = null; });
+                  },
+                  child: InputDecorator(
+                    decoration: const InputDecoration(labelText: 'Category'),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(child: Text(selectedCategoryId == null ? 'Select Category' : (DatabaseService.getCategoryById(selectedCategoryId ?? '')?.name ?? ''))),
+                        const Icon(Icons.arrow_drop_down),
+                      ],
+                    ),
+                  ),
+                ),
+                if (categoryError != null) ...[
+                  const SizedBox(height: 8),
+                  Text(categoryError!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                ],
+              ] else ...[
+                const SizedBox.shrink(),
+              ],
+               const SizedBox(height: 8),
+               GestureDetector(
+                 onTap: () async {
+                   final picked = await showAppColorPicker(
+                     context: context,
+                     initialColor: selectedColor,
+                     title: 'Pick Payee/Payer Color',
+                   );
+                   if (picked != null) setState(() => selectedColor = picked);
+                 },
+                 child: Row(
+                   children: [
+                     Container(
+                       width: 20,
+                       height: 20,
+                       decoration: BoxDecoration(
+                         color: selectedColor,
+                         borderRadius: BorderRadius.circular(4),
+                         border: Border.all(color: Colors.black26),
+                       ),
+                     ),
+                     const SizedBox(width: 12),
+                     const Text('Color'),
+                     const Spacer(),
+                     const Icon(Icons.color_lens_outlined, size: 20),
+                   ],
+                 ),
+               ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            TextButton(onPressed: () async {
+              final name = nameCtrl.text.trim();
+              if (name.isEmpty) return;
+              if (availableCategories.isEmpty) {
+                setState(() { categoryError = 'No ${isPayeeChoice ? 'expense' : 'income'} categories available. Create one first.'; });
+                return;
+              }
+              if (selectedCategoryId == null) {
+                setState(() { categoryError = 'Please select a category.'; });
+                return;
+              }
+              final updated = Map<String, dynamic>.from(payee)
+                ..['name'] = name
+                ..['type'] = isPayeeChoice ? 'payee' : 'payer'
+                ..['categoryId'] = selectedCategoryId
+                ..['color'] = selectedColor.value.toString();
+              await DatabaseService.updatePayee(updated);
+              Navigator.pop(context);
+              _loadPayees();
+            }, child: const Text('Save')),
+          ],
+        );
+      }),
+    );
+  }
+}
