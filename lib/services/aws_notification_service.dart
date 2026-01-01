@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:hive/hive.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'aws_service.dart';
 import 'user_auth_service.dart';
 import 'push_registration_service.dart';
@@ -34,6 +35,8 @@ class AWSNotificationService {
     _initialized = true;
 
     await _initLocalNotifications();
+    await _setupMessageHandlers();
+
     // Always attempt registration on app start so tokens stay fresh and get
     // sent to the backend even if the user never explicitly re-auths.
     await registerDeviceForCurrentUser(force: true);
@@ -72,6 +75,55 @@ class AWSNotificationService {
     );
 
     debugPrint('✅ Local notifications initialized');
+  }
+
+  Future<void> _setupMessageHandlers() async {
+    // Handle foreground messages by showing a local notification
+    FirebaseMessaging.onMessage.listen((message) {
+      _handleRemoteMessage(message, fromBackgroundTap: false);
+    });
+
+    // Handle taps that open the app from background/terminated state
+    FirebaseMessaging.onMessageOpenedApp.listen((message) {
+      _handleRemoteMessage(message, fromBackgroundTap: true);
+    });
+
+    // Handle the cold-start case where the app was launched from a tap
+    try {
+      final initial = await FirebaseMessaging.instance.getInitialMessage();
+      if (initial != null) {
+        _handleRemoteMessage(initial, fromBackgroundTap: true);
+      }
+    } catch (_) {}
+
+    // Register background handler so messages received when app is terminated
+    // are still processed (e.g., to display notification payload).
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  }
+
+  void _handleRemoteMessage(RemoteMessage message, {required bool fromBackgroundTap}) {
+    final data = message.data;
+    final billId = data['billId'] ?? data['bill_id'];
+    final type = data['type'];
+
+    final title = message.notification?.title ?? data['title'] ?? 'CashSense';
+    final body = message.notification?.body ?? data['body'] ?? data['message'];
+
+    // When app is in foreground, surface the push as a local notification
+    if (!fromBackgroundTap && (title != null || body != null)) {
+      showLocalNotification(
+        title: title ?? 'CashSense',
+        body: body ?? '',
+        payload: billId != null ? 'bill_$billId' : null,
+      );
+    }
+
+    // When user taps (or app launched from tap), navigate if billId present
+    if (fromBackgroundTap && billId is String && billId.isNotEmpty) {
+      _navigateToBill(billId);
+    }
+
+    debugPrint('📩 Remote message handled (type=$type, billId=$billId)');
   }
 
   /// Ensure the device is registered for the current logged-in user.
@@ -234,4 +286,39 @@ class AWSNotificationService {
 
   String? get deviceToken => _deviceToken;
   bool get isInitialized => _initialized;
+}
+
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  try {
+    await Firebase.initializeApp();
+    // Surface a local notification so the user sees the push even when the
+    // app is killed. Use the same logic as foreground handling but keep it
+    // minimal to stay safe in the background isolate.
+    final title = message.notification?.title ?? message.data['title'] ?? 'CashSense';
+    final body = message.notification?.body ?? message.data['body'] ?? message.data['message'] ?? '';
+    const androidDetails = AndroidNotificationDetails(
+      'cashsense_push',
+      'Push Notifications',
+      channelDescription: 'Bill reminders and updates',
+      importance: Importance.high,
+      priority: Priority.high,
+    );
+    const iosDetails = DarwinNotificationDetails();
+    const details = NotificationDetails(android: androidDetails, iOS: iosDetails);
+    final plugin = FlutterLocalNotificationsPlugin();
+    await plugin.initialize(const InitializationSettings(
+      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+      iOS: DarwinInitializationSettings(),
+    ));
+    await plugin.show(
+      DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      title,
+      body,
+      details,
+      payload: message.data['billId'] != null ? 'bill_${message.data['billId']}' : null,
+    );
+  } catch (_) {
+    // Background handler must not throw
+  }
 }

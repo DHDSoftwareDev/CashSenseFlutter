@@ -93,9 +93,7 @@ Future<void> _startDeferredInits(bool isSignedIn) async {
       return null;
     }),
     // Initialize AWS SNS notifications / push registration if signed in
-    AWSNotificationService()
-        .registerDeviceForCurrentUser(force: true)
-        .catchError((e) {
+    AWSNotificationService().init().catchError((e) {
       debugPrint('AWS notifications initialization failed: $e');
       return null;
     }),
