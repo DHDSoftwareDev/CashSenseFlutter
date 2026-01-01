@@ -7,6 +7,7 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:amplify_flutter/amplify_flutter.dart';
 import 'package:amplify_auth_cognito/amplify_auth_cognito.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'services/aws_service.dart' as backend;
 import 'services/database_service.dart';
 import 'services/auto_backup_service.dart';
@@ -30,6 +31,14 @@ void main() async {
 
   // Initialize database with error handling BEFORE services that depend on it
   await _initDatabase();
+
+  // Initialize Firebase early so Firebase-dependent services can use it
+  try {
+    await Firebase.initializeApp();
+    debugPrint('✅ Firebase initialized');
+  } catch (e) {
+    debugPrint('⚠️ Firebase.initializeApp() failed: $e');
+  }
 
   // Initialize AWS Amplify with Cognito (required for auth)
   await _configureAmplify();

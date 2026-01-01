@@ -249,19 +249,18 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                     ),
                     if ((_prices[id] ?? '').isNotEmpty) ...[
                       const SizedBox(width: 8),
-                      Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(
-                            _prices[id]!,
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Theme.of(context).colorScheme.primary,
-                            ),
+                      // Keep the price tightly aligned to the top-right of the title row
+                      Align(
+                        alignment: Alignment.topRight,
+                        widthFactor: 1,
+                        child: Text(
+                          _prices[id]!,
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.primary,
                           ),
-                        ],
+                        ),
                       ),
                     ],
                   ],
