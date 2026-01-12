@@ -4,7 +4,6 @@
 import 'package:amplify_flutter/amplify_flutter.dart';
 import 'package:amplify_auth_cognito/amplify_auth_cognito.dart';
 import 'user_auth_service.dart';
-import 'aws_notification_service.dart';
 import 'dart:convert';
 import 'dart:math';
 import 'package:crypto/crypto.dart';
@@ -154,13 +153,6 @@ class CognitoService {
         email: attributes['email'] ?? '',
         displayName: attributes['name'] ?? attributes['username'] ?? '',
       );
-      // After syncing user info locally, ensure device token is registered
-      // with the backend (APNS token may have arrived earlier).
-      try {
-        await AWSNotificationService().registerDeviceForCurrentUser();
-      } catch (e) {
-        safePrint('Error registering device after sign-in: $e');
-      }
     } catch (e) {
       safePrint('Error syncing user to local storage: $e');
     }

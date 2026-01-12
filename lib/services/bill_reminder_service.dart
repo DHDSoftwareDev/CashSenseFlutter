@@ -8,7 +8,6 @@ import 'package:intl/intl.dart';
 
 import 'notification_service.dart';
 import 'database_service.dart';
-import 'aws_service.dart';
 import 'user_auth_service.dart';
 import '../models/bill.dart';
 import '../models/transaction.dart';
@@ -21,7 +20,6 @@ class BillReminderService {
   factory BillReminderService() => _instance;
 
   bool _initialized = false;
-  final AWSService _awsService = AWSService();
 
   Future<void> init() async {
     if (_initialized) return;
@@ -91,13 +89,13 @@ class BillReminderService {
 
         if (_isOccurrencePaid(bill, occDate)) continue;
 
-        await scheduleReminderForBill(
-          userId: userId,
-          bill: bill,
-          scheduledAt: scheduledAtUtc,
-          dueDateForMessage: occDate,
-          leadDays: leadDays,
-        );
+      await scheduleReminderForBill(
+        userId: userId,
+        bill: bill,
+        scheduledAt: scheduledAtUtc,
+        dueDateForMessage: occDate,
+        leadDays: leadDays,
+      );
       }
     } catch (e) {
       debugPrint('scheduleAllReminders failed: $e');
@@ -124,21 +122,10 @@ class BillReminderService {
         return null;
       }();
 
-      await _awsService.scheduleBillReminder(
-        userId: userId,
-        billId: bill.id,
-        scheduledAt: scheduledAt,
-        meta: {
-          'dueAt': dueForMsg.toUtc().toIso8601String(),
-          'leadDays': leadDays,
-          'amount': bill.amount,
-          'description': bill.description ?? '',
-          if (payeeName != null) 'payee': payeeName,
-          'locale': deviceLocale,
-        },
+      debugPrint(
+        'Bill reminder skipped (AWS backend removed) for bill ${bill.id} at $scheduledAt '
+        '(due=$dueForMsg, locale=$deviceLocale)',
       );
-
-      debugPrint('Scheduled server push reminder for bill ${bill.id} at $scheduledAt (due=$dueForMsg)');
     } catch (e) {
       debugPrint('scheduleReminderForBill failed: $e');
     }

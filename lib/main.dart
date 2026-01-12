@@ -8,10 +8,8 @@ import 'package:amplify_flutter/amplify_flutter.dart';
 import 'package:amplify_auth_cognito/amplify_auth_cognito.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'services/aws_service.dart' as backend;
 import 'services/database_service.dart';
 import 'services/auto_backup_service.dart';
-import 'services/aws_notification_service.dart';
 import 'services/notification_service.dart';
 import 'services/bill_reminder_service.dart';
 import 'screens/main_navigation_screen.dart';
@@ -80,21 +78,9 @@ Future<void> _startDeferredInits(bool isSignedIn) async {
     }),
     // Initialize Google Mobile Ads
     MobileAds.instance.initialize(),
-    // AWS health check (non-blocking)
-    backend.AWSService().checkHealth().then((isHealthy) {
-      debugPrint(isHealthy ? '✅ AWS backend connected' : '⚠️ AWS backend unavailable');
-    }).catchError((e) {
-      debugPrint('AWS health check failed: $e');
-      return null;
-    }),
     // Initialize automatic backup/background tasks
     AutoBackupService.initialize().catchError((e) {
       debugPrint('AutoBackupService.initialize failed: $e');
-      return null;
-    }),
-    // Initialize AWS SNS notifications / push registration if signed in
-    AWSNotificationService().init().catchError((e) {
-      debugPrint('AWS notifications initialization failed: $e');
       return null;
     }),
   ]);

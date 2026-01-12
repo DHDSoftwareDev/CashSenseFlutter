@@ -20,7 +20,6 @@ import 'backup_restore_screen.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import '../services/aws_service.dart' as backend;
 import '../services/cognito_service.dart';
 import 'login_screen.dart';
 import 'edit_account_screen.dart';

@@ -10,7 +10,6 @@ import '../models/category.dart';
 import '../models/account.dart';
 import '../models/bill.dart';
 import 'user_auth_service.dart';
-import 'bill_push_sync_service.dart';
 
 
 class DatabaseService {
@@ -107,32 +106,6 @@ class DatabaseService {
     await _billsBox.put(bill.id, bill);
     await _billsBox.flush();
     billsVersion.value++;
-    try {
-      final userId = await UserAuthService.getCurrentUserId();
-      if (userId.isNotEmpty) {
-        // Map recurrence to backend-friendly shape when applicable
-        String? freq;
-        if (bill.recurrence == Recurrence.weekly) freq = 'WEEKLY';
-        if (bill.recurrence == Recurrence.monthly) freq = 'MONTHLY';
-
-        final recurrence = freq == null
-            ? null
-            : {'frequency': freq, 'interval': bill.recurrenceInterval};
-
-        final remindMinutes = (freq == 'MONTHLY') ? 1440 : 60;
-        final payload = {
-          'billId': bill.id,
-          'name': bill.description ?? '',
-          'dueAt': bill.dueDate.toUtc().toIso8601String(),
-          'remindMinutesBefore': remindMinutes,
-          'recurrence': recurrence,
-        };
-        if (freq == 'MONTHLY') payload['anchorDayOfMonth'] = bill.dueDate.day;
-
-        // Fire-and-forget sync to backend (best-effort)
-        BillPushSyncService.syncBills(userId, [payload]).catchError((_) {});
-      }
-    } catch (_) {}
   }
 
   // Per-occurrence bill status helpers
@@ -171,31 +144,6 @@ class DatabaseService {
     await _billsBox.put(bill.id, bill);
     await _billsBox.flush();
     billsVersion.value++;
-    try {
-      final userId = await UserAuthService.getCurrentUserId();
-      if (userId.isNotEmpty) {
-        String? freq;
-        if (bill.recurrence == Recurrence.weekly) freq = 'WEEKLY';
-        if (bill.recurrence == Recurrence.monthly) freq = 'MONTHLY';
-
-        final recurrence = freq == null
-            ? null
-            : {'frequency': freq, 'interval': bill.recurrenceInterval};
-
-        final remindMinutes = (freq == 'MONTHLY') ? 1440 : 60;
-        final payload = {
-          'billId': bill.id,
-          'name': bill.description ?? '',
-          'dueAt': bill.dueDate.toUtc().toIso8601String(),
-          'remindMinutesBefore': remindMinutes,
-          'recurrence': recurrence,
-        };
-        if (freq == 'MONTHLY') payload['anchorDayOfMonth'] = bill.dueDate.day;
-
-        // Fire-and-forget sync to backend (best-effort)
-        BillPushSyncService.syncBills(userId, [payload]).catchError((_) {});
-      }
-    } catch (_) {}
   }
 
   static Future<void> deleteBill(String id) async {
