@@ -9,7 +9,7 @@ import '../models/transaction.dart';
 import '../models/category.dart';
 import '../models/account.dart';
 import '../models/bill.dart';
-import 'user_auth_service.dart';
+import 'aws_api_service.dart';
 
 
 class DatabaseService {
@@ -101,11 +101,21 @@ class DatabaseService {
   static final foundation.ValueNotifier<int> transactionsVersion = foundation.ValueNotifier<int>(0);
   static final foundation.ValueNotifier<String> subscriptionVersion = foundation.ValueNotifier<String>('Free');
 
+  static Future<void> _safeAwsCall(Future<void> Function() task, String label) async {
+    if (!AwsApiService.isConfigured) return;
+    try {
+      await task();
+    } catch (e) {
+      foundation.debugPrint('AWS sync failed ($label): $e');
+    }
+  }
+
   // Bill operations
   static Future<void> addBill(Bill bill) async {
     await _billsBox.put(bill.id, bill);
     await _billsBox.flush();
     billsVersion.value++;
+    await _safeAwsCall(() => AwsApiService.createBill(bill), 'create bill');
   }
 
   // Per-occurrence bill status helpers
@@ -144,6 +154,7 @@ class DatabaseService {
     await _billsBox.put(bill.id, bill);
     await _billsBox.flush();
     billsVersion.value++;
+    await _safeAwsCall(() => AwsApiService.updateBill(bill), 'update bill');
   }
 
   static Future<void> deleteBill(String id) async {
@@ -182,6 +193,7 @@ class DatabaseService {
     await _billsBox.delete(id);
     await _billsBox.flush();
     billsVersion.value++;
+    await _safeAwsCall(() => AwsApiService.deleteBill(id), 'delete bill');
   }
 
   static List<Bill> getAllBills() {
@@ -195,6 +207,7 @@ class DatabaseService {
     // immediately and any persistence occurs if the app exits.
     await _transactionBox.flush();
     transactionsVersion.value++;
+    await _safeAwsCall(() => AwsApiService.createTransaction(transaction), 'create transaction');
   }
 
   static Future<void> updateTransaction(Transaction transaction) async {
@@ -203,6 +216,7 @@ class DatabaseService {
     // observe the updated value when transactionsVersion is incremented.
     await _transactionBox.flush();
     transactionsVersion.value++;
+    await _safeAwsCall(() => AwsApiService.updateTransaction(transaction), 'update transaction');
   }
 
   static Future<void> deleteTransaction(String id) async {
@@ -226,6 +240,7 @@ class DatabaseService {
     // listeners only after flush so UI can rebuild with the latest data.
     await _transactionBox.flush();
     transactionsVersion.value++;
+    await _safeAwsCall(() => AwsApiService.deleteTransaction(id), 'delete transaction');
 
     // If this transaction was linked to a bill, recompute the per-occurrence
     // paid totals for the affected occurrence(s) and persist the new status.
@@ -473,6 +488,7 @@ class DatabaseService {
     } catch (_) {}
     // Notify listeners that accounts changed
     accountsVersion.value++;
+    await _safeAwsCall(() => AwsApiService.createAccount(account), 'create account');
   }
 
   static Future<void> updateAccount(Account account) async {
@@ -480,6 +496,7 @@ class DatabaseService {
     await _accountBox.flush();
     // Notify listeners that accounts changed
     accountsVersion.value++;
+    await _safeAwsCall(() => AwsApiService.updateAccount(account), 'update account');
   }
 
   /// Persist or update the stored initial balance for an account.
@@ -512,6 +529,7 @@ class DatabaseService {
     await _accountBox.flush();
     // Notify listeners that accounts changed
     accountsVersion.value++;
+    await _safeAwsCall(() => AwsApiService.deleteAccount(id), 'delete account');
   }
 
   static List<Account> getAllAccounts() {

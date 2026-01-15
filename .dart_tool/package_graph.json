@@ -7,8 +7,10 @@
       "name": "cashsenseflutter",
       "version": "2.3.3+1",
       "dependencies": [
+        "amplify_api",
         "amplify_auth_cognito",
         "amplify_flutter",
+        "amplify_storage_s3",
         "background_fetch",
         "characters",
         "crypto",
@@ -224,6 +226,32 @@
       "version": "5.2.1",
       "dependencies": [
         "flutter"
+      ]
+    },
+    {
+      "name": "amplify_storage_s3",
+      "version": "2.6.3",
+      "dependencies": [
+        "amplify_core",
+        "amplify_db_common",
+        "amplify_storage_s3_dart",
+        "aws_common",
+        "flutter",
+        "meta",
+        "path_provider"
+      ]
+    },
+    {
+      "name": "amplify_api",
+      "version": "2.6.3",
+      "dependencies": [
+        "amplify_api_dart",
+        "amplify_core",
+        "amplify_flutter",
+        "connectivity_plus",
+        "flutter",
+        "meta",
+        "plugin_platform_interface"
       ]
     },
     {
@@ -620,13 +648,11 @@
     },
     {
       "name": "web_socket_channel",
-      "version": "3.0.3",
+      "version": "2.4.0",
       "dependencies": [
         "async",
         "crypto",
-        "stream_channel",
-        "web",
-        "web_socket"
+        "stream_channel"
       ]
     },
     {
@@ -1055,25 +1081,56 @@
       ]
     },
     {
-      "name": "plugin_platform_interface",
-      "version": "2.1.8",
+      "name": "aws_common",
+      "version": "0.7.12",
       "dependencies": [
-        "meta"
+        "async",
+        "built_collection",
+        "built_value",
+        "collection",
+        "http",
+        "http2",
+        "json_annotation",
+        "logging",
+        "meta",
+        "mime",
+        "os_detect",
+        "path",
+        "stream_transform",
+        "uuid",
+        "web"
       ]
     },
     {
-      "name": "amplify_secure_storage",
-      "version": "0.5.14",
+      "name": "amplify_storage_s3_dart",
+      "version": "0.4.11",
       "dependencies": [
-        "amplify_secure_storage_dart",
+        "amplify_core",
+        "amplify_db_common_dart",
         "async",
-        "file",
-        "flutter",
-        "flutter_web_plugins",
+        "aws_common",
+        "aws_signature_v4",
+        "built_collection",
+        "built_value",
+        "drift",
+        "fixnum",
+        "json_annotation",
         "meta",
         "path",
-        "path_provider",
-        "path_provider_windows"
+        "smithy",
+        "smithy_aws",
+        "web"
+      ]
+    },
+    {
+      "name": "amplify_db_common",
+      "version": "0.4.11",
+      "dependencies": [
+        "amplify_db_common_dart",
+        "drift",
+        "flutter",
+        "path",
+        "path_provider"
       ]
     },
     {
@@ -1093,6 +1150,56 @@
         "stack_trace",
         "uuid",
         "web"
+      ]
+    },
+    {
+      "name": "plugin_platform_interface",
+      "version": "2.1.8",
+      "dependencies": [
+        "meta"
+      ]
+    },
+    {
+      "name": "connectivity_plus",
+      "version": "6.1.5",
+      "dependencies": [
+        "collection",
+        "connectivity_plus_platform_interface",
+        "flutter",
+        "flutter_web_plugins",
+        "meta",
+        "nm",
+        "web"
+      ]
+    },
+    {
+      "name": "amplify_api_dart",
+      "version": "0.5.10",
+      "dependencies": [
+        "amplify_core",
+        "async",
+        "aws_common",
+        "collection",
+        "json_annotation",
+        "meta",
+        "plugin_platform_interface",
+        "stream_transform",
+        "web_socket_channel"
+      ]
+    },
+    {
+      "name": "amplify_secure_storage",
+      "version": "0.5.14",
+      "dependencies": [
+        "amplify_secure_storage_dart",
+        "async",
+        "file",
+        "flutter",
+        "flutter_web_plugins",
+        "meta",
+        "path",
+        "path_provider",
+        "path_provider_windows"
       ]
     },
     {
@@ -1166,27 +1273,6 @@
         "meta",
         "package_info_plus",
         "path_provider"
-      ]
-    },
-    {
-      "name": "aws_common",
-      "version": "0.7.12",
-      "dependencies": [
-        "async",
-        "built_collection",
-        "built_value",
-        "collection",
-        "http",
-        "http2",
-        "json_annotation",
-        "logging",
-        "meta",
-        "mime",
-        "os_detect",
-        "path",
-        "stream_transform",
-        "uuid",
-        "web"
       ]
     },
     {
@@ -1674,13 +1760,6 @@
       ]
     },
     {
-      "name": "web_socket",
-      "version": "1.0.1",
-      "dependencies": [
-        "web"
-      ]
-    },
-    {
       "name": "built_value",
       "version": "8.12.1",
       "dependencies": [
@@ -1761,57 +1840,17 @@
       ]
     },
     {
-      "name": "amplify_secure_storage_dart",
-      "version": "0.5.9",
+      "name": "os_detect",
+      "version": "2.0.3",
       "dependencies": [
-        "async",
-        "aws_common",
-        "built_collection",
-        "built_value",
-        "ffi",
-        "file",
         "meta",
-        "path",
-        "web",
-        "win32",
-        "worker_bee"
-      ]
-    },
-    {
-      "name": "retry",
-      "version": "3.1.2",
-      "dependencies": []
-    },
-    {
-      "name": "aws_signature_v4",
-      "version": "0.6.10",
-      "dependencies": [
-        "async",
-        "aws_common",
-        "collection",
-        "convert",
-        "crypto",
-        "json_annotation",
-        "meta",
-        "path"
-      ]
-    },
-    {
-      "name": "worker_bee",
-      "version": "0.3.9",
-      "dependencies": [
-        "async",
-        "aws_common",
-        "built_collection",
-        "built_value",
-        "collection",
-        "meta",
-        "path",
-        "stack_trace",
-        "stream_channel",
-        "stream_transform",
         "web"
       ]
+    },
+    {
+      "name": "http2",
+      "version": "2.3.1",
+      "dependencies": []
     },
     {
       "name": "smithy_aws",
@@ -1857,16 +1896,6 @@
       ]
     },
     {
-      "name": "oauth2",
-      "version": "2.0.5",
-      "dependencies": [
-        "collection",
-        "crypto",
-        "http",
-        "http_parser"
-      ]
-    },
-    {
       "name": "drift",
       "version": "2.30.0",
       "dependencies": [
@@ -1879,6 +1908,20 @@
         "stack_trace",
         "stream_channel",
         "web"
+      ]
+    },
+    {
+      "name": "aws_signature_v4",
+      "version": "0.6.10",
+      "dependencies": [
+        "async",
+        "aws_common",
+        "collection",
+        "convert",
+        "crypto",
+        "json_annotation",
+        "meta",
+        "path"
       ]
     },
     {
@@ -1896,28 +1939,69 @@
       ]
     },
     {
-      "name": "amplify_db_common",
-      "version": "0.4.11",
+      "name": "retry",
+      "version": "3.1.2",
+      "dependencies": []
+    },
+    {
+      "name": "nm",
+      "version": "0.5.0",
       "dependencies": [
-        "amplify_db_common_dart",
-        "drift",
-        "flutter",
-        "path",
-        "path_provider"
+        "dbus"
       ]
     },
     {
-      "name": "os_detect",
-      "version": "2.0.3",
+      "name": "connectivity_plus_platform_interface",
+      "version": "2.0.1",
       "dependencies": [
+        "flutter",
         "meta",
+        "plugin_platform_interface"
+      ]
+    },
+    {
+      "name": "amplify_secure_storage_dart",
+      "version": "0.5.9",
+      "dependencies": [
+        "async",
+        "aws_common",
+        "built_collection",
+        "built_value",
+        "ffi",
+        "file",
+        "meta",
+        "path",
+        "web",
+        "win32",
+        "worker_bee"
+      ]
+    },
+    {
+      "name": "worker_bee",
+      "version": "0.3.9",
+      "dependencies": [
+        "async",
+        "aws_common",
+        "built_collection",
+        "built_value",
+        "collection",
+        "meta",
+        "path",
+        "stack_trace",
+        "stream_channel",
+        "stream_transform",
         "web"
       ]
     },
     {
-      "name": "http2",
-      "version": "2.3.1",
-      "dependencies": []
+      "name": "oauth2",
+      "version": "2.0.5",
+      "dependencies": [
+        "collection",
+        "crypto",
+        "http",
+        "http_parser"
+      ]
     },
     {
       "name": "webview_flutter_platform_interface",

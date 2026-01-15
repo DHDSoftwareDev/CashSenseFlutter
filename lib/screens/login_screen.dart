@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:amplify_flutter/amplify_flutter.dart';
 import 'package:amplify_auth_cognito/amplify_auth_cognito.dart';
 import '../services/cognito_service.dart';
+import '../services/push_token_service.dart';
 import 'verification_screen.dart';
 import 'signup_screen.dart';
 import 'dashboard_screen.dart';
@@ -25,6 +26,26 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _redirectIfSignedIn();
+    });
+  }
+
+  Future<void> _redirectIfSignedIn() async {
+    try {
+      final signedIn = await CognitoService.isSignedIn();
+      if (!signedIn || !mounted) return;
+      await PushTokenService.registerDeviceOnLogin();
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const MainNavigationScreen()),
+      );
+    } catch (_) {}
+  }
+
+  @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
@@ -39,6 +60,11 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
+      final alreadySignedIn = await CognitoService.isSignedIn();
+      if (alreadySignedIn) {
+        await _redirectIfSignedIn();
+        return;
+      }
       final result = await CognitoService.signIn(
         email: _emailController.text.trim(),
         password: _passwordController.text,
@@ -47,6 +73,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
 
       if (result.isSignedIn) {
+        await PushTokenService.registerDeviceOnLogin();
         // Login successful — go to dashboard
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Login successful!')),
@@ -72,8 +99,13 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } on AuthException catch (e) {
       if (!mounted) return;
+      final msg = CognitoService.getErrorMessage(e);
+      if (msg.toLowerCase().contains('already signed in')) {
+        await _redirectIfSignedIn();
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(CognitoService.getErrorMessage(e))),
+        SnackBar(content: Text(msg)),
       );
     } catch (e) {
       if (!mounted) return;

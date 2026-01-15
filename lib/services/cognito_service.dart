@@ -2,8 +2,10 @@
 // ignore_for_file: dead_code, unnecessary_import, unused_import, unused_element
 
 import 'package:amplify_flutter/amplify_flutter.dart';
+import 'package:flutter/foundation.dart';
 import 'package:amplify_auth_cognito/amplify_auth_cognito.dart';
 import 'user_auth_service.dart';
+import 'push_token_service.dart';
 import 'dart:convert';
 import 'dart:math';
 import 'package:crypto/crypto.dart';
@@ -77,6 +79,12 @@ class CognitoService {
       // If sign in successful, sync with local storage
       if (result.isSignedIn) {
         await _syncUserToLocal();
+        // Register device for push notifications after login
+        try {
+          await PushTokenService.registerDeviceOnLogin();
+        } catch (e) {
+          debugPrint('Device registration failed: $e');
+        }
       }
 
       return result;

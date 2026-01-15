@@ -6,6 +6,8 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:amplify_flutter/amplify_flutter.dart';
 import 'package:amplify_auth_cognito/amplify_auth_cognito.dart';
+import 'package:amplify_api/amplify_api.dart';
+import 'amplifyconfiguration.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'services/database_service.dart';
@@ -108,70 +110,19 @@ Future<void> _initDatabase() async {
 
 Future<void> _configureAmplify() async {
   try {
-    // Configure Cognito Auth Plugin
-    final auth = AmplifyAuthCognito();
-    await Amplify.addPlugin(auth);
+    // Add plugins
+    await Amplify.addPlugins([
+      AmplifyAuthCognito(),
+      AmplifyAPI(),
+    ]);
 
-    // Ensure env vars are present
-    final poolId = dotenv.env['COGNITO_USER_POOL_ID'] ?? '';
-    final clientId = dotenv.env['COGNITO_CLIENT_ID'] ?? '';
-    final region = dotenv.env['COGNITO_REGION'] ?? '';
-
-    if (poolId.isEmpty || clientId.isEmpty || region.isEmpty) {
-      debugPrint('❌ Cognito env vars missing: pool="$poolId", client="$clientId", region="$region"');
-    }
-
-    // Correct Amplify Cognito configuration structure
-    final config = '''{
-      "UserAgent": "aws-amplify-cli/2.0",
-      "Version": "1.0",
-      "auth": {
-        "plugins": {
-          "awsCognitoAuthPlugin": {
-            "UserAgent": "aws-amplify-cli/0.1.0",
-            "Version": "0.1.0",
-            "IdentityManager": { "Default": {} },
-            "CognitoUserPool": {
-              "Default": {
-                "PoolId": "$poolId",
-                "AppClientId": "$clientId",
-                "Region": "$region"
-              }
-            },
-            "Auth": {
-              "Default": {
-                "authenticationFlowType": "USER_SRP_AUTH",
-                "socialProviders": [],
-                "usernameAttributes": ["EMAIL"],
-                "signupAttributes": ["EMAIL", "NAME"],
-                "passwordProtectionSettings": {
-                  "passwordPolicyMinLength": 8,
-                  "passwordPolicyCharacters": []
-                },
-                "mfaConfiguration": "OFF",
-                "mfaTypes": ["SMS"],
-                "verificationMechanisms": ["EMAIL"],
-                "OAuth": {
-                  "WebDomain": "https://cashsense-auth.auth.$region.amazoncognito.com",
-                  "AppClientId": "$clientId",
-                  "SignInRedirectURI": "cashesense://callback/",
-                  "SignOutRedirectURI": "cashesense://signout/",
-                  "Scopes": ["openid","email","profile"],
-                  "ResponseType": "code"
-                }
-              }
-            }
-          }
-        }
-      }
-    }''';
-
-    await Amplify.configure(config);
-    debugPrint('✅ Amplify configured successfully');
+    // Configure Amplify using generated configuration
+    await Amplify.configure(amplifyconfig);
+    safePrint('Successfully configured Amplify 🎉');
   } on AmplifyAlreadyConfiguredException {
     debugPrint('⚠️ Amplify was already configured');
-  } catch (e) {
-    debugPrint('❌ Error configuring Amplify: $e');
+  } on Exception catch (e) {
+    safePrint('Error configuring Amplify: $e');
   }
 }
 

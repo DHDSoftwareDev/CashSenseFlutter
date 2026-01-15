@@ -112,6 +112,66 @@ class Bill extends HiveObject {
     this.paymentStatus = PaymentStatus.unpaid,
   }) : id = id ?? const Uuid().v4();
 
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'amount': amount,
+      'description': description,
+      'dueDate': dueDate.toIso8601String(),
+      'recurrence': recurrence.name,
+      'customDays': customDays,
+      'recurrenceEndDate': recurrenceEndDate?.toIso8601String(),
+      'recurrenceInterval': recurrenceInterval,
+      'recurrenceWeekdays': recurrenceWeekdays,
+      'categoryId': categoryId,
+      'type': type.name,
+      'isPaid': isPaid,
+      'paymentStatus': paymentStatus?.name,
+      'payeeId': payeeId,
+      'accountId': accountId,
+      'fromAccountId': fromAccountId,
+      'toAccountId': toAccountId,
+    };
+  }
+
+  factory Bill.fromJson(Map<String, dynamic> json) {
+    final recurrenceName = json['recurrence']?.toString() ?? Recurrence.none.name;
+    final typeName = json['type']?.toString() ?? BillType.expense.name;
+    final paymentName = json['paymentStatus']?.toString();
+    return Bill(
+      id: json['id'] ?? json['billId'],
+      amount: (json['amount'] as num).toDouble(),
+      description: json['description'],
+      dueDate: DateTime.parse(json['dueDate']),
+      recurrence: Recurrence.values.firstWhere(
+        (e) => e.name == recurrenceName,
+        orElse: () => Recurrence.none,
+      ),
+      customDays: (json['customDays'] as List?)?.map((e) => (e as num).toInt()).toList(),
+      recurrenceEndDate: json['recurrenceEndDate'] != null
+          ? DateTime.parse(json['recurrenceEndDate'])
+          : null,
+      recurrenceInterval: json['recurrenceInterval'] ?? 1,
+      recurrenceWeekdays: (json['recurrenceWeekdays'] as List?)?.map((e) => (e as num).toInt()).toList(),
+      categoryId: json['categoryId'],
+      type: BillType.values.firstWhere(
+        (e) => e.name == typeName,
+        orElse: () => BillType.expense,
+      ),
+      fromAccountId: json['fromAccountId'],
+      toAccountId: json['toAccountId'],
+      payeeId: json['payeeId'],
+      accountId: json['accountId'],
+      isPaid: json['isPaid'] ?? false,
+      paymentStatus: paymentName == null
+          ? PaymentStatus.unpaid
+          : PaymentStatus.values.firstWhere(
+              (e) => e.name == paymentName,
+              orElse: () => PaymentStatus.unpaid,
+            ),
+    );
+  }
+
   Bill copyWith({
     String? id,
     double? amount,

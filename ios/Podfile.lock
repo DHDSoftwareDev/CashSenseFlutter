@@ -7,6 +7,8 @@ PODS:
   - background_fetch (1.5.0):
     - Flutter
     - TSBackgroundFetch (~> 4.0)
+  - connectivity_plus (0.0.1):
+    - Flutter
   - CropViewController (2.8.0)
   - device_info_plus (0.0.1):
     - Flutter
@@ -174,6 +176,7 @@ DEPENDENCIES:
   - amplify_auth_cognito (from `.symlinks/plugins/amplify_auth_cognito/darwin`)
   - amplify_secure_storage (from `.symlinks/plugins/amplify_secure_storage/ios`)
   - background_fetch (from `.symlinks/plugins/background_fetch/ios`)
+  - connectivity_plus (from `.symlinks/plugins/connectivity_plus/ios`)
   - device_info_plus (from `.symlinks/plugins/device_info_plus/ios`)
   - DKImagePickerController (= 4.3.8)
   - file_picker (from `.symlinks/plugins/file_picker/ios`)
@@ -224,6 +227,8 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/amplify_secure_storage/ios"
   background_fetch:
     :path: ".symlinks/plugins/background_fetch/ios"
+  connectivity_plus:
+    :path: ".symlinks/plugins/connectivity_plus/ios"
   device_info_plus:
     :path: ".symlinks/plugins/device_info_plus/ios"
   file_picker:
@@ -267,6 +272,7 @@ SPEC CHECKSUMS:
   amplify_auth_cognito: b76a0e367489da2b9a3c6e5a8ec74a72a0a7cc2f
   amplify_secure_storage: ede2a5027299bab196b8baa030ed3f4cf50ce9a9
   background_fetch: db658504e3a7de609c6cb3bac44863dfe1c12f5d
+  connectivity_plus: 2a701ffec2c0ae28a48cf7540e279787e77c447d
   CropViewController: 29befa222e239d392d7f0ed00f324102c8bef5c9
   device_info_plus: bf2e3232933866d73fe290f2942f2156cdd10342
   DKCamera: a902b66921fca14b7a75266feb8c7568aa7caa71

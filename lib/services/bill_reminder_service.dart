@@ -1,4 +1,4 @@
-// ignore_for_file: no_leading_underscores_for_local_identifiers, unnecessary_type_check, unnecessary_null_comparison, unnecessary_brace_in_string_interps
+// ignore_for_file: no_leading_underscores_for_local_identifiers, unnecessary_type_check, unnecessary_null_comparison, unnecessary_brace_in_string_interps, unused_local_variable
 
 import 'package:flutter/foundation.dart';
 import 'package:workmanager/workmanager.dart' as wm;
@@ -10,7 +10,6 @@ import 'notification_service.dart';
 import 'database_service.dart';
 import 'user_auth_service.dart';
 import '../models/bill.dart';
-import '../models/transaction.dart';
 
 const String _workManagerTaskReminders = 'cashsense_schedule_reminders';
 

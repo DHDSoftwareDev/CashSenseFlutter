@@ -26,6 +26,18 @@
       "languageVersion": "3.7"
     },
     {
+      "name": "amplify_api",
+      "rootUri": "file:///Users/siler/.pub-cache/hosted/pub.dev/amplify_api-2.6.3",
+      "packageUri": "lib/",
+      "languageVersion": "3.7"
+    },
+    {
+      "name": "amplify_api_dart",
+      "rootUri": "file:///Users/siler/.pub-cache/hosted/pub.dev/amplify_api_dart-0.5.10",
+      "packageUri": "lib/",
+      "languageVersion": "3.7"
+    },
+    {
       "name": "amplify_auth_cognito",
       "rootUri": "file:///Users/siler/.pub-cache/hosted/pub.dev/amplify_auth_cognito-2.6.3",
       "packageUri": "lib/",
@@ -72,6 +84,18 @@
       "rootUri": "file:///Users/siler/.pub-cache/hosted/pub.dev/amplify_secure_storage_dart-0.5.9",
       "packageUri": "lib/",
       "languageVersion": "3.9"
+    },
+    {
+      "name": "amplify_storage_s3",
+      "rootUri": "file:///Users/siler/.pub-cache/hosted/pub.dev/amplify_storage_s3-2.6.3",
+      "packageUri": "lib/",
+      "languageVersion": "3.7"
+    },
+    {
+      "name": "amplify_storage_s3_dart",
+      "rootUri": "file:///Users/siler/.pub-cache/hosted/pub.dev/amplify_storage_s3_dart-0.4.11",
+      "packageUri": "lib/",
+      "languageVersion": "3.7"
     },
     {
       "name": "analyzer",
@@ -210,6 +234,18 @@
       "rootUri": "file:///Users/siler/.pub-cache/hosted/pub.dev/collection-1.19.1",
       "packageUri": "lib/",
       "languageVersion": "3.4"
+    },
+    {
+      "name": "connectivity_plus",
+      "rootUri": "file:///Users/siler/.pub-cache/hosted/pub.dev/connectivity_plus-6.1.5",
+      "packageUri": "lib/",
+      "languageVersion": "3.2"
+    },
+    {
+      "name": "connectivity_plus_platform_interface",
+      "rootUri": "file:///Users/siler/.pub-cache/hosted/pub.dev/connectivity_plus_platform_interface-2.0.1",
+      "packageUri": "lib/",
+      "languageVersion": "2.18"
     },
     {
       "name": "convert",
@@ -650,6 +686,12 @@
       "languageVersion": "2.12"
     },
     {
+      "name": "nm",
+      "rootUri": "file:///Users/siler/.pub-cache/hosted/pub.dev/nm-0.5.0",
+      "packageUri": "lib/",
+      "languageVersion": "2.12"
+    },
+    {
       "name": "oauth2",
       "rootUri": "file:///Users/siler/.pub-cache/hosted/pub.dev/oauth2-2.0.5",
       "packageUri": "lib/",
@@ -1070,16 +1112,10 @@
       "languageVersion": "3.4"
     },
     {
-      "name": "web_socket",
-      "rootUri": "file:///Users/siler/.pub-cache/hosted/pub.dev/web_socket-1.0.1",
-      "packageUri": "lib/",
-      "languageVersion": "3.4"
-    },
-    {
       "name": "web_socket_channel",
-      "rootUri": "file:///Users/siler/.pub-cache/hosted/pub.dev/web_socket_channel-3.0.3",
+      "rootUri": "file:///Users/siler/.pub-cache/hosted/pub.dev/web_socket_channel-2.4.0",
       "packageUri": "lib/",
-      "languageVersion": "3.3"
+      "languageVersion": "2.15"
     },
     {
       "name": "webview_flutter",
