@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -9,6 +10,8 @@ import 'cognito_service.dart';
 import 'user_auth_service.dart';
 
 class PushTokenService {
+  static StreamSubscription<String>? _tokenRefreshSub;
+
   static Future<String?> _getApnsToken() async {
     if (!Platform.isIOS) return null;
     try {
@@ -43,16 +46,37 @@ class PushTokenService {
     }
 
     String? token;
+    String source = 'none';
     if (Platform.isIOS) {
       token = await _getApnsToken();
+      if (token != null && token.isNotEmpty) {
+        source = 'apns';
+      }
     }
-    token ??= await _getFcmToken();
+    if (token == null || token.isEmpty) {
+      token = await _getFcmToken();
+      if (token != null && token.isNotEmpty) {
+        source = 'fcm';
+      }
+    }
 
     if (token != null && token.isNotEmpty) {
       await UserAuthService.saveDeviceToken(token);
+      final suffix = token.length > 6 ? token.substring(token.length - 6) : token;
+      debugPrint('Captured device token via $source (len=${token.length}, suffix=$suffix)');
+    } else {
+      debugPrint('Failed to capture device token (source=$source)');
     }
 
     return token;
+  }
+
+  static void initTokenRefreshListener() {
+    if (kIsWeb) return;
+    _tokenRefreshSub ??= FirebaseMessaging.instance.onTokenRefresh.listen((_) async {
+      debugPrint('Push token refresh event received');
+      await _handleTokenRefresh();
+    });
   }
 
   static Future<void> registerDeviceOnLogin() async {
@@ -70,8 +94,41 @@ class PushTokenService {
       // Continue; device registration may still succeed if backend uses JWT.
     }
 
+    final previousToken = await UserAuthService.getDeviceToken();
     final token = await captureDeviceToken();
     if (token == null || token.isEmpty) return;
+
+    final shouldRegister = previousToken.isEmpty || previousToken != token;
+    if (!shouldRegister) {
+      debugPrint('Device token unchanged; skipping device registration');
+      return;
+    }
+
+    await _registerDevice(token, reason: previousToken.isEmpty ? 'initial' : 'token_changed');
+  }
+
+  static Future<void> _handleTokenRefresh() async {
+    final previousToken = await UserAuthService.getDeviceToken();
+    final token = await captureDeviceToken();
+    if (token == null || token.isEmpty) return;
+    if (token == previousToken) {
+      debugPrint('Token refresh did not change device token');
+      return;
+    }
+    await _registerDevice(token, reason: 'token_refresh');
+  }
+
+  static Future<void> _registerDevice(String token, {required String reason}) async {
+    bool isSignedIn = false;
+    try {
+      isSignedIn = await CognitoService.isSignedIn();
+    } catch (_) {
+      isSignedIn = false;
+    }
+    if (!isSignedIn) {
+      debugPrint('Skipping device registration ($reason); user not signed in');
+      return;
+    }
 
     String? timeZone;
     try {
@@ -80,7 +137,7 @@ class PushTokenService {
       timeZone = null;
     }
 
-    String? platform;
+    String platform;
     if (kIsWeb) {
       platform = 'web';
     } else if (Platform.isIOS) {
@@ -91,6 +148,7 @@ class PushTokenService {
       platform = 'unknown';
     }
 
+    debugPrint('Registering device ($reason) for platform=$platform tz=${timeZone ?? "unknown"}');
     await AwsApiService.registerDevice(
       deviceToken: token,
       platform: platform,
