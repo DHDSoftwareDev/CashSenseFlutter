@@ -27,7 +27,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   String? _accountName;
   bool _showAvailableBalance = false; // Toggle between current and available balance
   final Set<String> _expandedMonths = {}; // Track which month groups are expanded
-  bool _showCleared = false; // Toggle for showing/hiding cleared transactions
+  bool _showCleared = true; // Toggle for showing/hiding cleared transactions
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
@@ -329,7 +329,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   }
 
   Widget _buildTransactionsList({bool showHeader = true}) {
-    // Always group by all transactions, not just visible ones, so group headers are always visible
+    // Group by all transactions so month headers always show.
     final groupedTransactions = <String, List<Transaction>>{};
     for (final transaction in _transactions) {
       final monthKey = DateFormat('yyyy-MM').format(transaction.date);
@@ -370,7 +370,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           double cum = displayBase;
           for (final tx in allForBalance) {
             final effect = (tx.type == TransactionType.income ? tx.amount : -tx.amount);
-            cum += effect;
+            if (tx.cleared == true) {
+              cum += effect;
+            }
             runningMap[tx.id] = cum;
           }
         } else {
@@ -378,7 +380,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           double cum = initialBalance;
           for (final tx in allForBalance) {
             final effect = (tx.type == TransactionType.income ? tx.amount : -tx.amount);
-            cum += effect;
+            if (tx.cleared == true) {
+              cum += effect;
+            }
             runningMap[tx.id] = cum;
           }
         }
@@ -453,8 +457,11 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         for (final monthKey in sortedMonths) ...[
           () {
             List<Transaction> allGroupTxs = groupedTransactions[monthKey]!;
+            final groupTxsForDisplay = showPendingSection
+                ? allGroupTxs.where((t) => t.cleared == true).toList()
+                : allGroupTxs;
             // Sort transactions within month by date (newest first), then createdAt DESC for same date (newest first)
-            allGroupTxs.sort((a, b) {
+            groupTxsForDisplay.sort((a, b) {
               final cmp = b.date.compareTo(a.date);
               if (cmp != 0) return cmp;
               final createdCmp = b.createdAt.compareTo(a.createdAt);
@@ -462,14 +469,19 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               return b.id.compareTo(a.id);
             });
             // Always build the month group, even if all transactions are cleared
-            // Pass allGroupTxs as allGroupTransactions, and filter for visible (uncleared) transactions for display
-            var displayTxs = _showCleared ? allGroupTxs : allGroupTxs.where((t) => t.cleared != true).toList();
-            if (showPendingSection && pendingIds.isNotEmpty) {
-              displayTxs = displayTxs.where((t) => !pendingIds.contains(t.id)).toList();
-            }
+            // Only show cleared transactions in the main list (pending are shown separately)
+            var displayTxs = showPendingSection
+                ? (_showCleared ? groupTxsForDisplay : <Transaction>[])
+                : (_showCleared ? groupTxsForDisplay : groupTxsForDisplay.where((t) => t.cleared != true).toList());
             final parsedDate = DateTime.parse('$monthKey-01');
             // Always show the group, even if displayTxs is empty
-            return _buildMonthGroup(monthKey, parsedDate, displayTxs, runningBalances: runningMap, allGroupTransactions: allGroupTxs);
+            return _buildMonthGroup(
+              monthKey,
+              parsedDate,
+              displayTxs,
+              runningBalances: runningMap,
+              allGroupTransactions: showPendingSection ? groupTxsForDisplay : allGroupTxs,
+            );
           }(),
         ],
       ],
@@ -637,39 +649,25 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         padding: const EdgeInsets.only(left: 12, right: 12, bottom: 4, top: 4),
         child: Row(
           children: [
-            // Left: date and running balance
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  dateStr,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.grey[600],
-                    fontWeight: FontWeight.w500,
-                    fontSize: 12,
-                  ),
-                ),
-                if (lastRunning != null) ...[
-                  const SizedBox(width: 12),
-                  Text(
-                    _currencyFormat.format(lastRunning),
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.grey[600],
-                      fontWeight: FontWeight.w500,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ],
+            // Left: date
+            Text(
+              dateStr,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Colors.grey[600],
+                fontWeight: FontWeight.w500,
+                fontSize: 12,
+              ),
             ),
-            // Spacer
             const Spacer(),
-            // Right: No uncleared transactions (if needed)
-            if (visibleTxs.isEmpty)
+            // Right: running balance
+            if (lastRunning != null)
               Text(
-                'No uncleared transactions',
-                style: Theme.of(context).textTheme.bodySmall,
-                textAlign: TextAlign.right,
+                _currencyFormat.format(lastRunning),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Colors.grey[600],
+                  fontWeight: FontWeight.w500,
+                  fontSize: 12,
+                ),
               ),
           ],
         ),
@@ -704,17 +702,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         ),
         children: children.isNotEmpty
             ? children
-            : [
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 16.0),
-                  child: Center(
-                    child: Text(
-                      'No uncleared transactions',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ),
-                ),
-              ],
+            : const [],
       ),
     );
   }
@@ -764,18 +752,19 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     if (runningBalance == null && widget.accountId != null && widget.accountId!.isNotEmpty) {
       final account = DatabaseService.getAccountById(widget.accountId!);
       if (account != null) {
-        var visible = List<Transaction>.from(_transactions);
-        if (!_showCleared) visible = visible.where((t) => t.cleared != true).toList();
-        visible.sort((a, b) => a.date.compareTo(b.date));
+        final allForBalance = List<Transaction>.from(_transactions)
+          ..sort((a, b) => a.date.compareTo(b.date));
 
         final initialBalance = DatabaseService.getInitialBalance(account.id);
 
         if (_showAvailableBalance) {
           final displayBase = account.availableBalance ?? DatabaseService.getComputedAvailableBalance(account.id);
           double cum = displayBase;
-          for (final tx in visible) {
+          for (final tx in allForBalance) {
             final effect = (tx.type == TransactionType.income ? tx.amount : -tx.amount);
-            cum += effect;
+            if (tx.cleared == true) {
+              cum += effect;
+            }
             if (tx.id == transaction.id) {
               runningBalance = cum;
               break;
@@ -783,9 +772,11 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           }
         } else {
           double cum = initialBalance;
-          for (final tx in visible) {
+          for (final tx in allForBalance) {
             final effect = (tx.type == TransactionType.income ? tx.amount : -tx.amount);
-            cum += effect;
+            if (tx.cleared == true) {
+              cum += effect;
+            }
             if (tx.id == transaction.id) {
               runningBalance = cum;
               break;
