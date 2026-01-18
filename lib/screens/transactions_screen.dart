@@ -385,26 +385,94 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       }
     }
 
-    return ListView.builder(
-      itemCount: sortedMonths.length,
-      itemBuilder: (context, index) {
-        final monthKey = sortedMonths[index];
-        List<Transaction> allGroupTxs = groupedTransactions[monthKey]!;
-        // Sort transactions within month by date (newest first), then createdAt DESC for same date (newest first)
-        allGroupTxs.sort((a, b) {
-          final cmp = b.date.compareTo(a.date);
-          if (cmp != 0) return cmp;
-          final createdCmp = b.createdAt.compareTo(a.createdAt);
-          if (createdCmp != 0) return createdCmp;
-          return b.id.compareTo(a.id);
-        });
-        // Always build the month group, even if all transactions are cleared
-        // Pass allGroupTxs as allGroupTransactions, and filter for visible (uncleared) transactions for display
-        final displayTxs = _showCleared ? allGroupTxs : allGroupTxs.where((t) => t.cleared != true).toList();
-        final parsedDate = DateTime.parse('$monthKey-01');
-        // Always show the group, even if displayTxs is empty
-        return _buildMonthGroup(monthKey, parsedDate, displayTxs, runningBalances: runningMap, allGroupTransactions: allGroupTxs);
-      },
+    final showPendingSection = widget.accountId != null && widget.accountId!.isNotEmpty;
+    final pendingTxs = showPendingSection
+        ? _transactions.where((t) => t.cleared != true).toList()
+        : <Transaction>[];
+    pendingTxs.sort((a, b) {
+      final cmp = b.date.compareTo(a.date);
+      if (cmp != 0) return cmp;
+      final createdCmp = b.createdAt.compareTo(a.createdAt);
+      if (createdCmp != 0) return createdCmp;
+      return b.id.compareTo(a.id);
+    });
+    final pendingIds = pendingTxs.map((t) => t.id).toSet();
+    final pendingTotal = pendingTxs.fold<double>(
+      0.0,
+      (sum, tx) => sum + (tx.type == TransactionType.income ? tx.amount : -tx.amount),
+    );
+
+    return ListView(
+      children: [
+        if (showPendingSection && pendingTxs.isNotEmpty) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+            child: Text(
+              'Pending',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+            ),
+          ),
+          Card(
+            margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Pending',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      Text(
+                        '${pendingTxs.length} transaction${pendingTxs.length != 1 ? 's' : ''}',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        _currencyFormat.format(pendingTotal),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: pendingTotal >= 0 ? AppTheme.incomeGreen : AppTheme.expenseRed,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                for (var i = 0; i < pendingTxs.length; i++) ...[
+                  _buildTransactionItem(pendingTxs[i], runningBalance: runningMap?[pendingTxs[i].id]),
+                  if (i != pendingTxs.length - 1) const Divider(height: 1),
+                ],
+              ],
+            ),
+          ),
+        ],
+        for (final monthKey in sortedMonths) ...[
+          () {
+            List<Transaction> allGroupTxs = groupedTransactions[monthKey]!;
+            // Sort transactions within month by date (newest first), then createdAt DESC for same date (newest first)
+            allGroupTxs.sort((a, b) {
+              final cmp = b.date.compareTo(a.date);
+              if (cmp != 0) return cmp;
+              final createdCmp = b.createdAt.compareTo(a.createdAt);
+              if (createdCmp != 0) return createdCmp;
+              return b.id.compareTo(a.id);
+            });
+            // Always build the month group, even if all transactions are cleared
+            // Pass allGroupTxs as allGroupTransactions, and filter for visible (uncleared) transactions for display
+            var displayTxs = _showCleared ? allGroupTxs : allGroupTxs.where((t) => t.cleared != true).toList();
+            if (showPendingSection && pendingIds.isNotEmpty) {
+              displayTxs = displayTxs.where((t) => !pendingIds.contains(t.id)).toList();
+            }
+            final parsedDate = DateTime.parse('$monthKey-01');
+            // Always show the group, even if displayTxs is empty
+            return _buildMonthGroup(monthKey, parsedDate, displayTxs, runningBalances: runningMap, allGroupTransactions: allGroupTxs);
+          }(),
+        ],
+      ],
     );
     // Fallback in case no transactions exist (should not be reached, but required for non-nullable return)
     // This ensures the function always returns a Widget.
@@ -782,7 +850,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           } else if (value == 'delete') {
             _deleteTransaction(transaction);
           } else if (value == 'toggleClear') {
-            await DatabaseService.updateTransaction(transaction.copyWith(cleared: !(transaction.cleared ?? false)));
+            final newCleared = !(transaction.cleared ?? false);
+            await DatabaseService.updateTransaction(transaction.copyWith(cleared: newCleared));
             _loadTransactions();
           }
         },
