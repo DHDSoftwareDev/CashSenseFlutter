@@ -44,6 +44,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   final _notesController = TextEditingController();
   List<Map<String, dynamic>> _splits = [];
   bool _useSplits = false;
+  bool _isSaving = false;
 
   TransactionScreenType _transactionType = TransactionScreenType.expense;
 
@@ -1305,17 +1306,35 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
   Widget _buildSaveButton() {
     return ElevatedButton(
-      onPressed: _saveTransaction,
+      onPressed: _isSaving ? null : _saveTransaction,
       style: ElevatedButton.styleFrom(
         backgroundColor: Theme.of(context).colorScheme.primary,
         foregroundColor: Colors.white,
         padding: const EdgeInsets.symmetric(vertical: 16),
       ),
-      child: const Text('Save Transaction'),
+      child: _isSaving
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: const [
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                ),
+                SizedBox(width: 8),
+                Text('Saving...'),
+              ],
+            )
+          : const Text('Save Transaction'),
     );
   }
 
   Future<void> _saveTransaction() async {
+    if (_isSaving) return;
+    FocusScope.of(context).unfocus();
     // Subscription gating: limit free users to 50 transactions per account
       final isSubscriber = DatabaseService.subscriptionVersion.value != 'Free';
     String? accountId;
@@ -1372,6 +1391,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       }
     }
 
+    setState(() => _isSaving = true);
     try {
       final notes = _notesController.text.isEmpty ? null : _notesController.text;
       final isEditing = widget.existingTransaction != null;
@@ -1760,6 +1780,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error saving transaction: $e'), backgroundColor: Colors.blueGrey[400]),
         );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
       }
     }
   }
