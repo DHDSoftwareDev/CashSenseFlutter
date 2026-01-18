@@ -223,6 +223,19 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('Auto Backups', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: headerColor)),
+                ),
+                const SizedBox(height: 6),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Keep your data safe with automatic backups.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
                 const SizedBox(height: 12),
               ],
             ),
@@ -234,97 +247,90 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
             final id = p['id']!;
             final isCurrent = id == _currentPlan;
             return Card(
-              child: ListTile(
-                // Title row: plan title (single line) and price aligned top-right
-                title: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        p['title']!,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
+              child: Stack(
+                children: [
+                  ListTile(
+                    title: Text(
+                      p['title']!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium,
                     ),
-                    if ((_prices[id] ?? '').isNotEmpty) ...[
-                      const SizedBox(width: 8),
-                      // Keep the price tightly aligned to the top-right of the title row
-                      Align(
-                        alignment: Alignment.topRight,
-                        widthFactor: 1,
-                        child: Text(
-                          _prices[id]!,
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Theme.of(context).colorScheme.primary,
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(p['desc']!),
+                        const SizedBox(height: 8),
+                        // Trial badge for Monthly / Annual
+                        Builder(builder: (context) {
+                          if (id == 'Monthly') {
+                            // Monthly has a 7-day trial promotion
+                            if (BillingService.isTrialActive() && (DatabaseService.getSetting<String>('subscriptionPlan') == 'Monthly')) {
+                              final exp = BillingService.trialExpiry();
+                              final text = exp != null ? 'Trial active until ${exp.toLocal().toString().split(' ').first}' : 'Trial active';
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 8.0),
+                                child: Chip(label: Text(text, style: TextStyle(fontSize: 11)), backgroundColor: Colors.transparent),
+                              );
+                            }
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 8.0),
+                              child: Chip(label: const Text('7-day free trial', style: TextStyle(fontSize: 11)), backgroundColor: Colors.transparent),
+                            );
+                          }
+
+                          if (id == 'Annual') {
+                            // Annual has a 30-day trial promotion
+                            if (BillingService.isTrialActive() && (DatabaseService.getSetting<String>('subscriptionPlan') == 'Annual')) {
+                              final exp = BillingService.trialExpiry();
+                              final text = exp != null ? 'Trial active until ${exp.toLocal().toString().split(' ').first}' : 'Trial active';
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 8.0),
+                                child: Chip(label: Text(text, style: TextStyle(fontSize: 11)), backgroundColor: Colors.transparent),
+                              );
+                            }
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 8.0),
+                              child: Chip(label: const Text('30-day free trial', style: TextStyle(fontSize: 11)), backgroundColor: Colors.transparent),
+                            );
+                          }
+
+                          return const SizedBox.shrink();
+                        }),
+                        // Benefits
+                        ...?_benefits[id]?.map((b) => Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('• ', style: TextStyle(fontSize: 12)),
+                                Expanded(child: Text(b, style: Theme.of(context).textTheme.bodySmall)),
+                              ],
+                            )),
+                      ],
+                    ),
+                    trailing: isCurrent
+                        ? TextButton(
+                            onPressed: () => _showManagePlanDialog(id),
+                            child: const Text('Manage'),
+                          )
+                        : TextButton(
+                            onPressed: () => _confirmSubscribe(id),
+                            child: const Text('Subscribe in App Store'),
                           ),
+                  ),
+                  if ((_prices[id] ?? '').isNotEmpty)
+                    Positioned(
+                      top: 12,
+                      right: 12,
+                      child: Text(
+                        _prices[id]!,
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.primary,
                         ),
                       ),
-                    ],
-                  ],
-                ),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(p['desc']!),
-                    const SizedBox(height: 8),
-                    // Trial badge for Monthly / Annual
-                    Builder(builder: (context) {
-                      if (id == 'Monthly') {
-                        // Monthly has a 7-day trial promotion
-                        if (BillingService.isTrialActive() && (DatabaseService.getSetting<String>('subscriptionPlan') == 'Monthly')) {
-                          final exp = BillingService.trialExpiry();
-                          final text = exp != null ? 'Trial active until ${exp.toLocal().toString().split(' ').first}' : 'Trial active';
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 8.0),
-                            child: Chip(label: Text(text, style: TextStyle(fontSize: 11)), backgroundColor: Colors.transparent),
-                          );
-                        }
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 8.0),
-                          child: Chip(label: const Text('7-day free trial', style: TextStyle(fontSize: 11)), backgroundColor: Colors.transparent),
-                        );
-                      }
-
-                      if (id == 'Annual') {
-                        // Annual has a 30-day trial promotion
-                        if (BillingService.isTrialActive() && (DatabaseService.getSetting<String>('subscriptionPlan') == 'Annual')) {
-                          final exp = BillingService.trialExpiry();
-                          final text = exp != null ? 'Trial active until ${exp.toLocal().toString().split(' ').first}' : 'Trial active';
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 8.0),
-                            child: Chip(label: Text(text, style: TextStyle(fontSize: 11)), backgroundColor: Colors.transparent),
-                          );
-                        }
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 8.0),
-                          child: Chip(label: const Text('30-day free trial', style: TextStyle(fontSize: 11)), backgroundColor: Colors.transparent),
-                        );
-                      }
-
-                      return const SizedBox.shrink();
-                    }),
-                    // Benefits
-                    ...?_benefits[id]?.map((b) => Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('• ', style: TextStyle(fontSize: 12)),
-                            Expanded(child: Text(b, style: Theme.of(context).textTheme.bodySmall)),
-                          ],
-                        )),
-                  ],
-                ),
-                trailing: isCurrent
-                    ? TextButton(
-                        onPressed: () => _showManagePlanDialog(id),
-                        child: const Text('Manage'),
-                      )
-                    : TextButton(
-                        onPressed: () => _confirmSubscribe(id),
-                        child: const Text('Subscribe in App Store'),
-                      ),
+                    ),
+                ],
               ),
             );
           }).toList(),
