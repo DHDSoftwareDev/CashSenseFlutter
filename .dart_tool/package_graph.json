@@ -5,7 +5,7 @@
   "packages": [
     {
       "name": "cashsenseflutter",
-      "version": "2.3.3+1",
+      "version": "2.3.3+36",
       "dependencies": [
         "amplify_api",
         "amplify_auth_cognito",
@@ -22,7 +22,6 @@
         "flutter",
         "flutter_colorpicker",
         "flutter_dotenv",
-        "flutter_local_notifications",
         "flutter_native_timezone",
         "flutter_secure_storage",
         "flutter_web_auth",
@@ -201,17 +200,6 @@
         "flutter",
         "flutter_web_plugins",
         "js"
-      ]
-    },
-    {
-      "name": "flutter_local_notifications",
-      "version": "18.0.1",
-      "dependencies": [
-        "clock",
-        "flutter",
-        "flutter_local_notifications_linux",
-        "flutter_local_notifications_platform_interface",
-        "timezone"
       ]
     },
     {
@@ -1061,26 +1049,6 @@
       ]
     },
     {
-      "name": "flutter_local_notifications_platform_interface",
-      "version": "8.0.0",
-      "dependencies": [
-        "flutter",
-        "plugin_platform_interface"
-      ]
-    },
-    {
-      "name": "flutter_local_notifications_linux",
-      "version": "5.0.0",
-      "dependencies": [
-        "dbus",
-        "ffi",
-        "flutter",
-        "flutter_local_notifications_platform_interface",
-        "path",
-        "xdg_directories"
-      ]
-    },
-    {
       "name": "aws_common",
       "version": "0.7.12",
       "dependencies": [
@@ -1822,24 +1790,6 @@
       ]
     },
     {
-      "name": "xdg_directories",
-      "version": "1.1.0",
-      "dependencies": [
-        "meta",
-        "path"
-      ]
-    },
-    {
-      "name": "dbus",
-      "version": "0.7.11",
-      "dependencies": [
-        "args",
-        "ffi",
-        "meta",
-        "xml"
-      ]
-    },
-    {
       "name": "os_detect",
       "version": "2.0.3",
       "dependencies": [
@@ -2040,6 +1990,14 @@
       "dependencies": []
     },
     {
+      "name": "xdg_directories",
+      "version": "1.1.0",
+      "dependencies": [
+        "meta",
+        "path"
+      ]
+    },
+    {
       "name": "posix",
       "version": "6.0.3",
       "dependencies": [
@@ -2071,6 +2029,16 @@
         "path",
         "typed_data",
         "web"
+      ]
+    },
+    {
+      "name": "dbus",
+      "version": "0.7.11",
+      "dependencies": [
+        "args",
+        "ffi",
+        "meta",
+        "xml"
       ]
     },
     {
