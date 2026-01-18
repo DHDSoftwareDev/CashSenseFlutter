@@ -38,6 +38,7 @@ class _PayBillScreenState extends State<PayBillScreen> {
   List<Map<String, dynamic>> _splits = [];
   bool _useSplits = false;
   bool _isRefund = false; // If true, record payment as income (refund)
+  bool _isSaving = false;
 
   @override
   void initState() {
@@ -164,6 +165,8 @@ class _PayBillScreenState extends State<PayBillScreen> {
   }
 
   Future<void> _handlePay() async {
+    if (_isSaving) return;
+    FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
 
     // Strip out any non-numeric characters (currency symbols, spaces, etc.) before parsing
@@ -189,6 +192,7 @@ class _PayBillScreenState extends State<PayBillScreen> {
       return;
     }
 
+    setState(() => _isSaving = true);
     try {
       // Validate splits if present
       if (_splits.isNotEmpty && !validateSplitsEqualAmount(_splits, amount)) {
@@ -306,6 +310,10 @@ class _PayBillScreenState extends State<PayBillScreen> {
           ),
         );
       }
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
     }
   }
 
@@ -351,12 +359,25 @@ class _PayBillScreenState extends State<PayBillScreen> {
                 width: 180,
                 height: 48,
                 child: ElevatedButton(
-                  onPressed: _handlePay,
+                  onPressed: _isSaving ? null : _handlePay,
                   style: ElevatedButton.styleFrom(
                     textStyle: const TextStyle(fontSize: 16),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   ),
-                  child: const Text('Save Payment'),
+                  child: _isSaving
+                      ? Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: const [
+                            SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                            SizedBox(width: 8),
+                            Text('Saving...'),
+                          ],
+                        )
+                      : const Text('Save Payment'),
                 ),
               ),
             ),
