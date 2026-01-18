@@ -411,9 +411,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: _buildCalendarCard(),
         ),
         const SizedBox(height: 16),
-        // Toggle temporarily hidden per request.
-        // Center(child: _buildFilterChips()),
-        // const SizedBox(height: 12),
+        Center(child: _buildFilterChips()),
+        const SizedBox(height: 12),
         // The scrolling content (recent transactions, ad, divider) lives
         // inside the Expanded ListView so the calendar remains fixed.
         Expanded(
