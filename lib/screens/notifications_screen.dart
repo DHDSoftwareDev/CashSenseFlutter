@@ -3,7 +3,6 @@
 import 'package:flutter/material.dart';
 import '../services/database_service.dart';
 import '../services/bill_reminder_service.dart';
-import '../services/notification_service.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -21,8 +20,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   void initState() {
     super.initState();
     _loadSettings();
-    // Initialize local notification permissions (requests on iOS)
-    initBillReminderNotifications().then((_) {});
   }
 
   void _loadSettings() {
