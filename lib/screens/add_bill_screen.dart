@@ -598,6 +598,7 @@ class _AddBillScreenState extends State<AddBillScreen> {
   final _formKey = GlobalKey<FormState>();
   final _amountController = TextEditingController();
   final _notesController = TextEditingController();
+  bool _isSaving = false;
 
   // New: bill type (expense/income/transfer)
   BillType _billType = BillType.expense;
@@ -1648,18 +1649,33 @@ class _AddBillScreenState extends State<AddBillScreen> {
         width: 180,
         height: 48,
         child: ElevatedButton(
-          onPressed: _saveBill,
+          onPressed: _isSaving ? null : _saveBill,
           style: ElevatedButton.styleFrom(
             textStyle: const TextStyle(fontSize: 16),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           ),
-          child: const Text('Save Bill'),
+          child: _isSaving
+              ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    SizedBox(width: 8),
+                    Text('Saving...'),
+                  ],
+                )
+              : const Text('Save Bill'),
         ),
       ),
     );
   }
 
   Future<void> _saveBill() async {
+    if (_isSaving) return;
+    FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
 
     final amount = double.tryParse(_amountController.text);
@@ -1680,6 +1696,7 @@ class _AddBillScreenState extends State<AddBillScreen> {
       return;
     }
 
+    setState(() => _isSaving = true);
     // Default: persist a Bill (existing behavior)
     final Bill bill;
     final notes = _notesController.text.trim();
@@ -1834,6 +1851,10 @@ class _AddBillScreenState extends State<AddBillScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error saving bill: $e'), backgroundColor: Colors.blueGrey[400]),
         );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
       }
     }
   }
