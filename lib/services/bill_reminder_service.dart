@@ -2,16 +2,18 @@
 
 import 'package:flutter/foundation.dart';
 import 'package:workmanager/workmanager.dart' as wm;
-import 'dart:ui' as ui;
-
 import 'package:intl/intl.dart';
 
-import 'notification_service.dart';
+import '../notification_schedules_api.dart';
+import '../reminder_time.dart';
+import '../timezone_init.dart';
+import 'aws_api_service.dart';
 import 'database_service.dart';
 import 'user_auth_service.dart';
 import '../models/bill.dart';
 
 const String _workManagerTaskReminders = 'cashsense_schedule_reminders';
+const String _storedScheduleIdsKey = 'notif_billReminders_scheduleIds';
 
 class BillReminderService {
   BillReminderService._private();
@@ -25,7 +27,6 @@ class BillReminderService {
     _initialized = true;
 
     // Clear any legacy local reminders and schedule server push reminders now
-    await flutterLocalNotificationsPlugin.cancelAll();
     await scheduleAllReminders();
 
     // Initialize Workmanager to refresh schedules daily (best-effort)
@@ -51,8 +52,12 @@ class BillReminderService {
       final int leadDays = DatabaseService.getSetting<int>('notif_billReminders_leadDays', 1) ?? 1;
 
       if (!globalEnabled) {
-        await flutterLocalNotificationsPlugin.cancelAll();
         debugPrint('Bill reminders disabled; skipping server scheduling');
+        return;
+      }
+
+      if (!AwsApiService.isConfigured) {
+        debugPrint('Bill reminders skipped: AWS API base URL not configured');
         return;
       }
 
@@ -61,6 +66,9 @@ class BillReminderService {
         debugPrint('Cannot schedule bill reminders: no logged-in user');
         return;
       }
+
+      await TimezoneInit.ensureInitialized();
+      final timeZone = TimezoneInit.localTimeZoneName();
 
       final now = DateTime.now();
       final DateTime targetDueDate = DateTime(now.year, now.month, now.day).add(Duration(days: leadDays));
@@ -74,27 +82,19 @@ class BillReminderService {
         return;
       }
 
-      // Default reminder time: 9:00 AM local time on the target day. If that has already
-      // passed (leadDays == 0 and user opens later), push it one minute into the future.
-      DateTime scheduledAtLocal = DateTime(targetDueDate.year, targetDueDate.month, targetDueDate.day, 9);
-      if (!scheduledAtLocal.isAfter(now)) {
-        scheduledAtLocal = now.add(const Duration(minutes: 1));
-      }
-      final scheduledAtUtc = scheduledAtLocal.toUtc();
-
       for (final occ in occurrences) {
         final bill = occ['bill'] as Bill;
         final occDate = occ['date'] as DateTime;
 
         if (_isOccurrencePaid(bill, occDate)) continue;
 
-      await scheduleReminderForBill(
-        userId: userId,
-        bill: bill,
-        scheduledAt: scheduledAtUtc,
-        dueDateForMessage: occDate,
-        leadDays: leadDays,
-      );
+        await scheduleReminderForBill(
+          userId: userId,
+          bill: bill,
+          timeZone: timeZone,
+          dueDateForMessage: occDate,
+          leadDays: leadDays,
+        );
       }
     } catch (e) {
       debugPrint('scheduleAllReminders failed: $e');
@@ -104,27 +104,49 @@ class BillReminderService {
   Future<void> scheduleReminderForBill({
     required String userId,
     required Bill bill,
-    required DateTime scheduledAt,
+    required String timeZone,
     DateTime? dueDateForMessage,
     required int leadDays,
   }) async {
     try {
       final dueForMsg = dueDateForMessage ?? bill.dueDate;
-      final deviceLocale = _deviceLocale();
-      final payeeName = () {
-        try {
-          if (bill.payeeId == null) return null;
-          final payees = DatabaseService.getAllPayees();
-          final match = payees.firstWhere((p) => p['id'] == bill.payeeId, orElse: () => <String, dynamic>{});
-          if (match is Map && match['name'] != null) return match['name'] as String;
-        } catch (_) {}
-        return null;
-      }();
+      final runAtUtcIso = _computeRunAtUtcIso(dueForMsg, leadDays);
+      final billName = (bill.description == null || bill.description!.trim().isEmpty)
+          ? 'Bill'
+          : bill.description!.trim();
+      final amountText = NumberFormat.simpleCurrency().format(bill.amount);
+      final dueLabel = DateFormat('MM/dd/yyyy').format(dueForMsg);
 
-      debugPrint(
-        'Bill reminder skipped (AWS backend removed) for bill ${bill.id} at $scheduledAt '
-        '(due=$dueForMsg, locale=$deviceLocale)',
+      final dedupeKey = 'bill:${bill.id}:$dueLabel:lead$leadDays';
+      final data = <String, dynamic>{
+        'type': 'bill_reminder',
+        'billId': bill.id,
+        'userId': userId,
+        'dueDate': dueLabel,
+        'leadDays': leadDays,
+      };
+
+      final api = NotificationSchedulesApi(
+        baseUrl: AwsApiService.baseUrl,
+        getIdToken: AwsApiService.getIdToken,
       );
+
+      final result = await api.createSchedule(
+        runAtUtcIso: runAtUtcIso,
+        timeZone: timeZone,
+        title: '$billName due',
+        body: '$amountText due on $dueLabel',
+        data: data,
+        dedupeKey: dedupeKey,
+      );
+
+      final scheduleId = _extractScheduleId(result);
+      if (scheduleId.isNotEmpty) {
+        final stored = _loadStoredScheduleIds()..[dedupeKey] = scheduleId;
+        await _saveStoredScheduleIds(stored);
+      } else {
+        debugPrint('Schedule created without scheduleId (dedupeKey=$dedupeKey)');
+      }
     } catch (e) {
       debugPrint('scheduleReminderForBill failed: $e');
     }
@@ -165,24 +187,63 @@ class BillReminderService {
     return totalPaid >= (bill.amount - 0.01);
   }
 
-  String _deviceLocale() {
-    try {
-      final ui.Locale loc = ui.PlatformDispatcher.instance.locale;
-      if (loc.countryCode != null && loc.countryCode!.isNotEmpty) {
-        return '${loc.languageCode}_${loc.countryCode}';
-      }
-      return loc.languageCode;
-    } catch (e) {
-      return Intl.getCurrentLocale();
-    }
-  }
-
   Future<void> cancelAllReminders() async {
     try {
-      await flutterLocalNotificationsPlugin.cancelAll();
+      if (!AwsApiService.isConfigured) return;
+      final stored = _loadStoredScheduleIds();
+      if (stored.isEmpty) return;
+
+      final api = NotificationSchedulesApi(
+        baseUrl: AwsApiService.baseUrl,
+        getIdToken: AwsApiService.getIdToken,
+      );
+
+      for (final scheduleId in stored.values) {
+        try {
+          await api.deleteSchedule(scheduleId: scheduleId);
+        } catch (e) {
+          debugPrint('Failed to delete schedule $scheduleId: $e');
+        }
+      }
+
+      await _saveStoredScheduleIds(<String, String>{});
     } catch (e) {
       debugPrint('cancelAllReminders failed: $e');
     }
+  }
+
+  String _computeRunAtUtcIso(DateTime dueDate, int leadDays) {
+    final dueDateStr = DateFormat('yyyy-MM-dd').format(dueDate);
+    var runAtUtcIso = computeRunAtUtcIso(
+      dueDate: dueDateStr,
+      daysBefore: leadDays,
+      reminderHour: 9,
+      reminderMinute: 0,
+    );
+    final runAtUtc = DateTime.parse(runAtUtcIso);
+    final nowUtc = DateTime.now().toUtc();
+    if (!runAtUtc.isAfter(nowUtc)) {
+      runAtUtcIso = nowUtc.add(const Duration(minutes: 1)).toIso8601String();
+    }
+    return runAtUtcIso;
+  }
+
+  String _extractScheduleId(Map<String, dynamic> result) {
+    final id = result['scheduleId'] ?? result['id'];
+    if (id == null) return '';
+    return id.toString();
+  }
+
+  Map<String, String> _loadStoredScheduleIds() {
+    final raw = DatabaseService.getSetting<Map>(_storedScheduleIdsKey);
+    if (raw is Map) {
+      return raw.map((key, value) => MapEntry(key.toString(), value.toString()));
+    }
+    return <String, String>{};
+  }
+
+  Future<void> _saveStoredScheduleIds(Map<String, String> value) async {
+    await DatabaseService.setSetting(_storedScheduleIdsKey, value);
   }
 }
 

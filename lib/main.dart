@@ -9,11 +9,13 @@ import 'package:amplify_auth_cognito/amplify_auth_cognito.dart';
 import 'package:amplify_api/amplify_api.dart';
 import 'amplifyconfiguration.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'services/database_service.dart';
 import 'services/auto_backup_service.dart';
-import 'services/notification_service.dart';
 import 'services/bill_reminder_service.dart';
+import 'services/push_token_service.dart';
+import 'timezone_init.dart';
 import 'screens/main_navigation_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/signup_screen.dart';
@@ -26,11 +28,19 @@ import 'providers/theme_provider.dart';
 
 void main() async {
  WidgetsFlutterBinding.ensureInitialized();
+  await TimezoneInit.ensureInitialized();
   // Load environment variables (block: required for backend config)
   await dotenv.load(fileName: ".env");
 
   // Initialize database with error handling BEFORE services that depend on it
   await _initDatabase();
+
+  // Run one-time upgrade migrations when build number increases
+  try {
+    await runUpgradeMigrations();
+  } catch (e) {
+    debugPrint('runUpgradeMigrations failed: $e');
+  }
 
   // Initialize Firebase early so Firebase-dependent services can use it
   try {
@@ -72,8 +82,6 @@ void main() async {
 
 Future<void> _startDeferredInits(bool isSignedIn) async {
   await Future.wait([
-    // Initialize bill reminder permissions + scheduling
-    initBillReminderNotifications(),
     BillReminderService().init().catchError((e) {
       debugPrint('BillReminderService.init failed: $e');
       return null;
@@ -85,7 +93,13 @@ Future<void> _startDeferredInits(bool isSignedIn) async {
       debugPrint('AutoBackupService.initialize failed: $e');
       return null;
     }),
+    if (isSignedIn)
+      PushTokenService.registerDeviceOnLogin().catchError((e) {
+        debugPrint('Register device on start failed: $e');
+        return null;
+      }),
   ]);
+  PushTokenService.initTokenRefreshListener();
 }
 
 Future<void> _initDatabase() async {
@@ -149,3 +163,22 @@ class CashSenseApp extends StatelessWidget {
 
 /// Decides initial screen based on whether the user is logged in.
 // SplashDecider removed — auth screens hidden temporarily
+
+/// Run one-time migrations after database init when app build changes.
+Future<void> runUpgradeMigrations() async {
+  final info = await PackageInfo.fromPlatform();
+  final currentBuild = int.tryParse(info.buildNumber) ?? 0;
+
+  final lastBuild = DatabaseService.getSetting<int>('lastBuild', 0) ?? 0;
+
+  if (currentBuild > lastBuild) {
+    // Ensure auth UI is not accidentally disabled from prior builds
+    await DatabaseService.setSetting('enableAuthUI', true);
+
+    // (Optional) If a specific settings box or key is masking UI, reset that here.
+    // Example: await DatabaseService.setSetting('someOtherFlag', null);
+
+    await DatabaseService.setSetting('lastBuild', currentBuild);
+    debugPrint('Ran upgrade migrations: lastBuild -> $currentBuild');
+  }
+}
