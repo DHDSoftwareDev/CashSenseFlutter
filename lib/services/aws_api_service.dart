@@ -17,6 +17,11 @@ import 'user_auth_service.dart';
 
 class AwsApiService {
   static String get _baseUrl => (dotenv.env['API_BASE_URL'] ?? '').trim();
+  static String get baseUrl => _baseUrl;
+
+  static Future<String> getIdToken() async {
+    return _getIdToken();
+  }
 
   static bool get isConfigured => _baseUrl.isNotEmpty;
 
@@ -382,6 +387,7 @@ class AwsApiService {
       if (userId.isNotEmpty) 'userId': userId,
     };
     final response = await _request('POST', '/devices', body: payload);
+    debugPrint('POST /devices -> ${response.statusCode} ${response.body}');
     _throwIfNotOk(response);
   }
 
