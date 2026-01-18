@@ -1,4 +1,4 @@
-// ignore_for_file: deprecated_member_use, unnecessary_to_list_in_spreads, use_build_context_synchronously, unused_element, unnecessary_import, unused_local_variable, await_only_futures, unused_import
+// ignore_for_file: deprecated_member_use, unnecessary_to_list_in_spreads, use_build_context_synchronously, unused_element, unnecessary_import, unused_local_variable, await_only_futures, unused_import, unused_field
 
 import 'dart:convert';
 import 'dart:io';
@@ -21,7 +21,9 @@ import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../services/cognito_service.dart';
+import '../services/user_auth_service.dart';
 import 'login_screen.dart';
+import 'signup_screen.dart';
 import 'edit_account_screen.dart';
 import '../services/auto_backup_service.dart';
 import 'package:amplify_flutter/amplify_flutter.dart' hide Category;
@@ -43,11 +45,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _userEmail = '';
   bool _isLoggedIn = false;
   bool _authUIEnabled = true;
+  String _versionLabel = '';
+  bool _autoBackupEnabled = false;
 
   @override
   void initState() {
     super.initState();
     _loadUserInfo();
+    _loadVersion();
+    _autoBackupEnabled = DatabaseService.getSetting<bool>('autoBackupEnabled', false) ?? false;
+  }
+
+  Future<void> _loadVersion() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      if (!mounted) return;
+      setState(() {
+        _versionLabel = '${info.version} (${info.buildNumber})';
+      });
+    } catch (e) {
+      debugPrint('Failed to load package info: $e');
+    }
   }
 
   Future<void> _loadUserInfo() async {
@@ -284,49 +302,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                // Login/Signup Section — show when enabled in settings
-                if (_isLoggedIn)
-                  Card(
-                    elevation: 2,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    child: ListTile(
-                      leading: const Icon(Icons.account_circle, color: Colors.green),
-                      title: const Text('Account'),
-                      subtitle: Text(
-                        _userEmail.isEmpty ? 'Logged In' : _userEmail,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        softWrap: false,
-                      ),
-                      onTap: () async {
-                        await Navigator.push(context, MaterialPageRoute(builder: (_) => const EditAccountScreen()));
-                        // Refresh user info after possible changes
-                        await _loadUserInfo();
-                      },
-                      trailing: TextButton(
-                        onPressed: _showLogoutConfirmation,
-                        child: const Text('Logout'),
-                      ),
-                    ),
-                  ),
-                // If not logged in and auth UI enabled, show quick actions
-                if (!_isLoggedIn && _authUIEnabled)
-                  Card(
-                    elevation: 2,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    child: ListTile(
-                      leading: const Icon(Icons.login, color: Colors.blue),
-                      title: const Text('Sign In / Sign Up'),
-                      subtitle: const Text('Tap to login or create an account'),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          TextButton(onPressed: _showLoginDialog, child: const Text('Login')),
-                          TextButton(onPressed: _showSignUpDialog, child: const Text('Sign Up')),
-                        ],
-                      ),
-                    ),
-                  ),
+                // Authentication card — render unconditionally (show status and actions)
+                _buildAuthCard(context),
                 const SizedBox(height: 12),
               ],
             ),
@@ -386,6 +363,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             // Login/Sign Up UI setting removed — auth UI controlled elsewhere
           ]),
           _buildSection('Data', [
+            if (_hasActiveSubscription()) _buildAutoBackupCard(),
             _buildSettingsTile(
               'Backup/Restore',
               'Backup or restore your data',
@@ -409,7 +387,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _buildSection('About', [
             _buildSettingsTile(
               'Version',
-              '2.3.0',
+              _versionLabel.isEmpty ? 'Loading...' : _versionLabel,
               Icons.info,
               () => _showVersionDialog(),
               trailing: null,
@@ -457,6 +435,50 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  bool _hasActiveSubscription() {
+    final plan = DatabaseService.subscriptionVersion.value;
+    return plan != 'Free';
+  }
+
+  Widget _buildAutoBackupCard() {
+    final subtitle = _autoBackupEnabled ? 'Automatic backups enabled' : 'Automatic backups disabled';
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 6.0),
+      child: Card(
+        elevation: 1,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        child: Column(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.cloud_upload),
+              title: const Text('Auto Backup'),
+              subtitle: Text(subtitle),
+              trailing: Switch(
+                value: _autoBackupEnabled,
+                onChanged: (value) async {
+                  await DatabaseService.setSetting('autoBackupEnabled', value);
+                  await AutoBackupService.configurePeriodicTaskFromSettings();
+                  if (!mounted) return;
+                  setState(() => _autoBackupEnabled = value);
+                },
+              ),
+              onTap: () => _showAutoBackupHistoryPopup(),
+            ),
+            const Divider(height: 1),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: _runAutoBackupNow,
+                icon: const Icon(Icons.backup),
+                label: const Text('Backup Now'),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1032,6 +1054,108 @@ class _SettingsScreenState extends State<SettingsScreen> {
           trailing: trailing ?? const Icon(Icons.chevron_right),
           onTap: onTap,
           onLongPress: title == 'Version' ? () => _showSubscriptionModeDialog() : null,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _signOut() async {
+    try {
+      // Attempt Cognito sign out (clears server-side session)
+      await CognitoService.signOut();
+    } catch (e) {
+      // Don't block local cleanup if remote sign-out fails
+      debugPrint('Cognito signOut error: $e');
+    } finally {
+      // Ensure any locally stored user info is cleared
+      try {
+        await UserAuthService.logout();
+        await UserAuthService.clearDeviceToken();
+        await UserAuthService.clearEndpointArn();
+      } catch (e) {
+        debugPrint('Error clearing local user data: $e');
+      }
+
+      if (mounted) {
+        setState(() {
+          _isLoggedIn = false;
+          _userEmail = '';
+        });
+
+        // Navigate to login and clear navigation stack
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+          (route) => false,
+        );
+      }
+    }
+  }
+
+  Widget _buildAuthCard(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+      child: Card(
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Account',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+
+              // Show status
+              Text(
+                _isLoggedIn
+                    ? 'Signed in as ${_userEmail.isEmpty ? 'your account' : _userEmail}'
+                    : 'You are not signed in.',
+              ),
+              const SizedBox(height: 12),
+
+              // Buttons depend on sign-in state
+              if (_isLoggedIn) ...[
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      await _signOut();
+                    },
+                    child: const Text('Log out'),
+                  ),
+                ),
+              ] else ...[
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const LoginScreen()),
+                      );
+                    },
+                    child: const Text('Log in'),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const SignUpScreen()),
+                      );
+                    },
+                    child: const Text('Sign up'),
+                  ),
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );
