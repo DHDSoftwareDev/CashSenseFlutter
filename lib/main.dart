@@ -94,12 +94,11 @@ Future<void> _startDeferredInits(bool isSignedIn) async {
       return null;
     }),
     if (isSignedIn)
-      PushTokenService.registerDeviceOnLogin().catchError((e) {
-        debugPrint('Register device on start failed: $e');
+      _registerDeviceAfterUpgradeIfNeeded().catchError((e) {
+        debugPrint('Register device after upgrade failed: $e');
         return null;
       }),
   ]);
-  PushTokenService.initTokenRefreshListener();
 }
 
 Future<void> _initDatabase() async {
@@ -181,4 +180,18 @@ Future<void> runUpgradeMigrations() async {
     await DatabaseService.setSetting('lastBuild', currentBuild);
     debugPrint('Ran upgrade migrations: lastBuild -> $currentBuild');
   }
+}
+
+Future<void> _registerDeviceAfterUpgradeIfNeeded() async {
+  final bool notifEnabled = DatabaseService.getSetting<bool>('notif_billReminders', false) ?? false;
+  if (!notifEnabled) return;
+
+  final info = await PackageInfo.fromPlatform();
+  final currentBuild = int.tryParse(info.buildNumber) ?? 0;
+  final lastRegisteredBuild = DatabaseService.getSetting<int>('lastDeviceRegisterBuild', 0) ?? 0;
+  if (currentBuild <= lastRegisteredBuild) return;
+
+  await PushTokenService.registerDeviceOnLogin();
+  PushTokenService.initTokenRefreshListener();
+  await DatabaseService.setSetting('lastDeviceRegisterBuild', currentBuild);
 }

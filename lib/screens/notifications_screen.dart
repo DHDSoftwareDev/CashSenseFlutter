@@ -1,8 +1,11 @@
 // ignore_for_file: deprecated_member_use
 
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../services/database_service.dart';
 import '../services/bill_reminder_service.dart';
+import '../services/cognito_service.dart';
+import '../services/push_token_service.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -14,6 +17,7 @@ class NotificationsScreen extends StatefulWidget {
 class _NotificationsScreenState extends State<NotificationsScreen> {
   bool _billReminders = false;
   int _billRemindersLeadDays = 1; // 0 = on due date, 1 = 1 day before, etc.
+  bool _syncingToken = false;
   // Only bill reminders are shown for now; other notification types hidden temporarily
 
   @override
@@ -198,6 +202,48 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
+  Future<void> _syncDeviceToken() async {
+    if (_syncingToken) return;
+    setState(() => _syncingToken = true);
+    try {
+      final signedIn = await CognitoService.isSignedIn();
+      if (!signedIn) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sign in to sync push notifications.')),
+        );
+        return;
+      }
+
+      if (!_billReminders) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Enable bill reminders to sync notifications.')),
+        );
+        return;
+      }
+
+      await PushTokenService.registerDeviceOnLogin();
+      PushTokenService.initTokenRefreshListener();
+
+      final info = await PackageInfo.fromPlatform();
+      final currentBuild = int.tryParse(info.buildNumber) ?? 0;
+      await DatabaseService.setSetting('lastDeviceRegisterBuild', currentBuild);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Notification device token synced.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to sync device token: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _syncingToken = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -221,6 +267,18 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               onPressed: _editReminderTiming,
             ),
             onTap: _editReminderTiming,
+          ),
+          ListTile(
+            title: const Text('Sync push notifications'),
+            subtitle: const Text('Re-register this device with the server'),
+            trailing: _syncingToken
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.sync),
+            onTap: _syncingToken ? null : _syncDeviceToken,
           ),
           // Only show bill reminders for now
           const Divider(),

@@ -37,7 +37,6 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       final signedIn = await CognitoService.isSignedIn();
       if (!signedIn || !mounted) return;
-      await PushTokenService.registerDeviceOnLogin();
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const MainNavigationScreen()),
@@ -73,7 +72,6 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
 
       if (result.isSignedIn) {
-        await PushTokenService.registerDeviceOnLogin();
         // Login successful — go to dashboard
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Login successful!')),

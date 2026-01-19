@@ -778,12 +778,32 @@ class _DashboardScreenState extends State<DashboardScreen> {
   PaymentStatus _inferPaymentStatus(Transaction t) {
     // Heuristic: check note or description for keywords. Default to Unpaid for expenses without keywords.
     final text = '${t.description} ${t.note ?? ''}'.toLowerCase();
+    if (text.contains('unpaid') || text.contains('due') || text.contains('pending')) return PaymentStatus.unpaid;
+    if (text.contains('partial') || text.contains('partially')) return PaymentStatus.partial;
     if (text.contains('paid') || text.contains('settled') || text.contains('cleared')) return PaymentStatus.paid;
-  if (text.contains('partial') || text.contains('partially')) return PaymentStatus.partial;
-    if (text.contains('due') || text.contains('unpaid') || text.contains('pending')) return PaymentStatus.unpaid;
     // If amount is zero or it's income, treat as paid
     if (t.amount <= 0 || t.type == TransactionType.income) return PaymentStatus.paid;
     return PaymentStatus.unpaid;
+  }
+
+  PaymentStatus? _inferBillStatusFromMetadata(Bill bill) {
+    if (bill.paymentStatus != null) return bill.paymentStatus;
+    if (bill.isPaid) return PaymentStatus.paid;
+    final text = (bill.description ?? '').toLowerCase();
+    if (text.contains('unpaid') || text.contains('due') || text.contains('pending')) return PaymentStatus.unpaid;
+    if (text.contains('partial') || text.contains('partially')) return PaymentStatus.partial;
+    if (text.contains('paid') || text.contains('settled') || text.contains('cleared')) return PaymentStatus.paid;
+    return null;
+  }
+
+  PaymentStatus _finalizeBillStatus(Bill bill, double totalPaid) {
+    if (totalPaid <= 0) {
+      return _inferBillStatusFromMetadata(bill) ?? PaymentStatus.unpaid;
+    }
+    if (totalPaid >= (bill.amount - 0.01)) {
+      return PaymentStatus.paid;
+    }
+    return PaymentStatus.partial;
   }
 
   // ignore: unused_element
@@ -1025,14 +1045,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           }
 
           // Derive status from totalPaid
-          PaymentStatus status;
-          if (totalPaid <= 0) {
-            status = PaymentStatus.unpaid;
-          } else if (totalPaid >= (bill.amount - 0.01)) {
-            status = PaymentStatus.paid;
-          } else {
-            status = PaymentStatus.partial;
-          }
+          final PaymentStatus status = _finalizeBillStatus(bill, totalPaid);
 
           return _matchesSelectedStatuses(status);
         }).toList();
@@ -1466,17 +1479,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             )
                         )).toList();
                         final totalPaid = _computeSignedTotalPaid(sourceBill, payments);
+                        final status = _finalizeBillStatus(sourceBill, totalPaid);
                         String label;
                         Color color;
-                        if (totalPaid <= 0) {
-                          label = 'Unpaid';
-                          color = AppTheme.expenseRed;
-                        } else if (totalPaid >= (sourceBill.amount - 0.01)) {
+                        if (status == PaymentStatus.paid) {
                           label = 'Paid';
                           color = AppTheme.incomeGreen;
-                        } else {
+                        } else if (status == PaymentStatus.partial) {
                           label = 'Partial';
                           color = Colors.orange;
+                        } else {
+                          label = 'Unpaid';
+                          color = AppTheme.expenseRed;
                         }
                         return Text(label, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: color, fontWeight: FontWeight.bold));
                       }),

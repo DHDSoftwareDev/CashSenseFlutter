@@ -142,8 +142,15 @@ class DatabaseService {
     if (v == null) return null;
     try {
       final bool isPaid = v['isPaid'] as bool? ?? false;
-      final int idx = v['paymentStatus'] as int? ?? PaymentStatus.unpaid.index;
-      final PaymentStatus status = PaymentStatus.values[idx.clamp(0, PaymentStatus.values.length - 1)];
+      final int? rawIdx = v['paymentStatus'] as int?;
+      PaymentStatus status;
+      if (isPaid) {
+        status = PaymentStatus.paid;
+      } else if (rawIdx == null) {
+        status = PaymentStatus.unpaid;
+      } else {
+        status = PaymentStatus.values[rawIdx.clamp(0, PaymentStatus.values.length - 1)];
+      }
       return {'isPaid': isPaid, 'paymentStatus': status};
     } catch (_) {
       return null;

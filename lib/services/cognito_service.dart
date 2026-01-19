@@ -82,6 +82,7 @@ class CognitoService {
         // Register device for push notifications after login
         try {
           await PushTokenService.registerDeviceOnLogin();
+          PushTokenService.initTokenRefreshListener();
         } catch (e) {
           debugPrint('Device registration failed: $e');
         }

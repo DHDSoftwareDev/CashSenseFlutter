@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_native_timezone/flutter_native_timezone.dart';
+import 'package:flutter/services.dart';
 
 import 'aws_api_service.dart';
 import 'cognito_service.dart';
@@ -11,6 +12,18 @@ import 'user_auth_service.dart';
 
 class PushTokenService {
   static StreamSubscription<String>? _tokenRefreshSub;
+  static const MethodChannel _apnsChannel = MethodChannel('com.dhdsoftware.cashsense/notifications');
+
+  static Future<String?> _getApnsTokenFromNative() async {
+    if (!Platform.isIOS) return null;
+    try {
+      final token = await _apnsChannel.invokeMethod<String>('getAPNSToken');
+      if (token != null && token.isNotEmpty) return token;
+    } catch (_) {
+      // Fall through to other token sources.
+    }
+    return null;
+  }
 
   static Future<String?> _getApnsToken() async {
     if (!Platform.isIOS) return null;
@@ -48,6 +61,12 @@ class PushTokenService {
     String? token;
     String source = 'none';
     if (Platform.isIOS) {
+      token = await _getApnsTokenFromNative();
+      if (token != null && token.isNotEmpty) {
+        source = 'apns_native';
+      }
+    }
+    if (Platform.isIOS && (token == null || token.isEmpty)) {
       token = await _getApnsToken();
       if (token != null && token.isNotEmpty) {
         source = 'apns';
