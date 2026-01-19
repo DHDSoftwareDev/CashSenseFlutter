@@ -48,22 +48,18 @@ class AwsApiService {
       if (session is CognitoAuthSession) {
         final tokensResult = session.userPoolTokensResult;
 
-        // Some versions expose `value` as nullable.
-        // Some versions may throw if you access value when it's an error.
         try {
           final tokens = tokensResult.value;
           if (tokens != null) {
             return tokens.idToken.raw;
           }
-        } catch (_) {
-          // ignore, we'll log error below
-        }
+        } catch (_) {}
 
         safePrint('userPoolTokensResult: $tokensResult');
         return '';
       }
 
-      // Fallback: dynamic probing for older/newer shapes
+      // Fallback: dynamic probing
       final dyn = session as dynamic;
       try {
         final t = dyn.userPoolTokens?.idToken?.raw;
@@ -103,7 +99,7 @@ class AwsApiService {
       throw StateError('AWS API base URL not configured');
     }
 
-    // ✅ Don't make API calls if the user is not signed in
+    // Don’t call API if not signed in
     try {
       final isSignedIn = await Amplify.Auth.fetchAuthSession().then((session) => session.isSignedIn);
       if (!isSignedIn) {
@@ -164,7 +160,10 @@ class AwsApiService {
   static Bill _billFromItem(Map<String, dynamic> json) {
     final id = json['billId'] ?? json['id'] ?? '';
     final amount = (json['amount'] as num?)?.toDouble() ?? 0.0;
+
+    // ✅ now supports MM/DD/YYYY too
     final due = _parseDate(json['dueDate']) ?? DateTime.now();
+
     final recurrence = _recurrenceFromString(json['frequency']?.toString());
 
     return Bill(
@@ -237,9 +236,7 @@ class AwsApiService {
       'type': _accountTypeToApi(account.type),
       'currency': account.currency,
     };
-    if (userId.isNotEmpty) {
-      payload['userId'] = userId;
-    }
+    if (userId.isNotEmpty) payload['userId'] = userId;
     final response = await _request('POST', '/accounts', body: payload);
     _throwIfNotOk(response);
   }
@@ -252,9 +249,7 @@ class AwsApiService {
       'type': _accountTypeToApi(account.type),
       'currency': account.currency,
     };
-    if (userId.isNotEmpty) {
-      payload['userId'] = userId;
-    }
+    if (userId.isNotEmpty) payload['userId'] = userId;
     final response = await _request('PUT', '/accounts/${account.id}', body: payload);
     _throwIfNotOk(response);
   }
@@ -287,9 +282,7 @@ class AwsApiService {
 
   static Future<void> createBill(Bill bill) async {
     final userId = await UserAuthService.getCurrentUserId();
-    if (userId.isEmpty) {
-      throw StateError('No userId available for bill creation');
-    }
+    if (userId.isEmpty) throw StateError('No userId available for bill creation');
     final payload = _billToApiPayload(bill, userId);
     final response = await _request('POST', '/bills', body: payload);
     _throwIfNotOk(response);
@@ -297,9 +290,7 @@ class AwsApiService {
 
   static Future<void> updateBill(Bill bill) async {
     final userId = await UserAuthService.getCurrentUserId();
-    if (userId.isEmpty) {
-      throw StateError('No userId available for bill update');
-    }
+    if (userId.isEmpty) throw StateError('No userId available for bill update');
     final payload = _billToApiPayload(bill, userId);
     final response = await _request('PUT', '/bills/${bill.id}', body: payload);
     _throwIfNotOk(response);
@@ -307,9 +298,7 @@ class AwsApiService {
 
   static Future<void> deleteBill(String billId) async {
     final userId = await UserAuthService.getCurrentUserId();
-    if (userId.isEmpty) {
-      throw StateError('No userId available for bill delete');
-    }
+    if (userId.isEmpty) throw StateError('No userId available for bill delete');
     final response = await _request(
       'DELETE',
       '/bills/$billId',
@@ -335,22 +324,16 @@ class AwsApiService {
 
   static Future<void> createTransaction(Transaction transaction) async {
     final userId = await UserAuthService.getCurrentUserId();
-    final payload = _transactionToApiPayload(transaction)
-      ..['transactionId'] = transaction.id;
-    if (userId.isNotEmpty) {
-      payload['userId'] = userId;
-    }
+    final payload = _transactionToApiPayload(transaction)..['transactionId'] = transaction.id;
+    if (userId.isNotEmpty) payload['userId'] = userId;
     final response = await _request('POST', '/transactions', body: payload);
     _throwIfNotOk(response);
   }
 
   static Future<void> updateTransaction(Transaction transaction) async {
     final userId = await UserAuthService.getCurrentUserId();
-    final payload = _transactionToApiPayload(transaction)
-      ..['transactionId'] = transaction.id;
-    if (userId.isNotEmpty) {
-      payload['userId'] = userId;
-    }
+    final payload = _transactionToApiPayload(transaction)..['transactionId'] = transaction.id;
+    if (userId.isNotEmpty) payload['userId'] = userId;
     final response = await _request('PUT', '/transactions/${transaction.id}', body: payload);
     _throwIfNotOk(response);
   }
@@ -375,17 +358,21 @@ class AwsApiService {
   static Future<void> registerDevice({
     required String deviceToken,
     String? platform,
+    String? environment,
     String? timeZone,
   }) async {
     final userId = await UserAuthService.getCurrentUserId();
     final deviceId = await DeviceIdService.getOrCreate();
+
     final payload = <String, dynamic>{
       'deviceToken': deviceToken,
       'deviceId': deviceId,
       if (platform != null) 'platform': platform,
+      if (environment != null) 'environment': environment,
       if (timeZone != null) 'timeZone': timeZone,
       if (userId.isNotEmpty) 'userId': userId,
     };
+
     final response = await _request('POST', '/devices', body: payload);
     debugPrint('POST /devices -> ${response.statusCode} ${response.body}');
     _throwIfNotOk(response);
@@ -505,7 +492,10 @@ class AwsApiService {
       'billId': bill.id,
       'name': bill.description ?? 'Bill',
       'amount': bill.amount,
-      'dueDate': _formatDateYmd(bill.dueDate),
+
+      // ✅ Backend expects MM/DD/YYYY
+      'dueDate': _formatDateMMDDYYYY(bill.dueDate),
+
       'frequency': _recurrenceToApi(bill.recurrence),
       'status': 'active',
       'notes': bill.description,
@@ -534,7 +524,33 @@ class AwsApiService {
 
   static DateTime? _parseDate(dynamic raw) {
     if (raw == null) return null;
-    final value = raw.toString();
+    final value = raw.toString().trim();
+
+    // MM/DD/YYYY
+    final mmddyyyy = RegExp(r'^(\\d{2})\\/(\\d{2})\\/(\\d{4})$');
+    final m1 = mmddyyyy.firstMatch(value);
+    if (m1 != null) {
+      final mm = int.tryParse(m1.group(1)!);
+      final dd = int.tryParse(m1.group(2)!);
+      final yyyy = int.tryParse(m1.group(3)!);
+      if (mm != null && dd != null && yyyy != null) {
+        return DateTime(yyyy, mm, dd);
+      }
+    }
+
+    // YYYY-MM-DD
+    final ymd = RegExp(r'^(\\d{4})-(\\d{2})-(\\d{2})$');
+    final m2 = ymd.firstMatch(value);
+    if (m2 != null) {
+      final yyyy = int.tryParse(m2.group(1)!);
+      final mm = int.tryParse(m2.group(2)!);
+      final dd = int.tryParse(m2.group(3)!);
+      if (mm != null && dd != null && yyyy != null) {
+        return DateTime(yyyy, mm, dd);
+      }
+    }
+
+    // ISO
     try {
       return DateTime.parse(value);
     } catch (_) {
@@ -542,10 +558,10 @@ class AwsApiService {
     }
   }
 
-  static String _formatDateYmd(DateTime date) {
-    final y = date.year.toString().padLeft(4, '0');
-    final m = date.month.toString().padLeft(2, '0');
-    final d = date.day.toString().padLeft(2, '0');
-    return '$y-$m-$d';
+  static String _formatDateMMDDYYYY(DateTime date) {
+    final mm = date.month.toString().padLeft(2, '0');
+    final dd = date.day.toString().padLeft(2, '0');
+    final yyyy = date.year.toString().padLeft(4, '0');
+    return '$mm/$dd/$yyyy';
   }
 }

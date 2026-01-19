@@ -12,7 +12,18 @@ import 'user_auth_service.dart';
 
 class PushTokenService {
   static StreamSubscription<String>? _tokenRefreshSub;
-  static const MethodChannel _apnsChannel = MethodChannel('com.dhdsoftware.cashsense/notifications');
+
+  /// Optional native APNS token bridge (if you implemented it).
+  static const MethodChannel _apnsChannel =
+      MethodChannel('com.dhdsoftware.cashsense/notifications');
+
+  /// How often we will re-register even if the token didn't change.
+  /// This prevents TestFlight installs from skipping registration forever.
+  static const Duration _registerThrottle = Duration(hours: 24);
+
+  // ----------------------------
+  // Token capture
+  // ----------------------------
 
   static Future<String?> _getApnsTokenFromNative() async {
     if (!Platform.isIOS) return null;
@@ -20,7 +31,7 @@ class PushTokenService {
       final token = await _apnsChannel.invokeMethod<String>('getAPNSToken');
       if (token != null && token.isNotEmpty) return token;
     } catch (_) {
-      // Fall through to other token sources.
+      // Ignore and fall back.
     }
     return null;
   }
@@ -42,63 +53,69 @@ class PushTokenService {
     }
   }
 
+  /// Returns the token we should send to the backend.
+  /// IMPORTANT:
+  /// - iOS + AWS SNS (APNS) requires the APNS token (not FCM).
+  /// - Android can use FCM token if your backend is built for FCM.
   static Future<String?> captureDeviceToken() async {
-    if (kIsWeb) {
-      // Web push setup not configured here.
-      return null;
-    }
+    if (kIsWeb) return null;
 
-    try {
-      await FirebaseMessaging.instance.requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
-      );
-    } catch (_) {
-      // Continue; token may still be available on Android.
-    }
+    await FirebaseMessaging.instance.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
 
     String? token;
     String source = 'none';
+
     if (Platform.isIOS) {
       token = await _getApnsTokenFromNative();
-      if (token != null && token.isNotEmpty) {
-        source = 'apns_native';
+      if (token != null && token.isNotEmpty) source = 'apns_native';
+
+      token ??= await _getApnsToken();
+      if (token != null && token.isNotEmpty) source = 'apns';
+
+      // 🚫 DO NOT FALL BACK TO FCM ON IOS
+      if (token == null || token.isEmpty) {
+        debugPrint('❌ No APNS token yet — skipping device registration');
+        return null;
       }
-    }
-    if (Platform.isIOS && (token == null || token.isEmpty)) {
-      token = await _getApnsToken();
-      if (token != null && token.isNotEmpty) {
-        source = 'apns';
-      }
-    }
-    if (token == null || token.isEmpty) {
+    } else {
       token = await _getFcmToken();
-      if (token != null && token.isNotEmpty) {
-        source = 'fcm';
-      }
+      source = 'fcm';
     }
 
     if (token != null && token.isNotEmpty) {
+      debugPrint('✅ Captured token via $source (${token.length} chars)');
       await UserAuthService.saveDeviceToken(token);
-      final suffix = token.length > 6 ? token.substring(token.length - 6) : token;
-      debugPrint('Captured device token via $source (len=${token.length}, suffix=$suffix)');
     } else {
-      debugPrint('Failed to capture device token (source=$source)');
+      debugPrint('❌ Failed to capture device token (source=$source)');
     }
 
     return token;
   }
 
+  // ----------------------------
+  // Lifecycle hooks
+  // ----------------------------
+
   static void initTokenRefreshListener() {
     if (kIsWeb) return;
+
     _tokenRefreshSub ??= FirebaseMessaging.instance.onTokenRefresh.listen((_) async {
       debugPrint('Push token refresh event received');
       await _handleTokenRefresh();
     });
   }
 
+  /// Call this right after a successful login (and whenever user re-auths).
+  /// This will register:
+  /// - if token changed
+  /// - OR if we haven't registered recently (throttle window)
+  /// - OR if you explicitly force it (see forceRegisterNow)
   static Future<void> registerDeviceOnLogin() async {
+    // If you store userId locally, keep your existing logic.
     try {
       final currentUserId = await UserAuthService.getCurrentUserId();
       if (currentUserId.isEmpty) {
@@ -110,32 +127,66 @@ class PushTokenService {
         );
       }
     } catch (_) {
-      // Continue; device registration may still succeed if backend uses JWT.
+      // Continue; backend should still authorize via JWT.
     }
 
-    final previousToken = await UserAuthService.getDeviceToken();
+    // Capture token
     final token = await captureDeviceToken();
     if (token == null || token.isEmpty) return;
 
-    final shouldRegister = previousToken.isEmpty || previousToken != token;
-    if (!shouldRegister) {
-      debugPrint('Device token unchanged; skipping device registration');
+    // Decide if we should register
+    final lastRegisteredToken = await UserAuthService.getLastRegisteredToken();
+    final lastRegisteredAt = await UserAuthService.getLastDeviceRegisterAt(); // DateTime?
+    final now = DateTime.now();
+
+    final tokenChanged = lastRegisteredToken != token;
+    final stale = lastRegisteredAt == null ||
+        now.difference(lastRegisteredAt) > _registerThrottle;
+
+    if (!tokenChanged && !stale) {
+      debugPrint('Device registration skipped: token unchanged and recently registered.');
       return;
     }
 
-    await _registerDevice(token, reason: previousToken.isEmpty ? 'initial' : 'token_changed');
+    await _registerDevice(token, reason: tokenChanged ? 'login_token_changed' : 'login_stale_refresh');
+
+    // Save registration markers
+    await UserAuthService.saveLastRegisteredToken(token);
+    await UserAuthService.saveLastDeviceRegisterAt(now);
+  }
+
+  /// Hook your “Sync push notifications” button to this.
+  static Future<void> forceRegisterNow() async {
+    final token = await captureDeviceToken();
+    if (token == null || token.isEmpty) return;
+
+    await _registerDevice(token, reason: 'manual_force');
+
+    // Update markers even for manual force
+    await UserAuthService.saveLastRegisteredToken(token);
+    await UserAuthService.saveLastDeviceRegisterAt(DateTime.now());
   }
 
   static Future<void> _handleTokenRefresh() async {
-    final previousToken = await UserAuthService.getDeviceToken();
     final token = await captureDeviceToken();
     if (token == null || token.isEmpty) return;
-    if (token == previousToken) {
-      debugPrint('Token refresh did not change device token');
-      return;
+
+    final lastRegisteredToken = await UserAuthService.getLastRegisteredToken();
+    if (lastRegisteredToken == token) {
+      debugPrint('Token refresh did not change token; still forcing one registration to be safe.');
+      // You can choose to return here, but for iOS/TestFlight it can be safer to still register once.
+      // return;
     }
+
     await _registerDevice(token, reason: 'token_refresh');
+
+    await UserAuthService.saveLastRegisteredToken(token);
+    await UserAuthService.saveLastDeviceRegisterAt(DateTime.now());
   }
+
+  // ----------------------------
+  // Backend registration
+  // ----------------------------
 
   static Future<void> _registerDevice(String token, {required String reason}) async {
     bool isSignedIn = false;
@@ -156,22 +207,33 @@ class PushTokenService {
       timeZone = null;
     }
 
-    String platform;
-    if (kIsWeb) {
-      platform = 'web';
-    } else if (Platform.isIOS) {
-      platform = 'ios';
-    } else if (Platform.isAndroid) {
-      platform = 'android';
-    } else {
-      platform = 'unknown';
-    }
+    final platform = _platformString();
 
-    debugPrint('Registering device ($reason) for platform=$platform tz=${timeZone ?? "unknown"}');
+    // iOS: TestFlight should be production APNS for SNS.
+    // If you ever want to support sandbox builds (debug), you can set sandbox when !kReleaseMode.
+    final String? environment = Platform.isIOS
+        ? (kReleaseMode ? 'production' : 'sandbox')
+        : null;
+
+    debugPrint(
+      'Registering device ($reason) platform=$platform env=${environment ?? "-"} tz=${timeZone ?? "unknown"}',
+    );
+
+    // IMPORTANT: make sure your AwsApiService.registerDevice sends:
+    // - Authorization header (Cognito JWT)
+    // - JSON body with deviceToken, platform, timeZone, environment
     await AwsApiService.registerDevice(
       deviceToken: token,
       platform: platform,
       timeZone: timeZone,
+      environment: environment, // <-- add this param in AwsApiService
     );
+  }
+
+  static String _platformString() {
+    if (kIsWeb) return 'web';
+    if (Platform.isIOS) return 'ios';
+    if (Platform.isAndroid) return 'android';
+    return 'unknown';
   }
 }

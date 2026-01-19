@@ -400,7 +400,6 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       if (createdCmp != 0) return createdCmp;
       return b.id.compareTo(a.id);
     });
-    final pendingIds = pendingTxs.map((t) => t.id).toSet();
     final pendingTotal = pendingTxs.fold<double>(
       0.0,
       (sum, tx) => sum + (tx.type == TransactionType.income ? tx.amount : -tx.amount),
