@@ -346,6 +346,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     }
     // Precompute running balances for account view (oldest -> newest)
     Map<String, double>? runningMap;
+    Map<String, double>? pendingRunningMap;
     if (widget.accountId != null && widget.accountId!.isNotEmpty) {
       // Always use all transactions for running balance, not just visible ones
       var allForBalance = List<Transaction>.from(_transactions);
@@ -367,23 +368,31 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           final computedAvailable = account.balance - pendingExpenses + pendingIncome;
           final displayBase = account.availableBalance ?? computedAvailable;
           runningMap = <String, double>{};
+          pendingRunningMap = <String, double>{};
           double cum = displayBase;
+          double cumWithPending = displayBase;
           for (final tx in allForBalance) {
             final effect = (tx.type == TransactionType.income ? tx.amount : -tx.amount);
             if (tx.cleared == true) {
               cum += effect;
             }
+            cumWithPending += effect;
             runningMap[tx.id] = cum;
+            pendingRunningMap[tx.id] = cumWithPending;
           }
         } else {
           runningMap = <String, double>{};
+          pendingRunningMap = <String, double>{};
           double cum = initialBalance;
+          double cumWithPending = initialBalance;
           for (final tx in allForBalance) {
             final effect = (tx.type == TransactionType.income ? tx.amount : -tx.amount);
             if (tx.cleared == true) {
               cum += effect;
             }
+            cumWithPending += effect;
             runningMap[tx.id] = cum;
+            pendingRunningMap[tx.id] = cumWithPending;
           }
         }
       }
@@ -446,7 +455,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 ),
                 const Divider(height: 1),
                 for (var i = 0; i < pendingTxs.length; i++) ...[
-                  _buildTransactionItem(pendingTxs[i], runningBalance: runningMap?[pendingTxs[i].id]),
+                  _buildTransactionItem(pendingTxs[i], runningBalance: pendingRunningMap?[pendingTxs[i].id]),
                   if (i != pendingTxs.length - 1) const Divider(height: 1),
                 ],
               ],
