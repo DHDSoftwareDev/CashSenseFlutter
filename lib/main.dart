@@ -1,4 +1,4 @@
-// ignore_for_file: depend_on_referenced_packages, unused_import
+// ignore_for_file: depend_on_referenced_packages, unused_import, unused_element
 
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -94,8 +94,8 @@ Future<void> _startDeferredInits(bool isSignedIn) async {
       return null;
     }),
     if (isSignedIn)
-      _registerDeviceAfterUpgradeIfNeeded().catchError((e) {
-        debugPrint('Register device after upgrade failed: $e');
+      _registerDeviceEveryLaunch().catchError((e) {
+        debugPrint('Register device failed: $e');
         return null;
       }),
   ]);
@@ -194,4 +194,13 @@ Future<void> _registerDeviceAfterUpgradeIfNeeded() async {
   await PushTokenService.registerDeviceOnLogin();
   PushTokenService.initTokenRefreshListener();
   await DatabaseService.setSetting('lastDeviceRegisterBuild', currentBuild);
+}
+
+/// Register device on every app launch (if notifications enabled).
+Future<void> _registerDeviceEveryLaunch() async {
+  final bool notifEnabled = DatabaseService.getSetting<bool>('notif_billReminders', false) ?? false;
+  if (!notifEnabled) return;
+
+  await PushTokenService.registerDeviceOnLogin();
+  PushTokenService.initTokenRefreshListener();
 }

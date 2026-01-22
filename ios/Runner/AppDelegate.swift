@@ -107,6 +107,18 @@ import UserNotifications
   ) {
     print("Failed to register for remote notifications: \(error)")
   }
+
+  override func application(
+    _ application: UIApplication,
+    didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+    fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
+  ) {
+    print("✅ Background push received:", userInfo)
+    // Persist last background push timestamp (seconds since epoch)
+    UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "last_bg_push")
+    print("✅ BG push stored timestamp")
+    completionHandler(.newData)
+  }
   
   // Background fetch handling removed — handled on Flutter side now
 }

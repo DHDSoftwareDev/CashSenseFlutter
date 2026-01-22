@@ -104,6 +104,34 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     try {
       if (value) {
         await BillReminderService().scheduleAllReminders();
+        // If enabling bill reminders, register this device for push notifications now
+        try {
+          final signedIn = await CognitoService.isSignedIn();
+          if (signedIn) {
+            await PushTokenService.registerDeviceOnLogin();
+            PushTokenService.initTokenRefreshListener();
+            final info = await PackageInfo.fromPlatform();
+            final currentBuild = int.tryParse(info.buildNumber) ?? 0;
+            await DatabaseService.setSetting('lastDeviceRegisterBuild', currentBuild);
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Notification device token synced.')),
+              );
+            }
+          } else {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Sign in to enable push notifications.')),
+              );
+            }
+          }
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Failed to register device: $e')),
+            );
+          }
+        }
       } else {
         await BillReminderService().cancelAllReminders();
       }
@@ -286,7 +314,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Text(
-              'Manage which notifications you want to receive from CashSense. For push notifications, ensure app permissions are enabled in system settings.',
+              "Turn on notifications to get bill reminders from CashSense Money Management at the time you choose.\nDon’t forget to allow push notifications in your device’s system settings.",
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ),
