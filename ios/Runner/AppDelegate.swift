@@ -15,19 +15,9 @@ import UserNotifications
     // Set UNUserNotificationCenter delegate for handling notifications
     if #available(iOS 10.0, *) {
       UNUserNotificationCenter.current().delegate = self
-      
+
       // Request authorization for notifications
-      let authOptions: UNAuthorizationOptions = [.alert, .badge, .sound]
-      UNUserNotificationCenter.current().requestAuthorization(
-        options: authOptions,
-        completionHandler: { granted, error in
-          if let error = error {
-            print("❌ Error requesting notification authorization: \(error)")
-          } else {
-            print("✅ Notification authorization granted: \(granted)")
-          }
-        }
-      )
+      requestNotificationPermissions()
     }
     
     GeneratedPluginRegistrant.register(with: self)
@@ -54,6 +44,36 @@ import UserNotifications
     
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
+
+  override func applicationDidBecomeActive(_ application: UIApplication) {
+    application.applicationIconBadgeNumber = 0
+    UNUserNotificationCenter.current().removeAllDeliveredNotifications()
+  }
+
+  // Clear badge manually
+  func clearBadge() {
+    UIApplication.shared.applicationIconBadgeNumber = 0
+    UNUserNotificationCenter.current().removeAllDeliveredNotifications()
+  }
+
+  // Set badge to specific number (e.g., unread count)
+  func setBadge(count: Int) {
+    UIApplication.shared.applicationIconBadgeNumber = count
+  }
+
+  func requestNotificationPermissions() {
+    let authOptions: UNAuthorizationOptions = [.alert, .badge, .sound]
+    UNUserNotificationCenter.current().requestAuthorization(
+      options: authOptions,
+      completionHandler: { granted, error in
+        if let error = error {
+          print("❌ Error requesting notification authorization: \(error)")
+        } else {
+          print("✅ Notification permissions granted: \(granted)")
+        }
+      }
+    )
+  }
   
   // Handle notification when app is in foreground
   override func userNotificationCenter(
@@ -75,6 +95,10 @@ import UserNotifications
     didReceive response: UNNotificationResponse,
     withCompletionHandler completionHandler: @escaping () -> Void
   ) {
+    let userInfo = response.notification.request.content.userInfo
+    if let billId = userInfo["billId"] as? String {
+      print("User tapped notification for bill: \(billId)")
+    }
     completionHandler()
   }
   

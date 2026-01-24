@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:amplify_flutter/amplify_flutter.dart';
 import '../services/cognito_service.dart';
+import '../services/push_token_service.dart';
 import 'verification_screen.dart';
 import 'login_screen.dart';
 import 'dashboard_screen.dart';
@@ -59,6 +60,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
           );
 
           if (signInResult.isSignedIn) {
+            try {
+              await PushTokenService.registerDeviceOnLogin();
+            } catch (_) {}
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Account created and signed in!')),
             );

@@ -360,6 +360,9 @@ class AwsApiService {
     String? platform,
     String? environment,
     String? timeZone,
+    bool? notificationsEnabled,
+    String? appVersion,
+    String? osVersion,
   }) async {
     final userId = await UserAuthService.getCurrentUserId();
     final deviceId = await DeviceIdService.getOrCreate();
@@ -370,6 +373,9 @@ class AwsApiService {
       if (platform != null) 'platform': platform,
       if (environment != null) 'environment': environment,
       if (timeZone != null) 'timeZone': timeZone,
+      if (notificationsEnabled != null) 'notificationsEnabled': notificationsEnabled,
+      if (appVersion != null && appVersion.isNotEmpty) 'appVersion': appVersion,
+      if (osVersion != null && osVersion.isNotEmpty) 'osVersion': osVersion,
       if (userId.isNotEmpty) 'userId': userId,
     };
 

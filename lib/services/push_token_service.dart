@@ -5,6 +5,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_native_timezone/flutter_native_timezone.dart';
 import 'package:flutter/services.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import 'aws_api_service.dart';
 import 'cognito_service.dart';
@@ -16,10 +17,6 @@ class PushTokenService {
   /// Optional native APNS token bridge (if you implemented it).
   static const MethodChannel _apnsChannel =
       MethodChannel('com.dhdsoftware.cashsense/notifications');
-
-  /// How often we will re-register even if the token didn't change.
-  /// This prevents TestFlight installs from skipping registration forever.
-  static const Duration _registerThrottle = Duration(hours: 24);
 
   // ----------------------------
   // Token capture
@@ -134,25 +131,11 @@ class PushTokenService {
     final token = await captureDeviceToken();
     if (token == null || token.isEmpty) return;
 
-    // Decide if we should register
-    final lastRegisteredToken = await UserAuthService.getLastRegisteredToken();
-    final lastRegisteredAt = await UserAuthService.getLastDeviceRegisterAt(); // DateTime?
-    final now = DateTime.now();
-
-    final tokenChanged = lastRegisteredToken != token;
-    final stale = lastRegisteredAt == null ||
-        now.difference(lastRegisteredAt) > _registerThrottle;
-
-    if (!tokenChanged && !stale) {
-      debugPrint('Device registration skipped: token unchanged and recently registered.');
-      return;
-    }
-
-    await _registerDevice(token, reason: tokenChanged ? 'login_token_changed' : 'login_stale_refresh');
+    await _registerDevice(token, reason: 'login');
 
     // Save registration markers
     await UserAuthService.saveLastRegisteredToken(token);
-    await UserAuthService.saveLastDeviceRegisterAt(now);
+    await UserAuthService.saveLastDeviceRegisterAt(DateTime.now());
   }
 
   /// Hook your “Sync push notifications” button to this.
@@ -207,6 +190,25 @@ class PushTokenService {
       timeZone = null;
     }
 
+    bool notificationsEnabled = false;
+    try {
+      final settings = await FirebaseMessaging.instance.getNotificationSettings();
+      notificationsEnabled = settings.authorizationStatus == AuthorizationStatus.authorized ||
+          settings.authorizationStatus == AuthorizationStatus.provisional;
+    } catch (_) {
+      notificationsEnabled = false;
+    }
+
+    String? appVersion;
+    try {
+      final info = await PackageInfo.fromPlatform();
+      appVersion = info.version.isNotEmpty ? info.version : null;
+    } catch (_) {
+      appVersion = null;
+    }
+
+    final osVersion = Platform.operatingSystemVersion;
+
     final platform = _platformString();
 
     // iOS: TestFlight should be production APNS for SNS.
@@ -227,6 +229,9 @@ class PushTokenService {
       platform: platform,
       timeZone: timeZone,
       environment: environment, // <-- add this param in AwsApiService
+      notificationsEnabled: notificationsEnabled,
+      appVersion: appVersion,
+      osVersion: osVersion,
     );
   }
 

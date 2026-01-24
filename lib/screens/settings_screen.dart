@@ -22,6 +22,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../services/cognito_service.dart';
 import '../services/user_auth_service.dart';
+import '../services/push_token_service.dart';
 import 'login_screen.dart';
 import 'signup_screen.dart';
 import 'edit_account_screen.dart';
@@ -619,6 +620,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 if (mounted) Navigator.pop(context);
 
                 if (result.isSignedIn) {
+                  try {
+                    await PushTokenService.registerDeviceOnLogin();
+                  } catch (_) {}
                   // Close login dialog
                   Navigator.pop(context);
                   await _loadUserInfo();
@@ -1131,11 +1135,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.push(
+                    onPressed: () async {
+                      await Navigator.push(
                         context,
                         MaterialPageRoute(builder: (_) => const LoginScreen()),
                       );
+                      if (!mounted) return;
+                      await _loadUserInfo();
                     },
                     child: const Text('Log in'),
                   ),
@@ -1144,11 +1150,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton(
-                    onPressed: () {
-                      Navigator.push(
+                    onPressed: () async {
+                      await Navigator.push(
                         context,
                         MaterialPageRoute(builder: (_) => const SignUpScreen()),
                       );
+                      if (!mounted) return;
+                      await _loadUserInfo();
                     },
                     child: const Text('Sign up'),
                   ),

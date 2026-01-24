@@ -72,6 +72,9 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
 
       if (result.isSignedIn) {
+        try {
+          await PushTokenService.registerDeviceOnLogin();
+        } catch (_) {}
         // Login successful — go to dashboard
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Login successful!')),
