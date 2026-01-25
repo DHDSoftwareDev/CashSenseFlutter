@@ -39,6 +39,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     if (savedFilter != null && savedFilter.isNotEmpty) {
       _selectedFilter = savedFilter;
     }
+    // Restore hide/show cleared preference
+    _showCleared = DatabaseService.getSetting<bool>('transactionsShowCleared', true) ?? true;
     _loadTransactions();
     DatabaseService.transactionsVersion.addListener(_onTransactionsChanged);
     DatabaseService.accountsVersion.addListener(_onAccountsChanged);
@@ -604,6 +606,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               setState(() {
                 _showCleared = !_showCleared;
               });
+              DatabaseService.setSetting('transactionsShowCleared', _showCleared);
             },
             child: Text(
               _showCleared ? 'Hide Cleared' : 'Show Cleared',

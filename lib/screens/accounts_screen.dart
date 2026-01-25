@@ -44,6 +44,15 @@ class _AccountsScreenState extends State<AccountsScreen> {
     // Load persisted group by selection
     _groupByIndex = DatabaseService.getSetting<int>('accountsGroupByIndex', 0) ?? 0;
     // No longer load per-account display preferences; always show available balance
+    // Load persisted hidden balances so they survive app restarts
+    try {
+      final raw = DatabaseService.getSetting<List<dynamic>>('hiddenAccountBalances', <dynamic>[]);
+      if (raw != null) {
+        for (final e in raw) {
+          if (e != null) _hiddenBalances.add(e.toString());
+        }
+      }
+    } catch (_) {}
     // Load persisted expanded groups so the UI remembers collapsed state between launches
     try {
       final raw = DatabaseService.getSetting<List<dynamic>>('expandedAccountGroups', <dynamic>[]);
@@ -744,6 +753,9 @@ class _AccountsScreenState extends State<AccountsScreen> {
                           _hiddenBalances.add(acc.id);
                         }
                       });
+                      try {
+                        await DatabaseService.setSetting('hiddenAccountBalances', _hiddenBalances.toList());
+                      } catch (_) {}
                       break;
                   }
                 },
