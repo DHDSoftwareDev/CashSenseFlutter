@@ -1656,6 +1656,7 @@ Widget _buildPieChartCardGeneric({
               child: BarChart(
                 BarChartData(
                   alignment: BarChartAlignment.spaceAround,
+                  barTouchData: BarTouchData(enabled: false),
                   minY: _computeMinYForBarChart(incomeData, expenseData),
                   maxY: _computeMaxYForBarChart(incomeData, expenseData),
                   barGroups: List.generate(months.length, (index) {
