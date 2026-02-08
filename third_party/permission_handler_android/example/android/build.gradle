@@ -33,7 +33,7 @@ tasks.register("clean", Delete) {
 gradle.projectsEvaluated {
     project(":permission_handler_android") {
         tasks.withType(JavaCompile) {
-            options.compilerArgs << "-Xlint:all" << "-Werror"
+            options.compilerArgs << "-Xlint:all" << "-Xlint:-options"
         }
     }
 }

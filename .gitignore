@@ -22,3 +22,6 @@ DerivedData/
 *.xcarchive
 *.ipa
 
+
+# Android signing
+android/key.properties

@@ -446,11 +446,16 @@ class _PayBillScreenState extends State<PayBillScreen> {
                   CircleAvatar(
                     radius: 24,
                     backgroundColor: category.color.withAlpha(0x33),
-                    child: Icon(
-                      category.icon,
-                      color: category.color,
-                      size: 24,
-                    ),
+                    child: category.displayEmoji != null
+                        ? Text(
+                            category.displayEmoji!,
+                            style: TextStyle(fontSize: 24, color: category.color),
+                          )
+                        : Icon(
+                            category.icon,
+                            color: category.color,
+                            size: 24,
+                          ),
                   )
                 else
                   CircleAvatar(

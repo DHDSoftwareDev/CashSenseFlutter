@@ -19,6 +19,7 @@
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/flutter_native_splash-2.4.6" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/connectivity_plus-6.1.5" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/permission_handler-10.4.5" />
+      <root url="file://$PROJECT_DIR$/third_party/flutter_native_timezone" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/webview_flutter-4.13.0" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/webview_flutter_wkwebview-3.23.5" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/url_launcher_windows-3.1.5" />
@@ -45,7 +46,6 @@
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/shared_preferences_foundation-2.5.6" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/url_launcher_linux-3.2.2" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/flutter_secure_storage_web-1.2.1" />
-      <root url="file://$PROJECT_DIR$/third_party/flutter_native_timezone" />
       <root url="file://$PROJECT_DIR$/third_party/flutter_web_auth" />
     </CLASSES>
     <JAVADOC />

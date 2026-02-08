@@ -28,12 +28,19 @@ class _ReportTransactionsScreenState extends State<ReportTransactionsScreen> {
     super.initState();
     _loadTransactions();
     DatabaseService.transactionsVersion.addListener(_loadTransactions);
+    DatabaseService.categoriesVersion.addListener(_onCategoriesChanged);
   }
 
   @override
   void dispose() {
     DatabaseService.transactionsVersion.removeListener(_loadTransactions);
+    DatabaseService.categoriesVersion.removeListener(_onCategoriesChanged);
     super.dispose();
+  }
+
+  void _onCategoriesChanged() {
+    if (!mounted) return;
+    setState(() {});
   }
 
   String _extractPayeeName(String desc) {

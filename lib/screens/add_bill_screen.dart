@@ -213,14 +213,9 @@ class _CategorySelectorSheetState extends State<_CategorySelectorSheet> {
               itemBuilder: (context, idx) {
                 final c = _filtered[idx];
                 Widget? leadingWidget;
-                if (c.image != null && c.image!.isNotEmpty) {
-                  final chars = c.image!.runes.toList();
-                  final emojiRegex = RegExp(r'^[\u{1F1E6}-\u{1F1FF}\u{1F300}-\u{1F5FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{2300}-\u{23FF}]$', unicode: true);
-                  if (chars.length == 1 && emojiRegex.hasMatch(c.image!)) {
-                    leadingWidget = Text(c.image!, style: TextStyle(fontSize: 24, color: c.color));
-                  } else {
-                    leadingWidget = Icon(c.icon, color: c.color);
-                  }
+                final emoji = c.displayEmoji;
+                if (emoji != null) {
+                  leadingWidget = Text(emoji, style: TextStyle(fontSize: 24, color: c.color));
                 } else {
                   leadingWidget = Icon(c.icon, color: c.color);
                 }
@@ -256,6 +251,7 @@ class _PayeeSelectorSheetState extends State<_PayeeSelectorSheet> {
   late List<Map<String, dynamic>> _filtered;
   String _query = '';
   String? _selectedId;
+  VoidCallback? _categoriesListener;
 
   @override
   void initState() {
@@ -263,6 +259,19 @@ class _PayeeSelectorSheetState extends State<_PayeeSelectorSheet> {
     _all = widget.payees;
     _filtered = _all;
     _selectedId = widget.initialSelectedId;
+    _categoriesListener = () {
+      if (!mounted) return;
+      setState(() {});
+    };
+    DatabaseService.categoriesVersion.addListener(_categoriesListener!);
+  }
+
+  @override
+  void dispose() {
+    if (_categoriesListener != null) {
+      DatabaseService.categoriesVersion.removeListener(_categoriesListener!);
+    }
+    super.dispose();
   }
 
   void _onSearch(String q) {
@@ -1604,9 +1613,21 @@ class _AddBillScreenState extends State<AddBillScreen> {
   }
   
   Widget _buildCategorySelector() {
+    final selectedCategory = _selectedCategoryId == null
+        ? null
+        : _categories.firstWhere(
+            (c) => c.id == _selectedCategoryId,
+            orElse: () => Category(name: 'Unknown', iconCodePoint: '0xe85d', colorValue: '0xFF607D8B'),
+          );
+    final bool hasSelectedCategory = selectedCategory != null && selectedCategory.id == _selectedCategoryId;
+    final categoryForDisplay = hasSelectedCategory ? selectedCategory : null;
+    final emoji = categoryForDisplay?.displayEmoji;
+
     return Card(
       child: ListTile(
-        leading: const Icon(Icons.label),
+        leading: emoji != null
+            ? Text(emoji, style: TextStyle(fontSize: 24, color: categoryForDisplay!.color))
+            : Icon(categoryForDisplay?.icon ?? Icons.label, color: categoryForDisplay?.color),
         title: const Text('Category'),
         subtitle: Text(
           _selectedCategoryId == null

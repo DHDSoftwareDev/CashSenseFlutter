@@ -1490,6 +1490,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           type: catData['type'] == 'income' ? models.CategoryType.income : models.CategoryType.expense,
           isDefault: catData['isDefault'] ?? false,
           budgetLimit: catData['budgetLimit']?.toDouble(),
+          image: catData['image'],
         );
         await DatabaseService.addCategory(category);
       }

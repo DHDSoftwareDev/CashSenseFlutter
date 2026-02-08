@@ -27,11 +27,17 @@ class _PayeesScreenState extends State<PayeesScreen> {
     _loadPayees();
     // Listen for payee changes made elsewhere in the app (e.g. add from selector)
     DatabaseService.payeesVersion.addListener(_onPayeesChanged);
+    DatabaseService.categoriesVersion.addListener(_onCategoriesChanged);
   }
 
   void _onPayeesChanged() {
     if (!mounted) return;
     _loadPayees();
+  }
+
+  void _onCategoriesChanged() {
+    if (!mounted) return;
+    setState(() {});
   }
 
   // Opens a dialog with a search bar and list of available categories. Returns the selected category id or null.
@@ -242,6 +248,7 @@ class _PayeesScreenState extends State<PayeesScreen> {
   @override
   void dispose() {
     DatabaseService.payeesVersion.removeListener(_onPayeesChanged);
+    DatabaseService.categoriesVersion.removeListener(_onCategoriesChanged);
     super.dispose();
   }
 

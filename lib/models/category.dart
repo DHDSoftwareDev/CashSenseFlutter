@@ -60,6 +60,18 @@ class Category extends HiveObject {
 
   Color get color => Color(int.parse(colorValue));
 
+  /// Returns a single grapheme emoji for UI display, otherwise null.
+  /// This accepts composed emojis (skin tone, ZWJ sequences, flags).
+  String? get displayEmoji {
+    final raw = image?.trim();
+    if (raw == null || raw.isEmpty) return null;
+    try {
+      return raw.characters.length == 1 ? raw : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'id': id,

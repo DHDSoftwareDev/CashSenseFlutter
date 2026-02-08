@@ -529,15 +529,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
   Widget? leadingWidget;
   if (selectedCategory != null) {
-    // Show emoji if valid, else icon
-    if (selectedCategory.image != null && selectedCategory.image!.isNotEmpty) {
-      final chars = selectedCategory.image!.runes.toList();
-      final emojiRegex = RegExp(r'^[\u{1F1E6}-\u{1F1FF}\u{1F300}-\u{1F5FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{2300}-\u{23FF}]$', unicode: true);
-      if (chars.length == 1 && emojiRegex.hasMatch(selectedCategory.image!)) {
-        leadingWidget = Text(selectedCategory.image!, style: TextStyle(fontSize: 24, color: selectedCategory.color));
-      } else {
-        leadingWidget = Icon(selectedCategory.icon, color: selectedCategory.color);
-      }
+    final emoji = selectedCategory.displayEmoji;
+    if (emoji != null) {
+      leadingWidget = Text(emoji, style: TextStyle(fontSize: 24, color: selectedCategory.color));
     } else {
       leadingWidget = Icon(selectedCategory.icon, color: selectedCategory.color);
     }
@@ -2205,6 +2199,7 @@ class _PayeeSelectorSheetWithSearchState extends State<_PayeeSelectorSheetWithSe
   String _query = '';
   String? _selectedCategoryId;
   List<Category> _categories = [];
+  VoidCallback? _categoriesListener;
 
   @override
   void initState() {
@@ -2217,6 +2212,19 @@ class _PayeeSelectorSheetWithSearchState extends State<_PayeeSelectorSheetWithSe
     } else {
       _categories = DatabaseService.getAllCategories();
     }
+    _categoriesListener = () {
+      if (!mounted) return;
+      setState(() {});
+    };
+    DatabaseService.categoriesVersion.addListener(_categoriesListener!);
+  }
+
+  @override
+  void dispose() {
+    if (_categoriesListener != null) {
+      DatabaseService.categoriesVersion.removeListener(_categoriesListener!);
+    }
+    super.dispose();
   }
 
   @override
@@ -2377,14 +2385,9 @@ class _CategorySelectorSheetState extends State<_CategorySelectorSheet> {
                       final iconData = Category.iconMap[category.iconCodePoint] ?? const IconData(0xe88a, fontFamily: 'MaterialIcons');
                       final color = Color(int.parse(category.colorValue));
                       Widget? leadingWidget;
-                      if (category.image != null && category.image!.isNotEmpty) {
-                        final chars = category.image!.runes.toList();
-                        final emojiRegex = RegExp(r'^[\u{1F1E6}-\u{1F1FF}\u{1F300}-\u{1F5FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{2300}-\u{23FF}]$', unicode: true);
-                        if (chars.length == 1 && emojiRegex.hasMatch(category.image!)) {
-                          leadingWidget = Text(category.image!, style: TextStyle(fontSize: 24, color: color));
-                        } else {
-                          leadingWidget = Icon(iconData, color: color);
-                        }
+                      final emoji = category.displayEmoji;
+                      if (emoji != null) {
+                        leadingWidget = Text(emoji, style: TextStyle(fontSize: 24, color: color));
                       } else {
                         leadingWidget = Icon(iconData, color: color);
                       }
