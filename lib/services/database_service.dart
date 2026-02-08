@@ -218,12 +218,109 @@ class DatabaseService {
   }
 
   static Future<void> updateTransaction(Transaction transaction) async {
+    // Capture previous value so we can update occurrence status if bill linkage
+    // changed or if amount/date was edited.
+    final Transaction? previous = _transactionBox.get(transaction.id);
+
     await _transactionBox.put(transaction.id, transaction);
     // Ensure the transaction box is flushed so readers (UI/listeners)
     // observe the updated value when transactionsVersion is incremented.
     await _transactionBox.flush();
     transactionsVersion.value++;
     await _safeAwsCall(() => AwsApiService.updateTransaction(transaction), 'update transaction');
+
+    // Keep bill occurrence paid/partial/unpaid state synchronized whenever a
+    // linked payment transaction is edited from any screen.
+    try {
+      final affectedBillIds = <String>{};
+      if (previous?.billId != null && previous!.billId!.isNotEmpty) {
+        affectedBillIds.add(previous.billId!);
+      }
+      if (transaction.billId != null && transaction.billId!.isNotEmpty) {
+        affectedBillIds.add(transaction.billId!);
+      }
+
+      for (final billId in affectedBillIds) {
+        final bill = _billsBox.get(billId);
+        if (bill == null) continue;
+
+        final allTx = getAllTransactions();
+        final occDates = <DateTime>{};
+
+        void addOccSeed(DateTime? occDate, DateTime? date, String? description) {
+          if (occDate != null) {
+            occDates.add(DateTime(occDate.year, occDate.month, occDate.day));
+            return;
+          }
+          if (date != null) {
+            occDates.add(DateTime(date.year, date.month, date.day));
+            return;
+          }
+          if (description != null) {
+            final match = RegExp(r"(0[1-9]|1[0-2])/(0[1-9]|[12][0-9]|3[01])/\d{4}").firstMatch(description);
+            if (match != null) {
+              try {
+                final parsed = DateFormat('MM/dd/yyyy').parse(match.group(0)!);
+                occDates.add(DateTime(parsed.year, parsed.month, parsed.day));
+              } catch (_) {}
+            }
+          }
+        }
+
+        if (previous?.billId == billId) {
+          addOccSeed(previous!.occurrenceDate, previous.date, previous.description);
+        }
+        if (transaction.billId == billId) {
+          addOccSeed(transaction.occurrenceDate, transaction.date, transaction.description);
+        }
+
+        for (final t in allTx) {
+          if (t.billId != billId) continue;
+          if (t.occurrenceDate != null) {
+            occDates.add(DateTime(t.occurrenceDate!.year, t.occurrenceDate!.month, t.occurrenceDate!.day));
+          } else {
+            occDates.add(DateTime(t.date.year, t.date.month, t.date.day));
+          }
+        }
+
+        for (final occ in occDates) {
+          final occDateStr = DateFormat('MM/dd/yyyy').format(occ);
+          double totalPaid = 0.0;
+
+          for (final t in allTx) {
+            if (t.billId != billId) continue;
+            final matchesOccurrence = (t.occurrenceDate != null)
+                ? (t.occurrenceDate!.year == occ.year &&
+                    t.occurrenceDate!.month == occ.month &&
+                    t.occurrenceDate!.day == occ.day)
+                : ((t.date.year == occ.year &&
+                        t.date.month == occ.month &&
+                        t.date.day == occ.day) ||
+                    t.description.contains(occDateStr));
+            if (!matchesOccurrence) continue;
+
+            if (bill.type == BillType.expense) {
+              totalPaid += (t.type == TransactionType.expense) ? t.amount : -t.amount;
+            } else {
+              totalPaid += (t.type == TransactionType.income) ? t.amount : -t.amount;
+            }
+          }
+
+          PaymentStatus newStatus;
+          if (totalPaid <= 0) {
+            newStatus = PaymentStatus.unpaid;
+          } else if (totalPaid >= (bill.amount - 0.01)) {
+            newStatus = PaymentStatus.paid;
+          } else {
+            newStatus = PaymentStatus.partial;
+          }
+
+          await setBillOccurrenceStatus(billId, occ, newStatus == PaymentStatus.paid, newStatus);
+        }
+      }
+    } catch (_) {
+      // Non-critical: do not block transaction edits if status sync fails.
+    }
   }
 
   static Future<void> deleteTransaction(String id) async {
@@ -887,6 +984,7 @@ class DatabaseService {
     final out = <Map<String, dynamic>>[];
     final bills = getAllBills();
     for (final bill in bills) {
+      final seenForBill = <String>{};
       // Skip bills that end before the requested range
       if (bill.recurrenceEndDate != null && bill.recurrenceEndDate!.isBefore(startDate)) continue;
 
@@ -894,6 +992,9 @@ class DatabaseService {
       void addIfInRange(DateTime occ) {
         if ((occ.isAtSameMomentAs(startDate) || occ.isAfter(startDate)) &&
             (occ.isAtSameMomentAs(endDate) || occ.isBefore(endDate))) {
+          final key = '${occ.year}-${occ.month}-${occ.day}';
+          if (seenForBill.contains(key)) return;
+          seenForBill.add(key);
           out.add({'bill': bill, 'date': occ});
         }
       }
@@ -945,7 +1046,12 @@ class DatabaseService {
         case Recurrence.monthly:
           {
             final intervalMonths = bill.recurrenceInterval <= 0 ? 1 : bill.recurrenceInterval;
-            final days = bill.customDays ?? [bill.dueDate.day];
+            final days = ((bill.customDays == null || bill.customDays!.isEmpty)
+                    ? <int>[bill.dueDate.day]
+                    : bill.customDays!)
+                .toSet()
+                .toList()
+              ..sort();
             int currentYear = bill.dueDate.year;
             int currentMonth = bill.dueDate.month;
             while (true) {

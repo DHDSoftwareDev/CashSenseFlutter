@@ -281,9 +281,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final NumberFormat _currencyFormat = NumberFormat.currency(symbol: '\$');
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay = DateTime.now(); // Initialize to today to show today's transactions immediately
-  // Transaction filter state
-  bool _filterAll = true;
-  final Set<PaymentStatus> _selectedStatuses = <PaymentStatus>{};
+  // Bill visibility toggle: hide paid occurrences by default.
+  bool _showPaidBills = false;
   // Track expanded transaction cards
   final Set<String> _expandedTransactionIds = <String>{};
   
@@ -292,22 +291,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final FocusNode _searchFocusNode = FocusNode();
   String _searchQuery = '';
   final List<Map<String, dynamic>> _searchResults = [];
-
-
-  // Helper to determine whether a given PaymentStatus should be included
-  // by the current filter selection.
-  // - Paid bills show in: All, Paid
-  // - Unpaid bills show in: All, Unpaid
-  // - Partial bills show in: All, Unpaid, Partial
-  bool _matchesSelectedStatuses(PaymentStatus status) {
-    if (_filterAll) return true;
-    if (_selectedStatuses.contains(status)) return true;
-    // If user selected 'Unpaid', include Partial as well (since partial means not fully paid)
-    if (_selectedStatuses.contains(PaymentStatus.unpaid) && status == PaymentStatus.partial) return true;
-    // If user selected 'Partial', only show partial bills (already handled above)
-    return false;
-  }
-
 
   // Search bills by description, payee name, or notes
   void _performSearch(String query) {
@@ -665,11 +648,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     }).toList();
                   }
                   
-                  final billOrTransferExists = billOcc.any((occ) {
-                    final bill = occ['bill'];
-                    return bill != null && (bill.type == BillType.expense || bill.type == BillType.income || bill.type == BillType.transfer);
+                  final hasOutstandingBills = billOcc.any((occ) {
+                    final bill = occ['bill'] as Bill?;
+                    final occDate = occ['date'] as DateTime?;
+                    if (bill == null || occDate == null) return false;
+                    return _getOccurrencePaymentStatus(bill, occDate) != PaymentStatus.paid;
                   });
-                  final textStyle = billOrTransferExists
+                  final textStyle = hasOutstandingBills
                       ? Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.primary)
                       : Theme.of(context).textTheme.bodyMedium;
                   return Center(child: Text('${day.day}', style: textStyle));
@@ -702,16 +687,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     }).toList();
                   }
                   
-                  final hasEvents = DatabaseService.getTransactionsByDateRange(
-                        DateTime(day.year, day.month, day.day),
-                        DateTime(day.year, day.month, day.day).add(const Duration(days: 1)).subtract(const Duration(milliseconds: 1)))
-                      .isNotEmpty ||
-                  billOcc.isNotEmpty;
+                  final hasOutstandingBills = billOcc.any((occ) {
+                    final bill = occ['bill'] as Bill?;
+                    final occDate = occ['date'] as DateTime?;
+                    if (bill == null || occDate == null) return false;
+                    return _getOccurrencePaymentStatus(bill, occDate) != PaymentStatus.paid;
+                  });
                   final base = BoxDecoration(
                     color: Theme.of(context).colorScheme.primary.withAlpha((0.2 * 255).round()),
                     shape: BoxShape.circle,
                   );
-                  final textStyle = hasEvents
+                  final textStyle = hasOutstandingBills
                       ? Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.primary)
                       : Theme.of(context).textTheme.bodyMedium;
                   return Center(
@@ -775,17 +761,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // Quick stats removed: income/expense stat cards were intentionally removed from the
   // dashboard bottom area per user request.
 
-  PaymentStatus _inferPaymentStatus(Transaction t) {
-    // Heuristic: check note or description for keywords. Default to Unpaid for expenses without keywords.
-    final text = '${t.description} ${t.note ?? ''}'.toLowerCase();
-    if (text.contains('unpaid') || text.contains('due') || text.contains('pending')) return PaymentStatus.unpaid;
-    if (text.contains('partial') || text.contains('partially')) return PaymentStatus.partial;
-    if (text.contains('paid') || text.contains('settled') || text.contains('cleared')) return PaymentStatus.paid;
-    // If amount is zero or it's income, treat as paid
-    if (t.amount <= 0 || t.type == TransactionType.income) return PaymentStatus.paid;
-    return PaymentStatus.unpaid;
-  }
-
   PaymentStatus? _inferBillStatusFromMetadata(Bill bill) {
     if (bill.paymentStatus != null) return bill.paymentStatus;
     if (bill.isPaid) return PaymentStatus.paid;
@@ -806,68 +781,48 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return PaymentStatus.partial;
   }
 
+  PaymentStatus _getOccurrencePaymentStatus(Bill bill, DateTime occDate) {
+    final occStatus = DatabaseService.getBillOccurrenceStatus(bill.id, occDate);
+    if (occStatus != null) {
+      return occStatus['paymentStatus'] as PaymentStatus? ??
+          ((occStatus['isPaid'] as bool? ?? false)
+              ? PaymentStatus.paid
+              : PaymentStatus.unpaid);
+    }
+
+    final occDateStr = DateFormat('MM/dd/yyyy').format(occDate);
+    final payments = DatabaseService.getAllTransactions()
+        .where((tx) =>
+            tx.billId == bill.id &&
+            ((tx.occurrenceDate != null)
+                ? (tx.occurrenceDate!.year == occDate.year &&
+                    tx.occurrenceDate!.month == occDate.month &&
+                    tx.occurrenceDate!.day == occDate.day)
+                : ((tx.date.year == occDate.year &&
+                        tx.date.month == occDate.month &&
+                        tx.date.day == occDate.day) ||
+                    tx.description.contains(occDateStr))))
+        .toList();
+
+    final totalPaid = _computeSignedTotalPaid(bill, payments);
+    return _finalizeBillStatus(bill, totalPaid);
+  }
+
   // ignore: unused_element
   Widget _buildFilterChips() {
-  // final theme = Theme.of(context);
-
-    // Using ToggleButtons for a connected appearance, helper removed.
-
     final theme = Theme.of(context);
-    // Toggle order: All, Paid, Unpaid, Partial
-    final selections = <bool>[
-      _filterAll,
-      _selectedStatuses.contains(PaymentStatus.paid),
-      _selectedStatuses.contains(PaymentStatus.unpaid),
-  _selectedStatuses.contains(PaymentStatus.partial),
-    ];
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: ToggleButtons(
-        isSelected: selections,
-        onPressed: (index) {
-          setState(() {
-            if (index == 0) {
-              // All selected -> clear statuses
-              _filterAll = true;
-              _selectedStatuses.clear();
-            } else {
-              // Toggle a specific status
-              final status = index == 1
-                  ? PaymentStatus.paid
-                  : index == 2
-                      ? PaymentStatus.unpaid
-                      : PaymentStatus.partial;
-              if (_selectedStatuses.contains(status)) {
-                _selectedStatuses.remove(status);
-              } else {
-                _selectedStatuses.add(status);
-              }
-              // If any specific statuses selected, clear 'All'
-              _filterAll = _selectedStatuses.isEmpty;
-            }
-          });
-        },
-        borderRadius: BorderRadius.circular(6),
-        selectedColor: theme.colorScheme.onPrimary,
-        // Use the primary color for selected fill so active toggles are highlighted
-        fillColor: theme.colorScheme.primary,
-        // Use primary as the active border as well for a stronger visual
-        borderColor: theme.colorScheme.primary,
-        selectedBorderColor: theme.colorScheme.primary,
-        color: theme.textTheme.bodyMedium?.color,
-        constraints: const BoxConstraints(minWidth: 70, minHeight: 36),
-        children: const [
-          Text('All'),
-          Text('Paid'),
-          Text('Unpaid'),
-          Text('Partial'),
-        ],
-      ),
+    return FilterChip(
+      label: Text(_showPaidBills ? 'Hide Paid Bills' : 'Show Paid Bills'),
+      selected: _showPaidBills,
+      onSelected: (_) {
+        setState(() {
+          _showPaidBills = !_showPaidBills;
+        });
+      },
+      selectedColor: theme.colorScheme.primary.withAlpha((0.18 * 255).round()),
+      checkmarkColor: theme.colorScheme.primary,
+      side: BorderSide(color: theme.colorScheme.outline),
     );
   }
 
@@ -882,13 +837,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     List<Transaction> filtered = allTransactions;
 
     // (Today filter removed — controlled via calendar header's Today button)
-
-    if (!_filterAll && _selectedStatuses.isNotEmpty) {
-      filtered = filtered.where((t) {
-        final status = _inferPaymentStatus(t);
-        return _matchesSelectedStatuses(status);
-      }).toList();
-    }
 
     // Helper to identify manual payments from Pay Bill or Add Transaction screens
     bool _isManualPayment(Transaction tx) {
@@ -992,62 +940,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
         }).toList();
       }
       
-      // Filter bill occurrences by selected status. Compute the actual
-      // totalPaid for the occurrence (including PayBill-created payments)
-      // and derive the status from that sum so occurrences with zero paid
-      // are considered Unpaid when the Unpaid filter is active.
-      if (!_filterAll && _selectedStatuses.isNotEmpty) {
-        final allTransactions = DatabaseService.getAllTransactions();
-        final hiddenIds = DatabaseService.getHiddenTransactionIds().toSet();
-
+      // Hide paid bill occurrences by default.
+      if (!_showPaidBills) {
         billOcc = billOcc.where((b) {
           final bill = b['bill'] as Bill;
           final occDate = b['date'] as DateTime;
-
-          // Prefer per-occurrence persisted status when available so the
-          // dashboard's Paid filter includes occurrences explicitly marked
-          // paid, even if the payment transaction's date doesn't match
-          // the occurrence date.
-          final occStatus = DatabaseService.getBillOccurrenceStatus(bill.id, occDate);
-          if (occStatus != null) {
-            // If an explicit per-occurrence status was saved, use that status
-            // (paid/unpaid/partial) when applying the filter.
-            final PaymentStatus occPaymentStatus = occStatus['paymentStatus'] as PaymentStatus? ?? PaymentStatus.unpaid;
-            return _matchesSelectedStatuses(occPaymentStatus);
-          }
-
-          // Sum payments for this occurrence. Count payments for this bill
-          // occurrence by matching billId and either an explicit occurrenceDate,
-          // the transaction date, or the occurrence date string appearing in the
-          // transaction description. This mirrors the logic used elsewhere
-          // (eventLoader and transaction item rendering) so split/multi-date
-          // payments are correctly included.
-          double totalPaid = 0.0;
-          final occDateStr = DateFormat('MM/dd/yyyy').format(occDate);
-          for (final tx in allTransactions) {
-            // Exclude persisted hidden ids and legacy hide markers early
-            if (hiddenIds.contains(tx.id)) continue;
-            if (tx.note != null && tx.note!.contains('__hide_from_calendar__')) continue;
-
-            if (tx.billId == bill.id && (
-                (tx.occurrenceDate != null)
-                  ? (tx.occurrenceDate!.year == occDate.year && tx.occurrenceDate!.month == occDate.month && tx.occurrenceDate!.day == occDate.day)
-                  : ((tx.date.year == occDate.year && tx.date.month == occDate.month && tx.date.day == occDate.day) || tx.description.contains(occDateStr))
-              )) {
-              // Properly calculate signed total paid based on bill type and transaction type
-              if (bill.type == BillType.expense) {
-                totalPaid += (tx.type == TransactionType.expense) ? tx.amount : -tx.amount;
-              } else {
-                totalPaid += (tx.type == TransactionType.income) ? tx.amount : -tx.amount;
-              }
-              continue;
-            }
-          }
-
-          // Derive status from totalPaid
-          final PaymentStatus status = _finalizeBillStatus(bill, totalPaid);
-
-          return _matchesSelectedStatuses(status);
+          return _getOccurrencePaymentStatus(bill, occDate) != PaymentStatus.paid;
         }).toList();
       }
       // ...existing code for billOcc and sorting...
@@ -1467,28 +1365,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     // Payment status (for bills) — compute from transactions at display time
                     if (sourceBill != null) ...[
                       Builder(builder: (ctx) {
-                        // Sum payments for this bill occurrence (billId + date)
-                        final allTx = DatabaseService.getAllTransactions();
                         final occDate = transaction.date;
-                        final occDateStr = DateFormat('MM/dd/yyyy').format(occDate);
-                        final payments = allTx.where((tx) =>
-                          tx.billId == sourceBill.id && (
-                            (tx.occurrenceDate != null
-                              ? (tx.occurrenceDate!.year == occDate.year && tx.occurrenceDate!.month == occDate.month && tx.occurrenceDate!.day == occDate.day)
-                              : ((tx.date.year == occDate.year && tx.date.month == occDate.month && tx.date.day == occDate.day) || tx.description.contains(occDateStr))
-                            )
-                        )).toList();
-                        final totalPaid = _computeSignedTotalPaid(sourceBill, payments);
-                        final status = _finalizeBillStatus(sourceBill, totalPaid);
+                        final status = _getOccurrencePaymentStatus(sourceBill, occDate);
                         String label;
                         Color color;
                         if (status == PaymentStatus.paid) {
                           label = 'Paid';
                           color = AppTheme.incomeGreen;
-                        } else if (status == PaymentStatus.partial) {
-                          label = 'Partial';
-                          color = Colors.orange;
                         } else {
+                          // Treat partial as unpaid in the dashboard list until fully paid.
                           label = 'Unpaid';
                           color = AppTheme.expenseRed;
                         }
@@ -1618,6 +1503,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
         if (editedResult == true || occurrenceBillId != null) {
           try {
             final dayBefore = occurrenceDate.subtract(const Duration(days: 1));
+
+            // "Only this occurrence" must always remain a one-time bill.
+            // If the edit screen changed recurrence, normalize it back to none
+            // to avoid future duplicate occurrences.
+            if (occurrenceBillId != null) {
+              try {
+                final created = DatabaseService.getAllBills().firstWhere((b) => b.id == occurrenceBillId);
+                if (created.recurrence != Recurrence.none) {
+                  final oneOff = created.copyWith(
+                    dueDate: occurrenceDate,
+                    recurrence: Recurrence.none,
+                    customDays: null,
+                    recurrenceEndDate: null,
+                    recurrenceInterval: 1,
+                    recurrenceWeekdays: null,
+                  );
+                  await DatabaseService.updateBill(oneOff);
+                }
+              } catch (_) {}
+            }
 
             // Calculate next occurrence date based on recurrence (handles monthly custom days)
             final DateTime? nextOccurrenceDate = _computeNextOccurrenceDate(sourceBill, occurrenceDate);

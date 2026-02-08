@@ -167,9 +167,10 @@ flutter:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/images/cash_icon.png"
+  image_path: "assets/images/cash_icon_black_bg.png"
   adaptive_icon_background: "#000000"
-  adaptive_icon_foreground: "assets/images/cash_icon.png"
+  adaptive_icon_foreground: "assets/images/cash_icon_black_bg.png"
+  background_color_ios: "#000000"
   remove_alpha_ios: true
 
 # Splash screen configuration

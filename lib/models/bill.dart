@@ -41,6 +41,22 @@ enum BillType {
 
 @HiveType(typeId: 6)
 class Bill extends HiveObject {
+  static DateTime _parseDateOnly(dynamic raw) {
+    final value = raw?.toString();
+    if (value == null || value.isEmpty) return DateTime.now();
+
+    final dateOnly = RegExp(r'^(\d{4})-(\d{2})-(\d{2})').firstMatch(value);
+    if (dateOnly != null) {
+      final yyyy = int.parse(dateOnly.group(1)!);
+      final mm = int.parse(dateOnly.group(2)!);
+      final dd = int.parse(dateOnly.group(3)!);
+      return DateTime(yyyy, mm, dd);
+    }
+
+    final parsed = DateTime.parse(value);
+    return DateTime(parsed.year, parsed.month, parsed.day);
+  }
+
   @HiveField(0)
   String id;
 
@@ -142,14 +158,14 @@ class Bill extends HiveObject {
       id: json['id'] ?? json['billId'],
       amount: (json['amount'] as num).toDouble(),
       description: json['description'],
-      dueDate: DateTime.parse(json['dueDate']),
+      dueDate: _parseDateOnly(json['dueDate']),
       recurrence: Recurrence.values.firstWhere(
         (e) => e.name == recurrenceName,
         orElse: () => Recurrence.none,
       ),
       customDays: (json['customDays'] as List?)?.map((e) => (e as num).toInt()).toList(),
       recurrenceEndDate: json['recurrenceEndDate'] != null
-          ? DateTime.parse(json['recurrenceEndDate'])
+          ? _parseDateOnly(json['recurrenceEndDate'])
           : null,
       recurrenceInterval: json['recurrenceInterval'] ?? 1,
       recurrenceWeekdays: (json['recurrenceWeekdays'] as List?)?.map((e) => (e as num).toInt()).toList(),

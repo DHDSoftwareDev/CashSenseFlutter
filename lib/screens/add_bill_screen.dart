@@ -1697,6 +1697,11 @@ class _AddBillScreenState extends State<AddBillScreen> {
     }
 
     setState(() => _isSaving = true);
+    final List<int>? normalizedCustomDays = _recurrence == Recurrence.monthly
+        ? ((_customDays == null || _customDays!.isEmpty)
+            ? <int>[_dueDate.day]
+            : (_customDays!.toSet().toList()..sort()))
+        : null;
     // Default: persist a Bill (existing behavior)
     final Bill bill;
     final notes = _notesController.text.trim();
@@ -1709,7 +1714,7 @@ class _AddBillScreenState extends State<AddBillScreen> {
         description: description,
         dueDate: _dueDate,
         recurrence: _recurrence,
-        customDays: _customDays,
+        customDays: normalizedCustomDays,
         recurrenceEndDate: _recurrenceForever ? null : _recurrenceEndDate,
         recurrenceInterval: _recurrenceInterval,
         recurrenceWeekdays: (_recurrenceWeekdays == null || _recurrenceWeekdays!.isEmpty) ? null : _recurrenceWeekdays,
@@ -1728,7 +1733,7 @@ class _AddBillScreenState extends State<AddBillScreen> {
         description: description,
         dueDate: _dueDate,
         recurrence: _recurrence,
-        customDays: _customDays,
+        customDays: normalizedCustomDays,
         recurrenceEndDate: _recurrenceForever ? null : _recurrenceEndDate,
         recurrenceInterval: _recurrenceInterval,
         recurrenceWeekdays: (_recurrenceWeekdays == null || _recurrenceWeekdays!.isEmpty) ? null : _recurrenceWeekdays,

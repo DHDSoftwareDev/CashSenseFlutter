@@ -558,6 +558,13 @@ class AwsApiService {
 
     // ISO
     try {
+      final isoDateOnly = RegExp(r'^(\\d{4})-(\\d{2})-(\\d{2})').firstMatch(value);
+      if (isoDateOnly != null) {
+        final yyyy = int.parse(isoDateOnly.group(1)!);
+        final mm = int.parse(isoDateOnly.group(2)!);
+        final dd = int.parse(isoDateOnly.group(3)!);
+        return DateTime(yyyy, mm, dd);
+      }
       return DateTime.parse(value);
     } catch (_) {
       return null;
