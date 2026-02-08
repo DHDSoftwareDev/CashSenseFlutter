@@ -92,6 +92,14 @@ dependencies:
 
   # Color picker for theme customization
 
+dependency_overrides:
+  flutter_native_timezone:
+    path: third_party/flutter_native_timezone
+  flutter_web_auth:
+    path: third_party/flutter_web_auth
+  permission_handler_android:
+    path: third_party/permission_handler_android
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -160,6 +168,8 @@ flutter_launcher_icons:
   android: true
   ios: true
   image_path: "assets/images/cash_icon.png"
+  adaptive_icon_background: "#000000"
+  adaptive_icon_foreground: "assets/images/cash_icon.png"
   remove_alpha_ios: true
 
 # Splash screen configuration
@@ -173,9 +183,9 @@ flutter_native_splash:
   image_dark: assets/images/cash_icon.png
   # Android 12+ specific settings
   android_12:
-    image: assets/images/cash_icon.png
+    image: assets/images/cash_icon_android12.png
     color: "#0D7377"
-    image_dark: assets/images/cash_icon.png
+    image_dark: assets/images/cash_icon_android12.png
     color_dark: "#0D7377"
   # Web support
   web: false

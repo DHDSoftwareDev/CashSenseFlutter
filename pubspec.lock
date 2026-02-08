@@ -569,10 +569,9 @@ packages:
   flutter_native_timezone:
     dependency: "direct main"
     description:
-      name: flutter_native_timezone
-      sha256: ed7bfb982f036243de1c068e269182a877100c994f05143c8b26a325e28c1b02
-      url: "https://pub.dev"
-    source: hosted
+      path: "third_party/flutter_native_timezone"
+      relative: true
+    source: path
     version: "2.0.0"
   flutter_plugin_android_lifecycle:
     dependency: transitive
@@ -638,10 +637,9 @@ packages:
   flutter_web_auth:
     dependency: "direct main"
     description:
-      name: flutter_web_auth
-      sha256: "8c364d8157b299c95f062bbd7bf428bb80c272d7ed3b8f0e6c7028e037e82c76"
-      url: "https://pub.dev"
-    source: hosted
+      path: "third_party/flutter_web_auth"
+      relative: true
+    source: path
     version: "0.4.3"
   flutter_web_plugins:
     dependency: transitive
@@ -993,12 +991,11 @@ packages:
     source: hosted
     version: "10.4.5"
   permission_handler_android:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
-      name: permission_handler_android
-      sha256: "59c6322171c29df93a22d150ad95f3aa19ed86542eaec409ab2691b8f35f9a47"
-      url: "https://pub.dev"
-    source: hosted
+      path: "third_party/permission_handler_android"
+      relative: true
+    source: path
     version: "10.3.6"
   permission_handler_apple:
     dependency: transitive

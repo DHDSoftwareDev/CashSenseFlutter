@@ -48,7 +48,11 @@ subprojects {
 subprojects {
     plugins.withId("org.jetbrains.kotlin.android") {
         tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile::class.java).configureEach {
-            kotlinOptions.jvmTarget = "1.8"
+            val javaTaskName = name.replace("Kotlin", "JavaWithJavac")
+            val javaTask = project.tasks.findByName(javaTaskName) as? org.gradle.api.tasks.compile.JavaCompile
+            if (javaTask != null) {
+                kotlinOptions.jvmTarget = javaTask.targetCompatibility
+            }
         }
     }
 }

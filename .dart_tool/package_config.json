@@ -429,7 +429,7 @@
     },
     {
       "name": "flutter_native_timezone",
-      "rootUri": "file:///Users/siler/.pub-cache/hosted/pub.dev/flutter_native_timezone-2.0.0",
+      "rootUri": "../third_party/flutter_native_timezone",
       "packageUri": "lib/",
       "languageVersion": "2.12"
     },
@@ -483,7 +483,7 @@
     },
     {
       "name": "flutter_web_auth",
-      "rootUri": "file:///Users/siler/.pub-cache/hosted/pub.dev/flutter_web_auth-0.4.3",
+      "rootUri": "../third_party/flutter_web_auth",
       "packageUri": "lib/",
       "languageVersion": "2.12"
     },
@@ -753,7 +753,7 @@
     },
     {
       "name": "permission_handler_android",
-      "rootUri": "file:///Users/siler/.pub-cache/hosted/pub.dev/permission_handler_android-10.3.6",
+      "rootUri": "../third_party/permission_handler_android",
       "packageUri": "lib/",
       "languageVersion": "2.15"
     },

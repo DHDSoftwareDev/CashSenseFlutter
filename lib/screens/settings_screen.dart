@@ -43,6 +43,9 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  static const String _developerUnlockPassword = 'dev2026';
+  static const String _testerUnlockPassword = 'test30days';
+
   String _userEmail = '';
   bool _isLoggedIn = false;
   bool _authUIEnabled = true;
@@ -212,7 +215,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     showDialog(
       context: context,
       builder: (context) {
-  String currentMode = DatabaseService.subscriptionVersion.value;
+        String currentMode = DatabaseService.subscriptionVersion.value;
         return AlertDialog(
           title: const Text('Change Subscription Mode'),
           content: Column(
@@ -229,33 +232,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 },
               ),
               RadioListTile<String>(
-                title: const Text('Monthly'),
-                value: 'Monthly',
+                title: const Text('Developer'),
+                value: 'Developer',
                 groupValue: currentMode,
                 onChanged: (val) async {
-                  await DatabaseService.setSubscriptionPlan(val!);
-                  if (mounted) setState(() {});
                   Navigator.pop(context);
+                  final unlocked = await _promptDeveloperPasswordAndUnlock();
+                  if (unlocked && mounted) {
+                    setState(() {});
+                  }
                 },
               ),
               RadioListTile<String>(
-                title: const Text('Premium'),
-                value: 'Premium',
+                title: const Text('Tester'),
+                value: 'Tester',
                 groupValue: currentMode,
                 onChanged: (val) async {
-                  await DatabaseService.setSubscriptionPlan(val!);
-                  if (mounted) setState(() {});
                   Navigator.pop(context);
-                },
-              ),
-              RadioListTile<String>(
-                title: const Text('Lifetime'),
-                value: 'Lifetime',
-                groupValue: currentMode,
-                onChanged: (val) async {
-                  await DatabaseService.setSubscriptionPlan(val!);
-                  if (mounted) setState(() {});
-                  Navigator.pop(context);
+                  final unlocked = await _promptTesterPasswordAndUnlock30Days();
+                  if (unlocked && mounted) {
+                    setState(() {});
+                  }
                 },
               ),
             ],
@@ -269,6 +266,105 @@ class _SettingsScreenState extends State<SettingsScreen> {
         );
       },
     );
+  }
+
+  Future<bool> _promptDeveloperPasswordAndUnlock() async {
+    final controller = TextEditingController();
+    final enteredPassword = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Developer Unlock'),
+        content: TextField(
+          controller: controller,
+          obscureText: true,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Password',
+          ),
+          onSubmitted: (value) => Navigator.pop(context, value),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: const Text('Unlock'),
+          ),
+        ],
+      ),
+    );
+
+    if (enteredPassword == null || enteredPassword.isEmpty) {
+      return false;
+    }
+
+    if (enteredPassword != _developerUnlockPassword) {
+      if (!mounted) return false;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Incorrect password.')),
+      );
+      return false;
+    }
+
+    await DatabaseService.setSubscriptionPlan('Lifetime');
+    if (!mounted) return true;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Lifetime premium unlocked.')),
+    );
+    return true;
+  }
+
+  Future<bool> _promptTesterPasswordAndUnlock30Days() async {
+    final controller = TextEditingController();
+    final enteredPassword = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Tester Unlock'),
+        content: TextField(
+          controller: controller,
+          obscureText: true,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Password',
+          ),
+          onSubmitted: (value) => Navigator.pop(context, value),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: const Text('Unlock'),
+          ),
+        ],
+      ),
+    );
+
+    if (enteredPassword == null || enteredPassword.isEmpty) {
+      return false;
+    }
+
+    if (enteredPassword != _testerUnlockPassword) {
+      if (!mounted) return false;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Incorrect password.')),
+      );
+      return false;
+    }
+
+    final expiresAt = DateTime.now().add(const Duration(days: 30));
+    await DatabaseService.setSetting('activeTrialExpiresAt', expiresAt.toIso8601String());
+    await DatabaseService.setSubscriptionPlan('Annual');
+
+    if (!mounted) return true;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Tester premium unlocked for 30 days.')),
+    );
+    return true;
   }
   @override
   Widget build(BuildContext context) {

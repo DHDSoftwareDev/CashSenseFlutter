@@ -15,7 +15,7 @@ import 'package:firebase_messaging_web/firebase_messaging_web.dart';
 import 'package:flutter_native_splash/flutter_native_splash_web.dart';
 import 'package:flutter_native_timezone/flutter_native_timezone_web.dart';
 import 'package:flutter_secure_storage_web/flutter_secure_storage_web.dart';
-import 'package:flutter_web_auth/src/flutter_web_auth_web.dart';
+import 'package:flutter_web_auth/flutter_web_auth_web.dart';
 import 'package:package_info_plus/src/package_info_plus_web.dart';
 import 'package:share_plus/src/share_plus_web.dart';
 import 'package:shared_preferences_web/shared_preferences_web.dart';
