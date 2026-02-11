@@ -12,7 +12,6 @@ import 'package:device_info_plus/src/device_info_plus_web.dart';
 import 'package:file_picker/_internal/file_picker_web.dart';
 import 'package:firebase_core_web/firebase_core_web.dart';
 import 'package:firebase_messaging_web/firebase_messaging_web.dart';
-import 'package:flutter_native_splash/flutter_native_splash_web.dart';
 import 'package:flutter_native_timezone/flutter_native_timezone_web.dart';
 import 'package:flutter_secure_storage_web/flutter_secure_storage_web.dart';
 import 'package:flutter_web_auth/flutter_web_auth_web.dart';
@@ -30,7 +29,6 @@ void registerPlugins([final Registrar? pluginRegistrar]) {
   FilePickerWeb.registerWith(registrar);
   FirebaseCoreWeb.registerWith(registrar);
   FirebaseMessagingWeb.registerWith(registrar);
-  FlutterNativeSplashWeb.registerWith(registrar);
   FlutterNativeTimezonePlugin.registerWith(registrar);
   FlutterSecureStorageWeb.registerWith(registrar);
   FlutterWebAuthPlugin.registerWith(registrar);

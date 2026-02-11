@@ -51,7 +51,11 @@ subprojects {
             val javaTaskName = name.replace("Kotlin", "JavaWithJavac")
             val javaTask = project.tasks.findByName(javaTaskName) as? org.gradle.api.tasks.compile.JavaCompile
             if (javaTask != null) {
-                kotlinOptions.jvmTarget = javaTask.targetCompatibility
+                compilerOptions {
+                    jvmTarget.set(
+                        org.jetbrains.kotlin.gradle.dsl.JvmTarget.fromTarget(javaTask.targetCompatibility),
+                    )
+                }
             }
         }
     }

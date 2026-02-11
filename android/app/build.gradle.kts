@@ -17,14 +17,14 @@ if (keystorePropertiesFile.exists()) {
 android {
     namespace = "name.dhdsoftware.cashsenseflutter"
 
-    // Values provided by the Flutter Gradle plugin
-    compileSdk = flutter.compileSdkVersion
+    // Pin SDK levels for Play target requirements
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     defaultConfig {
         applicationId = "com.dhdsoftware.cashsense"
         minSdk = flutter.minSdkVersion
-        targetSdk = 34
+        targetSdk = 35
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
