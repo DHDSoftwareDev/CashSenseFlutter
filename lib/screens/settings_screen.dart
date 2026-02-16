@@ -23,6 +23,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import '../services/cognito_service.dart';
 import '../services/user_auth_service.dart';
 import '../services/push_token_service.dart';
+import '../services/biometric_auth_service.dart';
 import 'login_screen.dart';
 import 'signup_screen.dart';
 import 'edit_account_screen.dart';
@@ -51,13 +52,66 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _authUIEnabled = true;
   String _versionLabel = '';
   bool _autoBackupEnabled = false;
+  bool _biometricEnabled = false;
+  bool _biometricAvailable = false;
+  String _biometricLabel = 'Biometrics';
 
   @override
   void initState() {
     super.initState();
     _loadUserInfo();
     _loadVersion();
+    _loadBiometricSettings();
     _autoBackupEnabled = DatabaseService.getSetting<bool>('autoBackupEnabled', false) ?? false;
+  }
+
+  Future<void> _loadBiometricSettings() async {
+    final enabled = await BiometricAuthService.isBiometricEnabled();
+    final available = await BiometricAuthService.canUseBiometrics();
+    final label = await BiometricAuthService.getBiometricLabel();
+    if (!mounted) return;
+    setState(() {
+      _biometricEnabled = enabled;
+      _biometricAvailable = available;
+      _biometricLabel = label;
+    });
+  }
+
+  Future<void> _setBiometricEnabled(bool value) async {
+    if (value) {
+      final available = await BiometricAuthService.canUseBiometrics();
+      if (!available) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Biometric authentication is not available on this device.'),
+          ),
+        );
+        setState(() {
+          _biometricAvailable = false;
+          _biometricEnabled = false;
+        });
+        await BiometricAuthService.setBiometricEnabled(false);
+        return;
+      }
+
+      final authenticated = await BiometricAuthService.authenticate(
+        reason: 'Authenticate to enable biometric unlock',
+      );
+      if (!authenticated) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Biometric unlock was not enabled.')),
+        );
+        return;
+      }
+    }
+
+    await BiometricAuthService.setBiometricEnabled(value);
+    if (!mounted) return;
+    setState(() {
+      _biometricEnabled = value;
+    });
   }
 
   Future<void> _loadVersion() async {
@@ -1216,6 +1270,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               const SizedBox(height: 12),
 
+              if (_isLoggedIn) ...[
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.fingerprint),
+                  title: const Text('Biometric Unlock'),
+                  subtitle: Text(
+                    _biometricAvailable
+                        ? 'Use $_biometricLabel to unlock app'
+                        : 'Not available on this device',
+                  ),
+                  onTap: _biometricAvailable ? () => _setBiometricEnabled(!_biometricEnabled) : null,
+                  trailing: Switch(
+                    value: _biometricEnabled,
+                    onChanged: _biometricAvailable ? (value) => _setBiometricEnabled(value) : null,
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
+
               // Buttons depend on sign-in state
               if (_isLoggedIn) ...[
                 SizedBox(
@@ -1317,6 +1390,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         'payees': payees,
         'settings': settings,
         'bill_occurrence_status': billOccurrences,
+        'payments_history': billOccurrences,
       };
 
       // Convert to JSON
@@ -1447,6 +1521,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             'Categories: ${(backupData['categories'] as List).length}\n'
             'Accounts: ${(backupData['accounts'] as List).length}\n'
             'Bills: ${(backupData['bills'] as List).length}\n\n'
+            'Payment history: ${backupData.containsKey('payments_history') || backupData.containsKey('bill_occurrence_status') ? 'Included' : 'Not found'}\n\n'
             'This action cannot be undone. Continue?',
           ),
           actions: [
@@ -1584,10 +1659,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         }
       }
 
-      // Restore bill occurrence statuses (if included)
-      if (backupData.containsKey('bill_occurrence_status')) {
+      // Restore payment history / bill occurrence statuses (if included)
+      if (backupData.containsKey('payments_history') || backupData.containsKey('bill_occurrence_status')) {
         try {
-          final occ = backupData['bill_occurrence_status'] as Map<String, dynamic>;
+          final occ = (backupData['payments_history'] ?? backupData['bill_occurrence_status']) as Map<String, dynamic>;
           await DatabaseService.importBillOccurrenceStatuses(occ);
         } catch (e) {
           // ignore restore failures for occurrence statuses

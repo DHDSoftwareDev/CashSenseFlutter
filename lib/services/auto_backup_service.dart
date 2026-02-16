@@ -187,6 +187,7 @@ class AutoBackupService {
         'payees': payees,
         'settings': settings,
         'bill_occurrence_status': billOccurrences,
+        'payments_history': billOccurrences,
       };
 
       final jsonString = const JsonEncoder.withIndent('  ').convert(backupData);

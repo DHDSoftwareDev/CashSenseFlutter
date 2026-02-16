@@ -67,6 +67,8 @@ class BillReminderService {
         return;
       }
 
+      await _cleanupLegacySchedules();
+
       await TimezoneInit.ensureInitialized();
       final timeZone = TimezoneInit.localTimeZoneName();
 
@@ -111,20 +113,26 @@ class BillReminderService {
     try {
       final dueForMsg = dueDateForMessage ?? bill.dueDate;
       final runAtUtcIso = _computeRunAtUtcIso(dueForMsg, leadDays);
-      final billName = (bill.description == null || bill.description!.trim().isEmpty)
-          ? 'Bill'
-          : bill.description!.trim();
+      final billName = _buildBillName(bill);
+      final billNote = _buildBillNote(bill, fallbackName: billName);
       final amountText = NumberFormat.simpleCurrency().format(bill.amount);
       final dueLabel = DateFormat('MM/dd/yyyy').format(dueForMsg);
 
-      final dedupeKey = 'bill:${bill.id}:$dueLabel:lead$leadDays';
+      final dedupeKey = 'bill:${bill.id}:$dueLabel:lead$leadDays:v2';
       final data = <String, dynamic>{
         'type': 'bill_reminder',
         'billId': bill.id,
         'userId': userId,
+        'billName': billName,
+        'note': billNote,
         'dueDate': dueLabel,
+        'amount': bill.amount,
         'leadDays': leadDays,
       };
+
+      final body = billNote == null || billNote.isEmpty
+          ? '$amountText due on $dueLabel'
+          : '$amountText due on $dueLabel • $billNote';
 
       final api = NotificationSchedulesApi(
         baseUrl: AwsApiService.baseUrl,
@@ -135,7 +143,7 @@ class BillReminderService {
         runAtUtcIso: runAtUtcIso,
         timeZone: timeZone,
         title: '$billName due',
-        body: '$amountText due on $dueLabel',
+        body: body,
         data: data,
         dedupeKey: dedupeKey,
       );
@@ -244,6 +252,75 @@ class BillReminderService {
 
   Future<void> _saveStoredScheduleIds(Map<String, String> value) async {
     await DatabaseService.setSetting(_storedScheduleIdsKey, value);
+  }
+
+  Future<void> _cleanupLegacySchedules() async {
+    final stored = _loadStoredScheduleIds();
+    if (stored.isEmpty) return;
+
+    final legacyKeys = stored.keys.where((k) => !k.contains(':v2')).toList();
+    if (legacyKeys.isEmpty) return;
+
+    final api = NotificationSchedulesApi(
+      baseUrl: AwsApiService.baseUrl,
+      getIdToken: AwsApiService.getIdToken,
+    );
+
+    for (final key in legacyKeys) {
+      final scheduleId = stored[key];
+      if (scheduleId == null || scheduleId.isEmpty) continue;
+      try {
+        await api.deleteSchedule(scheduleId: scheduleId);
+      } catch (e) {
+        debugPrint('Failed to delete legacy schedule $scheduleId: $e');
+      }
+      stored.remove(key);
+    }
+
+    await _saveStoredScheduleIds(stored);
+  }
+
+  String _buildBillName(Bill bill) {
+    final desc = bill.description?.trim() ?? '';
+    if (desc.isNotEmpty) return _truncate(desc, 60);
+
+    if (bill.payeeId != null && bill.payeeId!.trim().isNotEmpty) {
+      final payees = DatabaseService.getAllPayees();
+      final match = payees.cast<Map<String, dynamic>?>().firstWhere(
+            (entry) => (entry?['id']?.toString() ?? '').trim() == bill.payeeId!.trim(),
+            orElse: () => null,
+          );
+      final name = match?['name']?.toString().trim() ?? '';
+      if (name.isNotEmpty) return _truncate(name, 60);
+    }
+
+    return 'Bill';
+  }
+
+  String? _buildBillNote(Bill bill, {required String fallbackName}) {
+    if (bill.payeeId != null && bill.payeeId!.trim().isNotEmpty) {
+      final payees = DatabaseService.getAllPayees();
+      final match = payees.cast<Map<String, dynamic>?>().firstWhere(
+            (entry) => (entry?['id']?.toString() ?? '').trim() == bill.payeeId!.trim(),
+            orElse: () => null,
+          );
+      final name = match?['name']?.toString().trim() ?? '';
+      if (name.isNotEmpty && name.toLowerCase() != fallbackName.toLowerCase()) {
+        return _truncate(name, 80);
+      }
+    }
+
+    final desc = bill.description?.trim() ?? '';
+    if (desc.isNotEmpty && desc.toLowerCase() != fallbackName.toLowerCase()) {
+      return _truncate(desc, 80);
+    }
+    return null;
+  }
+
+  String _truncate(String value, int maxLen) {
+    final text = value.trim();
+    if (text.length <= maxLen) return text;
+    return '${text.substring(0, maxLen - 1)}…';
   }
 }
 

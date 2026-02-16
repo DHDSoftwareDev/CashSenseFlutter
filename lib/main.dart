@@ -15,6 +15,8 @@ import 'services/database_service.dart';
 import 'services/auto_backup_service.dart';
 import 'services/bill_reminder_service.dart';
 import 'services/push_token_service.dart';
+import 'services/biometric_auth_service.dart';
+import 'services/remote_sync_service.dart';
 import 'timezone_init.dart';
 import 'screens/main_navigation_screen.dart';
 import 'screens/login_screen.dart';
@@ -56,13 +58,17 @@ void main() async {
   // Decide initial home: show auth screens at startup when enabled and user not signed in
   final bool enableAuthUI = DatabaseService.getSetting<bool>('enableAuthUI', true) ?? true;
   bool isSignedIn = false;
+  bool biometricEnabled = false;
   try {
     isSignedIn = await CognitoService.isSignedIn();
+    biometricEnabled = await BiometricAuthService.isBiometricEnabled();
   } catch (_) {
     isSignedIn = false;
+    biometricEnabled = false;
   }
 
-  final Widget initialHome = (enableAuthUI && !isSignedIn) ? const LoginScreen() : MainNavigationScreen(key: mainNavKey);
+  final shouldShowLogin = (enableAuthUI && !isSignedIn) || (isSignedIn && biometricEnabled);
+  final Widget initialHome = shouldShowLogin ? const LoginScreen() : MainNavigationScreen(key: mainNavKey);
 
   runApp(
     ChangeNotifierProvider(
@@ -96,6 +102,11 @@ Future<void> _startDeferredInits(bool isSignedIn) async {
     if (isSignedIn)
       _registerDeviceEveryLaunch().catchError((e) {
         debugPrint('Register device failed: $e');
+        return null;
+      }),
+    if (isSignedIn)
+      RemoteSyncService.syncUserDataOnLogin().catchError((e) {
+        debugPrint('Remote data sync failed: $e');
         return null;
       }),
   ]);
@@ -153,10 +164,82 @@ class CashSenseApp extends StatelessWidget {
         theme: AppTheme.lightThemeFor(themeProvider.primaryColor),
         darkTheme: AppTheme.darkThemeFor(themeProvider.primaryColor),
         themeMode: themeProvider.themeMode,
-        home: initialHome,
+        home: AppLifecycleBiometricLock(child: initialHome),
         debugShowCheckedModeBanner: false,
       );
     });
+  }
+}
+
+class AppLifecycleBiometricLock extends StatefulWidget {
+  final Widget child;
+
+  const AppLifecycleBiometricLock({super.key, required this.child});
+
+  @override
+  State<AppLifecycleBiometricLock> createState() => _AppLifecycleBiometricLockState();
+}
+
+class _AppLifecycleBiometricLockState extends State<AppLifecycleBiometricLock>
+    with WidgetsBindingObserver {
+  bool _isAuthenticating = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _authenticateOnResume();
+    }
+  }
+
+  Future<void> _authenticateOnResume() async {
+    if (_isAuthenticating) return;
+    _isAuthenticating = true;
+
+    try {
+      final biometricEnabled = await BiometricAuthService.isBiometricEnabled();
+      if (!biometricEnabled) return;
+
+      final signedIn = await CognitoService.isSignedIn();
+      if (!signedIn) return;
+
+      final canUseBiometrics = await BiometricAuthService.canUseBiometrics();
+      if (!canUseBiometrics) {
+        await BiometricAuthService.setBiometricEnabled(false);
+        return;
+      }
+
+      final unlocked = await BiometricAuthService.authenticate(
+        reason: 'Authenticate to continue using CashSense',
+      );
+
+      if (!unlocked && mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+          (route) => false,
+        );
+      }
+    } catch (e) {
+      debugPrint('Biometric lock on resume failed: $e');
+    } finally {
+      _isAuthenticating = false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return widget.child;
   }
 }
 

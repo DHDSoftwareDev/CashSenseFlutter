@@ -18,6 +18,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   bool _billReminders = false;
   int _billRemindersLeadDays = 1; // 0 = on due date, 1 = 1 day before, etc.
   bool _syncingToken = false;
+  bool _reschedulingReminders = false;
   // Only bill reminders are shown for now; other notification types hidden temporarily
 
   @override
@@ -272,6 +273,44 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
   }
 
+  Future<void> _rescheduleBillRemindersNow() async {
+    if (_reschedulingReminders) return;
+    setState(() => _reschedulingReminders = true);
+
+    try {
+      if (!_billReminders) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Enable bill reminders first.')),
+        );
+        return;
+      }
+
+      final signedIn = await CognitoService.isSignedIn();
+      if (!signedIn) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sign in to reschedule reminders.')),
+        );
+        return;
+      }
+
+      await BillReminderService().scheduleAllReminders();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bill reminders rescheduled.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to reschedule reminders: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _reschedulingReminders = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -307,6 +346,18 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   )
                 : const Icon(Icons.sync),
             onTap: _syncingToken ? null : _syncDeviceToken,
+          ),
+          ListTile(
+            title: const Text('Reschedule bill reminders now'),
+            subtitle: const Text('Refresh scheduled reminders immediately'),
+            trailing: _reschedulingReminders
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.refresh),
+            onTap: _reschedulingReminders ? null : _rescheduleBillRemindersNow,
           ),
           // Only show bill reminders for now
           const Divider(),

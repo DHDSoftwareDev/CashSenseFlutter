@@ -1174,6 +1174,124 @@ class DatabaseService {
     }
   }
 
+  /// Upsert remote snapshot data into local storage without triggering
+  /// create/update API calls.
+  static Future<void> hydrateFromRemoteSnapshot({
+    List<Account> accounts = const [],
+    List<Bill> bills = const [],
+    List<Transaction> transactions = const [],
+    List<Category> categories = const [],
+    List<Map<String, dynamic>> payees = const [],
+    List<Map<String, dynamic>> payers = const [],
+    List<Map<String, dynamic>> payments = const [],
+  }) async {
+    bool accountsChanged = false;
+    bool billsChanged = false;
+    bool transactionsChanged = false;
+    bool categoriesChanged = false;
+    bool payeesChanged = false;
+
+    if (accounts.isNotEmpty) {
+      for (final account in accounts) {
+        if (account.id.trim().isEmpty) continue;
+        await _accountBox.put(account.id, account);
+      }
+      await _accountBox.flush();
+      accountsChanged = true;
+    }
+
+    if (categories.isNotEmpty) {
+      for (final category in categories) {
+        if (category.id.trim().isEmpty) continue;
+        await _categoryBox.put(category.id, category);
+      }
+      await _categoryBox.flush();
+      categoriesChanged = true;
+    }
+
+    if (bills.isNotEmpty) {
+      for (final bill in bills) {
+        if (bill.id.trim().isEmpty) continue;
+        await _billsBox.put(bill.id, bill);
+      }
+      await _billsBox.flush();
+      billsChanged = true;
+    }
+
+    if (transactions.isNotEmpty) {
+      for (final tx in transactions) {
+        if (tx.id.trim().isEmpty) continue;
+        await _transactionBox.put(tx.id, tx);
+      }
+      await _transactionBox.flush();
+      transactionsChanged = true;
+    }
+
+    if (payments.isNotEmpty) {
+      for (final raw in payments) {
+        try {
+          final billId = (raw['billId'] ?? raw['bill_id'] ?? '').toString();
+          final dateRaw =
+              raw['occurrenceDate'] ?? raw['paymentDate'] ?? raw['date'] ?? raw['dueDate'];
+          if (billId.isEmpty || dateRaw == null) continue;
+
+          final date = DateTime.tryParse(dateRaw.toString());
+          if (date == null) continue;
+
+          final statusRaw = (raw['paymentStatus'] ?? raw['status'] ?? '').toString().toLowerCase();
+          final isPaidRaw = raw['isPaid'];
+          final bool isPaid = isPaidRaw == true || statusRaw == 'paid';
+          final PaymentStatus status = statusRaw == 'partial'
+              ? PaymentStatus.partial
+              : (isPaid ? PaymentStatus.paid : PaymentStatus.unpaid);
+
+          final key = _occurrenceKey(
+            billId,
+            DateTime(date.year, date.month, date.day),
+          );
+          await _billOccurrenceBox.put(
+            key,
+            {'isPaid': isPaid, 'paymentStatus': status.index},
+          );
+          billsChanged = true;
+        } catch (_) {}
+      }
+      await _billOccurrenceBox.flush();
+    }
+
+    if (payees.isNotEmpty || payers.isNotEmpty) {
+      final merged = <String, Map<String, dynamic>>{};
+
+      void mergeContacts(List<Map<String, dynamic>> entries, String defaultType) {
+        for (final item in entries) {
+          final id = (item['id'] ?? '').toString().trim();
+          final name = (item['name'] ?? '').toString().trim();
+          if (id.isEmpty || name.isEmpty) continue;
+          merged[id] = {
+            'id': id,
+            'name': name,
+            'type': (item['type'] ?? defaultType).toString(),
+            'categoryId': item['categoryId']?.toString(),
+          };
+        }
+      }
+
+      mergeContacts(getAllPayees(), 'payee');
+      mergeContacts(payees, 'payee');
+      mergeContacts(payers, 'payer');
+
+      await _settingsBox.put('payees', merged.values.toList());
+      await _settingsBox.flush();
+      payeesChanged = true;
+    }
+
+    if (accountsChanged) accountsVersion.value++;
+    if (categoriesChanged) categoriesVersion.value++;
+    if (billsChanged) billsVersion.value++;
+    if (transactionsChanged) transactionsVersion.value++;
+    if (payeesChanged) payeesVersion.value++;
+  }
+
   // Clear all data (useful for testing or reset)
   static Future<void> clearAllData() async {
     // Clear all data boxes

@@ -83,6 +83,7 @@ dependencies:
   flutter_native_timezone: ^2.0.0
   timezone: ^0.9.4
   permission_handler: ^10.4.0
+  local_auth: ^2.3.0
   # Auth packages removed: firebase_auth, google_sign_in
   # Add Sign in with Apple UI (uses Amplify Hosted UI for Cognito federation)
   # sign_in_with_apple: ^4.0.0

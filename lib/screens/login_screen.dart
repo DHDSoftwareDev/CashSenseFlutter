@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:amplify_flutter/amplify_flutter.dart';
 import 'package:amplify_auth_cognito/amplify_auth_cognito.dart';
 import '../services/cognito_service.dart';
+import '../services/biometric_auth_service.dart';
 import '../services/push_token_service.dart';
+import '../services/remote_sync_service.dart';
 import 'verification_screen.dart';
 import 'signup_screen.dart';
 import 'dashboard_screen.dart';
@@ -37,6 +39,26 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       final signedIn = await CognitoService.isSignedIn();
       if (!signedIn || !mounted) return;
+
+      final biometricEnabled = await BiometricAuthService.isBiometricEnabled();
+      if (biometricEnabled) {
+        final canUseBiometrics = await BiometricAuthService.canUseBiometrics();
+        if (!canUseBiometrics) {
+          await BiometricAuthService.setBiometricEnabled(false);
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Biometrics unavailable on this device. Biometric lock disabled.'),
+            ),
+          );
+        } else {
+          final unlocked = await BiometricAuthService.authenticate(
+            reason: 'Authenticate to access your CashSense account',
+          );
+          if (!unlocked || !mounted) return;
+        }
+      }
+
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const MainNavigationScreen()),
@@ -75,6 +97,7 @@ class _LoginScreenState extends State<LoginScreen> {
         try {
           await PushTokenService.registerDeviceOnLogin();
         } catch (_) {}
+        await RemoteSyncService.syncUserDataOnLogin();
         // Login successful — go to dashboard
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Login successful!')),

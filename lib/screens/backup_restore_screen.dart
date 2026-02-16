@@ -288,10 +288,10 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
         }
       }
 
-      // Restore bill occurrence statuses if present
-      if (backupData.containsKey('bill_occurrence_status')) {
+      // Restore payment history / bill occurrence statuses if present
+      if (backupData.containsKey('payments_history') || backupData.containsKey('bill_occurrence_status')) {
         try {
-          final occ = backupData['bill_occurrence_status'] as Map<String, dynamic>;
+          final occ = (backupData['payments_history'] ?? backupData['bill_occurrence_status']) as Map<String, dynamic>;
           await DatabaseService.importBillOccurrenceStatuses(occ);
         } catch (_) {}
       }
@@ -345,7 +345,7 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Text(
-              'Backups include transactions, categories, accounts, bills, app settings, and bill occurrence statuses. Attachments are not included.',
+              'Backups include transactions, categories, accounts, bills, payment history, app settings, and bill occurrence statuses. Attachments are not included.',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ),

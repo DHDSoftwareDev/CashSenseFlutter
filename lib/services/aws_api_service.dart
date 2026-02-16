@@ -3,13 +3,14 @@
 import 'dart:convert';
 
 import 'package:amplify_auth_cognito/amplify_auth_cognito.dart';
-import 'package:amplify_flutter/amplify_flutter.dart';
-import 'package:flutter/foundation.dart';
+import 'package:amplify_flutter/amplify_flutter.dart' hide Category;
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/account.dart';
 import '../models/bill.dart';
+import '../models/category.dart';
 import '../models/transaction.dart';
 import 'cognito_service.dart';
 import 'device_id_service.dart';
@@ -354,6 +355,71 @@ class AwsApiService {
     _throwIfNotOk(response);
   }
 
+  // Categories / Payees / Payers / Payments (pull sync)
+  static Future<List<Category>> fetchCategories() async {
+    final userId = await UserAuthService.getCurrentUserId();
+    final decoded = await _fetchCollectionOptional('/categories', userId: userId);
+    return decoded.map(_categoryFromItem).toList();
+  }
+
+  static Future<List<Map<String, dynamic>>> fetchPayees() async {
+    final userId = await UserAuthService.getCurrentUserId();
+    final decoded = await _fetchCollectionOptional('/payees', userId: userId);
+    return decoded.map((e) => _contactFromItem(e, forcedType: 'payee')).toList();
+  }
+
+  static Future<List<Map<String, dynamic>>> fetchPayers() async {
+    final userId = await UserAuthService.getCurrentUserId();
+    final decoded = await _fetchCollectionOptional('/payers', userId: userId);
+    return decoded.map((e) => _contactFromItem(e, forcedType: 'payer')).toList();
+  }
+
+  static Future<List<Map<String, dynamic>>> fetchPayments() async {
+    final userId = await UserAuthService.getCurrentUserId();
+    return _fetchCollectionOptional('/billpayments', userId: userId);
+  }
+
+  static Future<List<Map<String, dynamic>>> _fetchCollectionOptional(
+    String path, {
+    String? userId,
+  }) async {
+    try {
+      final response = await _request(
+        'GET',
+        path,
+        queryParameters: (userId == null || userId.isEmpty) ? null : {'userId': userId},
+      );
+      if (response.statusCode == 404) {
+        return [];
+      }
+      _throwIfNotOk(response);
+      final decoded = jsonDecode(response.body);
+
+      if (decoded is List) {
+        return decoded
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+      if (decoded is Map && decoded['items'] is List) {
+        return (decoded['items'] as List)
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+      if (decoded is Map && decoded['data'] is List) {
+        return (decoded['data'] as List)
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+      return [];
+    } catch (e) {
+      debugPrint('Optional fetch failed for $path: $e');
+      return [];
+    }
+  }
+
   // Notifications
   static Future<void> registerDevice({
     required String deviceToken,
@@ -418,6 +484,40 @@ class AwsApiService {
       default:
         return AccountType.bank;
     }
+  }
+
+  static Category _categoryFromItem(Map<String, dynamic> json) {
+    final id = (json['categoryId'] ?? json['id'] ?? '').toString();
+    final name = (json['name'] ?? json['title'] ?? 'Category').toString();
+    final iconCodePoint = (json['iconCodePoint'] ?? '0xe88a').toString();
+    final colorValue = (json['colorValue'] ?? '0xFF4CAF50').toString();
+    final typeRaw = (json['type'] ?? '').toString().toLowerCase();
+    final isIncome = json['isIncome'] == true || typeRaw == 'income';
+
+    return Category(
+      id: id,
+      name: name,
+      iconCodePoint: iconCodePoint,
+      colorValue: colorValue,
+      isDefault: json['isDefault'] == true,
+      budgetLimit: (json['budgetLimit'] as num?)?.toDouble(),
+      image: json['image']?.toString(),
+      type: isIncome ? CategoryType.income : CategoryType.expense,
+    );
+  }
+
+  static Map<String, dynamic> _contactFromItem(
+    Map<String, dynamic> json, {
+    required String forcedType,
+  }) {
+    final id = (json['id'] ?? json['payeeId'] ?? json['payerId'] ?? '').toString();
+    final name = (json['name'] ?? json['displayName'] ?? json['merchant'] ?? '').toString();
+    return {
+      'id': id,
+      'name': name,
+      'type': forcedType,
+      'categoryId': json['categoryId']?.toString(),
+    };
   }
 
   static String _accountTypeToApi(AccountType type) {

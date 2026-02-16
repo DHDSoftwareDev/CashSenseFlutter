@@ -55,6 +55,8 @@
 		<string>This app needs permission to save receipts and images to your photo library.</string>
 		<key>NSLocationWhenInUseUsageDescription</key>
 		<string>This app uses your location only while in use to help categorize transactions by place.</string>
+		<key>NSFaceIDUsageDescription</key>
+		<string>Use Face ID to quickly and securely unlock CashSense.</string>
 		<!-- Enable background remote notifications so FCM can deliver messages while app is suspended -->
 		<key>BGTaskSchedulerPermittedIdentifiers</key>
 		<array>
