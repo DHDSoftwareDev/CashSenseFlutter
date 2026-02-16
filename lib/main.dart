@@ -182,7 +182,11 @@ class AppLifecycleBiometricLock extends StatefulWidget {
 
 class _AppLifecycleBiometricLockState extends State<AppLifecycleBiometricLock>
     with WidgetsBindingObserver {
+  static const Duration _biometricResumeThreshold = Duration(seconds: 10);
+
   bool _isAuthenticating = false;
+  bool _shouldAuthenticateOnResume = false;
+  DateTime? _backgroundedAt;
 
   @override
   void initState() {
@@ -199,7 +203,30 @@ class _AppLifecycleBiometricLockState extends State<AppLifecycleBiometricLock>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      if (!_shouldAuthenticateOnResume) return;
+      final backgroundedAt = _backgroundedAt;
+      if (backgroundedAt == null) return;
+
+      final elapsed = DateTime.now().difference(backgroundedAt);
+      if (elapsed < _biometricResumeThreshold) {
+        _shouldAuthenticateOnResume = false;
+        _backgroundedAt = null;
+        return;
+      }
+
+      _shouldAuthenticateOnResume = false;
+      _backgroundedAt = null;
       _authenticateOnResume();
+      return;
+    }
+
+    if (_isAuthenticating) return;
+
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      _shouldAuthenticateOnResume = true;
+      _backgroundedAt ??= DateTime.now();
     }
   }
 
