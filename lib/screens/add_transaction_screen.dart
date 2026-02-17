@@ -80,6 +80,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
   VoidCallback? _categoriesListener;
   bool _cleared = false;
+  bool _showInReports = true;
 
   @override
   Widget build(BuildContext context) {
@@ -121,6 +122,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             ],
             const SizedBox(height: 8),
               _buildClearedToggle(),
+            const SizedBox(height: 8),
+            _buildShowInReportsToggle(),
             _buildDateSelector(),
             const SizedBox(height: 12),
             _buildNotesField(),
@@ -1298,6 +1301,18 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     );
   }
 
+  Widget _buildShowInReportsToggle() {
+    return Card(
+      child: SwitchListTile.adaptive(
+        title: const Text('Show in reports'),
+        subtitle: const Text('Include this transaction in report totals and charts'),
+        value: _showInReports,
+        onChanged: (v) => setState(() => _showInReports = v),
+        secondary: const Icon(Icons.insights_outlined),
+      ),
+    );
+  }
+
   Widget _buildSaveButton() {
     return ElevatedButton(
       onPressed: _isSaving ? null : _saveTransaction,
@@ -1451,6 +1466,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             billId: orig.billId,
             occurrenceDate: orig.occurrenceDate,
             splitsJson: (_useSplits && _splits.isNotEmpty) ? jsonEncode(_splits) : null,
+            showInReports: _showInReports,
           );
           await DatabaseService.updateTransaction(updated);
           // Always hide transactions edited from the accounts transactions list
@@ -1509,6 +1525,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       payerId: payerId, // Always set from selected
       billId: widget.prefillTransaction?.billId ?? widget.existingTransaction?.billId,
   splitsJson: (_useSplits && _splits.isNotEmpty) ? jsonEncode(_splits) : null,
+        showInReports: _showInReports,
       );
           await DatabaseService.addTransaction(tx);
 
@@ -1558,6 +1575,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           note: debitInternalNote,
           accountId: _fromAccountId,
           cleared: _cleared,
+          showInReports: _showInReports,
         );
         final credit = Transaction(
           amount: amount,
@@ -1568,6 +1586,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           note: creditInternalNote,
           accountId: _toAccountId,
           cleared: _cleared,
+          showInReports: _showInReports,
         );
         // If editing, prompt user if date or note changed
         if (isEditing) {
@@ -1677,6 +1696,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             date: newDate,
             note: cleanedNotes.isNotEmpty ? cleanedNotes : null,
             cleared: _cleared,
+            showInReports: _showInReports,
           );
           if (updateBoth && updatedPair != null) {
             updatedPair = updatedPair.copyWith(
@@ -1685,6 +1705,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               date: newDate,
               note: cleanedNotes.isNotEmpty ? cleanedNotes : null,
               cleared: _cleared,
+              showInReports: _showInReports,
             );
           }
           // Save updated transactions
@@ -2009,6 +2030,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     _transactionType = source.type == TransactionType.income ? TransactionScreenType.income : TransactionScreenType.expense;
     // Initialize cleared state from source (default false)
     _cleared = source.cleared ?? false;
+    _showInReports = source.showInReports;
   }
 }
 

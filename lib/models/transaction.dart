@@ -69,6 +69,9 @@ class Transaction extends HiveObject {
     @HiveField(15)
     String? splitsJson;
 
+    @HiveField(16)
+    bool showInReports;
+
   Transaction({
     String? id,
     required this.amount,
@@ -86,6 +89,7 @@ class Transaction extends HiveObject {
       this.billId,
       this.occurrenceDate,
       this.splitsJson,
+      this.showInReports = true,
   })  : id = id ?? const Uuid().v4(),
         createdAt = createdAt ?? DateTime.now();
 
@@ -107,6 +111,7 @@ class Transaction extends HiveObject {
       'payerId': payerId,
         'billId': billId,
         'occurrenceDate': occurrenceDate?.toIso8601String(),
+      'showInReports': showInReports,
     };
   }
 
@@ -130,6 +135,7 @@ class Transaction extends HiveObject {
         billId: json['billId'],
         occurrenceDate: json['occurrenceDate'] != null ? DateTime.parse(json['occurrenceDate']) : null,
         splitsJson: json['splitsJson'] as String?,
+      showInReports: json['showInReports'] as bool? ?? true,
     );
   }
 
@@ -149,6 +155,7 @@ class Transaction extends HiveObject {
       String? billId,
       DateTime? occurrenceDate,
       String? splitsJson,
+      bool? showInReports,
   }) {
     return Transaction(
       id: id ?? this.id,
@@ -166,6 +173,7 @@ class Transaction extends HiveObject {
         billId: billId ?? this.billId,
         occurrenceDate: occurrenceDate ?? this.occurrenceDate,
         splitsJson: splitsJson ?? this.splitsJson,
+      showInReports: showInReports ?? this.showInReports,
     );
   }
 }

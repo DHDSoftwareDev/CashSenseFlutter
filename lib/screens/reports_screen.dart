@@ -564,6 +564,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
     // Additionally exclude transactions whose description or note contain
     // the word 'transfer' (case-insensitive) or legacy transfer markers.
     filtered = filtered.where((t) {
+      if (!t.showInReports) return false;
       final desc = t.description.toLowerCase();
       final note = (t.note ?? '').toLowerCase();
       if (desc.contains('transfer')) return false;

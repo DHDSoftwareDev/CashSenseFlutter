@@ -127,6 +127,7 @@ class _ReportTransactionsScreenState extends State<ReportTransactionsScreen> {
     final start = widget.start;
     final end = widget.end;
     List<Transaction> filtered = all.where((t) {
+      if (!t.showInReports) return false;
       // Exclude transfers by category or by title/notes containing 'transfer'
       final descLower = t.description.toLowerCase();
       final noteLower = (t.note ?? '').toLowerCase();

@@ -32,13 +32,15 @@ class TransactionAdapter extends TypeAdapter<Transaction> {
       payerId: fields[12] as String?,
       billId: fields[13] as String?,
       occurrenceDate: fields[14] as DateTime?,
+      splitsJson: fields[15] as String?,
+      showInReports: fields[16] as bool? ?? true,
     );
   }
 
   @override
   void write(BinaryWriter writer, Transaction obj) {
     writer
-      ..writeByte(15)
+      ..writeByte(17)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -68,7 +70,11 @@ class TransactionAdapter extends TypeAdapter<Transaction> {
       ..writeByte(13)
       ..write(obj.billId)
       ..writeByte(14)
-      ..write(obj.occurrenceDate);
+        ..write(obj.occurrenceDate)
+        ..writeByte(15)
+        ..write(obj.splitsJson)
+        ..writeByte(16)
+        ..write(obj.showInReports);
   }
 
   @override

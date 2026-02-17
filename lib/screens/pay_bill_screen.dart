@@ -38,6 +38,7 @@ class _PayBillScreenState extends State<PayBillScreen> {
   List<Map<String, dynamic>> _splits = [];
   bool _useSplits = false;
   bool _isRefund = false; // If true, record payment as income (refund)
+  bool _showInReports = true;
   bool _isSaving = false;
 
   @override
@@ -234,6 +235,7 @@ class _PayBillScreenState extends State<PayBillScreen> {
         billId: widget.bill.id,
         occurrenceDate: widget.occurrenceDate,
   splitsJson: (_useSplits && _splits.isNotEmpty) ? jsonEncode(_splits) : null,
+        showInReports: _showInReports,
       );
 
       await DatabaseService.addTransaction(transaction);
@@ -1038,6 +1040,14 @@ class _PayBillScreenState extends State<PayBillScreen> {
               subtitle: const Text('Record this as income (refund) instead of a payment'),
               value: _isRefund,
               onChanged: (v) => setState(() => _isRefund = v),
+            ),
+            const SizedBox(height: 4),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Show in reports'),
+              subtitle: const Text('Include this payment in report totals and charts'),
+              value: _showInReports,
+              onChanged: (v) => setState(() => _showInReports = v),
             ),
           ],
         ),
