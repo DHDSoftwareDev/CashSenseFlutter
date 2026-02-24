@@ -195,7 +195,7 @@
     },
     {
       "name": "characters",
-      "rootUri": "file:///Users/siler/.pub-cache/hosted/pub.dev/characters-1.4.0",
+      "rootUri": "file:///Users/siler/.pub-cache/hosted/pub.dev/characters-1.4.1",
       "packageUri": "lib/",
       "languageVersion": "3.4"
     },
@@ -383,7 +383,7 @@
       "name": "flutter",
       "rootUri": "file:///Users/siler/development/flutter/packages/flutter",
       "packageUri": "lib/",
-      "languageVersion": "3.8"
+      "languageVersion": "3.9"
     },
     {
       "name": "flutter_colorpicker",
@@ -413,7 +413,7 @@
       "name": "flutter_native_timezone",
       "rootUri": "../third_party/flutter_native_timezone",
       "packageUri": "lib/",
-      "languageVersion": "2.12"
+      "languageVersion": "3.3"
     },
     {
       "name": "flutter_plugin_android_lifecycle",
@@ -461,7 +461,7 @@
       "name": "flutter_test",
       "rootUri": "file:///Users/siler/development/flutter/packages/flutter_test",
       "packageUri": "lib/",
-      "languageVersion": "3.8"
+      "languageVersion": "3.9"
     },
     {
       "name": "flutter_web_auth",
@@ -473,7 +473,7 @@
       "name": "flutter_web_plugins",
       "rootUri": "file:///Users/siler/development/flutter/packages/flutter_web_plugins",
       "packageUri": "lib/",
-      "languageVersion": "3.8"
+      "languageVersion": "3.9"
     },
     {
       "name": "frontend_server_client",
@@ -633,15 +633,15 @@
     },
     {
       "name": "matcher",
-      "rootUri": "file:///Users/siler/.pub-cache/hosted/pub.dev/matcher-0.12.17",
+      "rootUri": "file:///Users/siler/.pub-cache/hosted/pub.dev/matcher-0.12.18",
       "packageUri": "lib/",
-      "languageVersion": "3.4"
+      "languageVersion": "3.7"
     },
     {
       "name": "material_color_utilities",
-      "rootUri": "file:///Users/siler/.pub-cache/hosted/pub.dev/material_color_utilities-0.11.1",
+      "rootUri": "file:///Users/siler/.pub-cache/hosted/pub.dev/material_color_utilities-0.13.0",
       "packageUri": "lib/",
-      "languageVersion": "2.17"
+      "languageVersion": "3.5"
     },
     {
       "name": "material_design_icons_flutter",
@@ -911,7 +911,7 @@
       "name": "sky_engine",
       "rootUri": "file:///Users/siler/development/flutter/bin/cache/pkg/sky_engine",
       "packageUri": "lib/",
-      "languageVersion": "3.8"
+      "languageVersion": "3.9"
     },
     {
       "name": "smithy",
@@ -987,9 +987,9 @@
     },
     {
       "name": "test_api",
-      "rootUri": "file:///Users/siler/.pub-cache/hosted/pub.dev/test_api-0.7.7",
+      "rootUri": "file:///Users/siler/.pub-cache/hosted/pub.dev/test_api-0.7.9",
       "packageUri": "lib/",
-      "languageVersion": "3.5"
+      "languageVersion": "3.7"
     },
     {
       "name": "timezone",
@@ -1197,8 +1197,8 @@
     }
   ],
   "generator": "pub",
-  "generatorVersion": "3.10.8",
+  "generatorVersion": "3.11.0",
   "flutterRoot": "file:///Users/siler/development/flutter",
-  "flutterVersion": "3.38.9",
+  "flutterVersion": "3.41.2",
   "pubCache": "file:///Users/siler/.pub-cache"
 }

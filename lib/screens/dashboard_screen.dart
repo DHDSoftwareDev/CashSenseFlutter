@@ -179,6 +179,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   // Overlay dropdown for bill search
   OverlayEntry? _searchDropdownOverlay;
+  final ScrollController _searchResultsScrollController = ScrollController();
+  int? _searchInitialIndex;
+
+  void _positionSearchResultsAtToday() {
+    if (_searchResults.isEmpty) return;
+    final today = DateTime.now();
+    final todayStart = DateTime(today.year, today.month, today.day);
+    var idx = _searchResults.indexWhere(
+      (r) {
+        final d = r['date'] as DateTime;
+        final normalized = DateTime(d.year, d.month, d.day);
+        return !normalized.isBefore(todayStart);
+      },
+    );
+
+    // If there are no upcoming results, start near the most recent past result.
+    if (idx < 0) idx = _searchResults.length - 1;
+    _searchInitialIndex = idx;
+  }
 
   void _showSearchDropdown() {
     // Remove existing overlay if present to rebuild with updated results
@@ -210,6 +229,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ),
                 child: ListView.builder(
+                  controller: _searchResultsScrollController,
+                  itemExtent: 72,
                   shrinkWrap: true,
                   padding: EdgeInsets.zero,
                   itemCount: _searchResults.length,
@@ -249,6 +270,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
       },
     );
     overlay.insert(_searchDropdownOverlay!);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _searchDropdownOverlay == null) return;
+      if (!_searchResultsScrollController.hasClients) return;
+      if (_searchInitialIndex == null) return;
+      final targetOffset = (_searchInitialIndex!.toDouble() * 72.0)
+          .clamp(0.0, _searchResultsScrollController.position.maxScrollExtent);
+      _searchResultsScrollController.jumpTo(targetOffset);
+    });
   }
 
   void _removeSearchDropdown() {
@@ -274,6 +304,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void dispose() {
   _searchController.dispose();
   _searchFocusNode.dispose();
+  _searchResultsScrollController.dispose();
   DatabaseService.categoriesVersion.removeListener(_onCategoriesChanged);
   DatabaseService.payeesVersion.removeListener(_onPayeesChanged);
     super.dispose();
@@ -333,6 +364,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         }
       }
       _searchResults.sort((a, b) => (a['date'] as DateTime).compareTo(b['date'] as DateTime));
+      _positionSearchResultsAtToday();
       if (_searchResults.isNotEmpty && _searchFocusNode.hasFocus) {
         _showSearchDropdown();
       } else {

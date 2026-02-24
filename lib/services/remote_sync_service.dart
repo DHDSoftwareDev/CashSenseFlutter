@@ -1,4 +1,9 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import '../models/account.dart';
 import '../models/bill.dart';
@@ -8,6 +13,7 @@ import 'aws_api_service.dart';
 import 'billing_service.dart';
 import 'cognito_service.dart';
 import 'database_service.dart';
+import 'amplify_service.dart';
 import 'user_auth_service.dart';
 
 class RemoteSyncService {
@@ -16,8 +22,8 @@ class RemoteSyncService {
   static Future<void> syncUserDataOnLogin() async {
     if (_isSyncing) return;
     if (!AwsApiService.isConfigured) return;
-    if (!_hasPremiumAccess()) {
-      debugPrint('Remote sync skipped: premium account required');
+    if (!_hasSyncAccess()) {
+      debugPrint('Remote sync skipped: premium/dev-test access required');
       return;
     }
 
@@ -47,13 +53,42 @@ class RemoteSyncService {
         AwsApiService.fetchPayments(),
       ]);
 
-      final accounts = (results[0] as List).cast<Account>();
-      final bills = (results[1] as List).cast<Bill>();
-      final transactions = (results[2] as List).cast<Transaction>();
-      final remoteCategories = (results[3] as List).cast<Category>();
-      final remotePayees = (results[4] as List<Map<String, dynamic>>).toList();
-      final remotePayers = (results[5] as List<Map<String, dynamic>>).toList();
-      final payments = (results[6] as List<Map<String, dynamic>>).toList();
+      var accounts = (results[0] as List).cast<Account>().toList();
+      var bills = (results[1] as List).cast<Bill>().toList();
+      var transactions = (results[2] as List).cast<Transaction>().toList();
+      var remoteCategories = (results[3] as List).cast<Category>().toList();
+      var remotePayees = (results[4] as List<Map<String, dynamic>>).toList();
+      var remotePayers = (results[5] as List<Map<String, dynamic>>).toList();
+      var payments = (results[6] as List<Map<String, dynamic>>).toList();
+
+      final bool remoteEmpty =
+          accounts.isEmpty &&
+          bills.isEmpty &&
+          transactions.isEmpty &&
+          remoteCategories.isEmpty &&
+          remotePayees.isEmpty &&
+          remotePayers.isEmpty &&
+          payments.isEmpty;
+
+      if (remoteEmpty) {
+        final cloudSnapshot = await _fetchCloudBackupSnapshot();
+        if (cloudSnapshot != null) {
+          debugPrint('Remote API empty. Restoring latest cloud backup on login.');
+          accounts = cloudSnapshot.accounts;
+          bills = cloudSnapshot.bills;
+          transactions = cloudSnapshot.transactions;
+          remoteCategories = cloudSnapshot.categories;
+          remotePayees = cloudSnapshot.payees;
+          remotePayers = cloudSnapshot.payers;
+          payments = cloudSnapshot.payments;
+
+          if (cloudSnapshot.billOccurrenceStatuses.isNotEmpty) {
+            await DatabaseService.importBillOccurrenceStatuses(
+              cloudSnapshot.billOccurrenceStatuses,
+            );
+          }
+        }
+      }
 
       final categories = _buildCategoryList(
         remoteCategories: remoteCategories,
@@ -87,11 +122,120 @@ class RemoteSyncService {
     }
   }
 
+  static bool _hasSyncAccess() {
+    if (_hasPremiumAccess()) return true;
+
+    if (kDebugMode) {
+      debugPrint('Remote sync enabled for debug build');
+      return true;
+    }
+
+    final envFlag = (dotenv.env['ALLOW_TEST_ACCOUNT_SYNC'] ?? '')
+        .trim()
+        .toLowerCase();
+    if (envFlag == '1' || envFlag == 'true' || envFlag == 'yes') {
+      debugPrint('Remote sync enabled via ALLOW_TEST_ACCOUNT_SYNC');
+      return true;
+    }
+
+    return false;
+  }
+
   static bool _hasPremiumAccess() {
     final plan = DatabaseService.subscriptionVersion.value;
     if (plan.isNotEmpty && plan != 'Free') return true;
     if (BillingService.isTrialActive()) return true;
     return false;
+  }
+
+  static Future<_CloudBackupSnapshot?> _fetchCloudBackupSnapshot() async {
+    try {
+      final signedIn = await CognitoService.isSignedIn();
+      if (!signedIn) return null;
+
+      final userId = await UserAuthService.getCurrentUserId();
+      if (userId.isEmpty) return null;
+
+      final key = 'backups/$userId/auto/latest.json';
+      final tmpDir = Directory('${Directory.systemTemp.path}/cashsense_cloud_restore');
+      await tmpDir.create(recursive: true);
+      final tmpPath = '${tmpDir.path}/latest_${DateTime.now().millisecondsSinceEpoch}.json';
+
+      final downloaded = await AmplifyService.downloadFile(key, tmpPath);
+      if (!downloaded) return null;
+
+      final file = File(tmpPath);
+      if (!await file.exists()) return null;
+
+      final raw = await file.readAsString();
+      if (raw.trim().isEmpty) return null;
+
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map<String, dynamic>) return null;
+
+      final accounts = _parseModelList<Account>(decoded['accounts'], Account.fromJson);
+      final bills = _parseModelList<Bill>(decoded['bills'], Bill.fromJson);
+      final transactions =
+          _parseModelList<Transaction>(decoded['transactions'], Transaction.fromJson);
+      final categories = _parseModelList<Category>(decoded['categories'], Category.fromJson);
+      final payees = _parseMapList(decoded['payees']);
+      final payers = _parseMapList(decoded['payers']);
+
+      final paymentsRaw = decoded['payments_history'];
+      final payments = paymentsRaw is List
+          ? _parseMapList(paymentsRaw)
+          : <Map<String, dynamic>>[];
+
+      final statusRaw = decoded['bill_occurrence_status'] ??
+          (paymentsRaw is Map<String, dynamic> ? paymentsRaw : null);
+      final billOccurrenceStatuses =
+          statusRaw is Map<String, dynamic> ? statusRaw : <String, dynamic>{};
+
+      try {
+        await file.delete();
+      } catch (_) {}
+
+      return _CloudBackupSnapshot(
+        accounts: accounts,
+        bills: bills,
+        transactions: transactions,
+        categories: categories,
+        payees: payees,
+        payers: payers,
+        payments: payments,
+        billOccurrenceStatuses: billOccurrenceStatuses,
+      );
+    } catch (e) {
+      debugPrint('Cloud backup restore on login failed: $e');
+      return null;
+    }
+  }
+
+  static List<T> _parseModelList<T>(
+    dynamic raw,
+    T Function(Map<String, dynamic>) fromJson,
+  ) {
+    if (raw is! List) return <T>[];
+    final out = <T>[];
+    for (final item in raw) {
+      if (item is Map) {
+        try {
+          out.add(fromJson(Map<String, dynamic>.from(item)));
+        } catch (_) {}
+      }
+    }
+    return out;
+  }
+
+  static List<Map<String, dynamic>> _parseMapList(dynamic raw) {
+    if (raw is! List) return <Map<String, dynamic>>[];
+    final out = <Map<String, dynamic>>[];
+    for (final item in raw) {
+      if (item is Map) {
+        out.add(Map<String, dynamic>.from(item));
+      }
+    }
+    return out;
   }
 
   static List<Category> _buildCategoryList({
@@ -163,4 +307,26 @@ class RemoteSyncService {
       'payers': payers.values.toList(),
     };
   }
+}
+
+class _CloudBackupSnapshot {
+  const _CloudBackupSnapshot({
+    required this.accounts,
+    required this.bills,
+    required this.transactions,
+    required this.categories,
+    required this.payees,
+    required this.payers,
+    required this.payments,
+    required this.billOccurrenceStatuses,
+  });
+
+  final List<Account> accounts;
+  final List<Bill> bills;
+  final List<Transaction> transactions;
+  final List<Category> categories;
+  final List<Map<String, dynamic>> payees;
+  final List<Map<String, dynamic>> payers;
+  final List<Map<String, dynamic>> payments;
+  final Map<String, dynamic> billOccurrenceStatuses;
 }

@@ -1,12 +1,15 @@
 import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:workmanager/workmanager.dart' as wm;
 import 'package:background_fetch/background_fetch.dart' as bf;
 import 'package:path_provider/path_provider.dart';
 import 'package:intl/intl.dart';
 import 'database_service.dart';
-// CloudBackupService (AWS S3) removed — cloud upload disabled
+import 'amplify_service.dart';
+import 'cognito_service.dart';
+import 'user_auth_service.dart';
 
 const String _workManagerTask = 'cashsense_auto_backup';
 
@@ -267,8 +270,15 @@ class AutoBackupService {
         debugPrint('Auto-backup retention housekeeping failed: $e');
       }
 
-      // Cloud S3 upload disabled — skipping remote upload
-      debugPrint('Cloud S3 backup disabled; skipping upload.');
+      // Upload to AWS S3 for premium users when configured.
+      try {
+        final uploaded = await _uploadBackupToCloud(file.path, filename);
+        debugPrint(uploaded
+            ? 'Cloud S3 backup upload complete.'
+            : 'Cloud S3 backup upload skipped/failed.');
+      } catch (e) {
+        debugPrint('Cloud S3 backup upload error: $e');
+      }
 
       debugPrint('performBackup() completed successfully');
       return file.path;
@@ -276,6 +286,43 @@ class AutoBackupService {
       debugPrint('performBackup failed: $e');
       return null;
     }
+  }
+
+  static Future<bool> _uploadBackupToCloud(String localFilePath, String filename) async {
+    final subscription = DatabaseService.subscriptionVersion.value;
+    if (subscription == 'Free') {
+      return false;
+    }
+
+    final bucketRaw = (dotenv.env['S3_BUCKET'] ?? '').trim();
+    if (bucketRaw.isEmpty) {
+      debugPrint('Skipping cloud backup: S3_BUCKET is not configured');
+      return false;
+    }
+
+    final signedIn = await CognitoService.isSignedIn();
+    if (!signedIn) {
+      debugPrint('Skipping cloud backup: user not signed in');
+      return false;
+    }
+
+    final userId = await UserAuthService.getCurrentUserId();
+    if (userId.isEmpty) {
+      debugPrint('Skipping cloud backup: missing userId');
+      return false;
+    }
+
+    final key = 'backups/$userId/auto/$filename';
+    final latestKey = 'backups/$userId/auto/latest.json';
+
+    final uploaded = await AmplifyService.uploadFile(localFilePath, key);
+    if (!uploaded) return false;
+
+    // Also maintain a stable latest object for easier restore workflows.
+    await AmplifyService.uploadFile(localFilePath, latestKey);
+    await DatabaseService.setSetting('lastCloudBackupKey', key);
+    await DatabaseService.setSetting('lastCloudBackupAt', DateTime.now().toIso8601String());
+    return true;
   }
 
   /// Optional helper: check settings and run backup if enabled and at least

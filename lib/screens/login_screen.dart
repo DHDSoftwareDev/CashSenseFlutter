@@ -1,6 +1,7 @@
 // ignore_for_file: unnecessary_import, use_build_context_synchronously, unused_import
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:amplify_flutter/amplify_flutter.dart';
 import 'package:amplify_auth_cognito/amplify_auth_cognito.dart';
 import '../services/cognito_service.dart';
@@ -11,6 +12,7 @@ import 'verification_screen.dart';
 import 'signup_screen.dart';
 import 'dashboard_screen.dart';
 import 'main_navigation_screen.dart';
+import '../utils/root_scaffold.dart';
  
 
 class LoginScreen extends StatefulWidget {
@@ -61,7 +63,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const MainNavigationScreen()),
+        MaterialPageRoute(builder: (_) => MainNavigationScreen(key: mainNavKey)),
       );
     } catch (_) {}
   }
@@ -94,6 +96,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
 
       if (result.isSignedIn) {
+        TextInput.finishAutofillContext();
         try {
           await PushTokenService.registerDeviceOnLogin();
         } catch (_) {}
@@ -104,7 +107,7 @@ class _LoginScreenState extends State<LoginScreen> {
         );
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => const MainNavigationScreen()),
+          MaterialPageRoute(builder: (_) => MainNavigationScreen(key: mainNavKey)),
         );
       } else if (result.nextStep.signInStep == AuthSignInStep.confirmSignUp) {
         // User needs to verify email
@@ -293,7 +296,8 @@ class _LoginScreenState extends State<LoginScreen> {
             padding: const EdgeInsets.all(24.0),
             child: Form(
               key: _formKey,
-              child: Column(
+              child: AutofillGroup(
+                child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -325,6 +329,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   // Email field
                   TextFormField(
                     controller: _emailController,
+                    autofillHints: const [AutofillHints.username, AutofillHints.email],
                     decoration: InputDecoration(
                       labelText: 'Email',
                       prefixIcon: const Icon(Icons.email),
@@ -349,6 +354,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   // Password field
                   TextFormField(
                     controller: _passwordController,
+                    autofillHints: const [AutofillHints.password],
                     decoration: InputDecoration(
                       labelText: 'Password',
                       prefixIcon: const Icon(Icons.lock),
@@ -434,6 +440,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ],
                   ),
                 ],
+                ),
               ),
             ),
           ),

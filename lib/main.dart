@@ -1,5 +1,7 @@
 // ignore_for_file: depend_on_referenced_packages, unused_import, unused_element
 
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 // import 'package:flutter_native_splash/flutter_native_splash.dart';
@@ -7,6 +9,7 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:amplify_flutter/amplify_flutter.dart';
 import 'package:amplify_auth_cognito/amplify_auth_cognito.dart';
 import 'package:amplify_api/amplify_api.dart';
+import 'package:amplify_storage_s3/amplify_storage_s3.dart';
 import 'amplifyconfiguration.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -58,16 +61,13 @@ void main() async {
   // Decide initial home: show auth screens at startup when enabled and user not signed in
   final bool enableAuthUI = DatabaseService.getSetting<bool>('enableAuthUI', true) ?? true;
   bool isSignedIn = false;
-  bool biometricEnabled = false;
   try {
     isSignedIn = await CognitoService.isSignedIn();
-    biometricEnabled = await BiometricAuthService.isBiometricEnabled();
   } catch (_) {
     isSignedIn = false;
-    biometricEnabled = false;
   }
 
-  final shouldShowLogin = (enableAuthUI && !isSignedIn) || (isSignedIn && biometricEnabled);
+  final shouldShowLogin = enableAuthUI && !isSignedIn;
   final Widget initialHome = shouldShowLogin ? const LoginScreen() : MainNavigationScreen(key: mainNavKey);
 
   runApp(
@@ -134,20 +134,87 @@ Future<void> _initDatabase() async {
 
 Future<void> _configureAmplify() async {
   try {
-    // Add plugins
-    await Amplify.addPlugins([
+    final bucketRaw = (dotenv.env['S3_BUCKET'] ?? '').trim();
+    final bucket = _normalizeBucketName(bucketRaw);
+    final region = (dotenv.env['AWS_REGION'] ?? dotenv.env['COGNITO_REGION'] ?? '').trim();
+    final identityPoolId = (dotenv.env['COGNITO_IDENTITY_POOL_ID'] ?? '').trim();
+    final storageEnabled = bucket.isNotEmpty && region.isNotEmpty;
+
+    final List<AmplifyPluginInterface> plugins = [
       AmplifyAuthCognito(),
       AmplifyAPI(),
-    ]);
+      if (storageEnabled) AmplifyStorageS3(),
+    ];
 
-    // Configure Amplify using generated configuration
-    await Amplify.configure(amplifyconfig);
+    await Amplify.addPlugins(plugins);
+
+    final config = storageEnabled
+        ? _withStorageConfig(
+            amplifyconfig,
+            bucket: bucket,
+            region: region,
+            identityPoolId: identityPoolId,
+          )
+        : amplifyconfig;
+
+    await Amplify.configure(config);
     safePrint('Successfully configured Amplify 🎉');
   } on AmplifyAlreadyConfiguredException {
     debugPrint('⚠️ Amplify was already configured');
   } on Exception catch (e) {
     safePrint('Error configuring Amplify: $e');
   }
+}
+
+String _withStorageConfig(
+  String baseConfig, {
+  required String bucket,
+  required String region,
+  String identityPoolId = '',
+}) {
+  final decoded = jsonDecode(baseConfig) as Map<String, dynamic>;
+
+  if (identityPoolId.isNotEmpty) {
+    final auth = (decoded['auth'] as Map<String, dynamic>?) ?? <String, dynamic>{};
+    final plugins = (auth['plugins'] as Map<String, dynamic>?) ?? <String, dynamic>{};
+    final cognito =
+        (plugins['awsCognitoAuthPlugin'] as Map<String, dynamic>?) ?? <String, dynamic>{};
+
+    cognito['CognitoIdentity'] = {
+      'Default': {
+        'PoolId': identityPoolId,
+        'Region': region,
+      },
+    };
+
+    plugins['awsCognitoAuthPlugin'] = cognito;
+    auth['plugins'] = plugins;
+    decoded['auth'] = auth;
+  }
+
+  decoded['storage'] = {
+    'plugins': {
+      'awsS3StoragePlugin': {
+        'bucket': bucket,
+        'region': region,
+      },
+    },
+  };
+  return jsonEncode(decoded);
+}
+
+String _normalizeBucketName(String value) {
+  final v = value.trim();
+  if (v.isEmpty) return '';
+  if (v.startsWith('arn:aws:s3:::')) {
+    return v.substring('arn:aws:s3:::'.length);
+  }
+  if (v.startsWith('s3://')) {
+    final withoutScheme = v.substring('s3://'.length);
+    final slash = withoutScheme.indexOf('/');
+    return slash == -1 ? withoutScheme : withoutScheme.substring(0, slash);
+  }
+  return v;
 }
 
 class CashSenseApp extends StatelessWidget {
@@ -187,11 +254,15 @@ class _AppLifecycleBiometricLockState extends State<AppLifecycleBiometricLock>
   bool _isAuthenticating = false;
   bool _shouldAuthenticateOnResume = false;
   DateTime? _backgroundedAt;
+  bool _showBiometricLockOverlay = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _authenticateOnInitialLaunch();
+    });
   }
 
   @override
@@ -230,10 +301,7 @@ class _AppLifecycleBiometricLockState extends State<AppLifecycleBiometricLock>
     }
   }
 
-  Future<void> _authenticateOnResume() async {
-    if (_isAuthenticating) return;
-    _isAuthenticating = true;
-
+  Future<void> _authenticateOnInitialLaunch() async {
     try {
       final biometricEnabled = await BiometricAuthService.isBiometricEnabled();
       if (!biometricEnabled) return;
@@ -241,9 +309,50 @@ class _AppLifecycleBiometricLockState extends State<AppLifecycleBiometricLock>
       final signedIn = await CognitoService.isSignedIn();
       if (!signedIn) return;
 
+      if (!mounted) return;
+      setState(() {
+        _showBiometricLockOverlay = true;
+      });
+
+      await _authenticateOnResume();
+    } catch (e) {
+      debugPrint('Biometric auth on initial launch failed: $e');
+    }
+  }
+
+  Future<void> _authenticateOnResume() async {
+    if (_isAuthenticating) return;
+    _isAuthenticating = true;
+
+    try {
+      final biometricEnabled = await BiometricAuthService.isBiometricEnabled();
+      if (!biometricEnabled) {
+        if (mounted && _showBiometricLockOverlay) {
+          setState(() {
+            _showBiometricLockOverlay = false;
+          });
+        }
+        return;
+      }
+
+      final signedIn = await CognitoService.isSignedIn();
+      if (!signedIn) {
+        if (mounted && _showBiometricLockOverlay) {
+          setState(() {
+            _showBiometricLockOverlay = false;
+          });
+        }
+        return;
+      }
+
       final canUseBiometrics = await BiometricAuthService.canUseBiometrics();
       if (!canUseBiometrics) {
         await BiometricAuthService.setBiometricEnabled(false);
+        if (mounted && _showBiometricLockOverlay) {
+          setState(() {
+            _showBiometricLockOverlay = false;
+          });
+        }
         return;
       }
 
@@ -251,11 +360,18 @@ class _AppLifecycleBiometricLockState extends State<AppLifecycleBiometricLock>
         reason: 'Authenticate to continue using CashSense',
       );
 
-      if (!unlocked && mounted) {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const LoginScreen()),
-          (route) => false,
-        );
+      if (!mounted) return;
+
+      if (unlocked) {
+        if (_showBiometricLockOverlay) {
+          setState(() {
+            _showBiometricLockOverlay = false;
+          });
+        }
+      } else {
+        setState(() {
+          _showBiometricLockOverlay = true;
+        });
       }
     } catch (e) {
       debugPrint('Biometric lock on resume failed: $e');
@@ -264,9 +380,71 @@ class _AppLifecycleBiometricLockState extends State<AppLifecycleBiometricLock>
     }
   }
 
+  Future<void> _unlockFromOverlay() async {
+    if (_isAuthenticating) return;
+    await _authenticateOnResume();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return widget.child;
+    return Stack(
+      children: [
+        widget.child,
+        if (_showBiometricLockOverlay)
+          Positioned.fill(
+            child: Material(
+              color: Theme.of(context).colorScheme.surface,
+              child: SafeArea(
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.lock, size: 48),
+                        const SizedBox(height: 12),
+                        Text(
+                          'CashSense is locked',
+                          style: Theme.of(context).textTheme.titleLarge,
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Authenticate with biometrics to continue.',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 20),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: _unlockFromOverlay,
+                            icon: const Icon(Icons.fingerprint),
+                            label: const Text('Unlock'),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          child: TextButton(
+                            onPressed: () {
+                              Navigator.of(context).pushAndRemoveUntil(
+                                MaterialPageRoute(builder: (_) => const LoginScreen()),
+                                (route) => false,
+                              );
+                            },
+                            child: const Text('Use Username & Password'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
   }
 }
 

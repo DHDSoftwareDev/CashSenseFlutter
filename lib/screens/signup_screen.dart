@@ -8,6 +8,7 @@ import 'verification_screen.dart';
 import 'login_screen.dart';
 import 'dashboard_screen.dart';
 import 'main_navigation_screen.dart';
+import '../utils/root_scaffold.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -68,7 +69,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
             );
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (_) => const MainNavigationScreen()),
+              MaterialPageRoute(builder: (_) => MainNavigationScreen(key: mainNavKey)),
             );
           } else {
             // Unexpected next step — navigate to verification if required

@@ -1438,17 +1438,17 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
         if (isEditing) {
       final orig = widget.existingTransaction!;
-      // If this transaction is linked to a bill (billId set), it was created
-      // by the pay-bill flow and its description contains the human
-      // readable "Payment for {bill name} (MM/dd/yyyy)" text. Preserve
-      // that description when editing so the payee/payer name remains
-      // unchanged unless the caller explicitly requested otherwise.
-      // Only respect the explicit preserveDescriptionAndDate flag. We still
-      // preserve the `billId`/`occurrenceDate` fields on save (so the
-      // transaction remains linked to the bill occurrence), but allow the
-      // user to change the displayed transaction date and description unless
-      // the caller requested them preserved.
-      final newDescription = widget.preserveDescriptionAndDate ? orig.description : desc;
+        // If this transaction is linked to a bill (billId set), it was created
+        // by the pay-bill flow and its description contains the human-readable
+        // "Payment for {bill name} (MM/dd/yyyy)" text. Keep that description
+        // stable when editing amount/category/account so payment names are not
+        // rewritten to generic values.
+        final preserveBillPaymentDescription =
+          orig.billId != null && orig.billId!.isNotEmpty;
+        final newDescription =
+          (widget.preserveDescriptionAndDate || preserveBillPaymentDescription)
+            ? orig.description
+            : desc;
       final newDate = widget.preserveDescriptionAndDate ? orig.date : _transactionDate;
           final updated = orig.copyWith(
             amount: amount,
@@ -1682,7 +1682,12 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             }
           }
           // Update other fields (amount, description, date, note)
-          final newDescription = widget.preserveDescriptionAndDate ? orig.description : desc;
+            final preserveBillPaymentDescription =
+              orig.billId != null && orig.billId!.isNotEmpty;
+            final newDescription =
+              (widget.preserveDescriptionAndDate || preserveBillPaymentDescription)
+                ? orig.description
+                : desc;
           final newDate = widget.preserveDescriptionAndDate ? orig.date : _transactionDate;
           String cleanedNotes = userNote;
           if (cleanedNotes.contains('__transfer_bill__')) {

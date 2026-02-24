@@ -1,10 +1,10 @@
 // ignore_for_file: deprecated_member_use, library_private_types_in_public_api
 
 import 'dart:async';
+import 'dart:js' as js;
 
 import 'package:flutter/services.dart';
 import 'package:flutter_web_plugins/flutter_web_plugins.dart';
-import 'package:js/js.dart';
 
 ///
 /// The plugin class for the web, acts as the plugin inside bits
@@ -38,24 +38,25 @@ class FlutterNativeTimezonePlugin {
   /// local time zone when running on the web.
   ///
   String _getLocalTimeZone() {
-    return jsDateTimeFormat()
-        .resolvedOptions()
-        .timeZone;
+    final dynamic intl = js.context['Intl'];
+    if (intl == null) {
+      return DateTime.now().timeZoneName;
+    }
+
+    final dynamic dateTimeFormatConstructor = intl['DateTimeFormat'];
+    if (dateTimeFormatConstructor == null) {
+      return DateTime.now().timeZoneName;
+    }
+
+    final dynamic dateTimeFormat = js.JsObject(dateTimeFormatConstructor, []);
+    final dynamic resolvedOptions = dateTimeFormat.callMethod('resolvedOptions');
+    final dynamic timeZone = resolvedOptions['timeZone'];
+
+    if (timeZone is String && timeZone.isNotEmpty) {
+      return timeZone;
+    }
+
+    return DateTime.now().timeZoneName;
   }
-}
-
-@JS('Intl.DateTimeFormat')
-external _JSDateTimeFormat jsDateTimeFormat();
-
-@JS()
-abstract class _JSDateTimeFormat {
-  @JS()
-  external _JSResolvedOptions resolvedOptions();
-}
-
-@JS()
-abstract class _JSResolvedOptions {
-  @JS()
-  external String get timeZone;
 }
 

@@ -5,6 +5,7 @@ import 'package:amplify_auth_cognito/amplify_auth_cognito.dart';
 import '../services/cognito_service.dart';
 import '../services/push_token_service.dart';
 import 'main_navigation_screen.dart';
+import '../utils/root_scaffold.dart';
 
 class VerificationScreen extends StatefulWidget {
   final String email;
@@ -70,7 +71,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
             // Navigate to main app (dashboard)
             Navigator.pushAndRemoveUntil(
               context,
-              MaterialPageRoute(builder: (_) => const MainNavigationScreen()),
+              MaterialPageRoute(builder: (_) => MainNavigationScreen(key: mainNavKey)),
               (route) => false,
             );
             return;

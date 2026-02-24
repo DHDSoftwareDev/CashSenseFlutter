@@ -1,0 +1,12 @@
+{
+  "java.configuration.updateBuildConfiguration": "interactive",
+  "java.import.gradle.java.home": "/Applications/Android Studio.app/Contents/jbr/Contents/Home",
+  "java.jdt.ls.java.home": "/Applications/Android Studio.app/Contents/jbr/Contents/Home",
+  "java.import.gradle.enabled": false,
+  "java.import.exclusions": [
+    "**/third_party/**",
+    "third_party/**",
+    "**/example/android/**",
+    "**/build/**"
+  ]
+}
