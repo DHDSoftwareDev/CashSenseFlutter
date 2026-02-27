@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:local_auth/local_auth.dart';
@@ -22,6 +24,9 @@ class BiometricAuthService {
       final deviceSupported = await _auth.isDeviceSupported();
       final canCheckBiometrics = await _auth.canCheckBiometrics;
       final availableBiometrics = await _auth.getAvailableBiometrics();
+      if (Platform.isAndroid) {
+        return deviceSupported && (canCheckBiometrics || availableBiometrics.isNotEmpty);
+      }
       return deviceSupported && canCheckBiometrics && availableBiometrics.isNotEmpty;
     } on PlatformException catch (e) {
       debugPrint('Biometric availability check failed: $e');
@@ -40,6 +45,12 @@ class BiometricAuthService {
       }
       if (available.contains(BiometricType.fingerprint)) {
         return 'Fingerprint';
+      }
+      if (available.contains(BiometricType.strong)) {
+        return 'Biometrics';
+      }
+      if (available.contains(BiometricType.weak)) {
+        return 'Biometrics';
       }
       return 'Biometrics';
     } catch (_) {
