@@ -46,6 +46,8 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   static const String _developerUnlockPassword = 'dev2026';
   static const String _testerUnlockPassword = 'test30days';
+  static const String _autoLogoutTimeoutKey = 'biometricAutoLogoutSeconds';
+  static const List<int> _autoLogoutTimeoutOptions = <int>[30, 60, 90];
 
   String _userEmail = '';
   bool _isLoggedIn = false;
@@ -55,6 +57,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _biometricEnabled = false;
   bool _biometricAvailable = false;
   String _biometricLabel = 'Biometrics';
+  int _autoLogoutTimeoutSeconds = 60;
 
   @override
   void initState() {
@@ -62,7 +65,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _loadUserInfo();
     _loadVersion();
     _loadBiometricSettings();
+    _loadAutoLogoutTimeoutSetting();
     _autoBackupEnabled = DatabaseService.getSetting<bool>('autoBackupEnabled', false) ?? false;
+  }
+
+  void _loadAutoLogoutTimeoutSetting() {
+    final saved = DatabaseService.getSetting<int>(_autoLogoutTimeoutKey, 60) ?? 60;
+    final selected = _autoLogoutTimeoutOptions.contains(saved) ? saved : 60;
+    if (!mounted) return;
+    setState(() {
+      _autoLogoutTimeoutSeconds = selected;
+    });
+  }
+
+  Future<void> _setAutoLogoutTimeoutSeconds(int seconds) async {
+    if (!_autoLogoutTimeoutOptions.contains(seconds)) return;
+    await DatabaseService.setSetting(_autoLogoutTimeoutKey, seconds);
+    if (!mounted) return;
+    setState(() {
+      _autoLogoutTimeoutSeconds = seconds;
+    });
   }
 
   Future<void> _loadBiometricSettings() async {
@@ -1284,6 +1306,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   trailing: Switch(
                     value: _biometricEnabled,
                     onChanged: _biometricAvailable ? (value) => _setBiometricEnabled(value) : null,
+                  ),
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.timer_outlined),
+                  title: const Text('Auto Logout Timeout'),
+                  subtitle: const Text('Log out after app is in background for:'),
+                  trailing: DropdownButtonHideUnderline(
+                    child: DropdownButton<int>(
+                      value: _autoLogoutTimeoutSeconds,
+                      items: _autoLogoutTimeoutOptions
+                          .map(
+                            (seconds) => DropdownMenuItem<int>(
+                              value: seconds,
+                              child: Text('$seconds sec'),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) {
+                        if (value == null) return;
+                        _setAutoLogoutTimeoutSeconds(value);
+                      },
+                    ),
                   ),
                 ),
                 const SizedBox(height: 8),

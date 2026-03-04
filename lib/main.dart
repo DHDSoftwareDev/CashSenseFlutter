@@ -250,11 +250,16 @@ class AppLifecycleBiometricLock extends StatefulWidget {
 class _AppLifecycleBiometricLockState extends State<AppLifecycleBiometricLock>
     with WidgetsBindingObserver {
   static const Duration _biometricResumeThreshold = Duration(seconds: 10);
+  static const String _autoLogoutTimeoutKey = 'biometricAutoLogoutSeconds';
+  static const int _defaultAutoLogoutSeconds = 60;
+  static const List<int> _allowedAutoLogoutSeconds = <int>[30, 60, 90];
 
   bool _isAuthenticating = false;
   bool _shouldAuthenticateOnResume = false;
   DateTime? _backgroundedAt;
   bool _showBiometricLockOverlay = false;
+  bool _isLockStateChecking = true;
+  bool _isSigningOutForTimeout = false;
 
   @override
   void initState() {
@@ -279,6 +284,14 @@ class _AppLifecycleBiometricLockState extends State<AppLifecycleBiometricLock>
       if (backgroundedAt == null) return;
 
       final elapsed = DateTime.now().difference(backgroundedAt);
+      final autoLogoutThreshold = Duration(seconds: _getAutoLogoutSeconds());
+      if (elapsed >= autoLogoutThreshold) {
+        _shouldAuthenticateOnResume = false;
+        _backgroundedAt = null;
+        _signOutForSessionTimeout();
+        return;
+      }
+
       if (elapsed < _biometricResumeThreshold) {
         _shouldAuthenticateOnResume = false;
         _backgroundedAt = null;
@@ -317,6 +330,12 @@ class _AppLifecycleBiometricLockState extends State<AppLifecycleBiometricLock>
       await _authenticateOnResume();
     } catch (e) {
       debugPrint('Biometric auth on initial launch failed: $e');
+    } finally {
+      if (mounted && _isLockStateChecking) {
+        setState(() {
+          _isLockStateChecking = false;
+        });
+      }
     }
   }
 
@@ -343,6 +362,12 @@ class _AppLifecycleBiometricLockState extends State<AppLifecycleBiometricLock>
           });
         }
         return;
+      }
+
+      if (mounted && !_showBiometricLockOverlay) {
+        setState(() {
+          _showBiometricLockOverlay = true;
+        });
       }
 
       final canUseBiometrics = await BiometricAuthService.canUseBiometrics();
@@ -380,13 +405,64 @@ class _AppLifecycleBiometricLockState extends State<AppLifecycleBiometricLock>
     }
   }
 
+  Future<void> _signOutForSessionTimeout() async {
+    if (_isSigningOutForTimeout) return;
+    _isSigningOutForTimeout = true;
+
+    try {
+      await CognitoService.signOut();
+    } catch (e) {
+      debugPrint('Session-timeout sign out failed: $e');
+    }
+
+    if (!mounted) {
+      _isSigningOutForTimeout = false;
+      return;
+    }
+
+    if (_showBiometricLockOverlay) {
+      setState(() {
+        _showBiometricLockOverlay = false;
+      });
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Signed out after 10 minutes of inactivity.')),
+    );
+
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (route) => false,
+    );
+
+    _isSigningOutForTimeout = false;
+  }
+
   Future<void> _unlockFromOverlay() async {
     if (_isAuthenticating) return;
     await _authenticateOnResume();
   }
 
+  int _getAutoLogoutSeconds() {
+    final raw = DatabaseService.getSetting<int>(
+      _autoLogoutTimeoutKey,
+      _defaultAutoLogoutSeconds,
+    );
+    final seconds = raw ?? _defaultAutoLogoutSeconds;
+    if (_allowedAutoLogoutSeconds.contains(seconds)) {
+      return seconds;
+    }
+    return _defaultAutoLogoutSeconds;
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_isLockStateChecking) {
+      return Material(
+        color: Theme.of(context).colorScheme.surface,
+      );
+    }
+
     return Stack(
       children: [
         widget.child,
