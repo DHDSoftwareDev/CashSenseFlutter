@@ -1469,8 +1469,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             showInReports: _showInReports,
           );
           await DatabaseService.updateTransaction(updated);
-          // Always hide transactions edited from the accounts transactions list
-          await DatabaseService.addHiddenTransactionId(updated.id);
           // If this transaction is linked to a bill, ensure listeners watching
           // bills (like PayBillScreen) are notified so payment history refreshes.
           if (orig.billId != null && orig.billId!.isNotEmpty) {
@@ -1528,8 +1526,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         showInReports: _showInReports,
       );
           await DatabaseService.addTransaction(tx);
-
-          await DatabaseService.addHiddenTransactionId(tx.id);
 
           if (_selectedAccountId != null) {
             final account = DatabaseService.getAccountById(_selectedAccountId!);

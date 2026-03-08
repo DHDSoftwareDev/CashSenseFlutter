@@ -239,8 +239,6 @@ class _PayBillScreenState extends State<PayBillScreen> {
       );
 
       await DatabaseService.addTransaction(transaction);
-      // Hide bill payments from calendar/dashboard views
-      await DatabaseService.addHiddenTransactionId(transaction.id);
 
       // Update account balance
       if (_selectedAccountId != null) {
@@ -661,8 +659,6 @@ class _PayBillScreenState extends State<PayBillScreen> {
                                 );
                                 if (!mounted) return;
                                 if (editResult == true) {
-                                  // Always re-hide the payment after editing
-                                  await DatabaseService.addHiddenTransactionId(tx.id);
                                   setState(() {
                                     _loadPaymentHistory();
                                   });

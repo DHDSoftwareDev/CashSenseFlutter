@@ -95,10 +95,14 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
+  static const String _showPaidBillsSettingKey = 'dashboardShowPaidBills';
+
   // Duplicate helper removed — use the top-level _buildCategoryIconOrEmoji defined earlier.
   @override
   void initState() {
     super.initState();
+    _showPaidBills =
+        DatabaseService.getSetting<bool>(_showPaidBillsSettingKey, false) ?? false;
     DatabaseService.categoriesVersion.addListener(_onCategoriesChanged);
     DatabaseService.payeesVersion.addListener(_onPayeesChanged);
     
@@ -323,6 +327,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String _searchQuery = '';
   final List<Map<String, dynamic>> _searchResults = [];
 
+  String _normalizedText(String? value) => (value ?? '').trim().toLowerCase();
+
+  String _billOccurrenceRenderKey(Bill bill, DateTime date) {
+    final day = '${date.year}-${date.month}-${date.day}';
+    final amount = bill.amount.toStringAsFixed(2);
+    return [
+      day,
+      bill.type.name,
+      amount,
+      _normalizedText(bill.description),
+      bill.payeeId ?? '',
+      bill.accountId ?? '',
+      bill.categoryId ?? '',
+      bill.fromAccountId ?? '',
+      bill.toAccountId ?? '',
+    ].join('|');
+  }
+
+  List<Map<String, dynamic>> _dedupeBillOccurrences(List<Map<String, dynamic>> occurrences) {
+    final seen = <String>{};
+    final out = <Map<String, dynamic>>[];
+    for (final occ in occurrences) {
+      final bill = occ['bill'];
+      final date = occ['date'];
+      if (bill is! Bill || date is! DateTime) continue;
+      final key = _billOccurrenceRenderKey(bill, date);
+      if (!seen.add(key)) continue;
+      out.add(occ);
+    }
+    return out;
+  }
+
   // Search bills by description, payee name, or notes
   void _performSearch(String query) {
     setState(() {
@@ -354,7 +390,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           final occurrences = DatabaseService.getBillOccurrencesBetween(startDate, endDate)
               .where((occ) => (occ['bill'] as Bill).id == bill.id)
               .toList();
-          for (final occ in occurrences) {
+          final uniqueOccurrences = _dedupeBillOccurrences(occurrences);
+          for (final occ in uniqueOccurrences) {
             _searchResults.add({
               'bill': bill,
               'date': occ['date'] as DateTime,
@@ -575,13 +612,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 // Return a non-empty list when we have transactions on this day so the calendar considers it an 'event' day.
                 final start = DateTime(day.year, day.month, day.day);
                 final end = start.add(const Duration(days: 1)).subtract(const Duration(milliseconds: 1));
+                final billDay = DateTime(day.year, day.month, day.day);
                 final hiddenIds = DatabaseService.getHiddenTransactionIds().toSet();
                 final txs = DatabaseService.getTransactionsByDateRange(start, end)
                     .where((t) {
                       if (hiddenIds.contains(t.id)) return false;
                       if (t.note != null && t.note!.contains('__hide_from_calendar__')) return false;
 
-                      // 🚫 Hide all bill-payment transactions from the calendar
+                      // Hide bill-payment transactions from dashboard calendar views.
                       if (t.billId != null && t.billId!.isNotEmpty) return false;
 
                       // Exclude all transfers (manual or bill) from calendar dashboard
@@ -596,7 +634,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       return true;
                     })
                     .toList();
-                var billOcc = DatabaseService.getBillOccurrencesBetween(start, end);
+                var billOcc = DatabaseService.getBillOccurrencesBetween(billDay, billDay);
+                billOcc = _dedupeBillOccurrences(billOcc);
                 
                 // Apply search filter if search query is not empty
                 if (_searchQuery.isNotEmpty) {
@@ -655,7 +694,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   // Color the date if a bill (including transfer bills) is present
                   var billOcc = DatabaseService.getBillOccurrencesBetween(
                         DateTime(day.year, day.month, day.day),
-                        DateTime(day.year, day.month, day.day).add(const Duration(days: 1)).subtract(const Duration(milliseconds: 1)));
+                        DateTime(day.year, day.month, day.day));
+                  billOcc = _dedupeBillOccurrences(billOcc);
                   
                   // Apply search filter if search query is not empty
                   if (_searchQuery.isNotEmpty) {
@@ -694,7 +734,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 todayBuilder: (context, day, focusedDay) {
                   var billOcc = DatabaseService.getBillOccurrencesBetween(
                         DateTime(day.year, day.month, day.day),
-                        DateTime(day.year, day.month, day.day).add(const Duration(days: 1)).subtract(const Duration(milliseconds: 1)));
+                        DateTime(day.year, day.month, day.day));
+                  billOcc = _dedupeBillOccurrences(billOcc);
                   
                   // Apply search filter if search query is not empty
                   if (_searchQuery.isNotEmpty) {
@@ -851,6 +892,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         setState(() {
           _showPaidBills = !_showPaidBills;
         });
+        DatabaseService.setSetting(_showPaidBillsSettingKey, _showPaidBills);
       },
       selectedColor: theme.colorScheme.primary.withAlpha((0.18 * 255).round()),
       checkmarkColor: theme.colorScheme.primary,
@@ -872,10 +914,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     // Helper to identify manual payments from Pay Bill or Add Transaction screens
     bool _isManualPayment(Transaction tx) {
-      // Any transaction with a billId is a bill payment and should be hidden
       if (tx.billId != null && tx.billId!.isNotEmpty) return true;
-      // If description starts with 'Payment for' and note contains 'account:' it's likely from Pay Bill
-      if (tx.description.startsWith('Payment for') && (tx.note?.contains('account:') ?? false)) return true;
       // Transactions created via Add Transaction screen are now tracked by id in
       // the DatabaseService hidden list. Fall back to the legacy note marker if
       // present to maintain behavior for older records.
@@ -962,7 +1001,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
       
       // Add recurring bill occurrences as transaction placeholders
-      var billOcc = DatabaseService.getBillOccurrencesBetween(startOfSelected, endOfSelected);
+      var billOcc = DatabaseService.getBillOccurrencesBetween(startOfSelected, startOfSelected);
+      billOcc = _dedupeBillOccurrences(billOcc);
       
       // Apply search filter to bill occurrences
       if (_searchQuery.isNotEmpty) {
@@ -983,8 +1023,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       // ...existing code for billOcc and sorting...
       // Filter out ALL transactions that are bill payments (have a billId set)
       // regardless of whether there's a matching bill occurrence on this day
-      final filteredTxList = txList.where((tx) => tx.billId == null || tx.billId!.isEmpty).toList();
-      recentTransactions = filteredTxList.map((tx) => TransactionDisplayItem(tx)).toList();
+      recentTransactions = txList.map((tx) => TransactionDisplayItem(tx)).toList();
       for (final b in billOcc) {
         final bill = b['bill'] as Bill;
   final date = b['date'] as DateTime;

@@ -249,7 +249,6 @@ class AppLifecycleBiometricLock extends StatefulWidget {
 
 class _AppLifecycleBiometricLockState extends State<AppLifecycleBiometricLock>
     with WidgetsBindingObserver {
-  static const Duration _biometricResumeThreshold = Duration(seconds: 10);
   static const String _autoLogoutTimeoutKey = 'biometricAutoLogoutSeconds';
   static const int _defaultAutoLogoutSeconds = 60;
   static const List<int> _allowedAutoLogoutSeconds = <int>[30, 60, 90];
@@ -258,15 +257,18 @@ class _AppLifecycleBiometricLockState extends State<AppLifecycleBiometricLock>
   bool _shouldAuthenticateOnResume = false;
   DateTime? _backgroundedAt;
   bool _showBiometricLockOverlay = false;
-  bool _isLockStateChecking = true;
-  bool _isSigningOutForTimeout = false;
+  bool _isStartupAuthCheckPending = true;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _authenticateOnInitialLaunch();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _authenticateOnAppOpen();
+      if (!mounted) return;
+      setState(() {
+        _isStartupAuthCheckPending = false;
+      });
     });
   }
 
@@ -281,26 +283,17 @@ class _AppLifecycleBiometricLockState extends State<AppLifecycleBiometricLock>
     if (state == AppLifecycleState.resumed) {
       if (!_shouldAuthenticateOnResume) return;
       final backgroundedAt = _backgroundedAt;
+      _shouldAuthenticateOnResume = false;
+      _backgroundedAt = null;
       if (backgroundedAt == null) return;
 
       final elapsed = DateTime.now().difference(backgroundedAt);
       final autoLogoutThreshold = Duration(seconds: _getAutoLogoutSeconds());
-      if (elapsed >= autoLogoutThreshold) {
-        _shouldAuthenticateOnResume = false;
-        _backgroundedAt = null;
-        _signOutForSessionTimeout();
+      if (elapsed < autoLogoutThreshold) {
         return;
       }
 
-      if (elapsed < _biometricResumeThreshold) {
-        _shouldAuthenticateOnResume = false;
-        _backgroundedAt = null;
-        return;
-      }
-
-      _shouldAuthenticateOnResume = false;
-      _backgroundedAt = null;
-      _authenticateOnResume();
+      _showLockOverlayOnResumeIfNeeded();
       return;
     }
 
@@ -311,31 +304,6 @@ class _AppLifecycleBiometricLockState extends State<AppLifecycleBiometricLock>
         state == AppLifecycleState.detached) {
       _shouldAuthenticateOnResume = true;
       _backgroundedAt ??= DateTime.now();
-    }
-  }
-
-  Future<void> _authenticateOnInitialLaunch() async {
-    try {
-      final biometricEnabled = await BiometricAuthService.isBiometricEnabled();
-      if (!biometricEnabled) return;
-
-      final signedIn = await CognitoService.isSignedIn();
-      if (!signedIn) return;
-
-      if (!mounted) return;
-      setState(() {
-        _showBiometricLockOverlay = true;
-      });
-
-      await _authenticateOnResume();
-    } catch (e) {
-      debugPrint('Biometric auth on initial launch failed: $e');
-    } finally {
-      if (mounted && _isLockStateChecking) {
-        setState(() {
-          _isLockStateChecking = false;
-        });
-      }
     }
   }
 
@@ -405,37 +373,51 @@ class _AppLifecycleBiometricLockState extends State<AppLifecycleBiometricLock>
     }
   }
 
-  Future<void> _signOutForSessionTimeout() async {
-    if (_isSigningOutForTimeout) return;
-    _isSigningOutForTimeout = true;
-
+  Future<void> _showLockOverlayOnResumeIfNeeded() async {
     try {
-      await CognitoService.signOut();
+      final biometricEnabled = await BiometricAuthService.isBiometricEnabled();
+      if (!biometricEnabled) {
+        if (mounted && _showBiometricLockOverlay) {
+          setState(() {
+            _showBiometricLockOverlay = false;
+          });
+        }
+        return;
+      }
+
+      final signedIn = await CognitoService.isSignedIn();
+      if (!signedIn) {
+        if (mounted && _showBiometricLockOverlay) {
+          setState(() {
+            _showBiometricLockOverlay = false;
+          });
+        }
+        return;
+      }
+
+      final canUseBiometrics = await BiometricAuthService.canUseBiometrics();
+      if (!canUseBiometrics) {
+        await BiometricAuthService.setBiometricEnabled(false);
+        if (mounted && _showBiometricLockOverlay) {
+          setState(() {
+            _showBiometricLockOverlay = false;
+          });
+        }
+        return;
+      }
+
+      if (mounted && !_showBiometricLockOverlay) {
+        setState(() {
+          _showBiometricLockOverlay = true;
+        });
+      }
     } catch (e) {
-      debugPrint('Session-timeout sign out failed: $e');
+      debugPrint('Biometric lock overlay on resume failed: $e');
     }
+  }
 
-    if (!mounted) {
-      _isSigningOutForTimeout = false;
-      return;
-    }
-
-    if (_showBiometricLockOverlay) {
-      setState(() {
-        _showBiometricLockOverlay = false;
-      });
-    }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Signed out after 10 minutes of inactivity.')),
-    );
-
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
-      (route) => false,
-    );
-
-    _isSigningOutForTimeout = false;
+  Future<void> _authenticateOnAppOpen() async {
+    await _authenticateOnResume();
   }
 
   Future<void> _unlockFromOverlay() async {
@@ -457,9 +439,40 @@ class _AppLifecycleBiometricLockState extends State<AppLifecycleBiometricLock>
 
   @override
   Widget build(BuildContext context) {
-    if (_isLockStateChecking) {
+    if (_isStartupAuthCheckPending) {
       return Material(
         color: Theme.of(context).colorScheme.surface,
+        child: SafeArea(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Image.asset(
+                    'assets/images/cash_icon.png',
+                    width: 72,
+                    height: 72,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'CashSense is locked',
+                    style: Theme.of(context).textTheme.titleLarge,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Checking biometric authentication…',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 20),
+                  const CircularProgressIndicator(),
+                ],
+              ),
+            ),
+          ),
+        ),
       );
     }
 
