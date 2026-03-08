@@ -161,6 +161,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 _selectedCategoryId = null;
                 // Only clear account selections when switching to/from transfer
                 if (_transactionType == TransactionScreenType.transfer) {
+                  _showInReports = false;
                   _selectedAccountId = null;
                   _fromAccountId = null;
                   _toAccountId = null;
@@ -1302,12 +1303,17 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   }
 
   Widget _buildShowInReportsToggle() {
+    final isTransfer = _transactionType == TransactionScreenType.transfer;
     return Card(
       child: SwitchListTile.adaptive(
         title: const Text('Show in reports'),
-        subtitle: const Text('Include this transaction in report totals and charts'),
-        value: _showInReports,
-        onChanged: (v) => setState(() => _showInReports = v),
+        subtitle: Text(
+          isTransfer
+              ? 'Transfers are always excluded from reports.'
+              : 'Include this transaction in report totals and charts',
+        ),
+        value: isTransfer ? false : _showInReports,
+        onChanged: isTransfer ? null : (v) => setState(() => _showInReports = v),
         secondary: const Icon(Icons.insights_outlined),
       ),
     );
@@ -1571,7 +1577,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           note: debitInternalNote,
           accountId: _fromAccountId,
           cleared: _cleared,
-          showInReports: _showInReports,
+          showInReports: false,
         );
         final credit = Transaction(
           amount: amount,
@@ -1582,7 +1588,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           note: creditInternalNote,
           accountId: _toAccountId,
           cleared: _cleared,
-          showInReports: _showInReports,
+          showInReports: false,
         );
         // If editing, prompt user if date or note changed
         if (isEditing) {
@@ -1697,7 +1703,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             date: newDate,
             note: cleanedNotes.isNotEmpty ? cleanedNotes : null,
             cleared: _cleared,
-            showInReports: _showInReports,
+            showInReports: false,
           );
           if (updateBoth && updatedPair != null) {
             updatedPair = updatedPair.copyWith(
@@ -1706,7 +1712,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               date: newDate,
               note: cleanedNotes.isNotEmpty ? cleanedNotes : null,
               cleared: _cleared,
-              showInReports: _showInReports,
+              showInReports: false,
             );
           }
           // Save updated transactions
@@ -1812,6 +1818,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     };
     DatabaseService.categoriesVersion.addListener(_categoriesListener!);
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      FocusManager.instance.primaryFocus?.unfocus();
+    });
 
     // Autofill account if provided from parent screen
     if (widget.initialAccountId != null && widget.initialAccountId!.isNotEmpty) {
@@ -1908,14 +1918,26 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     // Autofill payee/payer directly from transaction if available
     if (source.payeeId != null && source.payeeId!.isNotEmpty) {
       _selectedPayeeId = source.payeeId;
+    } else if (source.payerId != null && source.payerId!.isNotEmpty) {
+      _selectedPayeeId = source.payerId;
     } else {
       // Derive description and lowercased form
       final desc = source.description.trim();
       final descLower = desc.toLowerCase();
+      final noteLower = (source.note ?? '').toLowerCase();
 
-      // Attempt to detect a transfer via description or by finding a matching pair
+      // Attempt to detect a transfer via explicit transfer markers or
+      // canonical transfer description format.
       var detectedTransfer = false;
-      if (descLower.startsWith('transfer') || source.categoryId.isEmpty) {
+      final hasTransferMarker =
+          noteLower.contains('__transfer_manual__') ||
+          noteLower.contains('__transfer_bill__') ||
+          RegExp(r'pair:[a-z0-9\-]+').hasMatch(noteLower);
+      final hasCanonicalTransferDescription =
+          RegExp(r'^transfer\s+from\s+.+\s+to\s+.+$', caseSensitive: false)
+              .hasMatch(desc);
+
+      if (hasTransferMarker || hasCanonicalTransferDescription) {
         final reg = RegExp(r'Transfer\s+from\s+(.+)\s+to\s+(.+)', caseSensitive: false);
         final m = reg.firstMatch(desc);
         if (m != null) {
@@ -1961,6 +1983,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
       if (detectedTransfer) {
         _transactionType = TransactionScreenType.transfer;
+        _cleared = source.cleared ?? false;
+        _showInReports = false;
         return;
       }
 
