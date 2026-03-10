@@ -90,6 +90,26 @@ class AwsApiService {
     return headers;
   }
 
+  static Future<String> _resolveUserId() async {
+    final localUserId = await UserAuthService.getCurrentUserId();
+    if (localUserId.isNotEmpty) return localUserId;
+
+    try {
+      final attrs = await CognitoService.getCurrentUserAttributes();
+      final cognitoUserId = (attrs['userId'] ?? '').trim();
+      if (cognitoUserId.isNotEmpty) {
+        await UserAuthService.saveUserInfo(
+          userId: cognitoUserId,
+          email: attrs['email'] ?? '',
+          displayName: attrs['name'] ?? attrs['username'] ?? '',
+        );
+        return cognitoUserId;
+      }
+    } catch (_) {}
+
+    return '';
+  }
+
   static Future<http.Response> _request(
     String method,
     String path, {
@@ -216,7 +236,7 @@ class AwsApiService {
 
   // Accounts
   static Future<List<Account>> fetchAccounts() async {
-    final userId = await UserAuthService.getCurrentUserId();
+    final userId = await _resolveUserId();
     final response = await _request('GET', '/accounts', queryParameters: userId.isEmpty ? null : {'userId': userId});
     _throwIfNotOk(response);
     final decoded = jsonDecode(response.body);
@@ -230,7 +250,7 @@ class AwsApiService {
   }
 
   static Future<void> createAccount(Account account) async {
-    final userId = await UserAuthService.getCurrentUserId();
+    final userId = await _resolveUserId();
     final payload = <String, dynamic>{
       'accountId': account.id,
       'name': account.name,
@@ -243,7 +263,7 @@ class AwsApiService {
   }
 
   static Future<void> updateAccount(Account account) async {
-    final userId = await UserAuthService.getCurrentUserId();
+    final userId = await _resolveUserId();
     final payload = <String, dynamic>{
       'accountId': account.id,
       'name': account.name,
@@ -256,7 +276,7 @@ class AwsApiService {
   }
 
   static Future<void> deleteAccount(String accountId) async {
-    final userId = await UserAuthService.getCurrentUserId();
+    final userId = await _resolveUserId();
     final response = await _request(
       'DELETE',
       '/accounts/$accountId',
@@ -267,7 +287,7 @@ class AwsApiService {
 
   // Bills
   static Future<List<Bill>> fetchBills() async {
-    final userId = await UserAuthService.getCurrentUserId();
+    final userId = await _resolveUserId();
     if (userId.isEmpty) return [];
     final response = await _request('GET', '/bills', queryParameters: {'userId': userId});
     _throwIfNotOk(response);
@@ -282,7 +302,7 @@ class AwsApiService {
   }
 
   static Future<void> createBill(Bill bill) async {
-    final userId = await UserAuthService.getCurrentUserId();
+    final userId = await _resolveUserId();
     if (userId.isEmpty) throw StateError('No userId available for bill creation');
     final payload = _billToApiPayload(bill, userId);
     final response = await _request('POST', '/bills', body: payload);
@@ -290,7 +310,7 @@ class AwsApiService {
   }
 
   static Future<void> updateBill(Bill bill) async {
-    final userId = await UserAuthService.getCurrentUserId();
+    final userId = await _resolveUserId();
     if (userId.isEmpty) throw StateError('No userId available for bill update');
     final payload = _billToApiPayload(bill, userId);
     final response = await _request('PUT', '/bills/${bill.id}', body: payload);
@@ -298,7 +318,7 @@ class AwsApiService {
   }
 
   static Future<void> deleteBill(String billId) async {
-    final userId = await UserAuthService.getCurrentUserId();
+    final userId = await _resolveUserId();
     if (userId.isEmpty) throw StateError('No userId available for bill delete');
     final response = await _request(
       'DELETE',
@@ -310,7 +330,7 @@ class AwsApiService {
 
   // Transactions
   static Future<List<Transaction>> fetchTransactions() async {
-    final userId = await UserAuthService.getCurrentUserId();
+    final userId = await _resolveUserId();
     final response = await _request('GET', '/transactions', queryParameters: userId.isEmpty ? null : {'userId': userId});
     _throwIfNotOk(response);
     final decoded = jsonDecode(response.body);
@@ -324,7 +344,7 @@ class AwsApiService {
   }
 
   static Future<void> createTransaction(Transaction transaction) async {
-    final userId = await UserAuthService.getCurrentUserId();
+    final userId = await _resolveUserId();
     final payload = _transactionToApiPayload(transaction)..['transactionId'] = transaction.id;
     if (userId.isNotEmpty) payload['userId'] = userId;
     final response = await _request('POST', '/transactions', body: payload);
@@ -332,7 +352,7 @@ class AwsApiService {
   }
 
   static Future<void> updateTransaction(Transaction transaction) async {
-    final userId = await UserAuthService.getCurrentUserId();
+    final userId = await _resolveUserId();
     final payload = _transactionToApiPayload(transaction)..['transactionId'] = transaction.id;
     if (userId.isNotEmpty) payload['userId'] = userId;
     final response = await _request('PUT', '/transactions/${transaction.id}', body: payload);
@@ -340,7 +360,7 @@ class AwsApiService {
   }
 
   static Future<void> deleteTransaction(String transactionId) async {
-    final userId = await UserAuthService.getCurrentUserId();
+    final userId = await _resolveUserId();
     final response = await _request(
       'DELETE',
       '/transactions/$transactionId',
@@ -357,25 +377,25 @@ class AwsApiService {
 
   // Categories / Payees / Payers / Payments (pull sync)
   static Future<List<Category>> fetchCategories() async {
-    final userId = await UserAuthService.getCurrentUserId();
+    final userId = await _resolveUserId();
     final decoded = await _fetchCollectionOptional('/categories', userId: userId);
     return decoded.map(_categoryFromItem).toList();
   }
 
   static Future<List<Map<String, dynamic>>> fetchPayees() async {
-    final userId = await UserAuthService.getCurrentUserId();
+    final userId = await _resolveUserId();
     final decoded = await _fetchCollectionOptional('/payees', userId: userId);
     return decoded.map((e) => _contactFromItem(e, forcedType: 'payee')).toList();
   }
 
   static Future<List<Map<String, dynamic>>> fetchPayers() async {
-    final userId = await UserAuthService.getCurrentUserId();
+    final userId = await _resolveUserId();
     final decoded = await _fetchCollectionOptional('/payers', userId: userId);
     return decoded.map((e) => _contactFromItem(e, forcedType: 'payer')).toList();
   }
 
   static Future<List<Map<String, dynamic>>> fetchPayments() async {
-    final userId = await UserAuthService.getCurrentUserId();
+    final userId = await _resolveUserId();
     return _fetchCollectionOptional('/billpayments', userId: userId);
   }
 
@@ -430,7 +450,7 @@ class AwsApiService {
     String? appVersion,
     String? osVersion,
   }) async {
-    final userId = await UserAuthService.getCurrentUserId();
+    final userId = await _resolveUserId();
     final deviceId = await DeviceIdService.getOrCreate();
 
     final payload = <String, dynamic>{

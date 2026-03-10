@@ -836,7 +836,11 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             final result = await Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => AddTransactionScreen(prefillTransaction: transaction, isDuplicate: true),
+                builder: (context) => AddTransactionScreen(
+                  prefillTransaction: transaction,
+                  isDuplicate: true,
+                  hideFromCalendarDashboard: true,
+                ),
               ),
             );
             if (result == true) _loadTransactions();
@@ -845,7 +849,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               final result = await Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => AddTransactionScreen(existingTransaction: transaction),
+                  builder: (context) => AddTransactionScreen(
+                    existingTransaction: transaction,
+                    hideFromCalendarDashboard: true,
+                  ),
                 ),
               );
               if (result == true || result is Transaction) _loadTransactions();
@@ -991,6 +998,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       MaterialPageRoute(
         builder: (context) => AddTransactionScreen(
           initialAccountId: widget.accountId,
+          hideFromCalendarDashboard: true,
         ),
       ),
     );

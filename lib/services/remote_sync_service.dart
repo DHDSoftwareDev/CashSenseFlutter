@@ -28,12 +28,6 @@ class RemoteSyncService {
       final signedIn = await CognitoService.isSignedIn();
       if (!signedIn) return;
 
-      await _refreshSubscriptionFromCognitoEntitlement();
-      if (!_hasSyncAccess()) {
-        debugPrint('Remote sync skipped: premium/dev-test access required');
-        return;
-      }
-
       try {
         final attrs = await CognitoService.getCurrentUserAttributes();
         await UserAuthService.saveUserInfo(
@@ -43,6 +37,12 @@ class RemoteSyncService {
         );
       } catch (e) {
         debugPrint('Remote sync user context refresh failed: $e');
+      }
+
+      await _refreshSubscriptionFromCognitoEntitlement();
+      if (!_hasSyncAccess()) {
+        debugPrint('Remote sync skipped: premium/dev-test access required');
+        return;
       }
 
       final results = await Future.wait<dynamic>([

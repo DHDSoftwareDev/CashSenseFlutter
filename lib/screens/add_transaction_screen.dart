@@ -24,6 +24,7 @@ class AddTransactionScreen extends StatefulWidget {
   final bool isDuplicate;
   final bool preserveDescriptionAndDate;
   final String? initialAccountId;
+  final bool hideFromCalendarDashboard;
   const AddTransactionScreen({
     super.key,
     this.existingTransaction,
@@ -31,6 +32,7 @@ class AddTransactionScreen extends StatefulWidget {
     this.isDuplicate = false,
     this.preserveDescriptionAndDate = false,
     this.initialAccountId,
+    this.hideFromCalendarDashboard = false,
   });
 
   @override
@@ -1347,6 +1349,13 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     );
   }
 
+  Future<void> _applyDashboardHiddenIfNeeded(Iterable<String> transactionIds) async {
+    if (!widget.hideFromCalendarDashboard) return;
+    for (final id in transactionIds) {
+      await DatabaseService.addHiddenTransactionId(id);
+    }
+  }
+
   Future<void> _saveTransaction() async {
     if (_isSaving) return;
     FocusScope.of(context).unfocus();
@@ -1475,6 +1484,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             showInReports: _showInReports,
           );
           await DatabaseService.updateTransaction(updated);
+          await _applyDashboardHiddenIfNeeded([updated.id]);
           // If this transaction is linked to a bill, ensure listeners watching
           // bills (like PayBillScreen) are notified so payment history refreshes.
           if (orig.billId != null && orig.billId!.isNotEmpty) {
@@ -1532,6 +1542,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         showInReports: _showInReports,
       );
           await DatabaseService.addTransaction(tx);
+          await _applyDashboardHiddenIfNeeded([tx.id]);
 
           if (_selectedAccountId != null) {
             final account = DatabaseService.getAccountById(_selectedAccountId!);
@@ -1720,6 +1731,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           if (updateBoth && updatedPair != null) {
             await DatabaseService.updateTransaction(updatedPair);
           }
+          await _applyDashboardHiddenIfNeeded(
+            <String>[updatedOrig.id, if (updateBoth && updatedPair != null) updatedPair.id],
+          );
           // Adjust balances for all affected accounts
           // First, revert old balances
           if (oldFromId != null) {
@@ -1772,6 +1786,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           // Hide both transfer transactions from calendar/dashboard
           await DatabaseService.addHiddenTransactionId(debit.id);
           await DatabaseService.addHiddenTransactionId(credit.id);
+          await _applyDashboardHiddenIfNeeded([debit.id, credit.id]);
 
           // Update account balances for transfer
           if (_fromAccountId != null) {
