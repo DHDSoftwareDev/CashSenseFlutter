@@ -2,18 +2,17 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart' show debugPrint;
-import 'package:flutter/foundation.dart' show kDebugMode;
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import '../models/account.dart';
 import '../models/bill.dart';
+import '../models/cashsense_user.dart';
 import '../models/category.dart';
 import '../models/transaction.dart';
 import 'aws_api_service.dart';
-import 'billing_service.dart';
 import 'cognito_service.dart';
 import 'database_service.dart';
 import 'amplify_service.dart';
+import 'user_api_service.dart';
 import 'user_auth_service.dart';
 
 class RemoteSyncService {
@@ -28,40 +27,18 @@ class RemoteSyncService {
       final signedIn = await CognitoService.isSignedIn();
       if (!signedIn) return;
 
-      try {
-        final attrs = await CognitoService.getCurrentUserAttributes();
-        await UserAuthService.saveUserInfo(
-          userId: attrs['userId'] ?? '',
-          email: attrs['email'] ?? '',
-          displayName: attrs['name'] ?? attrs['username'] ?? '',
-        );
-      } catch (e) {
-        debugPrint('Remote sync user context refresh failed: $e');
-      }
+      await _refreshSubscriptionFromApiUser();
 
-      await _refreshSubscriptionFromCognitoEntitlement();
-      if (!_hasSyncAccess()) {
-        debugPrint('Remote sync skipped: premium/dev-test access required');
-        return;
-      }
+      // Always allow basic sync
+      debugPrint('Remote sync allowed for signed-in user');
 
-      final results = await Future.wait<dynamic>([
-        AwsApiService.fetchAccounts(),
-        AwsApiService.fetchBills(),
-        AwsApiService.fetchTransactions(),
-        AwsApiService.fetchCategories(),
-        AwsApiService.fetchPayees(),
-        AwsApiService.fetchPayers(),
-        AwsApiService.fetchPayments(),
-      ]);
-
-      var accounts = (results[0] as List).cast<Account>().toList();
-      var bills = (results[1] as List).cast<Bill>().toList();
-      var transactions = (results[2] as List).cast<Transaction>().toList();
-      var remoteCategories = (results[3] as List).cast<Category>().toList();
-      var remotePayees = (results[4] as List<Map<String, dynamic>>).toList();
-      var remotePayers = (results[5] as List<Map<String, dynamic>>).toList();
-      var payments = (results[6] as List<Map<String, dynamic>>).toList();
+      var accounts = await safeFetch(AwsApiService.fetchAccounts);
+      var bills = await safeFetch(AwsApiService.fetchBills);
+      var transactions = await safeFetch(AwsApiService.fetchTransactions);
+      var remoteCategories = await safeFetch(AwsApiService.fetchCategories);
+      var remotePayees = await safeFetch(AwsApiService.fetchPayees);
+      var remotePayers = await safeFetch(AwsApiService.fetchPayers);
+      var payments = await safeFetch(AwsApiService.fetchPayments);
 
       final bool remoteEmpty =
           accounts.isEmpty &&
@@ -124,166 +101,44 @@ class RemoteSyncService {
     }
   }
 
-  static bool _hasSyncAccess() {
-    if (_hasPremiumAccess()) return true;
-
-    if (kDebugMode) {
-      debugPrint('Remote sync enabled for debug build');
-      return true;
-    }
-
-    final envFlag = (dotenv.env['ALLOW_TEST_ACCOUNT_SYNC'] ?? '')
-        .trim()
-        .toLowerCase();
-    if (envFlag == '1' || envFlag == 'true' || envFlag == 'yes') {
-      debugPrint('Remote sync enabled via ALLOW_TEST_ACCOUNT_SYNC');
-      return true;
-    }
-
-    return false;
-  }
-
-  static bool _hasPremiumAccess() {
-    final plan = DatabaseService.subscriptionVersion.value;
-    if (plan.isNotEmpty && plan != 'Free') return true;
-    if (BillingService.isTrialActive()) return true;
-    return false;
-  }
-
-  static Future<void> _refreshSubscriptionFromCognitoEntitlement() async {
+  static Future<void> _refreshSubscriptionFromApiUser() async {
     try {
-      final attrs = await CognitoService.getCurrentUserAttributes();
-      final claims = await _fetchIdTokenClaims();
-      final resolvedPlan = _resolvePlanFromEntitlement(attrs, claims);
-      if (resolvedPlan == null || resolvedPlan.isEmpty) {
-        return;
-      }
+      final user = await UserApiService.fetchCurrentUser();
+      final resolvedPlan = _resolvePlanFromUser(user);
 
       final currentPlan = DatabaseService.subscriptionVersion.value;
       if (resolvedPlan != currentPlan) {
         await DatabaseService.setSubscriptionPlan(resolvedPlan);
-        debugPrint('Subscription synced from Cognito entitlement: $resolvedPlan');
+        debugPrint('Subscription synced from /users/me: $resolvedPlan');
       }
     } catch (e) {
-      debugPrint('Failed to refresh subscription entitlement from Cognito: $e');
+      debugPrint('Failed to refresh subscription from /users/me: $e');
     }
   }
 
-  static Future<Map<String, dynamic>> _fetchIdTokenClaims() async {
+  static Future<List<T>> safeFetch<T>(Future<List<T>> Function() fn) async {
     try {
-      final token = await AwsApiService.getIdToken();
-      if (token.isEmpty) return <String, dynamic>{};
-
-      final parts = token.split('.');
-      if (parts.length < 2) return <String, dynamic>{};
-
-      final payload = base64Url.normalize(parts[1]);
-      final decoded = utf8.decode(base64Url.decode(payload));
-      final json = jsonDecode(decoded);
-      if (json is Map<String, dynamic>) {
-        return json;
-      }
-    } catch (_) {}
-    return <String, dynamic>{};
+      return await fn();
+    } catch (e) {
+      debugPrint('Remote fetch failed: $e');
+      return <T>[];
+    }
   }
 
-  static String? _resolvePlanFromEntitlement(
-    Map<String, String> attrs,
-    Map<String, dynamic> claims,
-  ) {
-    final keysToCheck = <String>[
-      'custom:subscriptionPlan',
-      'custom:subscription_plan',
-      'custom:plan',
-      'custom:tier',
-      'subscriptionPlan',
-      'plan',
-      'tier',
-    ];
+  static String _resolvePlanFromUser(CashSenseUser user) {
+    final tier = user.tier.trim().toLowerCase();
 
-    for (final key in keysToCheck) {
-      final value = attrs[key];
-      final normalized = _normalizePlan(value);
-      if (normalized != null) return normalized;
-    }
+    if (user.devOverride) return 'Lifetime';
+    if (user.testerOverride) return 'Annual';
 
-    final premiumFlags = <String>[
-      attrs['custom:isPremium'] ?? '',
-      attrs['custom:is_premium'] ?? '',
-      attrs['custom:premium'] ?? '',
-      attrs['isPremium'] ?? '',
-    ];
-    if (premiumFlags.any(_isTruthy)) {
-      return 'Lifetime';
-    }
+    if (!user.isPremium) return 'Free';
 
-    final groups = _extractGroups(claims);
-    for (final group in groups) {
-      final normalized = _normalizePlan(group);
-      if (normalized != null) return normalized;
-      if (group.contains('premium') || group.contains('developer') || group.contains('admin')) {
-        return 'Lifetime';
-      }
-      if (group.contains('tester') || group.contains('trial')) {
-        return 'Annual';
-      }
-    }
+    if (tier == 'monthly' || tier == 'month') return 'Monthly';
+    if (tier == 'annual' || tier == 'yearly' || tier == 'year') return 'Annual';
+    if (tier == 'lifetime' || tier == 'premium' || tier == 'pro') return 'Lifetime';
+    if (tier == 'free') return 'Free';
 
-    final email = (attrs['email'] ?? claims['email']?.toString() ?? '').trim().toLowerCase();
-    if (email.isNotEmpty) {
-      final premiumEmails = _readPremiumEmailAllowlist();
-      if (premiumEmails.contains(email)) {
-        return 'Lifetime';
-      }
-    }
-
-    return null;
-  }
-
-  static List<String> _extractGroups(Map<String, dynamic> claims) {
-    final raw = claims['cognito:groups'];
-    if (raw is List) {
-      return raw.map((e) => e.toString().trim().toLowerCase()).where((e) => e.isNotEmpty).toList();
-    }
-    if (raw is String && raw.trim().isNotEmpty) {
-      return raw
-          .split(',')
-          .map((e) => e.trim().toLowerCase())
-          .where((e) => e.isNotEmpty)
-          .toList();
-    }
-    return const <String>[];
-  }
-
-  static bool _isTruthy(String value) {
-    final v = value.trim().toLowerCase();
-    return v == '1' || v == 'true' || v == 'yes' || v == 'y' || v == 'premium';
-  }
-
-  static Set<String> _readPremiumEmailAllowlist() {
-    final raw = (dotenv.env['PREMIUM_EMAILS'] ?? dotenv.env['PREMIUM_TEST_EMAILS'] ?? '').trim();
-    if (raw.isEmpty) return <String>{};
-
-    return raw
-        .split(RegExp(r'[;,\s]+'))
-        .map((e) => e.trim().toLowerCase())
-        .where((e) => e.isNotEmpty)
-        .toSet();
-  }
-
-  static String? _normalizePlan(String? value) {
-    final raw = (value ?? '').trim();
-    if (raw.isEmpty) return null;
-
-    final v = raw.toLowerCase();
-    if (v == 'free') return 'Free';
-    if (v == 'monthly' || v == 'month') return 'Monthly';
-    if (v == 'annual' || v == 'yearly' || v == 'year') return 'Annual';
-    if (v == 'lifetime' || v == 'premium' || v == 'pro' || v == 'developer' || v == 'dev') {
-      return 'Lifetime';
-    }
-    if (v == 'tester' || v == 'trial') return 'Annual';
-    return null;
+    return 'Lifetime';
   }
 
   static Future<_CloudBackupSnapshot?> _fetchCloudBackupSnapshot() async {

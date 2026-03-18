@@ -4,10 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:amplify_flutter/amplify_flutter.dart';
 import 'package:amplify_auth_cognito/amplify_auth_cognito.dart';
+import 'package:provider/provider.dart';
 import '../services/cognito_service.dart';
+import '../services/aws_api_service.dart';
 import '../services/biometric_auth_service.dart';
 import '../services/push_token_service.dart';
 import '../services/remote_sync_service.dart';
+import '../providers/user_session_controller.dart';
 import 'verification_screen.dart';
 import 'signup_screen.dart';
 import 'dashboard_screen.dart';
@@ -61,6 +64,13 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       }
 
+      try {
+        final idToken = await AwsApiService.getIdToken();
+        if (idToken.isNotEmpty && mounted) {
+          await context.read<UserSessionController>().refreshUser(idToken: idToken);
+        }
+      } catch (_) {}
+
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => MainNavigationScreen(key: mainNavKey)),
@@ -97,6 +107,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (result.isSignedIn) {
         TextInput.finishAutofillContext();
+        try {
+          final idToken = await AwsApiService.getIdToken();
+          if (idToken.isNotEmpty && mounted) {
+            await context.read<UserSessionController>().refreshUser(idToken: idToken);
+          }
+        } catch (_) {}
         try {
           await PushTokenService.registerDeviceOnLogin();
         } catch (_) {}

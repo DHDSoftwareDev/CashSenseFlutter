@@ -27,7 +27,7 @@ class TransactionAdapter extends TypeAdapter<Transaction> {
       note: fields[6] as String?,
       accountId: fields[7] as String?,
       cleared: fields[8] as bool?,
-      isArchived: fields[10] as bool,
+      isArchived: fields[10] as bool? ?? false,
       payeeId: fields[11] as String?,
       payerId: fields[12] as String?,
       billId: fields[13] as String?,
@@ -70,11 +70,11 @@ class TransactionAdapter extends TypeAdapter<Transaction> {
       ..writeByte(13)
       ..write(obj.billId)
       ..writeByte(14)
-        ..write(obj.occurrenceDate)
-        ..writeByte(15)
-        ..write(obj.splitsJson)
-        ..writeByte(16)
-        ..write(obj.showInReports);
+      ..write(obj.occurrenceDate)
+      ..writeByte(15)
+      ..write(obj.splitsJson)
+      ..writeByte(16)
+      ..write(obj.showInReports);
   }
 
   @override

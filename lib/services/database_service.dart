@@ -13,6 +13,60 @@ import 'aws_api_service.dart';
 
 
 class DatabaseService {
+  static void _registerAdapterIfNeeded(int typeId, TypeAdapter<dynamic> adapter) {
+    if (Hive.isAdapterRegistered(typeId)) return;
+    try {
+      Hive.registerAdapter(adapter);
+    } catch (e) {
+      // In rare retry paths, adapter may already be registered in this process.
+      if (e.toString().contains('already a TypeAdapter')) return;
+      rethrow;
+    }
+  }
+
+  static void _registerHiveAdapters() {
+    _registerAdapterIfNeeded(1, TransactionAdapter());
+    _registerAdapterIfNeeded(0, TransactionTypeAdapter());
+    _registerAdapterIfNeeded(2, CategoryAdapter());
+    _registerAdapterIfNeeded(42, CategoryTypeAdapter());
+    _registerAdapterIfNeeded(3, AccountTypeAdapter());
+    _registerAdapterIfNeeded(4, AccountAdapter());
+    _registerAdapterIfNeeded(5, RecurrenceAdapter());
+    _registerAdapterIfNeeded(8, PaymentStatusAdapter());
+    _registerAdapterIfNeeded(7, BillTypeAdapter());
+    _registerAdapterIfNeeded(6, BillAdapter());
+  }
+
+  static Future<Box<T>> _openTypedBoxWithRecovery<T>(String boxName) async {
+    try {
+      return await Hive.openBox<T>(boxName);
+    } catch (e) {
+      foundation.debugPrint('Failed to open $boxName box, rebuilding it: $e');
+      try {
+        if (Hive.isBoxOpen(boxName)) {
+          await Hive.box(boxName).close();
+        }
+      } catch (_) {}
+      await Hive.deleteBoxFromDisk(boxName);
+      return await Hive.openBox<T>(boxName);
+    }
+  }
+
+  static Future<Box> _openBoxWithRecovery(String boxName) async {
+    try {
+      return await Hive.openBox(boxName);
+    } catch (e) {
+      foundation.debugPrint('Failed to open $boxName box, rebuilding it: $e');
+      try {
+        if (Hive.isBoxOpen(boxName)) {
+          await Hive.box(boxName).close();
+        }
+      } catch (_) {}
+      await Hive.deleteBoxFromDisk(boxName);
+      return await Hive.openBox(boxName);
+    }
+  }
+
   /// Returns the transfer category, creating it if it doesn't exist.
   static Future<Category> getOrCreateTransferCategory() async {
     // Try to find an existing transfer category (case-insensitive)
@@ -466,26 +520,16 @@ class DatabaseService {
 
     Hive.init(hiveDir.path);
 
-    // Register adapters
-    Hive.registerAdapter(TransactionAdapter());
-    Hive.registerAdapter(TransactionTypeAdapter());
-    Hive.registerAdapter(CategoryAdapter());
-    Hive.registerAdapter(CategoryTypeAdapter());
-  Hive.registerAdapter(AccountAdapter());
-  Hive.registerAdapter(AccountTypeAdapter());
-  // Bill adapters (generated)
-  Hive.registerAdapter(RecurrenceAdapter());
-  Hive.registerAdapter(PaymentStatusAdapter());
-  Hive.registerAdapter(BillTypeAdapter());
-  Hive.registerAdapter(BillAdapter());
+    // Register adapters (safe across retries/restarts in same process)
+    _registerHiveAdapters();
 
-    // Open boxes
-    _transactionBox = await Hive.openBox<Transaction>(_transactionBoxName);
-    _categoryBox = await Hive.openBox<Category>(_categoryBoxName);
-    _accountBox = await Hive.openBox<Account>(_accountBoxName);
-    _billsBox = await Hive.openBox<Bill>(_billsBoxName);
-  _billOccurrenceBox = await Hive.openBox(_billOccurrenceBoxName);
-    _settingsBox = await Hive.openBox(_settingsBoxName);
+    // Open boxes with recovery for corrupted/legacy data.
+    _transactionBox = await _openTypedBoxWithRecovery<Transaction>(_transactionBoxName);
+    _categoryBox = await _openTypedBoxWithRecovery<Category>(_categoryBoxName);
+    _accountBox = await _openTypedBoxWithRecovery<Account>(_accountBoxName);
+    _billsBox = await _openTypedBoxWithRecovery<Bill>(_billsBoxName);
+    _billOccurrenceBox = await _openBoxWithRecovery(_billOccurrenceBoxName);
+    _settingsBox = await _openBoxWithRecovery(_settingsBoxName);
 
     // Restore subscription plan from settings if present
     final savedPlan = _settingsBox.get('subscriptionPlan') as String?;
@@ -727,13 +771,28 @@ class DatabaseService {
   }
 
   // Settings operations
+  static Box? _settingsBoxOrNull() {
+    try {
+      return _settingsBox;
+    } catch (_) {
+      return null;
+    }
+  }
+
   static Future<void> setSetting(String key, dynamic value) async {
-  await _settingsBox.put(key, value);
-  await _settingsBox.flush();
+    final box = _settingsBoxOrNull();
+    if (box == null) {
+      foundation.debugPrint('DatabaseService.setSetting skipped before init for key: $key');
+      return;
+    }
+    await box.put(key, value);
+    await box.flush();
   }
 
   static T? getSetting<T>(String key, [T? defaultValue]) {
-    return _settingsBox.get(key, defaultValue: defaultValue) as T?;
+    final box = _settingsBoxOrNull();
+    if (box == null) return defaultValue;
+    return box.get(key, defaultValue: defaultValue) as T?;
   }
 
   /// Sanitize a value so it's safe to encode as JSON for backups.

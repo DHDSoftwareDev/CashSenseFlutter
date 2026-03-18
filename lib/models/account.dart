@@ -47,6 +47,12 @@ class Account extends HiveObject {
   @HiveField(9)
   String? customType;
 
+  @HiveField(10)
+  String? institution;
+
+  @HiveField(11)
+  String? cardNumber;
+
   Account({
     String? id,
     required this.name,
@@ -55,38 +61,42 @@ class Account extends HiveObject {
     this.currency = 'USD',
     this.isActive = true,
     this.description,
+    this.institution,
     this.accountNumber,
+    this.cardNumber,
     this.availableBalance,
     this.customType,
   }) : id = id ?? const Uuid().v4();
 
   Map<String, dynamic> toJson() {
     return {
-      'id': id,
+      'accountId': id,
       'name': name,
       'type': type.name,
-      'balance': balance,
-      'currency': currency,
-      'isActive': isActive,
-      'description': description,
+      'institution': institution ?? '',
       'accountNumber': accountNumber,
+      'cardNumber': cardNumber ?? '',
+      'initialBalance': balance,
       'availableBalance': availableBalance,
-      'customType': customType,
+      'currency': currency,
     };
   }
 
   factory Account.fromJson(Map<String, dynamic> json) {
     return Account(
-      id: json['id'],
+      id: json['accountId'],
       name: json['name'],
       type: AccountType.values.firstWhere(
         (e) => e.name == json['type'],
+        orElse: () => AccountType.cash,
       ),
-      balance: json['balance'].toDouble(),
-      currency: json['currency'],
+      balance: (json['initialBalance'] ?? 0).toDouble(),
+      currency: json['currency'] ?? 'USD',
       isActive: json['isActive'] ?? true,
       description: json['description'],
+      institution: json['institution'],
       accountNumber: json['accountNumber'],
+      cardNumber: json['cardNumber'],
       availableBalance: json['availableBalance'] == null ? null : (json['availableBalance'] as num).toDouble(),
       customType: json['customType'],
     );
@@ -100,7 +110,9 @@ class Account extends HiveObject {
     String? currency,
     bool? isActive,
     String? description,
+    String? institution,
     String? accountNumber,
+    String? cardNumber,
     double? availableBalance,
     String? customType,
   }) {
@@ -112,7 +124,9 @@ class Account extends HiveObject {
       currency: currency ?? this.currency,
       isActive: isActive ?? this.isActive,
       description: description ?? this.description,
+      institution: institution ?? this.institution,
       accountNumber: accountNumber ?? this.accountNumber,
+      cardNumber: cardNumber ?? this.cardNumber,
       availableBalance: availableBalance ?? this.availableBalance,
       customType: customType ?? this.customType,
     );

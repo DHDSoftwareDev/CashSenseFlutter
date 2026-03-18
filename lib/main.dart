@@ -1,5 +1,6 @@
 // ignore_for_file: depend_on_referenced_packages, unused_import, unused_element
 
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -25,68 +26,104 @@ import 'screens/main_navigation_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/signup_screen.dart';
 import 'services/cognito_service.dart';
+import 'services/aws_api_service.dart';
+import 'services/user_api_service.dart';
 // Auth screens temporarily hidden
 import 'utils/root_scaffold.dart';
 import 'theme/app_theme.dart';
 import 'package:provider/provider.dart';
 import 'providers/theme_provider.dart';
+import 'providers/user_session_controller.dart';
 
 void main() async {
  WidgetsFlutterBinding.ensureInitialized();
-  await TimezoneInit.ensureInitialized();
+  await _safeInitStep('Timezone initialization', () => TimezoneInit.ensureInitialized());
   // Load environment variables (block: required for backend config)
-  await dotenv.load(fileName: ".env");
+  await _safeInitStep('Load .env', () => dotenv.load(fileName: ".env"));
 
   // Initialize database with error handling BEFORE services that depend on it
   await _initDatabase();
 
   // Run one-time upgrade migrations when build number increases
-  try {
-    await runUpgradeMigrations();
-  } catch (e) {
-    debugPrint('runUpgradeMigrations failed: $e');
-  }
+  await _safeInitStep('Run upgrade migrations', () => runUpgradeMigrations());
 
   // Initialize Firebase early so Firebase-dependent services can use it
-  try {
+  await _safeInitStep('Firebase initialization', () async {
     await Firebase.initializeApp();
     debugPrint('✅ Firebase initialized');
-  } catch (e) {
-    debugPrint('⚠️ Firebase.initializeApp() failed: $e');
-  }
+  });
 
   // Initialize AWS Amplify with Cognito (required for auth)
-  await _configureAmplify();
+  await _safeInitStep(
+    'Amplify configuration',
+    () => _configureAmplify(),
+    timeout: const Duration(seconds: 12),
+  );
 
   // Decide initial home: show auth screens at startup when enabled and user not signed in
   final bool enableAuthUI = DatabaseService.getSetting<bool>('enableAuthUI', true) ?? true;
-  bool isSignedIn = false;
-  try {
-    isSignedIn = await CognitoService.isSignedIn();
-  } catch (_) {
-    isSignedIn = false;
-  }
+  final bool isSignedIn = await _safeInitValue<bool>(
+        'Check Cognito sign-in',
+        () => CognitoService.isSignedIn(),
+        timeout: const Duration(seconds: 8),
+      ) ??
+      false;
 
   final shouldShowLogin = enableAuthUI && !isSignedIn;
   final Widget initialHome = shouldShowLogin ? const LoginScreen() : MainNavigationScreen(key: mainNavKey);
+  final userSession = UserSessionController(
+    api: CashSenseUserApi(baseUrl: AwsApiService.baseUrl),
+  );
 
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => ThemeProvider(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider<UserSessionController>.value(value: userSession),
+      ],
       child: CashSenseApp(initialHome: initialHome),
     ),
   );
 
   // Kick off non-critical initializations after first frame so UI can render fast.
   WidgetsBinding.instance.addPostFrameCallback((_) {
-    _startDeferredInits(isSignedIn);
+    _startDeferredInits(isSignedIn, userSession);
   });
 
   // Remove splash screen after app is ready
   // FlutterNativeSplash.remove();
 }
 
-Future<void> _startDeferredInits(bool isSignedIn) async {
+Future<void> _safeInitStep(
+  String label,
+  Future<void> Function() step, {
+  Duration timeout = const Duration(seconds: 8),
+}) async {
+  try {
+    await step().timeout(timeout);
+  } on TimeoutException {
+    debugPrint('⚠️ Startup step timed out: $label');
+  } catch (e) {
+    debugPrint('⚠️ Startup step failed ($label): $e');
+  }
+}
+
+Future<T?> _safeInitValue<T>(
+  String label,
+  Future<T> Function() step, {
+  Duration timeout = const Duration(seconds: 8),
+}) async {
+  try {
+    return await step().timeout(timeout);
+  } on TimeoutException {
+    debugPrint('⚠️ Startup step timed out: $label');
+  } catch (e) {
+    debugPrint('⚠️ Startup step failed ($label): $e');
+  }
+  return null;
+}
+
+Future<void> _startDeferredInits(bool isSignedIn, UserSessionController userSession) async {
   await Future.wait([
     BillReminderService().init().catchError((e) {
       debugPrint('BillReminderService.init failed: $e');
@@ -105,11 +142,22 @@ Future<void> _startDeferredInits(bool isSignedIn) async {
         return null;
       }),
     if (isSignedIn)
+      _refreshCurrentUserSession(userSession).catchError((e) {
+        debugPrint('Refresh current user session failed: $e');
+        return null;
+      }),
+    if (isSignedIn)
       RemoteSyncService.syncUserDataOnLogin().catchError((e) {
         debugPrint('Remote data sync failed: $e');
         return null;
       }),
   ]);
+}
+
+Future<void> _refreshCurrentUserSession(UserSessionController userSession) async {
+  final idToken = await AwsApiService.getIdToken();
+  if (idToken.isEmpty) return;
+  await userSession.refreshUser(idToken: idToken);
 }
 
 Future<void> _initDatabase() async {
@@ -125,6 +173,7 @@ Future<void> _initDatabase() async {
     await Hive.deleteBoxFromDisk('categories');
     await Hive.deleteBoxFromDisk('accounts');
     await Hive.deleteBoxFromDisk('bills');
+    await Hive.deleteBoxFromDisk('bill_occurrence_status');
     await Hive.deleteBoxFromDisk('settings');
 
     // Retry initialization
@@ -264,7 +313,13 @@ class _AppLifecycleBiometricLockState extends State<AppLifecycleBiometricLock>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await _authenticateOnAppOpen();
+      try {
+        await _authenticateOnAppOpen().timeout(const Duration(seconds: 10));
+      } on TimeoutException {
+        debugPrint('⚠️ Biometric startup auth timed out; continuing app startup');
+      } catch (e) {
+        debugPrint('⚠️ Biometric startup auth failed: $e');
+      }
       if (!mounted) return;
       setState(() {
         _isStartupAuthCheckPending = false;

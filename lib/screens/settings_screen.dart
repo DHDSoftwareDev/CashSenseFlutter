@@ -13,6 +13,7 @@ import '../models/account.dart';
 import '../models/bill.dart';
 import 'package:provider/provider.dart';
 import '../providers/theme_provider.dart';
+import '../providers/user_session_controller.dart';
 import '../widgets/app_color_picker.dart';
 import 'subscriptions_screen.dart';
 import 'notifications_screen.dart';
@@ -1090,6 +1091,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onPressed: () async {
               try {
                 await CognitoService.signOut();
+                if (mounted) {
+                  context.read<UserSessionController>().clear();
+                }
                 Navigator.pop(context);
 
                 // Navigate to LoginScreen and clear navigation stack
@@ -1243,6 +1247,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       // Don't block local cleanup if remote sign-out fails
       debugPrint('Cognito signOut error: $e');
     } finally {
+      if (mounted) {
+        context.read<UserSessionController>().clear();
+      }
       // Ensure any locally stored user info is cleared
       try {
         await UserAuthService.logout();

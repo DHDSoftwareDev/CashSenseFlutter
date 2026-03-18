@@ -2,8 +2,11 @@
 
 import 'package:flutter/material.dart';
 import 'package:amplify_auth_cognito/amplify_auth_cognito.dart';
+import 'package:provider/provider.dart';
 import '../services/cognito_service.dart';
+import '../services/aws_api_service.dart';
 import '../services/push_token_service.dart';
+import '../providers/user_session_controller.dart';
 import 'main_navigation_screen.dart';
 import '../utils/root_scaffold.dart';
 
@@ -65,6 +68,12 @@ class _VerificationScreenState extends State<VerificationScreen> {
           if (!mounted) return;
 
           if (signInResult.isSignedIn) {
+            try {
+              final idToken = await AwsApiService.getIdToken();
+              if (idToken.isNotEmpty && mounted) {
+                await context.read<UserSessionController>().refreshUser(idToken: idToken);
+              }
+            } catch (_) {}
             try {
               await PushTokenService.registerDeviceOnLogin();
             } catch (_) {}

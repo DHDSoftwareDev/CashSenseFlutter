@@ -12,7 +12,6 @@ import '../models/account.dart';
 import '../models/bill.dart';
 import '../models/category.dart';
 import '../models/transaction.dart';
-import 'cognito_service.dart';
 import 'device_id_service.dart';
 import 'user_auth_service.dart';
 
@@ -27,7 +26,8 @@ class AwsApiService {
   static bool get isConfigured => _baseUrl.isNotEmpty;
 
   static String _joinPaths(String basePath, String path) {
-    final cleanBase = basePath.endsWith('/') ? basePath.substring(0, basePath.length - 1) : basePath;
+    final cleanBase =
+        basePath.endsWith('/') ? basePath.substring(0, basePath.length - 1) : basePath;
     final cleanPath = path.startsWith('/') ? path : '/$path';
     if (cleanBase.isEmpty) return cleanPath;
     return '$cleanBase$cleanPath';
@@ -45,7 +45,6 @@ class AwsApiService {
 
       if (!session.isSignedIn) return '';
 
-      // Best path for Amplify Auth Cognito
       if (session is CognitoAuthSession) {
         final tokensResult = session.userPoolTokensResult;
 
@@ -60,7 +59,6 @@ class AwsApiService {
         return '';
       }
 
-      // Fallback: dynamic probing
       final dyn = session as dynamic;
       try {
         final t = dyn.userPoolTokens?.idToken?.raw;
@@ -76,6 +74,33 @@ class AwsApiService {
     return '';
   }
 
+  /// Canonical cross-device user ID.
+  /// Always prefer Cognito current user instead of local cache.
+  static Future<String> _resolveUserId() async {
+    try {
+      final user = await Amplify.Auth.getCurrentUser();
+      final userId = user.userId.trim();
+      if (userId.isNotEmpty) {
+        return userId;
+      }
+    } catch (e) {
+      debugPrint('Failed to resolve userId from Cognito current user: $e');
+    }
+
+    // Fallback only if Cognito lookup fails for some reason.
+    try {
+      final localUserId = await UserAuthService.getCurrentUserId();
+      if (localUserId.isNotEmpty) {
+        debugPrint('Falling back to locally stored userId: $localUserId');
+        return localUserId;
+      }
+    } catch (e) {
+      debugPrint('Failed to resolve userId from local storage fallback: $e');
+    }
+
+    return '';
+  }
+
   static Future<Map<String, String>> _buildHeaders() async {
     final headers = <String, String>{
       'Content-Type': 'application/json',
@@ -87,27 +112,13 @@ class AwsApiService {
     }
 
     headers['Authorization'] = 'Bearer $token';
+
+    final userId = await _resolveUserId();
+    if (userId.isNotEmpty) {
+      headers['x-user-id'] = userId;
+    }
+
     return headers;
-  }
-
-  static Future<String> _resolveUserId() async {
-    final localUserId = await UserAuthService.getCurrentUserId();
-    if (localUserId.isNotEmpty) return localUserId;
-
-    try {
-      final attrs = await CognitoService.getCurrentUserAttributes();
-      final cognitoUserId = (attrs['userId'] ?? '').trim();
-      if (cognitoUserId.isNotEmpty) {
-        await UserAuthService.saveUserInfo(
-          userId: cognitoUserId,
-          email: attrs['email'] ?? '',
-          displayName: attrs['name'] ?? attrs['username'] ?? '',
-        );
-        return cognitoUserId;
-      }
-    } catch (_) {}
-
-    return '';
   }
 
   static Future<http.Response> _request(
@@ -120,9 +131,9 @@ class AwsApiService {
       throw StateError('AWS API base URL not configured');
     }
 
-    // Don’t call API if not signed in
     try {
-      final isSignedIn = await Amplify.Auth.fetchAuthSession().then((session) => session.isSignedIn);
+      final isSignedIn =
+          await Amplify.Auth.fetchAuthSession().then((session) => session.isSignedIn);
       if (!isSignedIn) {
         throw StateError('User not signed in - cannot make API requests');
       }
@@ -131,10 +142,35 @@ class AwsApiService {
       throw StateError('Authentication required for API requests');
     }
 
-    final uri = _buildUri(path, queryParameters: queryParameters);
+    final resolvedUserId = await _resolveUserId();
+
+    final mergedQueryParams = <String, String>{
+      ...?queryParameters,
+    };
+
+    // Always send canonical userId when available.
+    if (resolvedUserId.isNotEmpty && !mergedQueryParams.containsKey('userId')) {
+      mergedQueryParams['userId'] = resolvedUserId;
+    }
+
+    final mergedBody = <String, dynamic>{
+      ...?body,
+    };
+
+    // Always include canonical userId in body when not already supplied.
+    if (resolvedUserId.isNotEmpty && !mergedBody.containsKey('userId')) {
+      mergedBody['userId'] = resolvedUserId;
+    }
+
+    final uri = _buildUri(
+      path,
+      queryParameters: mergedQueryParams.isEmpty ? null : mergedQueryParams,
+    );
     final headers = await _buildHeaders();
-    final encodedBody = body == null ? null : jsonEncode(body);
+    final encodedBody = mergedBody.isEmpty ? null : jsonEncode(mergedBody);
+
     debugPrint('AWS API ${method.toUpperCase()} -> $uri');
+    debugPrint('AWS API userId -> ${resolvedUserId.isEmpty ? "(empty)" : resolvedUserId}');
 
     switch (method) {
       case 'GET':
@@ -181,10 +217,7 @@ class AwsApiService {
   static Bill _billFromItem(Map<String, dynamic> json) {
     final id = json['billId'] ?? json['id'] ?? '';
     final amount = (json['amount'] as num?)?.toDouble() ?? 0.0;
-
-    // ✅ now supports MM/DD/YYYY too
     final due = _parseDate(json['dueDate']) ?? DateTime.now();
-
     final recurrence = _recurrenceFromString(json['frequency']?.toString());
 
     return Bill(
@@ -194,7 +227,8 @@ class AwsApiService {
       dueDate: due,
       recurrence: recurrence,
       recurrenceInterval: json['recurrenceInterval'] ?? 1,
-      recurrenceWeekdays: (json['recurrenceWeekdays'] as List?)?.map((e) => (e as num).toInt()).toList(),
+      recurrenceWeekdays:
+          (json['recurrenceWeekdays'] as List?)?.map((e) => (e as num).toInt()).toList(),
       customDays: (json['customDays'] as List?)?.map((e) => (e as num).toInt()).toList(),
       recurrenceEndDate: _parseDate(json['recurrenceEndDate']),
       categoryId: json['categoryId']?.toString(),
@@ -236,74 +270,66 @@ class AwsApiService {
 
   // Accounts
   static Future<List<Account>> fetchAccounts() async {
-    final userId = await _resolveUserId();
-    final response = await _request('GET', '/accounts', queryParameters: userId.isEmpty ? null : {'userId': userId});
+    final response = await _request('GET', '/accounts');
     _throwIfNotOk(response);
     final decoded = jsonDecode(response.body);
     if (decoded is List) {
-      return decoded.map<Account>((e) => _accountFromItem(Map<String, dynamic>.from(e))).toList();
+      return decoded
+          .map<Account>((e) => _accountFromItem(Map<String, dynamic>.from(e)))
+          .toList();
     }
     if (decoded is Map && decoded['items'] is List) {
-      return (decoded['items'] as List).map<Account>((e) => _accountFromItem(Map<String, dynamic>.from(e))).toList();
+      return (decoded['items'] as List)
+          .map<Account>((e) => _accountFromItem(Map<String, dynamic>.from(e)))
+          .toList();
     }
     return [];
   }
 
   static Future<void> createAccount(Account account) async {
-    final userId = await _resolveUserId();
-    final payload = <String, dynamic>{
-      'accountId': account.id,
-      'name': account.name,
-      'type': _accountTypeToApi(account.type),
-      'currency': account.currency,
-    };
-    if (userId.isNotEmpty) payload['userId'] = userId;
+    final payload = account.toJson();
     final response = await _request('POST', '/accounts', body: payload);
     _throwIfNotOk(response);
   }
 
   static Future<void> updateAccount(Account account) async {
-    final userId = await _resolveUserId();
-    final payload = <String, dynamic>{
-      'accountId': account.id,
-      'name': account.name,
-      'type': _accountTypeToApi(account.type),
-      'currency': account.currency,
-    };
-    if (userId.isNotEmpty) payload['userId'] = userId;
+    final payload = account.toJson();
     final response = await _request('PUT', '/accounts/${account.id}', body: payload);
     _throwIfNotOk(response);
   }
 
   static Future<void> deleteAccount(String accountId) async {
-    final userId = await _resolveUserId();
     final response = await _request(
       'DELETE',
       '/accounts/$accountId',
-      body: userId.isEmpty ? null : {'userId': userId, 'accountId': accountId},
+      body: {'accountId': accountId},
     );
     _throwIfNotOk(response);
   }
 
   // Bills
   static Future<List<Bill>> fetchBills() async {
-    final userId = await _resolveUserId();
-    if (userId.isEmpty) return [];
-    final response = await _request('GET', '/bills', queryParameters: {'userId': userId});
+    final response = await _request('GET', '/bills');
     _throwIfNotOk(response);
     final decoded = jsonDecode(response.body);
     if (decoded is List) {
-      return decoded.map<Bill>((e) => _billFromItem(Map<String, dynamic>.from(e))).toList();
+      return decoded
+          .map<Bill>((e) => _billFromItem(Map<String, dynamic>.from(e)))
+          .toList();
     }
     if (decoded is Map && decoded['items'] is List) {
-      return (decoded['items'] as List).map<Bill>((e) => _billFromItem(Map<String, dynamic>.from(e))).toList();
+      return (decoded['items'] as List)
+          .map<Bill>((e) => _billFromItem(Map<String, dynamic>.from(e)))
+          .toList();
     }
     return [];
   }
 
   static Future<void> createBill(Bill bill) async {
     final userId = await _resolveUserId();
-    if (userId.isEmpty) throw StateError('No userId available for bill creation');
+    if (userId.isEmpty) {
+      throw StateError('No userId available for bill creation');
+    }
     final payload = _billToApiPayload(bill, userId);
     final response = await _request('POST', '/bills', body: payload);
     _throwIfNotOk(response);
@@ -311,60 +337,61 @@ class AwsApiService {
 
   static Future<void> updateBill(Bill bill) async {
     final userId = await _resolveUserId();
-    if (userId.isEmpty) throw StateError('No userId available for bill update');
+    if (userId.isEmpty) {
+      throw StateError('No userId available for bill update');
+    }
     final payload = _billToApiPayload(bill, userId);
     final response = await _request('PUT', '/bills/${bill.id}', body: payload);
     _throwIfNotOk(response);
   }
 
   static Future<void> deleteBill(String billId) async {
-    final userId = await _resolveUserId();
-    if (userId.isEmpty) throw StateError('No userId available for bill delete');
     final response = await _request(
       'DELETE',
       '/bills/$billId',
-      body: {'userId': userId, 'billId': billId},
+      body: {'billId': billId},
     );
     _throwIfNotOk(response);
   }
 
   // Transactions
   static Future<List<Transaction>> fetchTransactions() async {
-    final userId = await _resolveUserId();
-    final response = await _request('GET', '/transactions', queryParameters: userId.isEmpty ? null : {'userId': userId});
+    final response = await _request('GET', '/transactions');
     _throwIfNotOk(response);
     final decoded = jsonDecode(response.body);
     if (decoded is List) {
-      return decoded.map<Transaction>((e) => _transactionFromItem(Map<String, dynamic>.from(e))).toList();
+      return decoded
+          .map<Transaction>((e) => _transactionFromItem(Map<String, dynamic>.from(e)))
+          .toList();
     }
     if (decoded is Map && decoded['items'] is List) {
-      return (decoded['items'] as List).map<Transaction>((e) => _transactionFromItem(Map<String, dynamic>.from(e))).toList();
+      return (decoded['items'] as List)
+          .map<Transaction>((e) => _transactionFromItem(Map<String, dynamic>.from(e)))
+          .toList();
     }
     return [];
   }
 
   static Future<void> createTransaction(Transaction transaction) async {
-    final userId = await _resolveUserId();
-    final payload = _transactionToApiPayload(transaction)..['transactionId'] = transaction.id;
-    if (userId.isNotEmpty) payload['userId'] = userId;
+    final payload = _transactionToApiPayload(transaction)
+      ..['transactionId'] = transaction.id;
     final response = await _request('POST', '/transactions', body: payload);
     _throwIfNotOk(response);
   }
 
   static Future<void> updateTransaction(Transaction transaction) async {
-    final userId = await _resolveUserId();
-    final payload = _transactionToApiPayload(transaction)..['transactionId'] = transaction.id;
-    if (userId.isNotEmpty) payload['userId'] = userId;
-    final response = await _request('PUT', '/transactions/${transaction.id}', body: payload);
+    final payload = _transactionToApiPayload(transaction)
+      ..['transactionId'] = transaction.id;
+    final response =
+        await _request('PUT', '/transactions/${transaction.id}', body: payload);
     _throwIfNotOk(response);
   }
 
   static Future<void> deleteTransaction(String transactionId) async {
-    final userId = await _resolveUserId();
     final response = await _request(
       'DELETE',
       '/transactions/$transactionId',
-      body: userId.isEmpty ? null : {'userId': userId, 'transactionId': transactionId},
+      body: {'transactionId': transactionId},
     );
     _throwIfNotOk(response);
   }
@@ -377,38 +404,29 @@ class AwsApiService {
 
   // Categories / Payees / Payers / Payments (pull sync)
   static Future<List<Category>> fetchCategories() async {
-    final userId = await _resolveUserId();
-    final decoded = await _fetchCollectionOptional('/categories', userId: userId);
+    final decoded = await _fetchCollectionOptional('/categories');
     return decoded.map(_categoryFromItem).toList();
   }
 
   static Future<List<Map<String, dynamic>>> fetchPayees() async {
-    final userId = await _resolveUserId();
-    final decoded = await _fetchCollectionOptional('/payees', userId: userId);
+    final decoded = await _fetchCollectionOptional('/payees');
     return decoded.map((e) => _contactFromItem(e, forcedType: 'payee')).toList();
   }
 
   static Future<List<Map<String, dynamic>>> fetchPayers() async {
-    final userId = await _resolveUserId();
-    final decoded = await _fetchCollectionOptional('/payers', userId: userId);
+    final decoded = await _fetchCollectionOptional('/payers');
     return decoded.map((e) => _contactFromItem(e, forcedType: 'payer')).toList();
   }
 
   static Future<List<Map<String, dynamic>>> fetchPayments() async {
-    final userId = await _resolveUserId();
-    return _fetchCollectionOptional('/billpayments', userId: userId);
+    return _fetchCollectionOptional('/billpayments');
   }
 
   static Future<List<Map<String, dynamic>>> _fetchCollectionOptional(
-    String path, {
-    String? userId,
-  }) async {
+    String path,
+  ) async {
     try {
-      final response = await _request(
-        'GET',
-        path,
-        queryParameters: (userId == null || userId.isEmpty) ? null : {'userId': userId},
-      );
+      final response = await _request('GET', path);
       if (response.statusCode == 404) {
         return [];
       }
@@ -540,20 +558,6 @@ class AwsApiService {
     };
   }
 
-  static String _accountTypeToApi(AccountType type) {
-    switch (type) {
-      case AccountType.cash:
-        return 'cash';
-      case AccountType.card:
-        return 'card';
-      case AccountType.investment:
-        return 'savings';
-      case AccountType.bank:
-      default:
-        return 'checking';
-    }
-  }
-
   static Recurrence _recurrenceFromString(String? raw) {
     switch ((raw ?? '').toLowerCase()) {
       case 'daily':
@@ -618,10 +622,7 @@ class AwsApiService {
       'billId': bill.id,
       'name': bill.description ?? 'Bill',
       'amount': bill.amount,
-
-      // ✅ Backend expects MM/DD/YYYY
       'dueDate': _formatDateMMDDYYYY(bill.dueDate),
-
       'frequency': _recurrenceToApi(bill.recurrence),
       'status': 'active',
       'notes': bill.description,
@@ -652,8 +653,7 @@ class AwsApiService {
     if (raw == null) return null;
     final value = raw.toString().trim();
 
-    // MM/DD/YYYY
-    final mmddyyyy = RegExp(r'^(\\d{2})\\/(\\d{2})\\/(\\d{4})$');
+    final mmddyyyy = RegExp(r'^(\d{2})\/(\d{2})\/(\d{4})$');
     final m1 = mmddyyyy.firstMatch(value);
     if (m1 != null) {
       final mm = int.tryParse(m1.group(1)!);
@@ -664,8 +664,7 @@ class AwsApiService {
       }
     }
 
-    // YYYY-MM-DD
-    final ymd = RegExp(r'^(\\d{4})-(\\d{2})-(\\d{2})$');
+    final ymd = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$');
     final m2 = ymd.firstMatch(value);
     if (m2 != null) {
       final yyyy = int.tryParse(m2.group(1)!);
@@ -676,9 +675,8 @@ class AwsApiService {
       }
     }
 
-    // ISO
     try {
-      final isoDateOnly = RegExp(r'^(\\d{4})-(\\d{2})-(\\d{2})').firstMatch(value);
+      final isoDateOnly = RegExp(r'^(\d{4})-(\d{2})-(\d{2})').firstMatch(value);
       if (isoDateOnly != null) {
         final yyyy = int.parse(isoDateOnly.group(1)!);
         final mm = int.parse(isoDateOnly.group(2)!);

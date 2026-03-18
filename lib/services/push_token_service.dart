@@ -9,6 +9,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 
 import 'aws_api_service.dart';
 import 'cognito_service.dart';
+import 'user_api_service.dart';
 import 'user_auth_service.dart';
 
 class PushTokenService {
@@ -112,16 +113,11 @@ class PushTokenService {
   /// - OR if we haven't registered recently (throttle window)
   /// - OR if you explicitly force it (see forceRegisterNow)
   static Future<void> registerDeviceOnLogin() async {
-    // If you store userId locally, keep your existing logic.
+    // Ensure local user context exists from backend /users/me.
     try {
       final currentUserId = await UserAuthService.getCurrentUserId();
       if (currentUserId.isEmpty) {
-        final attrs = await CognitoService.getCurrentUserAttributes();
-        await UserAuthService.saveUserInfo(
-          userId: attrs['userId'] ?? '',
-          email: attrs['email'] ?? '',
-          displayName: attrs['name'] ?? attrs['username'],
-        );
+        await UserApiService.fetchCurrentUser();
       }
     } catch (_) {
       // Continue; backend should still authorize via JWT.

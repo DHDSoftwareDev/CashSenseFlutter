@@ -14,8 +14,9 @@ class AddAccountScreen extends StatefulWidget {
 class _AddAccountScreenState extends State<AddAccountScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  final _descriptionController = TextEditingController();
+  final _institutionController = TextEditingController();
   final _accountNumberController = TextEditingController();
+  final _cardNumberController = TextEditingController();
   
   AccountType _type = AccountType.bank;
   String? _customTypeInput;
@@ -30,8 +31,9 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
   @override
   void dispose() {
     _nameController.dispose();
-    _descriptionController.dispose();
+    _institutionController.dispose();
     _accountNumberController.dispose();
+    _cardNumberController.dispose();
     _balanceFocusNode.dispose();
     _availableBalanceFocusNode.dispose();
     _balanceController.dispose();
@@ -52,8 +54,9 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
       // account balance is updated by transactions.
       final storedInitial = DatabaseService.getInitialBalance(acc.id);
       _balanceController.text = storedInitial.toStringAsFixed(2);
-      _descriptionController.text = acc.description ?? '';
+      _institutionController.text = acc.institution ?? acc.description ?? '';
       _accountNumberController.text = acc.accountNumber ?? '';
+      _cardNumberController.text = acc.cardNumber ?? '';
       _availableBalanceController.text = (acc.availableBalance ?? acc.balance).toStringAsFixed(2);
       _customTypeInput = acc.customType;
       _customTypeController.text = acc.customType ?? '';
@@ -101,10 +104,11 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
       final updated = widget.account!.copyWith(
         name: name,
         type: type,
-        balance: balance,
-        description: _descriptionController.text.trim(),
-        accountNumber: _accountNumberController.text.trim(),
-        availableBalance: double.tryParse(_availableBalanceController.text) ?? balance,
+        balance: double.tryParse(_balanceController.text) ?? 0,
+        institution: _institutionController.text,
+        accountNumber: _accountNumberController.text,
+        cardNumber: _cardNumberController.text,
+        availableBalance: double.tryParse(_availableBalanceController.text) ?? 0,
         customType: customType,
       );
       await DatabaseService.updateAccount(updated);
@@ -117,10 +121,11 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
       final account = Account(
         name: name,
         type: type,
-        balance: balance,
-        description: _descriptionController.text.trim(),
-        accountNumber: _accountNumberController.text.trim(),
-        availableBalance: double.tryParse(_availableBalanceController.text) ?? balance,
+        institution: _institutionController.text,
+        accountNumber: _accountNumberController.text,
+        cardNumber: _cardNumberController.text,
+        balance: double.tryParse(_balanceController.text) ?? 0,
+        availableBalance: double.tryParse(_availableBalanceController.text) ?? 0,
         customType: customType,
       );
       await DatabaseService.addAccount(account);
@@ -154,7 +159,7 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
               ),
               const SizedBox(height: 12),
               TextFormField(
-                controller: _descriptionController,
+                controller: _institutionController,
                 textCapitalization: TextCapitalization.sentences,
                 decoration: const InputDecoration(labelText: 'Institution'),
               ),
@@ -162,7 +167,16 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
               TextFormField(
                 controller: _accountNumberController,
                 decoration: const InputDecoration(
-                  labelText: 'Account/card number (optional)',
+                  labelText: 'Account number (optional)',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.text,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _cardNumberController,
+                decoration: const InputDecoration(
+                  labelText: 'Card number (optional)',
                   border: OutlineInputBorder(),
                 ),
                 keyboardType: TextInputType.text,

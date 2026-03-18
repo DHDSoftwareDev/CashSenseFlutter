@@ -5,9 +5,11 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:background_fetch/background_fetch.dart' as bf;
+import '../providers/user_session_controller.dart';
 import '../services/auto_backup_service.dart';
 import '../services/database_service.dart';
 import '../models/category.dart';
@@ -312,7 +314,8 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isPremium = DatabaseService.subscriptionVersion.value != 'Free';
+    final userSessionController = context.watch<UserSessionController>();
+    final isPremium = userSessionController.isPremium;
     final autoBackupEnabled = DatabaseService.getSetting<bool>('autoBackupEnabled', false) ?? false;
     final lastBackupRaw = DatabaseService.getSetting<String>('lastAutoBackupAt', null);
     DateTime? lastBackup;

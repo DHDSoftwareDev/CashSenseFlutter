@@ -759,6 +759,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                           final nameCtrl = TextEditingController();
                           final institutionCtrl = TextEditingController();
                           final accNumCtrl = TextEditingController();
+                          final cardNumCtrl = TextEditingController();
                           AccountType selectedType = AccountType.cash;
                           final balCtrl = TextEditingController(text: '0.0');
                           final availCtrl = TextEditingController(text: '0.0');
@@ -832,6 +833,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                       const SizedBox(height: 8),
                                       TextField(controller: accNumCtrl, autofillHints: const [AutofillHints.username], decoration: const InputDecoration(labelText: 'Account number')),
                                       const SizedBox(height: 8),
+                                      TextField(controller: cardNumCtrl, decoration: const InputDecoration(labelText: 'Card number')),
+                                      const SizedBox(height: 8),
                                       const SizedBox(height: 8),
                                       TextField(controller: balCtrl, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Initial balance')),
                                       const SizedBox(height: 8),
@@ -846,12 +849,13 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                     if (name.isEmpty) return;
                                     final institution = institutionCtrl.text.trim();
                                     final accNum = accNumCtrl.text.trim().isEmpty ? null : accNumCtrl.text.trim();
+                                    final cardNum = cardNumCtrl.text.trim().isEmpty ? null : cardNumCtrl.text.trim();
                                     final bal = double.tryParse(balCtrl.text) ?? 0.0;
                                     final avail = double.tryParse(availCtrl.text);
                                     if (customType != null && customType!.isNotEmpty) {
                                       DatabaseService.addCustomAccountType(customType!);
                                     }
-                                    final acc = Account(name: name, type: selectedType, balance: bal, accountNumber: accNum, availableBalance: avail, description: institution.isEmpty ? null : institution, customType: customType);
+                                    final acc = Account(name: name, type: selectedType, institution: institution.isEmpty ? null : institution, accountNumber: accNum, cardNumber: cardNum, balance: bal, availableBalance: avail, customType: customType);
                                     Navigator.pop(dctx, acc);
                                   }, child: const Text('Add')),
                                 ],
@@ -940,6 +944,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                           final nameCtrl = TextEditingController();
                           final institutionCtrl = TextEditingController();
                           final accNumCtrl = TextEditingController();
+                          final cardNumCtrl = TextEditingController();
                           AccountType selectedType = AccountType.cash;
                           final balCtrl = TextEditingController(text: '0.0');
                           final availCtrl = TextEditingController(text: '0.0');
@@ -1013,6 +1018,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                       const SizedBox(height: 8),
                                       TextField(controller: accNumCtrl, autofillHints: const [AutofillHints.username], decoration: const InputDecoration(labelText: 'Account number')),
                                       const SizedBox(height: 8),
+                                      TextField(controller: cardNumCtrl, decoration: const InputDecoration(labelText: 'Card number')),
+                                      const SizedBox(height: 8),
                                       const SizedBox(height: 8),
                                       TextField(controller: balCtrl, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Initial balance')),
                                       const SizedBox(height: 8),
@@ -1027,12 +1034,13 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                     if (name.isEmpty) return;
                                     final institution = institutionCtrl.text.trim();
                                     final accNum = accNumCtrl.text.trim().isEmpty ? null : accNumCtrl.text.trim();
+                                    final cardNum = cardNumCtrl.text.trim().isEmpty ? null : cardNumCtrl.text.trim();
                                     final bal = double.tryParse(balCtrl.text) ?? 0.0;
                                     final avail = double.tryParse(availCtrl.text);
                                     if (customType != null && customType!.isNotEmpty) {
                                       DatabaseService.addCustomAccountType(customType!);
                                     }
-                                    final acc = Account(name: name, type: selectedType, balance: bal, accountNumber: accNum, availableBalance: avail, description: institution.isEmpty ? null : institution, customType: customType);
+                                    final acc = Account(name: name, type: selectedType, institution: institution.isEmpty ? null : institution, accountNumber: accNum, cardNumber: cardNum, balance: bal, availableBalance: avail, customType: customType);
                                     Navigator.pop(dctx, acc);
                                   }, child: const Text('Add')),
                                 ],
@@ -1122,6 +1130,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                           final nameCtrl = TextEditingController();
                           final institutionCtrl = TextEditingController();
                           final accNumCtrl = TextEditingController();
+                          final cardNumCtrl = TextEditingController();
                           AccountType selectedType = AccountType.cash;
                           final balCtrl = TextEditingController(text: '0.0');
                           final availCtrl = TextEditingController(text: '0.0');
@@ -1195,6 +1204,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                       const SizedBox(height: 8),
                                       TextField(controller: accNumCtrl, autofillHints: const [AutofillHints.username], decoration: const InputDecoration(labelText: 'Account number')),
                                       const SizedBox(height: 8),
+                                      TextField(controller: cardNumCtrl, decoration: const InputDecoration(labelText: 'Card number')),
+                                      const SizedBox(height: 8),
                                       const SizedBox(height: 8),
                                       TextField(controller: balCtrl, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Initial balance')),
                                       const SizedBox(height: 8),
@@ -1209,12 +1220,13 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                     if (name.isEmpty) return;
                                     final institution = institutionCtrl.text.trim();
                                     final accNum = accNumCtrl.text.trim().isEmpty ? null : accNumCtrl.text.trim();
+                                    final cardNum = cardNumCtrl.text.trim().isEmpty ? null : cardNumCtrl.text.trim();
                                     final bal = double.tryParse(balCtrl.text) ?? 0.0;
                                     final avail = double.tryParse(availCtrl.text);
                                     if (customType != null && customType!.isNotEmpty) {
                                       DatabaseService.addCustomAccountType(customType!);
                                     }
-                                    final acc = Account(name: name, type: selectedType, balance: bal, accountNumber: accNum, availableBalance: avail, description: institution.isEmpty ? null : institution, customType: customType);
+                                    final acc = Account(name: name, type: selectedType, institution: institution.isEmpty ? null : institution, accountNumber: accNum, cardNumber: cardNum, balance: bal, availableBalance: avail, customType: customType);
                                     Navigator.pop(dctx, acc);
                                   }, child: const Text('Add')),
                                 ],

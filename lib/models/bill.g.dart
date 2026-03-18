@@ -74,8 +74,7 @@ class BillAdapter extends TypeAdapter<Bill> {
       ..writeByte(7)
       ..write(obj.isPaid)
       ..writeByte(17)
-      ..write(obj.paymentStatus)
-      ;
+      ..write(obj.paymentStatus);
   }
 
   @override
