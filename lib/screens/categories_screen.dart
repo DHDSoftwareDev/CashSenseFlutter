@@ -195,15 +195,6 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
           margin: const EdgeInsets.only(bottom: 8),
           child: Builder(builder: (tileContext) {
             return ListTile(
-              leading: CircleAvatar(
-                backgroundColor: category.color.withValues(alpha: 0.2),
-                child: category.image != null
-                    ? Text(category.image!, style: const TextStyle(fontSize: 20))
-                    : Icon(
-                        category.icon,
-                        color: category.color,
-                      ),
-              ),
               title: Text(category.name),
         subtitle: category.budgetLimit != null
           ? Text('Budget: ${formatCurrency(category.budgetLimit)}')
@@ -255,9 +246,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
 
     if (value == 'edit') {
   final nameCtrl = TextEditingController(text: category.name);
-  final imageCtrl = TextEditingController(text: category.image ?? '');
   Color selectedColor = category.color;
-  String? emojiError;
       await showDialog(
         context: context,
         builder: (context) => StatefulBuilder(
@@ -268,29 +257,6 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Name')),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: imageCtrl,
-                  decoration: InputDecoration(
-                    labelText: 'Emoji (optional)',
-                    hintText: 'Emoji',
-                    errorText: emojiError,
-                  ),
-                  onChanged: (v) {
-                    final chars = v.characters;
-                    if (v.isNotEmpty && chars.length != 1) {
-                      emojiError = 'Please enter a single emoji only.';
-                    } else {
-                      emojiError = null;
-                    }
-                    setState(() {});
-                  },
-                ),
-                if (emojiError != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(emojiError!, style: const TextStyle(color: Colors.red, fontSize: 12)),
-                  ),
                 const SizedBox(height: 8),
                 GestureDetector(
                   onTap: () async {
@@ -327,14 +293,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
               TextButton(
                 onPressed: () async {
                   final name = nameCtrl.text.trim();
-                  final emoji = imageCtrl.text.trim();
                   if (name.isEmpty) return;
-                  final chars = emoji.characters;
-                  if (emoji.isNotEmpty && chars.length != 1) {
-                    emojiError = 'Please enter a single emoji only.';
-                    setState(() {});
-                    return;
-                  }
                   final edited = Category(
                     id: category.id,
                     name: name,
@@ -342,7 +301,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                     colorValue: selectedColor.value.toString(),
                     isDefault: category.isDefault,
                     budgetLimit: null,
-                    image: emoji.isEmpty ? null : emoji,
+                    image: null,
                     type: _showExpense ? CategoryType.expense : CategoryType.income,
                   );
                   await DatabaseService.updateCategory(edited);
@@ -389,9 +348,13 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
           children: [
             CircleAvatar(
               backgroundColor: category.color.withValues(alpha: 0.2),
-              child: Icon(
-                category.icon,
-                color: category.color,
+              child: Container(
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(
+                  color: category.color,
+                  shape: BoxShape.circle,
+                ),
               ),
             ),
             const SizedBox(width: 16),
@@ -480,9 +443,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
 
   void _showAddCategoryDialog() {
   final nameCtrl = TextEditingController();
-  final imageCtrl = TextEditingController();
   Color selectedColor = Color(0xFFEF5350);
-  String? emojiError;
   showDialog(
     context: context,
     builder: (context) => StatefulBuilder(
@@ -497,30 +458,6 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
               textCapitalization: TextCapitalization.sentences,
               decoration: const InputDecoration(labelText: 'Name'),
             ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: imageCtrl,
-              textCapitalization: TextCapitalization.sentences,
-              decoration: InputDecoration(
-                labelText: 'Emoji (optional)',
-                hintText: 'Emoji',
-                errorText: emojiError,
-              ),
-              onChanged: (v) {
-                final chars = v.characters;
-                if (v.isNotEmpty && chars.length != 1) {
-                  emojiError = 'Please enter a single emoji only.';
-                } else {
-                  emojiError = null;
-                }
-                setState(() {});
-              },
-            ),
-            if (emojiError != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(emojiError!, style: const TextStyle(color: Colors.red, fontSize: 12)),
-              ),
             const SizedBox(height: 8),
             GestureDetector(
               onTap: () async {
@@ -557,14 +494,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
           TextButton(
             onPressed: () async {
               final name = nameCtrl.text.trim();
-              final emoji = imageCtrl.text.trim();
               if (name.isEmpty) return;
-              final chars = emoji.characters;
-              if (emoji.isNotEmpty && chars.length != 1) {
-                emojiError = 'Please enter a single emoji only.';
-                setState(() {});
-                return;
-              }
               final nav = Navigator.of(context);
               try {
                 final iconCodePoint = Icons.category.codePoint.toString();
@@ -575,7 +505,6 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                   iconCodePoint: iconCodePoint,
                   colorValue: colorValue,
                   type: _showExpense ? CategoryType.expense : CategoryType.income,
-                  image: emoji.isEmpty ? null : emoji,
                 );
                 await DatabaseService.addCategory(newCat);
                 nav.pop();

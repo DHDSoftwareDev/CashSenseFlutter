@@ -404,17 +404,26 @@ class AwsApiService {
 
   // Categories / Payees / Payers / Payments (pull sync)
   static Future<List<Category>> fetchCategories() async {
-    final decoded = await _fetchCollectionOptional('/categories');
+    final decoded = await _fetchCollectionOptional(
+      '/lookups',
+      queryParameters: {'type': 'category'},
+    );
     return decoded.map(_categoryFromItem).toList();
   }
 
   static Future<List<Map<String, dynamic>>> fetchPayees() async {
-    final decoded = await _fetchCollectionOptional('/payees');
+    final decoded = await _fetchCollectionOptional(
+      '/lookups',
+      queryParameters: {'type': 'payee'},
+    );
     return decoded.map((e) => _contactFromItem(e, forcedType: 'payee')).toList();
   }
 
   static Future<List<Map<String, dynamic>>> fetchPayers() async {
-    final decoded = await _fetchCollectionOptional('/payers');
+    final decoded = await _fetchCollectionOptional(
+      '/lookups',
+      queryParameters: {'type': 'payer'},
+    );
     return decoded.map((e) => _contactFromItem(e, forcedType: 'payer')).toList();
   }
 
@@ -422,11 +431,45 @@ class AwsApiService {
     return _fetchCollectionOptional('/billpayments');
   }
 
+  static Future<void> createCategory(Category category) async {
+    final response = await _request('POST', '/lookups', body: {
+      'type': 'category',
+      'id': category.id,
+      'name': category.name,
+      'color': category.colorValue,
+    });
+    _throwIfNotOk(response);
+  }
+
+  static Future<void> updateCategory(Category category) async {
+    final response = await _request('PUT', '/lookups', body: {
+      'type': 'category',
+      'id': category.id,
+      'name': category.name,
+      'color': category.colorValue,
+    });
+    _throwIfNotOk(response);
+  }
+
+  static Future<void> deleteCategory(String id) async {
+    final response = await _request('DELETE', '/lookups', body: {
+      'type': 'category',
+      'id': id,
+    });
+    _throwIfNotOk(response);
+  }
+
   static Future<List<Map<String, dynamic>>> _fetchCollectionOptional(
-    String path,
+    String path, {
+    Map<String, String>? queryParameters,
+  }
   ) async {
     try {
-      final response = await _request('GET', path);
+      final response = await _request(
+        'GET',
+        path,
+        queryParameters: queryParameters,
+      );
       if (response.statusCode == 404) {
         return [];
       }

@@ -28,6 +28,10 @@ import 'screens/signup_screen.dart';
 import 'services/cognito_service.dart';
 import 'services/aws_api_service.dart';
 import 'services/user_api_service.dart';
+import 'services/lookups_api.dart';
+import 'services/lookups_repository.dart';
+import 'services/lookups_local_store.dart';
+import 'services/lookups_state.dart';
 // Auth screens temporarily hidden
 import 'utils/root_scaffold.dart';
 import 'theme/app_theme.dart';
@@ -74,12 +78,34 @@ void main() async {
   final userSession = UserSessionController(
     api: CashSenseUserApi(baseUrl: AwsApiService.baseUrl),
   );
+  final lookupsState = LookupsState(
+    LookupsRepository(
+      api: LookupsApi(
+        baseUrl: AwsApiService.baseUrl,
+        authHeadersBuilder: () async {
+          final token = await AwsApiService.getIdToken();
+          final headers = <String, String>{};
+          if (token.isNotEmpty) {
+            headers['Authorization'] = 'Bearer $token';
+          }
+          return headers;
+        },
+      ),
+      localStore: SettingsLookupsLocalStore(),
+    ),
+  );
+
+  // Local-first: hydrate lookups before first frame when already authenticated.
+  if (isSignedIn) {
+    await _safeInitStep('Load local lookups', () => lookupsState.loadFromLocal());
+  }
 
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider<UserSessionController>.value(value: userSession),
+        ChangeNotifierProvider<LookupsState>.value(value: lookupsState),
       ],
       child: CashSenseApp(initialHome: initialHome),
     ),
@@ -87,7 +113,7 @@ void main() async {
 
   // Kick off non-critical initializations after first frame so UI can render fast.
   WidgetsBinding.instance.addPostFrameCallback((_) {
-    _startDeferredInits(isSignedIn, userSession);
+    _startDeferredInits(isSignedIn, userSession, lookupsState);
   });
 
   // Remove splash screen after app is ready
@@ -123,7 +149,11 @@ Future<T?> _safeInitValue<T>(
   return null;
 }
 
-Future<void> _startDeferredInits(bool isSignedIn, UserSessionController userSession) async {
+Future<void> _startDeferredInits(
+  bool isSignedIn,
+  UserSessionController userSession,
+  LookupsState lookupsState,
+) async {
   await Future.wait([
     BillReminderService().init().catchError((e) {
       debugPrint('BillReminderService.init failed: $e');
@@ -149,6 +179,11 @@ Future<void> _startDeferredInits(bool isSignedIn, UserSessionController userSess
     if (isSignedIn)
       RemoteSyncService.syncUserDataOnLogin().catchError((e) {
         debugPrint('Remote data sync failed: $e');
+        return null;
+      }),
+    if (isSignedIn)
+      lookupsState.syncRemote().catchError((e) {
+        debugPrint('Lookup sync failed: $e');
         return null;
       }),
   ]);

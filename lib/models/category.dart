@@ -4,7 +4,7 @@ import 'package:uuid/uuid.dart';
 
 part 'category.g.dart';
 
-@HiveType(typeId: 42)
+@HiveType(typeId: 13)
 enum CategoryType {
   @HiveField(0)
   expense,
@@ -12,7 +12,7 @@ enum CategoryType {
   income,
 }
 
-@HiveType(typeId: 2)
+@HiveType(typeId: 12)
 class Category extends HiveObject {
   @HiveField(0)
   String id;

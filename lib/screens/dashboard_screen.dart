@@ -4,11 +4,13 @@
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import 'dart:convert';
 import 'package:table_calendar/table_calendar.dart';
 import '../widgets/banner_ad_widget.dart';
 import '../utils/root_scaffold.dart';
 import '../services/database_service.dart';
+import '../services/lookups_state.dart';
 import '../models/transaction.dart';
 import '../models/bill.dart';
 import '../models/category.dart';
@@ -613,10 +615,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 final start = DateTime(day.year, day.month, day.day);
                 final end = start.add(const Duration(days: 1)).subtract(const Duration(milliseconds: 1));
                 final billDay = DateTime(day.year, day.month, day.day);
-                final hiddenIds = DatabaseService.getHiddenTransactionIds().toSet();
                 final txs = DatabaseService.getTransactionsByDateRange(start, end)
                     .where((t) {
-                      if (hiddenIds.contains(t.id)) return false;
+                      if (t.hideFromCalendarDashboard == true) return false;
                       if (t.note != null && t.note!.contains('__hide_from_calendar__')) return false;
 
                       // Hide bill-payment transactions from dashboard calendar views.
@@ -670,6 +671,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   // date so payments made on a different date still count.
                   final occDateStr = DateFormat('MM/dd/yyyy').format(occDate);
                   final payments = DatabaseService.getAllTransactions()
+                      .where((t) => t.hideFromCalendarDashboard != true)
                       .where((tx) => tx.billId == bill.id && (
                         (tx.occurrenceDate != null
                           ? (tx.occurrenceDate!.year == occDate.year && tx.occurrenceDate!.month == occDate.month && tx.occurrenceDate!.day == occDate.day)
@@ -865,6 +867,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     final occDateStr = DateFormat('MM/dd/yyyy').format(occDate);
     final payments = DatabaseService.getAllTransactions()
+      .where((t) => t.hideFromCalendarDashboard != true)
         .where((tx) =>
             tx.billId == bill.id &&
             ((tx.occurrenceDate != null)
@@ -906,7 +909,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildRecentTransactionsCard() {
     // Retrieve and apply filters
-    final allTransactions = DatabaseService.getAllTransactions();
+    final allTransactions = DatabaseService.getAllTransactions()
+      .where((t) => t.hideFromCalendarDashboard != true)
+      .toList();
 
     List<Transaction> filtered = allTransactions;
 
@@ -915,11 +920,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     // Helper to identify manual payments from Pay Bill or Add Transaction screens
     bool _isManualPayment(Transaction tx) {
       if (tx.billId != null && tx.billId!.isNotEmpty) return true;
-      // Transactions created via Add Transaction screen are now tracked by id in
-      // the DatabaseService hidden list. Fall back to the legacy note marker if
-      // present to maintain behavior for older records.
-      final hiddenIds = DatabaseService.getHiddenTransactionIds().toSet();
-      if (hiddenIds.contains(tx.id)) return true;
+      if (tx.hideFromCalendarDashboard) return true;
+      // Legacy fallback for older records created before the model field existed.
       if (tx.note != null && tx.note!.contains('__hide_from_calendar__')) return true;
       return false;
     }
@@ -992,6 +994,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final endOfSelected = startOfSelected.add(const Duration(days: 1)).subtract(const Duration(milliseconds: 1));
       // Get transactions for the selected date
       var txList = DatabaseService.getTransactionsByDateRange(startOfSelected, endOfSelected)
+        .where((tx) => tx.hideFromCalendarDashboard != true)
         .where((tx) => !_isManualPayment(tx))
         .toList();
       
@@ -1136,7 +1139,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildTransactionItem(Transaction transaction, Bill? sourceBill) {
+    final lookupsState = context.watch<LookupsState>();
     final category = DatabaseService.getCategoryById(transaction.categoryId);
+    final categoryText = lookupsState.categoryName(
+      transaction.categoryId,
+      fallbackName: transaction.categoryName ?? category?.name ?? 'Unknown',
+    );
+    final payeeText = lookupsState.payeeName(
+      transaction.payeeId,
+      fallbackName: transaction.payeeName,
+    );
+    final payerText = lookupsState.payerName(
+      transaction.payerId,
+      fallbackName: transaction.payerName,
+    );
     // If transaction has splits, build a combined category string
     String categoryDisplay;
     if (transaction.splitsJson != null && transaction.splitsJson!.trim().isNotEmpty) {
@@ -1148,18 +1164,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
             final cid = s['categoryId']?.toString();
             final amt = s['amount'];
             final c = cid != null ? DatabaseService.getCategoryById(cid) : null;
-            final name = c?.name ?? (cid ?? 'Unknown');
+            final name = lookupsState.categoryName(
+              cid,
+              fallbackName: c?.name ?? cid ?? 'Unknown',
+            );
             final amountStr = amt is num ? _currencyFormat.format(amt.toDouble()) : amt?.toString() ?? '';
             parts.add('$name ${amountStr}');
           }
         }
         categoryDisplay = parts.join(', ');
       } catch (_) {
-        categoryDisplay = category?.name ?? 'Unknown';
+        categoryDisplay = categoryText;
       }
     } else {
-      categoryDisplay = category?.name ?? 'Unknown';
+      categoryDisplay = categoryText;
     }
+    final fallbackCounterparty =
+        transaction.type == TransactionType.expense ? payeeText : payerText;
+    final displayTitle = (transaction.description.trim().isEmpty ||
+            transaction.description.trim().toLowerCase() == 'transaction')
+        ? (fallbackCounterparty.isEmpty ? transaction.description : fallbackCounterparty)
+        : transaction.description;
     // Create unique ID for this transaction card
     final cardId = '${transaction.date.millisecondsSinceEpoch}_${transaction.description}_${transaction.amount}';
     final isExpanded = _expandedTransactionIds.contains(cardId);
@@ -1181,7 +1206,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     if (sourceBill != null) {
       // Only count payments for this bill occurrence (billId + occurrence date)
-      final allTransactions = DatabaseService.getAllTransactions();
+        final allTransactions = DatabaseService.getAllTransactions()
+          .where((t) => t.hideFromCalendarDashboard != true)
+          .toList();
       final occDate = transaction.date;
       final occDateStr = DateFormat('MM/dd/yyyy').format(occDate);
       final paymentHistory = allTransactions.where((tx) =>
@@ -1236,9 +1263,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
     }
 
+    Offset? lastTapPosition;
+
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 0),
       child: InkWell(
+        onTapDown: (details) {
+          lastTapPosition = details.globalPosition;
+        },
         onTap: () async {
           final menuItems = <PopupMenuEntry<String>>[];
           if (paymentProgress != null && sourceBill != null) {
@@ -1323,9 +1355,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ]);
           menuItems.addAll(items);
+          final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+            final tap = lastTapPosition;
+          final itemRect = tap != null
+              ? Rect.fromLTWH(tap.dx, tap.dy, 1, 1)
+              : Rect.fromLTWH(100, 400, 1, 1);
           final value = await showMenu<String>(
             context: context,
-            position: RelativeRect.fromLTRB(100, 400, 100, 100),
+            position: RelativeRect.fromRect(itemRect, Offset.zero & overlay.size),
             items: menuItems,
             color: Theme.of(context).colorScheme.primary,
           );
@@ -1370,7 +1407,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             Text(DateFormat('MM/dd/yyyy').format(transaction.date), style: Theme.of(context).textTheme.bodySmall),
                             const SizedBox(height: 4),
                             Text(
-                              transaction.description,
+                              displayTitle,
                               style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 12.5),
                             ),
                             const SizedBox(height: 2),
@@ -1523,6 +1560,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _handleEdit(Transaction transaction, Bill? sourceBill) async {
+    final Bill? effectiveSourceBill = sourceBill ?? (() {
+      final billId = transaction.billId;
+      if (billId == null || billId.isEmpty) return null;
+      try {
+        return DatabaseService.getAllBills().firstWhere((b) => b.id == billId);
+      } catch (_) {
+        return null;
+      }
+    })();
+
+    sourceBill = effectiveSourceBill;
+
     if (sourceBill != null && sourceBill.recurrence != Recurrence.none) {
       // If this is a recurring bill, ask whether to edit only this occurrence or all future occurrences
       final choice = await showDialog<String>(
@@ -1626,10 +1675,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
               // If the AddBillScreen returned a specific occurrence bill id, migrate
               // payments for this occurrence to that bill so history remains visible.
               try {
-                final allTx = DatabaseService.getAllTransactions();
+                final allTx = DatabaseService.getAllTransactions()
+                  .where((t) => t.hideFromCalendarDashboard != true)
+                  .toList();
                 final occDateStr = DateFormat('MM/dd/yyyy').format(occurrenceDate);
                 final migrated = allTx.where((tx) =>
-                  tx.billId == sourceBill.id && (
+                  tx.billId == sourceBill!.id && (
                     (tx.occurrenceDate != null
                       ? (tx.occurrenceDate!.year == occurrenceDate.year && tx.occurrenceDate!.month == occurrenceDate.month && tx.occurrenceDate!.day == occurrenceDate.day)
                       : ((tx.date.year == occurrenceDate.year && tx.date.month == occurrenceDate.month && tx.date.day == occurrenceDate.day) || tx.description.contains(occDateStr))
@@ -1732,10 +1783,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
             // future series. Leave any past transactions untouched.
             if (newBillId != null) {
               try {
-                final allTx = DatabaseService.getAllTransactions();
+                final allTx = DatabaseService.getAllTransactions()
+                  .where((t) => t.hideFromCalendarDashboard != true)
+                  .toList();
                 final occDateStr = DateFormat('MM/dd/yyyy').format(occurrenceDate);
                 final toMigrate = allTx.where((tx) {
-                  if (tx.billId != sourceBill.id) return false;
+                  if (tx.billId != sourceBill!.id) return false;
                   // If tx has an explicit occurrenceDate, compare that.
                   if (tx.occurrenceDate != null) {
                     final od = DateTime(tx.occurrenceDate!.year, tx.occurrenceDate!.month, tx.occurrenceDate!.day);
@@ -2095,18 +2148,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
         }
       } catch (_) {}
     }
-    final codePointStr = category.iconCodePoint;
-    final codePoint = int.tryParse(codePointStr);
-    if (codePoint != null && codePoint > 0 && codePoint < 0x10FFFF) {
-      return Icon(category.icon, color: category.color, size: 18);
-    }
-    if (codePointStr.isNotEmpty) {
-      return Text(
-        codePointStr,
-        style: TextStyle(fontSize: 24, color: category.color),
-        textAlign: TextAlign.center,
-      );
-    }
-    return Icon(Icons.help, color: category.color, size: 18);
+    return Container(
+      width: 12,
+      height: 12,
+      decoration: BoxDecoration(
+        color: category.color,
+        shape: BoxShape.circle,
+      ),
+    );
   }
 }

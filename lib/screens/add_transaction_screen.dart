@@ -2,12 +2,15 @@
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
 import '../models/transaction.dart';
 import '../models/category.dart';
 import '../models/bill.dart';
 import '../models/account.dart';
 import '../services/database_service.dart';
+import '../services/lookups_state.dart';
+import '../services/lookups_sync_helper.dart';
 import '../widgets/app_color_picker.dart';
 import '../widgets/splits_editor.dart';
 import '../utils/split_utils.dart';
@@ -313,7 +316,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                                     tooltip: 'Add',
                                                     onPressed: () async {
                                                       final nameController = TextEditingController();
-                                                      final imageController = TextEditingController();
                                                       Color selectedColor = const Color(0xFF607D8B);
                                                       final result = await showDialog<Category?>(
                                                         context: ctx,
@@ -327,11 +329,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                                                   controller: nameController,
                                                                   textCapitalization: TextCapitalization.sentences,
                                                                   decoration: const InputDecoration(labelText: 'Name'),
-                                                                ),
-                                                                const SizedBox(height: 8),
-                                                                TextField(
-                                                                  controller: imageController,
-                                                                  decoration: const InputDecoration(labelText: 'Emoji (optional)', hintText: 'Emoji'),
                                                                 ),
                                                                 const SizedBox(height: 8),
                                                                 GestureDetector(
@@ -377,7 +374,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                                                     iconCodePoint: '0xe85d',
                                                                     colorValue: selectedColor.value.toString(),
                                                                     type: _transactionType == TransactionScreenType.expense ? CategoryType.expense : CategoryType.income,
-                                                                    image: imageController.text.trim().isNotEmpty ? imageController.text.trim() : null,
                                                                   );
                                                                   Navigator.pop(dctx, newCat);
                                                                 },
@@ -389,6 +385,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                                       );
                                                       if (result != null) {
                                                         await DatabaseService.addCategory(result);
+                                                        try {
+                                                          await LookupsSyncHelper.syncCategory(result);
+                                                        } catch (_) {}
                                                         setState(() {});
                                                       }
                                                     },
@@ -472,6 +471,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                         );
                         if (result != null) {
                           await DatabaseService.addPayee(result);
+                          try {
+                            await LookupsSyncHelper.syncPayeeOrPayer(result);
+                          } catch (_) {}
                           // Refresh payees after adding
                           payees = DatabaseService.getAllPayees();
                           Navigator.pop(context, result['id'] as String?);
@@ -533,14 +535,22 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       ? 'Transfer'
       : selectedCategory?.name;
 
-  Widget? leadingWidget;
+  Widget leadingWidget;
   if (selectedCategory != null) {
-    final emoji = selectedCategory.displayEmoji;
-    if (emoji != null) {
-      leadingWidget = Text(emoji, style: TextStyle(fontSize: 24, color: selectedCategory.color));
-    } else {
-      leadingWidget = Icon(selectedCategory.icon, color: selectedCategory.color);
-    }
+    leadingWidget = SizedBox(
+      width: 24,
+      height: 24,
+      child: Center(
+        child: Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+            color: selectedCategory.color,
+            shape: BoxShape.circle,
+          ),
+        ),
+      ),
+    );
   } else {
     leadingWidget = const Icon(Icons.label);
   }
@@ -603,7 +613,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                       tooltip: 'Add',
                       onPressed: () async {
                         final nameController = TextEditingController();
-                        final imageController = TextEditingController();
                         Color selectedColor = const Color(0xFF607D8B);
                         final result = await showDialog<Category?>(
                           context: context,
@@ -617,23 +626,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                     controller: nameController,
                                     textCapitalization: TextCapitalization.sentences,
                                     decoration: const InputDecoration(labelText: 'Name'),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  TextField(
-                                    controller: imageController,
-                                    textCapitalization: TextCapitalization.sentences,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Image (optional)',
-                                      hintText: 'Image',
-                                    ),
-                                    onChanged: (v) {
-                                      final chars = v.characters;
-                                      final first = chars.isEmpty ? '' : chars.first;
-                                      if (first != v) {
-                                        imageController.text = first;
-                                        imageController.selection = TextSelection.collapsed(offset: first.length);
-                                      }
-                                    },
                                   ),
                                   const SizedBox(height: 8),
                                   GestureDetector(
@@ -679,7 +671,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                         iconCodePoint: '0xe85d',
                                         colorValue: selectedColor.value.toString(),
                                         type: (_transactionType == TransactionScreenType.expense) ? CategoryType.expense : CategoryType.income,
-                                        image: imageController.text.trim().isEmpty ? null : imageController.text.trim(),
                                       );
                                       Navigator.pop(ctx, newCat);
                                     }
@@ -692,6 +683,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                         );
                         if (result != null) {
                           final newCatId = await DatabaseService.addCategory(result);
+                          try {
+                            await LookupsSyncHelper.syncCategory(result.copyWith(id: newCatId));
+                          } catch (_) {}
                           Navigator.pop(context, newCatId); // Return new category id so it can be auto-selected
                         }
                       },
@@ -1361,13 +1355,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     );
   }
 
-  Future<void> _applyDashboardHiddenIfNeeded(Iterable<String> transactionIds) async {
-    if (!widget.hideFromCalendarDashboard) return;
-    for (final id in transactionIds) {
-      await DatabaseService.addHiddenTransactionId(id);
-    }
-  }
-
   Future<void> _saveTransaction() async {
     if (_isSaving) return;
     FocusScope.of(context).unfocus();
@@ -1463,6 +1450,24 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           payerId = _selectedPayeeId;
         }
 
+        final lookupsState = context.read<LookupsState>();
+        final selectedCategory = _selectedCategoryId == null
+          ? null
+          : lookupsState.categoriesById[_selectedCategoryId!];
+        final selectedPayee = payeeId == null
+          ? null
+          : lookupsState.payeesById[payeeId];
+        final selectedPayer = payerId == null
+          ? null
+          : lookupsState.payersById[payerId];
+
+        final selectedCategoryName = selectedCategory?.name ??
+          (_selectedCategoryId == null
+            ? null
+            : DatabaseService.getCategoryById(_selectedCategoryId!)?.name);
+        final selectedPayeeName = selectedPayee?.name ?? ((payeeId != null && desc.isNotEmpty) ? desc : null);
+        final selectedPayerName = selectedPayer?.name ?? ((payerId != null && desc.isNotEmpty) ? desc : null);
+
         if (isEditing) {
       final orig = widget.existingTransaction!;
         // If this transaction is linked to a bill (billId set), it was created
@@ -1483,20 +1488,25 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             type: _transactionType == TransactionScreenType.expense ? TransactionType.expense : TransactionType.income,
             description: newDescription,
             date: newDate,
+            updatedAt: DateTime.now(),
             note: finalNote,
             cleared: _cleared,
             accountId: _selectedAccountId,
             payeeId: payeeId, // Always set from selected
+            payeeName: selectedPayeeName,
             payerId: payerId, // Always set from selected
+            payerName: selectedPayerName,
+            categoryName: selectedCategoryName,
             // Explicitly preserve bill linkage for payments so edits keep the
             // transaction associated with the original bill occurrence.
             billId: orig.billId,
             occurrenceDate: orig.occurrenceDate,
             splitsJson: (_useSplits && _splits.isNotEmpty) ? jsonEncode(_splits) : null,
             showInReports: _showInReports,
+            hideFromCalendarDashboard:
+                widget.hideFromCalendarDashboard || orig.hideFromCalendarDashboard,
           );
           await DatabaseService.updateTransaction(updated);
-          await _applyDashboardHiddenIfNeeded([updated.id]);
           // If this transaction is linked to a bill, ensure listeners watching
           // bills (like PayBillScreen) are notified so payment history refreshes.
           if (orig.billId != null && orig.billId!.isNotEmpty) {
@@ -1540,6 +1550,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       type: _transactionType == TransactionScreenType.expense ? TransactionType.expense : TransactionType.income,
       description: desc,
       date: _transactionDate,
+      updatedAt: DateTime.now(),
       note: _transactionType == TransactionScreenType.transfer
         ? ((finalNote == null || finalNote.isEmpty)
           ? '__transfer_manual__'
@@ -1548,13 +1559,16 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       accountId: _selectedAccountId,
       cleared: _cleared,
       payeeId: payeeId, // Always set from selected
+      payeeName: selectedPayeeName,
       payerId: payerId, // Always set from selected
+      payerName: selectedPayerName,
+      categoryName: selectedCategoryName,
       billId: widget.prefillTransaction?.billId ?? widget.existingTransaction?.billId,
   splitsJson: (_useSplits && _splits.isNotEmpty) ? jsonEncode(_splits) : null,
         showInReports: _showInReports,
+      hideFromCalendarDashboard: widget.hideFromCalendarDashboard,
       );
           await DatabaseService.addTransaction(tx);
-          await _applyDashboardHiddenIfNeeded([tx.id]);
 
           if (_selectedAccountId != null) {
             final account = DatabaseService.getAccountById(_selectedAccountId!);
@@ -1597,10 +1611,13 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           type: TransactionType.expense,
           description: desc,
           date: _transactionDate,
+          updatedAt: DateTime.now(),
           note: debitInternalNote,
           accountId: _fromAccountId,
           cleared: _cleared,
           showInReports: false,
+          categoryName: transferCategory.name,
+          hideFromCalendarDashboard: true,
         );
         final credit = Transaction(
           amount: amount,
@@ -1608,10 +1625,13 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           type: TransactionType.income,
           description: desc,
           date: _transactionDate,
+          updatedAt: DateTime.now(),
           note: creditInternalNote,
           accountId: _toAccountId,
           cleared: _cleared,
           showInReports: false,
+          categoryName: transferCategory.name,
+          hideFromCalendarDashboard: true,
         );
         // If editing, prompt user if date or note changed
         if (isEditing) {
@@ -1724,18 +1744,22 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             amount: amount,
             description: newDescription,
             date: newDate,
+            updatedAt: DateTime.now(),
             note: cleanedNotes.isNotEmpty ? cleanedNotes : null,
             cleared: _cleared,
             showInReports: false,
+            hideFromCalendarDashboard: true,
           );
           if (updateBoth && updatedPair != null) {
             updatedPair = updatedPair.copyWith(
               amount: amount,
               description: newDescription,
               date: newDate,
+              updatedAt: DateTime.now(),
               note: cleanedNotes.isNotEmpty ? cleanedNotes : null,
               cleared: _cleared,
               showInReports: false,
+              hideFromCalendarDashboard: true,
             );
           }
           // Save updated transactions
@@ -1743,9 +1767,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           if (updateBoth && updatedPair != null) {
             await DatabaseService.updateTransaction(updatedPair);
           }
-          await _applyDashboardHiddenIfNeeded(
-            <String>[updatedOrig.id, if (updateBoth && updatedPair != null) updatedPair.id],
-          );
           // Adjust balances for all affected accounts
           // First, revert old balances
           if (oldFromId != null) {
@@ -1789,16 +1810,19 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           // (they're generated in the constructors) and only update the note.
           try {
             final linkedUserNote = userNote.isNotEmpty ? ' $userNote' : '';
-            final updatedDebit = debit.copyWith(note: '__transfer_bill__ pair:${credit.id}$linkedUserNote', cleared: _cleared);
-            final updatedCredit = credit.copyWith(note: '__transfer_bill__ pair:${debit.id}$linkedUserNote', cleared: _cleared);
+            final updatedDebit = debit.copyWith(
+              note: '__transfer_bill__ pair:${credit.id}$linkedUserNote',
+              cleared: _cleared,
+              hideFromCalendarDashboard: true,
+            );
+            final updatedCredit = credit.copyWith(
+              note: '__transfer_bill__ pair:${debit.id}$linkedUserNote',
+              cleared: _cleared,
+              hideFromCalendarDashboard: true,
+            );
             await DatabaseService.updateTransaction(updatedDebit);
             await DatabaseService.updateTransaction(updatedCredit);
           } catch (_) {}
-
-          // Hide both transfer transactions from calendar/dashboard
-          await DatabaseService.addHiddenTransactionId(debit.id);
-          await DatabaseService.addHiddenTransactionId(credit.id);
-          await _applyDashboardHiddenIfNeeded([debit.id, credit.id]);
 
           // Update account balances for transfer
           if (_fromAccountId != null) {
@@ -2427,6 +2451,9 @@ class _CategorySelectorSheetState extends State<_CategorySelectorSheet> {
                     );
                     if (result != null) {
                       await DatabaseService.addCategory(result);
+                      try {
+                        await LookupsSyncHelper.syncCategory(result);
+                      } catch (_) {}
                       Navigator.pop(context, null); // Close sheet so parent can refresh
                     }
                   },
@@ -2456,17 +2483,22 @@ class _CategorySelectorSheetState extends State<_CategorySelectorSheet> {
                     shrinkWrap: true,
                     children: filteredCategories.map((category) {
                       // Use const IconData if possible, otherwise fallback to default
-                      final iconData = Category.iconMap[category.iconCodePoint] ?? const IconData(0xe88a, fontFamily: 'MaterialIcons');
                       final color = Color(int.parse(category.colorValue));
-                      Widget? leadingWidget;
-                      final emoji = category.displayEmoji;
-                      if (emoji != null) {
-                        leadingWidget = Text(emoji, style: TextStyle(fontSize: 24, color: color));
-                      } else {
-                        leadingWidget = Icon(iconData, color: color);
-                      }
                       return ListTile(
-                        leading: CircleAvatar(backgroundColor: color.withOpacity(0.2), child: leadingWidget),
+                        leading: SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: Center(
+                            child: Container(
+                              width: 10,
+                              height: 10,
+                              decoration: BoxDecoration(
+                                color: color,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ),
+                        ),
                         title: Text(category.name),
                         onTap: () => Navigator.pop(context, category.id),
                       );

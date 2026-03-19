@@ -8,6 +8,7 @@ import '../models/transaction.dart';
 import '../models/category.dart';
 import '../models/account.dart';
 import '../services/database_service.dart';
+import '../services/lookups_sync_helper.dart';
 import '../widgets/app_color_picker.dart';
 import 'package:uuid/uuid.dart';
 
@@ -72,9 +73,7 @@ class _CategorySelectorSheetState extends State<_CategorySelectorSheet> {
 
   Future<void> _addCategory() async {
     final nameCtrl = TextEditingController();
-    final imageCtrl = TextEditingController();
     Color selectedColor = const Color(0xFF607D8B);
-    String? emojiError;
     final result = await showDialog<Category?>(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -89,33 +88,6 @@ class _CategorySelectorSheetState extends State<_CategorySelectorSheet> {
                   textCapitalization: TextCapitalization.sentences,
                   decoration: const InputDecoration(labelText: 'Name'),
                 ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: imageCtrl,
-                  maxLength: 2,
-                  decoration: InputDecoration(
-                    labelText: 'Emoji (optional)',
-                    hintText: 'Emoji',
-                    errorText: emojiError,
-                    counterText: '', // Remove 0/2 counter
-                  ),
-                  onChanged: (val) {
-                    final chars = val.characters;
-                    final first = chars.isEmpty ? '' : chars.first;
-                    if (first != val) {
-                      imageCtrl.text = first;
-                      imageCtrl.selection = TextSelection.collapsed(offset: first.length);
-                    }
-                    setState(() { emojiError = null; });
-                  },
-                  keyboardType: TextInputType.text,
-                  textInputAction: TextInputAction.done,
-                ),
-                if (emojiError != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(emojiError!, style: const TextStyle(color: Colors.red, fontSize: 12)),
-                  ),
                 const SizedBox(height: 8),
                 GestureDetector(
                   onTap: () async {
@@ -153,21 +125,13 @@ class _CategorySelectorSheetState extends State<_CategorySelectorSheet> {
             TextButton(
               onPressed: () {
                 final name = nameCtrl.text.trim();
-                final emoji = imageCtrl.text.trim();
                 if (name.isEmpty) return;
-                // Allow all emoji: only check for single grapheme cluster
-                final chars = emoji.characters;
-                if (emoji.isNotEmpty && chars.length != 1) {
-                  setState(() { emojiError = 'Please enter a single emoji only.'; });
-                  return;
-                }
                 final catType = widget.billType == BillType.income ? CategoryType.income : CategoryType.expense;
                 final newCat = Category(
                   name: name,
                   iconCodePoint: '0xe85d',
                   colorValue: selectedColor.value.toString(),
                   type: catType,
-                  image: emoji.isEmpty ? null : emoji,
                 );
                 Navigator.pop(ctx, newCat);
               },
@@ -179,15 +143,28 @@ class _CategorySelectorSheetState extends State<_CategorySelectorSheet> {
     );
 
     if (result != null) {
-      await DatabaseService.addCategory(result);
-      if (!mounted) return;
-      _all = DatabaseService.getAllCategories().where((c) => c.type == result.type).toList();
-      setState(() {
-        _filtered = _all.where((c) => c.name.toLowerCase().contains(_query)).toList();
-        _selectedId = result.id;
-      });
-      if (!mounted) return;
-      Navigator.pop(context, _selectedId);
+      try {
+        final newCatId = await DatabaseService.addCategory(result);
+        try {
+          await LookupsSyncHelper.syncCategory(result.copyWith(id: newCatId));
+        } catch (_) {}
+        if (!mounted) return;
+        _all = DatabaseService.getAllCategories().where((c) => c.type == result.type).toList();
+        setState(() {
+          _filtered = _all.where((c) => c.name.toLowerCase().contains(_query)).toList();
+          _selectedId = newCatId;
+        });
+        if (!mounted) return;
+        Navigator.pop(context, newCatId);
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Unable to save category: $e'),
+            backgroundColor: Colors.blueGrey[400],
+          ),
+        );
+      }
     }
   }
 
@@ -212,15 +189,21 @@ class _CategorySelectorSheetState extends State<_CategorySelectorSheet> {
               itemCount: _filtered.length,
               itemBuilder: (context, idx) {
                 final c = _filtered[idx];
-                Widget? leadingWidget;
-                final emoji = c.displayEmoji;
-                if (emoji != null) {
-                  leadingWidget = Text(emoji, style: TextStyle(fontSize: 24, color: c.color));
-                } else {
-                  leadingWidget = Icon(c.icon, color: c.color);
-                }
                 return ListTile(
-                  leading: CircleAvatar(backgroundColor: c.color.withOpacity(0.2), child: leadingWidget),
+                  leading: SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: Center(
+                      child: Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: c.color,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                  ),
                   title: Text(c.name),
                   trailing: _selectedId == c.id ? const Icon(Icons.check) : null,
                   onTap: () => Navigator.pop(context, c.id),
@@ -382,6 +365,9 @@ class _PayeeSelectorSheetState extends State<_PayeeSelectorSheet> {
         'color': result['color'],
       };
       await DatabaseService.addPayee(newPayee);
+      try {
+        await LookupsSyncHelper.syncPayeeOrPayer(newPayee);
+      } catch (_) {}
       // If the widget was disposed while waiting, stop before touching context/state
       if (!mounted) return;
       // Refresh the full list from settings
@@ -1633,13 +1619,25 @@ class _AddBillScreenState extends State<AddBillScreen> {
           );
     final bool hasSelectedCategory = selectedCategory != null && selectedCategory.id == _selectedCategoryId;
     final categoryForDisplay = hasSelectedCategory ? selectedCategory : null;
-    final emoji = categoryForDisplay?.displayEmoji;
 
     return Card(
       child: ListTile(
-        leading: emoji != null
-            ? Text(emoji, style: TextStyle(fontSize: 24, color: categoryForDisplay!.color))
-            : Icon(categoryForDisplay?.icon ?? Icons.label, color: categoryForDisplay?.color),
+        leading: categoryForDisplay == null
+            ? const Icon(Icons.label)
+            : SizedBox(
+                width: 24,
+                height: 24,
+                child: Center(
+                  child: Container(
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      color: categoryForDisplay.color,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+              ),
         title: const Text('Category'),
         subtitle: Text(
           _selectedCategoryId == null

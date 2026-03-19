@@ -46,16 +46,21 @@ class _CategorySelectorSheetState extends State<CategorySelectorSheet> {
                     itemCount: filteredCategories.length,
                     itemBuilder: (context, index) {
                       final c = filteredCategories[index];
-                      Widget leading;
-                      final emoji = c.displayEmoji;
-                      if (emoji != null) {
-                        leading = Text(emoji, style: TextStyle(fontSize: 20, color: c.color));
-                      } else {
-                        leading = Icon(c.icon, color: c.color);
-                      }
-
                       return ListTile(
-                        leading: CircleAvatar(backgroundColor: c.color.withOpacity(0.2), child: leading),
+                        leading: SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: Center(
+                            child: Container(
+                              width: 10,
+                              height: 10,
+                              decoration: BoxDecoration(
+                                color: c.color,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ),
+                        ),
                         title: Text(c.name),
                         onTap: () => Navigator.pop(context, c.id),
                       );

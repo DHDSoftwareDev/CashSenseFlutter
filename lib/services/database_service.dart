@@ -13,12 +13,16 @@ import 'aws_api_service.dart';
 
 
 class DatabaseService {
-  static void _registerAdapterIfNeeded(int typeId, TypeAdapter<dynamic> adapter) {
-    if (Hive.isAdapterRegistered(typeId)) return;
+  static void _registerAdapterIfNeeded<T>(int typeId, TypeAdapter<T> adapter) {
     try {
-      Hive.registerAdapter(adapter);
+      Hive.registerAdapter<T>(adapter, override: true);
     } catch (e) {
-      // In rare retry paths, adapter may already be registered in this process.
+      try {
+        if (!Hive.isAdapterRegistered(typeId)) {
+          Hive.registerAdapter<T>(adapter);
+          return;
+        }
+      } catch (_) {}
       if (e.toString().contains('already a TypeAdapter')) return;
       rethrow;
     }
@@ -38,6 +42,16 @@ class DatabaseService {
   }
 
   static Future<Box<T>> _openTypedBoxWithRecovery<T>(String boxName) async {
+    // Never reuse an already-open box instance for a different generic type.
+    // Even when `Hive.box<T>()` compiles, the underlying box may still have
+    // been opened with a different adapter context, causing runtime mismatches
+    // like `Category is not a subtype of Transaction` on writes.
+    if (Hive.isBoxOpen(boxName)) {
+      try {
+        await Hive.box(boxName).close();
+      } catch (_) {}
+    }
+
     try {
       return await Hive.openBox<T>(boxName);
     } catch (e) {
@@ -164,10 +178,64 @@ class DatabaseService {
     }
   }
 
+  static bool _isBillTransactionTypeMismatch(Object error) {
+    final msg = error.toString();
+    return msg.contains('Bill') && msg.contains('Transaction');
+  }
+
+  static bool _isCategoryTransactionTypeMismatch(Object error) {
+    final msg = error.toString();
+    return msg.contains('Category') && msg.contains('Transaction');
+  }
+
+  static Future<void> _reopenCoreBoxes() async {
+    _registerHiveAdapters();
+    try {
+      if (Hive.isBoxOpen(_transactionBoxName)) {
+        await Hive.box(_transactionBoxName).close();
+      }
+    } catch (_) {}
+    try {
+      if (Hive.isBoxOpen(_billsBoxName)) {
+        await Hive.box(_billsBoxName).close();
+      }
+    } catch (_) {}
+
+    _transactionBox = await _openTypedBoxWithRecovery<Transaction>(_transactionBoxName);
+    _billsBox = await _openTypedBoxWithRecovery<Bill>(_billsBoxName);
+  }
+
+  static Future<void> _reopenCategoryAndTransactionBoxes() async {
+    _registerHiveAdapters();
+    try {
+      if (Hive.isBoxOpen(_categoryBoxName)) {
+        await Hive.box(_categoryBoxName).close();
+      }
+    } catch (_) {}
+    try {
+      if (Hive.isBoxOpen(_transactionBoxName)) {
+        await Hive.box(_transactionBoxName).close();
+      }
+    } catch (_) {}
+
+    _categoryBox = await _openTypedBoxWithRecovery<Category>(_categoryBoxName);
+    _transactionBox = await _openTypedBoxWithRecovery<Transaction>(_transactionBoxName);
+  }
+
   // Bill operations
   static Future<void> addBill(Bill bill) async {
-    await _billsBox.put(bill.id, bill);
-    await _billsBox.flush();
+    try {
+      await _billsBox.put(bill.id, bill);
+      await _billsBox.flush();
+    } catch (e) {
+      if (_isBillTransactionTypeMismatch(e)) {
+        await _reopenCoreBoxes();
+        await _billsBox.put(bill.id, bill);
+        await _billsBox.flush();
+      } else {
+        rethrow;
+      }
+    }
     billsVersion.value++;
     await _safeAwsCall(() => AwsApiService.createBill(bill), 'create bill');
   }
@@ -212,8 +280,18 @@ class DatabaseService {
   }
 
   static Future<void> updateBill(Bill bill) async {
-    await _billsBox.put(bill.id, bill);
-    await _billsBox.flush();
+    try {
+      await _billsBox.put(bill.id, bill);
+      await _billsBox.flush();
+    } catch (e) {
+      if (_isBillTransactionTypeMismatch(e)) {
+        await _reopenCoreBoxes();
+        await _billsBox.put(bill.id, bill);
+        await _billsBox.flush();
+      } else {
+        rethrow;
+      }
+    }
     billsVersion.value++;
     await _safeAwsCall(() => AwsApiService.updateBill(bill), 'update bill');
   }
@@ -272,16 +350,17 @@ class DatabaseService {
   }
 
   static Future<void> updateTransaction(Transaction transaction) async {
+    final toPersist = transaction.copyWith(updatedAt: DateTime.now());
     // Capture previous value so we can update occurrence status if bill linkage
     // changed or if amount/date was edited.
     final Transaction? previous = _transactionBox.get(transaction.id);
 
-    await _transactionBox.put(transaction.id, transaction);
+    await _transactionBox.put(toPersist.id, toPersist);
     // Ensure the transaction box is flushed so readers (UI/listeners)
     // observe the updated value when transactionsVersion is incremented.
     await _transactionBox.flush();
     transactionsVersion.value++;
-    await _safeAwsCall(() => AwsApiService.updateTransaction(transaction), 'update transaction');
+    await _safeAwsCall(() => AwsApiService.updateTransaction(toPersist), 'update transaction');
 
     // Keep bill occurrence paid/partial/unpaid state synchronized whenever a
     // linked payment transaction is edited from any screen.
@@ -290,8 +369,8 @@ class DatabaseService {
       if (previous?.billId != null && previous!.billId!.isNotEmpty) {
         affectedBillIds.add(previous.billId!);
       }
-      if (transaction.billId != null && transaction.billId!.isNotEmpty) {
-        affectedBillIds.add(transaction.billId!);
+      if (toPersist.billId != null && toPersist.billId!.isNotEmpty) {
+        affectedBillIds.add(toPersist.billId!);
       }
 
       for (final billId in affectedBillIds) {
@@ -324,8 +403,8 @@ class DatabaseService {
         if (previous?.billId == billId) {
           addOccSeed(previous!.occurrenceDate, previous.date, previous.description);
         }
-        if (transaction.billId == billId) {
-          addOccSeed(transaction.occurrenceDate, transaction.date, transaction.description);
+        if (toPersist.billId == billId) {
+          addOccSeed(toPersist.occurrenceDate, toPersist.date, toPersist.description);
         }
 
         for (final t in allTx) {
@@ -544,17 +623,34 @@ class DatabaseService {
   }
 
   static Future<void> _initializeDefaultData() async {
-    // Initialize default categories if empty
     if (_categoryBox.isEmpty) {
       for (final category in DefaultCategories.expenseCategories) {
-        await _categoryBox.put(category.id, category);
+        final fresh = Category(
+          name: category.name,
+          iconCodePoint: category.iconCodePoint,
+          colorValue: category.colorValue,
+          isDefault: category.isDefault,
+          budgetLimit: category.budgetLimit,
+          image: category.image,
+          type: category.type,
+        );
+        await _categoryBox.put(fresh.id, fresh);
       }
+
       for (final category in DefaultCategories.incomeCategories) {
-        await _categoryBox.put(category.id, category);
+        final fresh = Category(
+          name: category.name,
+          iconCodePoint: category.iconCodePoint,
+          colorValue: category.colorValue,
+          isDefault: category.isDefault,
+          budgetLimit: category.budgetLimit,
+          image: category.image,
+          type: category.type,
+        );
+        await _categoryBox.put(fresh.id, fresh);
       }
     }
 
-    // Initialize default account if empty
     if (_accountBox.isEmpty) {
       final defaultAccount = Account(
         name: 'Cash',
@@ -596,22 +692,45 @@ class DatabaseService {
 
   // Category operations
   static Future<String> addCategory(Category category) async {
-    await _categoryBox.put(category.id, category);
-    await _categoryBox.flush();
+    try {
+      await _categoryBox.put(category.id, category);
+      await _categoryBox.flush();
+    } catch (e) {
+      if (_isCategoryTransactionTypeMismatch(e)) {
+        await _reopenCategoryAndTransactionBoxes();
+        await _categoryBox.put(category.id, category);
+        await _categoryBox.flush();
+      } else {
+        rethrow;
+      }
+    }
     categoriesVersion.value++;
+    await _safeAwsCall(() => AwsApiService.createCategory(category), 'create category');
     return category.id;
   }
 
   static Future<void> updateCategory(Category category) async {
-    await _categoryBox.put(category.id, category);
-    await _categoryBox.flush();
+    try {
+      await _categoryBox.put(category.id, category);
+      await _categoryBox.flush();
+    } catch (e) {
+      if (_isCategoryTransactionTypeMismatch(e)) {
+        await _reopenCategoryAndTransactionBoxes();
+        await _categoryBox.put(category.id, category);
+        await _categoryBox.flush();
+      } else {
+        rethrow;
+      }
+    }
   categoriesVersion.value++;
+    await _safeAwsCall(() => AwsApiService.updateCategory(category), 'update category');
   }
 
   static Future<void> deleteCategory(String id) async {
     await _categoryBox.delete(id);
     await _categoryBox.flush();
   categoriesVersion.value++;
+    await _safeAwsCall(() => AwsApiService.deleteCategory(id), 'delete category');
   }
 
   static List<Category> getAllCategories() {

@@ -2,8 +2,10 @@
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import 'dart:convert';
 import '../services/database_service.dart';
+import '../services/lookups_state.dart';
 import '../models/transaction.dart';
 import '../theme/app_theme.dart';
 import 'add_transaction_screen.dart';
@@ -732,7 +734,20 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   }
 
   Widget _buildTransactionItem(Transaction transaction, {double? runningBalance}) {
+    final lookupsState = context.watch<LookupsState>();
     final category = DatabaseService.getCategoryById(transaction.categoryId);
+    final categoryText = lookupsState.categoryName(
+      transaction.categoryId,
+      fallbackName: transaction.categoryName ?? category?.name ?? 'Unknown Category',
+    );
+    final payeeText = lookupsState.payeeName(
+      transaction.payeeId,
+      fallbackName: transaction.payeeName,
+    );
+    final payerText = lookupsState.payerName(
+      transaction.payerId,
+      fallbackName: transaction.payerName,
+    );
     // If transaction has splits, build a combined category string
     String categoryDisplay;
     if (transaction.splitsJson != null && transaction.splitsJson!.trim().isNotEmpty) {
@@ -744,17 +759,20 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             final cid = s['categoryId']?.toString();
             final amt = s['amount'];
             final c = cid != null ? DatabaseService.getCategoryById(cid) : null;
-            final name = c?.name ?? (cid ?? 'Unknown');
+            final name = lookupsState.categoryName(
+              cid,
+              fallbackName: c?.name ?? cid ?? 'Unknown',
+            );
             final amountStr = amt is num ? _currencyFormat.format(amt.toDouble()) : amt?.toString() ?? '';
             parts.add('$name ${amountStr}');
           }
         }
         categoryDisplay = parts.join(', ');
       } catch (_) {
-        categoryDisplay = category?.name ?? 'Unknown Category';
+        categoryDisplay = categoryText;
       }
     } else {
-      categoryDisplay = category?.name ?? 'Unknown Category';
+      categoryDisplay = categoryText;
     }
     
     // Calculate running balance if viewing a specific account and no
@@ -888,9 +906,17 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                           Builder(
                             builder: (context) {
                               final isPayment = transaction.description.toLowerCase().startsWith('payment for ');
-                              final displayTitle = isPayment 
-                                ? _extractPayeeName(transaction.description)
-                                : transaction.description;
+                              final fallbackCounterparty =
+                                  transaction.type == TransactionType.expense
+                                      ? payeeText
+                                      : payerText;
+                              final baseTitle = isPayment
+                                  ? _extractPayeeName(transaction.description)
+                                  : transaction.description;
+                              final displayTitle =
+                                  (baseTitle.trim().isEmpty || baseTitle.trim().toLowerCase() == 'transaction')
+                                      ? (fallbackCounterparty.isEmpty ? baseTitle : fallbackCounterparty)
+                                      : baseTitle;
                               return Text(
                                 displayTitle,
                                 style: Theme.of(context).textTheme.titleMedium?.copyWith(

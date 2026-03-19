@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import '../models/bill.dart';
 import '../models/transaction.dart';
@@ -8,6 +9,7 @@ import 'add_transaction_screen.dart';
 import '../models/account.dart';
 import '../models/category.dart';
 import '../services/database_service.dart';
+import '../services/lookups_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/splits_editor.dart';
 import '../utils/split_utils.dart';
@@ -218,6 +220,14 @@ class _PayBillScreenState extends State<PayBillScreen> {
       final formattedDate = DateFormat('MM/dd/yyyy').format(widget.occurrenceDate);
       final desc = 'Payment for $billName ($formattedDate)';
 
+        final lookupsState = context.read<LookupsState>();
+        final categoryLookup = widget.bill.categoryId != null
+          ? lookupsState.categoriesById[widget.bill.categoryId!]
+          : null;
+        final payeeLookup = widget.bill.payeeId != null
+          ? lookupsState.payeesById[widget.bill.payeeId!]
+          : null;
+
       // Use only the user-provided notes for the transaction. Do not inject account info.
       final userNote = _notesController.text.trim();
       final String? finalNote = userNote.isNotEmpty ? userNote : null;
@@ -227,11 +237,18 @@ class _PayBillScreenState extends State<PayBillScreen> {
         id: const Uuid().v4(),
         amount: amount,
         categoryId: widget.bill.categoryId ?? '',
+        categoryName: categoryLookup?.name
+          ?? (widget.bill.categoryId != null
+            ? DatabaseService.getCategoryById(widget.bill.categoryId!)?.name
+            : null),
         type: _isRefund ? TransactionType.income : (widget.bill.type == BillType.income ? TransactionType.income : TransactionType.expense),
         description: desc,
         date: _paymentDate,
+        updatedAt: DateTime.now(),
         note: finalNote,
         accountId: _selectedAccountId,
+        payeeId: widget.bill.payeeId,
+        payeeName: payeeLookup?.name ?? billName,
         billId: widget.bill.id,
         occurrenceDate: widget.occurrenceDate,
   splitsJson: (_useSplits && _splits.isNotEmpty) ? jsonEncode(_splits) : null,
@@ -451,10 +468,13 @@ class _PayBillScreenState extends State<PayBillScreen> {
                             category.displayEmoji!,
                             style: TextStyle(fontSize: 24, color: category.color),
                           )
-                        : Icon(
-                            category.icon,
-                            color: category.color,
-                            size: 24,
+                        : Container(
+                            width: 12,
+                            height: 12,
+                            decoration: BoxDecoration(
+                              color: category.color,
+                              shape: BoxShape.circle,
+                            ),
                           ),
                   )
                 else

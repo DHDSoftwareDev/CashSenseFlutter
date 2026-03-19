@@ -11,6 +11,7 @@ import '../services/biometric_auth_service.dart';
 import '../services/push_token_service.dart';
 import '../services/remote_sync_service.dart';
 import '../providers/user_session_controller.dart';
+import '../services/lookups_state.dart';
 import 'verification_screen.dart';
 import 'signup_screen.dart';
 import 'dashboard_screen.dart';
@@ -71,10 +72,16 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       } catch (_) {}
 
+      final lookupsState = context.read<LookupsState>();
+      try {
+        await lookupsState.loadFromLocal();
+      } catch (_) {}
+
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => MainNavigationScreen(key: mainNavKey)),
       );
+      lookupsState.syncRemote().catchError((_) {});
     } catch (_) {}
   }
 
@@ -117,6 +124,12 @@ class _LoginScreenState extends State<LoginScreen> {
           await PushTokenService.registerDeviceOnLogin();
         } catch (_) {}
         await RemoteSyncService.syncUserDataOnLogin();
+
+        final lookupsState = context.read<LookupsState>();
+        try {
+          await lookupsState.loadFromLocal();
+        } catch (_) {}
+
         // Login successful — go to dashboard
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Login successful!')),
@@ -125,6 +138,7 @@ class _LoginScreenState extends State<LoginScreen> {
           context,
           MaterialPageRoute(builder: (_) => MainNavigationScreen(key: mainNavKey)),
         );
+        lookupsState.syncRemote().catchError((_) {});
       } else if (result.nextStep.signInStep == AuthSignInStep.confirmSignUp) {
         // User needs to verify email
         Navigator.pushReplacement(

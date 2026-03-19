@@ -24,23 +24,28 @@ class TransactionAdapter extends TypeAdapter<Transaction> {
       description: fields[4] as String,
       date: fields[5] as DateTime,
       createdAt: fields[9] as DateTime?,
+      updatedAt: fields[21] as DateTime?,
       note: fields[6] as String?,
       accountId: fields[7] as String?,
       cleared: fields[8] as bool?,
-      isArchived: fields[10] as bool? ?? false,
+      isArchived: fields[10] as bool,
       payeeId: fields[11] as String?,
       payerId: fields[12] as String?,
       billId: fields[13] as String?,
       occurrenceDate: fields[14] as DateTime?,
       splitsJson: fields[15] as String?,
-      showInReports: fields[16] as bool? ?? true,
+      showInReports: fields[16] as bool,
+      hideFromCalendarDashboard: fields[17] as bool,
+      categoryName: fields[18] as String?,
+      payeeName: fields[19] as String?,
+      payerName: fields[20] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, Transaction obj) {
     writer
-      ..writeByte(17)
+      ..writeByte(22)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -74,7 +79,17 @@ class TransactionAdapter extends TypeAdapter<Transaction> {
       ..writeByte(15)
       ..write(obj.splitsJson)
       ..writeByte(16)
-      ..write(obj.showInReports);
+      ..write(obj.showInReports)
+      ..writeByte(17)
+      ..write(obj.hideFromCalendarDashboard)
+      ..writeByte(18)
+      ..write(obj.categoryName)
+      ..writeByte(19)
+      ..write(obj.payeeName)
+      ..writeByte(20)
+      ..write(obj.payerName)
+      ..writeByte(21)
+      ..write(obj.updatedAt);
   }
 
   @override
