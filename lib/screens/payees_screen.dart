@@ -64,7 +64,6 @@ class _PayeesScreenState extends State<PayeesScreen> {
                 tooltip: 'Add Category',
                 onPressed: () async {
                   final nameController = TextEditingController();
-                  final imageController = TextEditingController();
                   Color selectedColor = const Color(0xFF607D8B);
                   final result = await showDialog<Category?>(
                     context: parentContext,
@@ -78,23 +77,6 @@ class _PayeesScreenState extends State<PayeesScreen> {
                               controller: nameController,
                               textCapitalization: TextCapitalization.sentences,
                               decoration: const InputDecoration(labelText: 'Name'),
-                            ),
-                            const SizedBox(height: 8),
-                            TextField(
-                              controller: imageController,
-                              textCapitalization: TextCapitalization.sentences,
-                              decoration: const InputDecoration(
-                                labelText: 'Image (optional)',
-                                hintText: 'Image',
-                              ),
-                              onChanged: (v) {
-                                final chars = v.characters;
-                                final first = chars.isEmpty ? '' : chars.first;
-                                if (first != v) {
-                                  imageController.text = first;
-                                  imageController.selection = TextSelection.collapsed(offset: first.length);
-                                }
-                              },
                             ),
                             const SizedBox(height: 8),
                             GestureDetector(
@@ -140,7 +122,6 @@ class _PayeesScreenState extends State<PayeesScreen> {
                                   iconCodePoint: '0xe85d',
                                   colorValue: selectedColor.value.toString(),
                                   type: isPayeeChoice ? CategoryType.expense : CategoryType.income,
-                                  image: imageController.text.trim().isEmpty ? null : imageController.text.trim(),
                                 );
                                 Navigator.pop(ctx, newCat);
                               }
@@ -263,7 +244,6 @@ class _PayeesScreenState extends State<PayeesScreen> {
     // Type is determined by _showPayee
     String? selectedCategoryId;
     String? categoryError;
-     Color selectedColor = const Color(0xFF607D8B);
 
     showDialog(
       context: context,
@@ -311,34 +291,6 @@ class _PayeesScreenState extends State<PayeesScreen> {
               ] else ...[
                 const SizedBox.shrink(),
               ],
-               const SizedBox(height: 8),
-               GestureDetector(
-                 onTap: () async {
-                   final picked = await showAppColorPicker(
-                     context: context,
-                     initialColor: selectedColor,
-                     title: 'Pick Payee/Payer Color',
-                   );
-                   if (picked != null) setState(() => selectedColor = picked);
-                 },
-                 child: Row(
-                   children: [
-                     Container(
-                       width: 20,
-                       height: 20,
-                       decoration: BoxDecoration(
-                         color: selectedColor,
-                         borderRadius: BorderRadius.circular(4),
-                         border: Border.all(color: Colors.black26),
-                       ),
-                     ),
-                     const SizedBox(width: 12),
-                     const Text('Color'),
-                     const Spacer(),
-                     const Icon(Icons.color_lens_outlined, size: 20),
-                   ],
-                 ),
-               ),
             ],
           ),
           actions: [
@@ -359,7 +311,6 @@ class _PayeesScreenState extends State<PayeesScreen> {
                 'name': name,
                 'type': _showPayee ? 'payee' : 'payer',
                 'categoryId': selectedCategoryId,
-                 'color': selectedColor.value.toString(),
               };
               await DatabaseService.addPayee(newPayee);
               Navigator.pop(context);
@@ -563,7 +514,6 @@ class _PayeesScreenState extends State<PayeesScreen> {
     // Start with no preselected category so the dropdown shows the hint; keep payee's existing selection if valid
     String? selectedCategoryId = payee['categoryId'];
     String? categoryError;
-     Color selectedColor = Color(int.tryParse(payee['color'] ?? '') ?? 0xFF607D8B);
 
     await showDialog(
       context: context,
@@ -619,34 +569,6 @@ class _PayeesScreenState extends State<PayeesScreen> {
               ] else ...[
                 const SizedBox.shrink(),
               ],
-               const SizedBox(height: 8),
-               GestureDetector(
-                 onTap: () async {
-                   final picked = await showAppColorPicker(
-                     context: context,
-                     initialColor: selectedColor,
-                     title: 'Pick Payee/Payer Color',
-                   );
-                   if (picked != null) setState(() => selectedColor = picked);
-                 },
-                 child: Row(
-                   children: [
-                     Container(
-                       width: 20,
-                       height: 20,
-                       decoration: BoxDecoration(
-                         color: selectedColor,
-                         borderRadius: BorderRadius.circular(4),
-                         border: Border.all(color: Colors.black26),
-                       ),
-                     ),
-                     const SizedBox(width: 12),
-                     const Text('Color'),
-                     const Spacer(),
-                     const Icon(Icons.color_lens_outlined, size: 20),
-                   ],
-                 ),
-               ),
             ],
           ),
           actions: [
@@ -665,8 +587,7 @@ class _PayeesScreenState extends State<PayeesScreen> {
               final updated = Map<String, dynamic>.from(payee)
                 ..['name'] = name
                 ..['type'] = isPayeeChoice ? 'payee' : 'payer'
-                ..['categoryId'] = selectedCategoryId
-                ..['color'] = selectedColor.value.toString();
+                ..['categoryId'] = selectedCategoryId;
               await DatabaseService.updatePayee(updated);
               Navigator.pop(context);
               _loadPayees();

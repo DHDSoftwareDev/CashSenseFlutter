@@ -48,6 +48,12 @@ post_install do |installer|
     flutter_additional_ios_build_settings(target)
     target.build_configurations.each do |config|
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
+      if target.name == 'flutter_web_auth'
+        # Xcode 26 can fail to produce *.swiftconstvalues for this legacy pod,
+        # causing ExtractAppIntentsMetadata to halt archive builds.
+        config.build_settings['SWIFT_VERSION'] = '5.9'
+        config.build_settings['EXTRACT_APP_INTENTS_METADATA'] = 'NO'
+      end
     end
   end
 end

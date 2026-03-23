@@ -32,7 +32,9 @@ class PayBillScreen extends StatefulWidget {
 class _PayBillScreenState extends State<PayBillScreen> {
   final _formKey = GlobalKey<FormState>();
   final _amountController = TextEditingController();
+  final _paymentForController = TextEditingController();
   final _notesController = TextEditingController();
+  String? _lastAutoPaymentFor;
   late DateTime _paymentDate;
   String? _selectedAccountId;
   List<Account> _accounts = [];
@@ -58,10 +60,10 @@ class _PayBillScreenState extends State<PayBillScreen> {
     // Use setState so the UI reliably updates after init
     setState(() {
       _amountController.text = amountDue > 0 ? amountDue.toStringAsFixed(2) : widget.bill.amount.toStringAsFixed(2);
-      // Autofill notes field with bill description if available
-      _notesController.text = widget.bill.description?.trim() ?? '';
+      _notesController.text = '';
       _selectedAccountId = widget.bill.accountId;
     });
+    _refreshAutoPaymentFor(force: true);
     // Initialize empty splits for payment (user may add splits before saving)
   _splits = [];
   _useSplits = _splits.isNotEmpty;
@@ -159,9 +161,54 @@ class _PayBillScreenState extends State<PayBillScreen> {
       ..sort((a, b) => b.date.compareTo(a.date)); // Sort by date, newest first
   }
 
+  String _resolveCounterpartyName() {
+    String counterparty = widget.bill.description?.trim() ?? '';
+    if (widget.bill.payeeId != null) {
+      final payees = DatabaseService.getAllPayees();
+      final p = payees.firstWhere(
+        (p) => p['id'] == widget.bill.payeeId,
+        orElse: () => <String, dynamic>{},
+      );
+      final payeeName = p['name']?.toString().trim() ?? '';
+      if (payeeName.isNotEmpty) {
+        counterparty = payeeName;
+      }
+    }
+    return counterparty.isNotEmpty ? counterparty : 'Unknown';
+  }
+
+  String _resolveCategoryName() {
+    final categoryId = widget.bill.categoryId?.trim();
+    if (categoryId != null && categoryId.isNotEmpty) {
+      final category = DatabaseService.getCategoryById(categoryId);
+      final name = category?.name.trim() ?? '';
+      if (name.isNotEmpty) return name;
+    }
+    return 'Uncategorized';
+  }
+
+  String _buildAutoPaymentFor({String? counterpartyName}) {
+    final formattedDate = DateFormat('MM/dd/yy').format(widget.occurrenceDate);
+    final counterparty = (counterpartyName ?? _resolveCounterpartyName()).trim();
+    final category = _resolveCategoryName().trim();
+    return '$formattedDate $counterparty $category';
+  }
+
+  void _refreshAutoPaymentFor({bool force = false}) {
+    final current = _paymentForController.text.trim();
+    final canOverwrite =
+        force || current.isEmpty || (_lastAutoPaymentFor != null && current == _lastAutoPaymentFor);
+    if (!canOverwrite) return;
+
+    final autoText = _buildAutoPaymentFor();
+    _paymentForController.text = autoText;
+    _lastAutoPaymentFor = autoText;
+  }
+
   @override
   void dispose() {
     _amountController.dispose();
+    _paymentForController.dispose();
     _notesController.dispose();
     DatabaseService.transactionsVersion.removeListener(_onTransactionsChanged);
     super.dispose();
@@ -207,18 +254,14 @@ class _PayBillScreenState extends State<PayBillScreen> {
         return;
       }
       // Build description with unique format: "Payment for (BillName) (DueDate)"
-      String billName = widget.bill.description ?? 'Bill Payment';
-      if (widget.bill.payeeId != null) {
-        final payees = DatabaseService.getAllPayees();
-        final p = payees.firstWhere(
-          (p) => p['id'] == widget.bill.payeeId,
-          orElse: () => <String, dynamic>{},
-        );
-        if (p.containsKey('name')) billName = p['name'] as String;
-      }
+        final counterpartyName = _resolveCounterpartyName();
       
       final formattedDate = DateFormat('MM/dd/yyyy').format(widget.occurrenceDate);
-      final desc = 'Payment for $billName ($formattedDate)';
+        final paymentForInput = _paymentForController.text.trim();
+        final paymentForValue = paymentForInput.isNotEmpty
+          ? paymentForInput
+          : _buildAutoPaymentFor(counterpartyName: counterpartyName);
+        final desc = 'Payment for $paymentForValue';
 
         final lookupsState = context.read<LookupsState>();
         final categoryLookup = widget.bill.categoryId != null
@@ -246,9 +289,10 @@ class _PayBillScreenState extends State<PayBillScreen> {
         date: _paymentDate,
         updatedAt: DateTime.now(),
         note: finalNote,
+        paymentFor: paymentForValue,
         accountId: _selectedAccountId,
         payeeId: widget.bill.payeeId,
-        payeeName: payeeLookup?.name ?? billName,
+        payeeName: payeeLookup?.name ?? counterpartyName,
         billId: widget.bill.id,
         occurrenceDate: widget.occurrenceDate,
   splitsJson: (_useSplits && _splits.isNotEmpty) ? jsonEncode(_splits) : null,
@@ -603,6 +647,7 @@ class _PayBillScreenState extends State<PayBillScreen> {
                         }
                         // Prepare a user-visible note by stripping internal markers and pair tokens
                         String displayNote = '';
+                        final displayPaymentFor = (tx.paymentFor ?? '').trim();
                         final rawNote = (tx.note ?? '').trim();
                         if (rawNote.isNotEmpty) {
                           String n = rawNote;
@@ -832,8 +877,21 @@ class _PayBillScreenState extends State<PayBillScreen> {
                                               ),
                                         ),
                                         const SizedBox(height: 6),
-                                        if (displayNote.isNotEmpty) ...[
+                                        if (displayPaymentFor.isNotEmpty) ...[
+                                          SizedBox(
+                                            width: 180,
+                                            child: Text(
+                                              'Payment for $displayPaymentFor',
+                                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                                    color: Colors.grey[700],
+                                                  ),
+                                              textAlign: TextAlign.right,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
                                           const SizedBox(height: 4),
+                                        ],
+                                        if (displayNote.isNotEmpty) ...[
                                           SizedBox(
                                             width: 160,
                                             child: Text(
@@ -1034,6 +1092,19 @@ class _PayBillScreenState extends State<PayBillScreen> {
             ),
             const Divider(),
             const SizedBox(height: 8),
+
+            TextFormField(
+              controller: _paymentForController,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: const InputDecoration(
+                labelText: 'Payment for',
+                hintText: 'Ex: 1/1/25 Aloe Road rent',
+                border: OutlineInputBorder(),
+                alignLabelWithHint: true,
+              ),
+              maxLines: 2,
+            ),
+            const SizedBox(height: 12),
 
             // Notes Field
             TextFormField(

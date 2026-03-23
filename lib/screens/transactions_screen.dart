@@ -44,9 +44,25 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     // Restore hide/show cleared preference
     _showCleared = DatabaseService.getSetting<bool>('transactionsShowCleared', true) ?? true;
     _loadTransactions();
+    _runLegacyCalendarHideMigrationIfNeeded();
     DatabaseService.transactionsVersion.addListener(_onTransactionsChanged);
     DatabaseService.accountsVersion.addListener(_onAccountsChanged);
     DatabaseService.categoriesVersion.addListener(_onCategoriesChanged);
+  }
+
+  Future<void> _runLegacyCalendarHideMigrationIfNeeded() async {
+    if (widget.accountId == null || widget.accountId!.isEmpty) return;
+    try {
+      final updated = await DatabaseService.migrateLegacyAccountTransactionsHiddenFromCalendar();
+      final accountUpdated = await DatabaseService.hideTransactionsForAccountFromDashboard(widget.accountId!);
+      if (updated > 0 && mounted) {
+        _loadTransactions();
+      } else if (accountUpdated > 0 && mounted) {
+        _loadTransactions();
+      }
+    } catch (_) {
+      // Non-blocking migration: ignore failures and keep screen usable.
+    }
   }
 
   void _onCategoriesChanged() {
@@ -735,11 +751,16 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
   Widget _buildTransactionItem(Transaction transaction, {double? runningBalance}) {
     final lookupsState = context.watch<LookupsState>();
-    final category = DatabaseService.getCategoryById(transaction.categoryId);
-    final categoryText = lookupsState.categoryName(
-      transaction.categoryId,
-      fallbackName: transaction.categoryName ?? category?.name ?? 'Unknown Category',
-    );
+    final normalizedCategoryId = transaction.categoryId.trim();
+    final category = normalizedCategoryId.isEmpty
+        ? null
+        : DatabaseService.getCategoryById(normalizedCategoryId);
+    final categoryText = (category?.name != null && category!.name.trim().isNotEmpty)
+        ? category.name
+        : lookupsState.categoryName(
+            normalizedCategoryId,
+            fallbackName: transaction.categoryName ?? 'Unknown Category',
+          );
     final payeeText = lookupsState.payeeName(
       transaction.payeeId,
       fallbackName: transaction.payeeName,
@@ -756,13 +777,18 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         final parts = <String>[];
         for (final s in splits) {
           if (s is Map) {
-            final cid = s['categoryId']?.toString();
+            final cidRaw = s['categoryId']?.toString();
+            final cid = cidRaw?.trim();
             final amt = s['amount'];
-            final c = cid != null ? DatabaseService.getCategoryById(cid) : null;
-            final name = lookupsState.categoryName(
-              cid,
-              fallbackName: c?.name ?? cid ?? 'Unknown',
-            );
+            final c = (cid != null && cid.isNotEmpty)
+                ? DatabaseService.getCategoryById(cid)
+                : null;
+            final name = (c?.name != null && c!.name.trim().isNotEmpty)
+                ? c.name
+                : lookupsState.categoryName(
+                    cid,
+                    fallbackName: cid ?? 'Unknown',
+                  );
             final amountStr = amt is num ? _currencyFormat.format(amt.toDouble()) : amt?.toString() ?? '';
             parts.add('$name ${amountStr}');
           }
@@ -773,6 +799,22 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       }
     } else {
       categoryDisplay = categoryText;
+    }
+
+    String paymentForDisplay = '';
+    final rawPaymentFor = (transaction.paymentFor ?? '').trim();
+    if (rawPaymentFor.isNotEmpty) {
+      paymentForDisplay = rawPaymentFor;
+      final cat = categoryText.trim();
+      if (cat.isNotEmpty) {
+        final lowerValue = paymentForDisplay.toLowerCase();
+        final lowerCategorySuffix = ' ${cat.toLowerCase()}';
+        if (lowerValue.endsWith(lowerCategorySuffix)) {
+          paymentForDisplay = paymentForDisplay
+              .substring(0, paymentForDisplay.length - lowerCategorySuffix.length)
+              .trim();
+        }
+      }
     }
     
     // Calculate running balance if viewing a specific account and no
@@ -893,14 +935,13 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Always show date above the transaction name (MM/dd/yyyy)
                           Text(
-                            DateFormat('MM/dd/yyyy').format(transaction.date),
+                            DateFormat('MM/dd/yy').format(transaction.date),
                             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                               color: Colors.grey[600],
                             ),
                           ),
-                          const SizedBox(height: 6),
+                          const SizedBox(height: 4),
                           // Extract clean payee/payer name for payment transactions,
                           // removing "Payment for" prefix and trailing date
                           Builder(
@@ -910,9 +951,19 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                   transaction.type == TransactionType.expense
                                       ? payeeText
                                       : payerText;
-                              final baseTitle = isPayment
-                                  ? _extractPayeeName(transaction.description)
+                              var baseTitle = isPayment
+                                  ? (fallbackCounterparty.isNotEmpty
+                                      ? fallbackCounterparty
+                                      : _extractPayeeName(transaction.description))
                                   : transaction.description;
+                              baseTitle = baseTitle.replaceFirst(
+                                RegExp(r'^\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\s+'),
+                                '',
+                              );
+                              final cat = categoryText.trim();
+                              if (cat.isNotEmpty && baseTitle.toLowerCase().endsWith(' ${cat.toLowerCase()}')) {
+                                baseTitle = baseTitle.substring(0, baseTitle.length - cat.length - 1).trim();
+                              }
                               final displayTitle =
                                   (baseTitle.trim().isEmpty || baseTitle.trim().toLowerCase() == 'transaction')
                                       ? (fallbackCounterparty.isEmpty ? baseTitle : fallbackCounterparty)
@@ -934,6 +985,16 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                               color: Colors.grey[700],
                             ),
                           ),
+                          if (paymentForDisplay.isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              'Payment for $paymentForDisplay',
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Colors.grey[600],
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -955,7 +1016,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                           Builder(
                             builder: (ctx) {
                               String raw = transaction.note!;
-                              final lower = raw.toLowerCase();
+                              String lower = raw.toLowerCase();
                               final isTransfer = lower.startsWith('__transfer_manual__') || lower.startsWith('__transfer_bill__');
                               // Only show note for transfers if user entered a note (not just marker)
                               if (isTransfer && (raw.trim() == '__transfer_manual__' || raw.trim() == '__transfer_bill__')) {
@@ -964,16 +1025,16 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                               // Remove transfer marker prefix if present
                               if (isTransfer) {
                                 raw = raw.replaceFirst(RegExp(r'^__transfer_(manual|bill)__'), '').trim();
+                                lower = raw.toLowerCase();
                               }
+                              // Remove hide marker used for legacy dashboard filtering.
+                              raw = raw.replaceAll(RegExp(r'__hide_from_calendar__', caseSensitive: false), '').trim();
+                              lower = raw.toLowerCase();
                               // Remove account: prefix if present
                               if (lower.startsWith('account:')) {
-                                final parts = raw.split('—');
-                                if (parts.length > 1) {
-                                  raw = parts.sublist(1).join('—').trim();
-                                } else {
-                                  final idx = raw.indexOf(':');
-                                  if (idx >= 0 && idx + 1 < raw.length) raw = raw.substring(idx + 1).trim();
-                                }
+                                final after = raw.substring('account:'.length).trim();
+                                final parts = after.split(RegExp(r'\s*[—–-]\s*'));
+                                raw = parts.length > 1 ? parts.sublist(1).join(' — ').trim() : '';
                               }
                               // Remove any leftover _transfer or _bill_ markers
                               raw = raw.replaceAll(RegExp(r'_transfer|_bill_', caseSensitive: false), '').trim();

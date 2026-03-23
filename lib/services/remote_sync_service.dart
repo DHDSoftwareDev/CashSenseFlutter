@@ -29,8 +29,12 @@ class RemoteSyncService {
 
       await _refreshSubscriptionFromApiUser();
 
-      // Always allow basic sync
-      debugPrint('Remote sync allowed for signed-in user');
+      final plan = DatabaseService.subscriptionVersion.value;
+      if (plan == 'Free') {
+        debugPrint('Remote sync skipped: premium subscription required');
+        return;
+      }
+      debugPrint('Remote sync allowed for premium user ($plan)');
 
       var accounts = await safeFetch(AwsApiService.fetchAccounts);
       var bills = await safeFetch(AwsApiService.fetchBills);
@@ -241,12 +245,14 @@ class RemoteSyncService {
       for (final c in remoteCategories) c.id: c,
     };
 
-    void ensureCategoryId(String? id, CategoryType type) {
+    void ensureCategoryId(String? id, CategoryType type, {String? preferredName}) {
       final value = (id ?? '').trim();
       if (value.isEmpty || byId.containsKey(value)) return;
+      final name = (preferredName ?? '').trim();
+      final fallbackName = _looksLikeOpaqueId(value) ? 'Unknown Category' : value;
       byId[value] = Category(
         id: value,
-        name: value,
+        name: name.isEmpty ? fallbackName : name,
         iconCodePoint: '0xe88a',
         colorValue: '0xFF607D8B',
         isDefault: false,
@@ -255,7 +261,11 @@ class RemoteSyncService {
     }
 
     for (final tx in transactions) {
-      ensureCategoryId(tx.categoryId, tx.type == TransactionType.income ? CategoryType.income : CategoryType.expense);
+      ensureCategoryId(
+        tx.categoryId,
+        tx.type == TransactionType.income ? CategoryType.income : CategoryType.expense,
+        preferredName: tx.categoryName,
+      );
     }
 
     for (final bill in bills) {
@@ -265,6 +275,17 @@ class RemoteSyncService {
     }
 
     return byId.values.toList();
+  }
+
+  static bool _looksLikeOpaqueId(String value) {
+    final v = value.trim();
+    if (v.isEmpty) return false;
+    final uuid = RegExp(
+      r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+    );
+    if (uuid.hasMatch(v)) return true;
+    final longToken = RegExp(r'^[A-Za-z0-9_-]{16,}$');
+    return longToken.hasMatch(v);
   }
 
   static Map<String, List<Map<String, dynamic>>> _inferContactsFromTransactions(

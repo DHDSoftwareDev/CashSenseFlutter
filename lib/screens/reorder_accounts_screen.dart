@@ -19,6 +19,13 @@ class _ReorderAccountsScreenState extends State<ReorderAccountsScreen> {
   final Set<String> _expandedTypes = {};
   int _modeIndex = 0; // 0 = accounts, 1 = types, 2 = institutions
 
+  String? _institutionLabel(Account account) {
+    final label = (account.institution ?? account.description ?? '').trim();
+    return label.isEmpty ? null : label;
+  }
+
+  String? _institutionKey(Account account) => _institutionLabel(account);
+
   @override
   void initState() {
     super.initState();
@@ -90,8 +97,8 @@ class _ReorderAccountsScreenState extends State<ReorderAccountsScreen> {
       }
       for (final a in _accounts) {
         // Only include accounts that have an explicit user-provided institution
-        if (a.description != null && a.description!.trim().isNotEmpty) {
-          final key = a.description!.trim();
+        final key = _institutionKey(a);
+        if (key != null) {
           if (!seen.contains(key)) {
             seen.add(key);
             merged.add(key);
@@ -100,12 +107,12 @@ class _ReorderAccountsScreenState extends State<ReorderAccountsScreen> {
       }
       _institutionOrder = merged;
     } else {
-      // Build unique institution keys in encountered order (use description or 'Unknown')
+      // Build unique institution keys in encountered order.
       final seen = <String>{};
       final list = <String>[];
       for (final a in _accounts) {
-        if (a.description != null && a.description!.trim().isNotEmpty) {
-          final key = a.description!.trim();
+        final key = _institutionKey(a);
+        if (key != null) {
           if (!seen.contains(key)) {
             seen.add(key);
             list.add(key);
@@ -135,11 +142,9 @@ class _ReorderAccountsScreenState extends State<ReorderAccountsScreen> {
       for (final inst in _institutionOrder) {
         for (final a in allAccounts) {
           // Only match accounts that have an explicit, non-empty institution
-          if (a.description != null && a.description!.trim().isNotEmpty) {
-            final key = a.description!.trim();
-            if (key.toLowerCase() == inst.toLowerCase()) {
-              newAccountOrder.add(a.id);
-            }
+          final key = _institutionKey(a);
+          if (key != null && key.toLowerCase() == inst.toLowerCase()) {
+            newAccountOrder.add(a.id);
           }
         }
       }
@@ -260,7 +265,7 @@ class _ReorderAccountsScreenState extends State<ReorderAccountsScreen> {
                                       .where((a) => a.typeDisplayName == t)
                                       .map((a) => ListTile(
                                             title: Text(a.name),
-                                            subtitle: Text(a.description ?? ''),
+                                          subtitle: Text(_institutionLabel(a) ?? ''),
                                             trailing: Text(formatCurrency(a.balance)),
                                           ))
                                       .toList(),
@@ -314,7 +319,7 @@ class _ReorderAccountsScreenState extends State<ReorderAccountsScreen> {
                                 padding: const EdgeInsets.only(left: 16, right: 16, bottom: 12),
                                 child: Column(
                   children: _accounts
-                    .where((a) => a.description != null && a.description!.trim().isNotEmpty && a.description!.trim() == inst)
+                    .where((a) => _institutionKey(a) == inst)
                                       .map((a) => ListTile(
                                             title: Text(a.name),
                                             subtitle: Text(a.typeDisplayName),

@@ -611,30 +611,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               },
               selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
               eventLoader: (day) {
-                // Return a non-empty list when we have transactions on this day so the calendar considers it an 'event' day.
-                final start = DateTime(day.year, day.month, day.day);
-                final end = start.add(const Duration(days: 1)).subtract(const Duration(milliseconds: 1));
+                // Calendar events are bill-only on dashboard.
                 final billDay = DateTime(day.year, day.month, day.day);
-                final txs = DatabaseService.getTransactionsByDateRange(start, end)
-                    .where((t) {
-                      if (t.hideFromCalendarDashboard == true) return false;
-                      if (t.note != null && t.note!.contains('__hide_from_calendar__')) return false;
-
-                      // Hide bill-payment transactions from dashboard calendar views.
-                      if (t.billId != null && t.billId!.isNotEmpty) return false;
-
-                      // Exclude all transfers (manual or bill) from calendar dashboard
-                      final isTransfer =
-                        (t.note != null && (t.note!.contains('__transfer_manual__') || t.note!.contains('__transfer_bill__')))
-                        || t.categoryId.isEmpty
-                        || t.description.toLowerCase().contains('transfer')
-                        || (t.note != null && t.note!.toLowerCase().contains('transfer'));
-
-                      if (isTransfer) return false;
-
-                      return true;
-                    })
-                    .toList();
                 var billOcc = DatabaseService.getBillOccurrencesBetween(billDay, billDay);
                 billOcc = _dedupeBillOccurrences(billOcc);
                 
@@ -689,7 +667,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     'isPaid': isPaid,
                   });
                 }
-                return [...txs, ...updatedBillOcc];
+                return updatedBillOcc;
               },
               calendarBuilders: CalendarBuilders(
                 defaultBuilder: (context, day, focusedDay) {
@@ -908,25 +886,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   
 
   Widget _buildRecentTransactionsCard() {
-    // Retrieve and apply filters
-    final allTransactions = DatabaseService.getAllTransactions()
-      .where((t) => t.hideFromCalendarDashboard != true)
-      .toList();
-
-    List<Transaction> filtered = allTransactions;
-
-    // (Today filter removed — controlled via calendar header's Today button)
-
-    // Helper to identify manual payments from Pay Bill or Add Transaction screens
-    bool _isManualPayment(Transaction tx) {
-      if (tx.billId != null && tx.billId!.isNotEmpty) return true;
-      if (tx.hideFromCalendarDashboard) return true;
-      // Legacy fallback for older records created before the model field existed.
-      if (tx.note != null && tx.note!.contains('__hide_from_calendar__')) return true;
-      return false;
-    }
-
-    // Helper to check if a bill matches the search query
+    // Helper to check if a bill matches the search query.
     bool _billMatchesSearch(Bill bill) {
       if (_searchQuery.isEmpty) return true;
       
@@ -950,63 +910,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return searchText.contains(_searchQuery);
     }
 
-    // Helper to check if a transaction matches the search query
-    bool _transactionMatchesSearch(Transaction tx) {
-      if (_searchQuery.isEmpty) return true;
-      
-      final allPayees = DatabaseService.getAllPayees();
-      
-      String txDescription = tx.description.toLowerCase();
-      String payeeName = '';
-      String payerName = '';
-      String note = (tx.note ?? '').toLowerCase();
-      
-      // Get payee name if available
-      if (tx.payeeId != null) {
-        final payee = allPayees.firstWhere(
-          (p) => p['id'] == tx.payeeId,
-          orElse: () => <String, dynamic>{},
-        );
-        if (payee.containsKey('name')) {
-          payeeName = (payee['name'] as String).toLowerCase();
-        }
-      }
-      
-      // Get payer name if available (payers are also stored in the payees list)
-      if (tx.payerId != null) {
-        final payer = allPayees.firstWhere(
-          (p) => p['id'] == tx.payerId,
-          orElse: () => <String, dynamic>{},
-        );
-        if (payer.containsKey('name')) {
-          payerName = (payer['name'] as String).toLowerCase();
-        }
-      }
-      
-      // Check if query matches description, payee, payer, or note
-      final searchText = '$txDescription $payeeName $payerName $note';
-      return searchText.contains(_searchQuery);
-    }
-
     List<TransactionDisplayItem> recentTransactions;
+    List<Map<String, dynamic>> billOcc;
     if (_selectedDay != null) {
       final startOfSelected = DateTime(_selectedDay!.year, _selectedDay!.month, _selectedDay!.day);
-      final endOfSelected = startOfSelected.add(const Duration(days: 1)).subtract(const Duration(milliseconds: 1));
-      // Get transactions for the selected date
-      var txList = DatabaseService.getTransactionsByDateRange(startOfSelected, endOfSelected)
-        .where((tx) => tx.hideFromCalendarDashboard != true)
-        .where((tx) => !_isManualPayment(tx))
-        .toList();
-      
-      // Apply search filter to transactions
-      if (_searchQuery.isNotEmpty) {
-        txList = txList.where((tx) => _transactionMatchesSearch(tx)).toList();
-      }
-      
-      // Add recurring bill occurrences as transaction placeholders
-      var billOcc = DatabaseService.getBillOccurrencesBetween(startOfSelected, startOfSelected);
+      billOcc = DatabaseService.getBillOccurrencesBetween(startOfSelected, startOfSelected);
       billOcc = _dedupeBillOccurrences(billOcc);
-      
+
       // Apply search filter to bill occurrences
       if (_searchQuery.isNotEmpty) {
         billOcc = billOcc.where((b) {
@@ -1023,14 +933,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
           return _getOccurrencePaymentStatus(bill, occDate) != PaymentStatus.paid;
         }).toList();
       }
-      // ...existing code for billOcc and sorting...
-      // Filter out ALL transactions that are bill payments (have a billId set)
-      // regardless of whether there's a matching bill occurrence on this day
-      recentTransactions = txList.map((tx) => TransactionDisplayItem(tx)).toList();
+      recentTransactions = <TransactionDisplayItem>[];
       for (final b in billOcc) {
         final bill = b['bill'] as Bill;
-  final date = b['date'] as DateTime;
-  // ...existing code for bill types...
+        final date = b['date'] as DateTime;
         if (bill.type == BillType.transfer) {
           final fromAcc = bill.fromAccountId != null ? DatabaseService.getAccountById(bill.fromAccountId!) : null;
           final toAcc = bill.toAccountId != null ? DatabaseService.getAccountById(bill.toAccountId!) : null;
@@ -1102,9 +1008,117 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
       recentTransactions.sort((a, b) => b.transaction.date.compareTo(a.transaction.date));
     } else {
-      // Non-selected behavior: limit to 5 recent items (don't filter out future items).
-      final dashboardTxs = filtered.where((tx) => !_isManualPayment(tx)).toList();
-      recentTransactions = dashboardTxs.take(5).map((tx) => TransactionDisplayItem(tx)).toList();
+      final allBills = DatabaseService.getAllBills();
+      final now = DateTime.now();
+      DateTime start;
+      DateTime end;
+      if (allBills.isEmpty) {
+        start = DateTime(now.year, now.month, now.day);
+        end = start;
+      } else {
+        start = allBills
+            .map((b) => DateTime(b.dueDate.year, b.dueDate.month, b.dueDate.day))
+            .reduce((a, b) => a.isBefore(b) ? a : b);
+        final latestBound = allBills
+            .map((b) => b.recurrenceEndDate ?? DateTime(now.year + 10, now.month, now.day))
+            .map((d) => DateTime(d.year, d.month, d.day))
+            .reduce((a, b) => a.isAfter(b) ? a : b);
+        end = latestBound;
+      }
+      billOcc = DatabaseService.getBillOccurrencesBetween(start, end);
+      billOcc = _dedupeBillOccurrences(billOcc);
+
+      if (_searchQuery.isNotEmpty) {
+        billOcc = billOcc.where((b) {
+          final bill = b['bill'] as Bill;
+          return _billMatchesSearch(bill);
+        }).toList();
+      }
+
+      if (!_showPaidBills) {
+        billOcc = billOcc.where((b) {
+          final bill = b['bill'] as Bill;
+          final occDate = b['date'] as DateTime;
+          return _getOccurrencePaymentStatus(bill, occDate) != PaymentStatus.paid;
+        }).toList();
+      }
+
+      billOcc.sort((a, b) {
+        final ad = a['date'] as DateTime;
+        final bd = b['date'] as DateTime;
+        return ad.compareTo(bd);
+      });
+
+      recentTransactions = <TransactionDisplayItem>[];
+      for (final b in billOcc) {
+        final bill = b['bill'] as Bill;
+        final date = b['date'] as DateTime;
+        if (bill.type == BillType.transfer) {
+          final fromAcc = bill.fromAccountId != null ? DatabaseService.getAccountById(bill.fromAccountId!) : null;
+          final toAcc = bill.toAccountId != null ? DatabaseService.getAccountById(bill.toAccountId!) : null;
+          final fromName = fromAcc?.name ?? 'From account';
+          final toName = toAcc?.name ?? 'To account';
+          final desc = bill.description ?? 'Transfer from $fromName to $toName';
+          String? debitNote = 'account: $fromName';
+          if ((bill.description ?? '').isNotEmpty) debitNote = 'account: $fromName — ${bill.description}';
+          final debit = Transaction(
+            amount: bill.amount,
+            categoryId: '',
+            type: TransactionType.expense,
+            description: desc,
+            date: date,
+            note: debitNote,
+          );
+          recentTransactions.add(TransactionDisplayItem(debit, sourceBill: bill));
+          String? creditNote = 'account: $toName';
+          if ((bill.description ?? '').isNotEmpty) creditNote = 'account: $toName — ${bill.description}';
+          final credit = Transaction(
+            amount: bill.amount,
+            categoryId: '',
+            type: TransactionType.income,
+            description: desc,
+            date: date,
+            note: creditNote,
+          );
+          recentTransactions.add(TransactionDisplayItem(credit, sourceBill: bill));
+        } else {
+          String desc = bill.description ?? 'Bill';
+          if (bill.payeeId != null) {
+            final payees = DatabaseService.getAllPayees();
+            final p = payees.firstWhere((p) => p['id'] == bill.payeeId, orElse: () => <String, dynamic>{});
+            if (p.containsKey('name')) desc = p['name'] as String;
+          }
+          String? noteWithAccount;
+          final billNote = (bill.description ?? '').trim();
+          if (bill.accountId != null) {
+            final account = DatabaseService.getAccountById(bill.accountId!);
+            if (account != null) {
+              if (billNote.isNotEmpty) {
+                noteWithAccount = 'account: ${account.name} — $billNote';
+              } else {
+                noteWithAccount = 'account: ${account.name}';
+              }
+            }
+          } else if (billNote.isNotEmpty) {
+            noteWithAccount = billNote;
+          }
+          TransactionType txType = TransactionType.expense;
+          if (bill.type == BillType.income) {
+            txType = TransactionType.income;
+          } else if (bill.type == BillType.expense) {
+            txType = TransactionType.expense;
+          }
+          final placeholder = Transaction(
+            amount: bill.amount,
+            categoryId: bill.categoryId ?? '',
+            type: txType,
+            description: desc,
+            date: date,
+            note: noteWithAccount,
+          );
+          recentTransactions.add(TransactionDisplayItem(placeholder, sourceBill: bill));
+        }
+      }
     }
 
     // We want each transaction to render as its own Card (returned by _buildTransactionItem).
@@ -1120,7 +1134,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Center(
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
-                child: Text(_selectedDay != null ? 'No Bills' : 'No transactions'),
+                child: const Text('No Bills'),
               ),
             )
           else

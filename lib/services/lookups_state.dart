@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../models/lookup_item.dart';
+import 'database_service.dart';
 import 'lookups_repository.dart';
 
 class LookupsState extends ChangeNotifier {
@@ -24,6 +25,11 @@ class LookupsState extends ChangeNotifier {
   }
 
   Future<void> syncRemote() async {
+    final plan = DatabaseService.subscriptionVersion.value;
+    if (plan == 'Free') {
+      return;
+    }
+
     final categories = await repository.syncType('category');
     final payees = await repository.syncType('payee');
     final payers = await repository.syncType('payer');

@@ -32,6 +32,9 @@ class BillDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dateFmt = DateFormat('yyyy-MM-dd');
+    final category = (bill.categoryId != null && bill.categoryId!.isNotEmpty)
+        ? DatabaseService.getCategoryById(bill.categoryId!)
+        : null;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Bill Details'),
@@ -68,8 +71,16 @@ class BillDetailScreen extends StatelessWidget {
             ),
             if (bill.categoryId != null)
               ListTile(
+                leading: Container(
+                  width: 14,
+                  height: 14,
+                  decoration: BoxDecoration(
+                    color: category?.color ?? Colors.grey,
+                    shape: BoxShape.circle,
+                  ),
+                ),
                 title: const Text('Category'),
-                subtitle: Text(DatabaseService.getCategoryById(bill.categoryId!)?.name ?? 'Unknown'),
+                subtitle: Text(category?.name ?? 'Unknown'),
                 onTap: () {
                   // Open categories screen (if present) or simply do nothing for now
                 },

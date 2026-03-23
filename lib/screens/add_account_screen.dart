@@ -105,6 +105,7 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
         name: name,
         type: type,
         balance: double.tryParse(_balanceController.text) ?? 0,
+        description: _institutionController.text,
         institution: _institutionController.text,
         accountNumber: _accountNumberController.text,
         cardNumber: _cardNumberController.text,
@@ -121,6 +122,7 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
       final account = Account(
         name: name,
         type: type,
+        description: _institutionController.text,
         institution: _institutionController.text,
         accountNumber: _accountNumberController.text,
         cardNumber: _cardNumberController.text,

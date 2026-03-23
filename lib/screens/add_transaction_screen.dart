@@ -87,6 +87,33 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   bool _cleared = false;
   bool _showInReports = true;
 
+  String _sanitizeInternalNoteTokens(String text) {
+    var cleaned = text;
+    cleaned = cleaned.replaceAll(RegExp(r'__transfer_(manual|bill)__', caseSensitive: false), '');
+    cleaned = cleaned.replaceAll(RegExp(r'__hide_from_calendar__', caseSensitive: false), '');
+    cleaned = cleaned.replaceAll(RegExp(r'pair:[A-Za-z0-9\-]+', caseSensitive: false), '');
+    return cleaned.trim();
+  }
+
+  String? _applyHideFromCalendarMarker(String? note, bool shouldHide) {
+    final trimmed = note?.trim();
+    if (!shouldHide) return trimmed;
+    if (trimmed == null || trimmed.isEmpty) return _hideFromCalendarMarker;
+    if (trimmed.contains(_hideFromCalendarMarker)) return trimmed;
+    return '$trimmed $_hideFromCalendarMarker';
+  }
+
+  bool _isAccountScopedEntry() {
+    final initial = widget.initialAccountId?.trim();
+    return initial != null && initial.isNotEmpty;
+  }
+
+  bool _shouldHideFromDashboard({Transaction? existing}) {
+    return widget.hideFromCalendarDashboard ||
+        _isAccountScopedEntry() ||
+        (existing?.hideFromCalendarDashboard ?? false);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1416,7 +1443,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
     setState(() => _isSaving = true);
     try {
-      final notes = _notesController.text.isEmpty ? null : _notesController.text;
+      final sanitizedInputNote = _sanitizeInternalNoteTokens(_notesController.text);
+      final notes = sanitizedInputNote.isEmpty ? null : sanitizedInputNote;
       final isEditing = widget.existingTransaction != null;
       bool transferEditPrompted = false;
 
@@ -1470,6 +1498,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
         if (isEditing) {
       final orig = widget.existingTransaction!;
+        final shouldHideFromCalendar = _shouldHideFromDashboard(existing: orig);
+        finalNote = _applyHideFromCalendarMarker(finalNote, shouldHideFromCalendar);
         // If this transaction is linked to a bill (billId set), it was created
         // by the pay-bill flow and its description contains the human-readable
         // "Payment for {bill name} (MM/dd/yyyy)" text. Keep that description
@@ -1503,8 +1533,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             occurrenceDate: orig.occurrenceDate,
             splitsJson: (_useSplits && _splits.isNotEmpty) ? jsonEncode(_splits) : null,
             showInReports: _showInReports,
-            hideFromCalendarDashboard:
-                widget.hideFromCalendarDashboard || orig.hideFromCalendarDashboard,
+            hideFromCalendarDashboard: shouldHideFromCalendar,
           );
           await DatabaseService.updateTransaction(updated);
           // If this transaction is linked to a bill, ensure listeners watching
@@ -1544,6 +1573,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           DatabaseService.transactionsVersion.value++;
           DatabaseService.accountsVersion.value++;
         } else {
+          final shouldHideFromCalendar = _shouldHideFromDashboard();
+          finalNote = _applyHideFromCalendarMarker(finalNote, shouldHideFromCalendar);
           final tx = Transaction(
       amount: amount,
       categoryId: _selectedCategoryId ?? '',
@@ -1566,7 +1597,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       billId: widget.prefillTransaction?.billId ?? widget.existingTransaction?.billId,
   splitsJson: (_useSplits && _splits.isNotEmpty) ? jsonEncode(_splits) : null,
         showInReports: _showInReports,
-      hideFromCalendarDashboard: widget.hideFromCalendarDashboard,
+    hideFromCalendarDashboard: shouldHideFromCalendar,
       );
           await DatabaseService.addTransaction(tx);
 
@@ -1888,21 +1919,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     // and the automatic 'account: <name> — ' prefix) before deciding.
     String initialNote = '';
     if (source.note != null && source.note!.trim().isNotEmpty) {
-      String cleanedNote = source.note!.trim();
-
-      // Remove known internal markers
-      const markers = ['__transfer_bill__', '__transfer_manual__'];
-      for (final m in markers) {
-        if (cleanedNote.contains(m)) cleanedNote = cleanedNote.replaceAll(m, '');
-      }
-      if (cleanedNote.contains(_hideFromCalendarMarker)) {
-        cleanedNote = cleanedNote.replaceAll(_hideFromCalendarMarker, '');
-      }
-
-      cleanedNote = cleanedNote.trim();
-
-      // Remove any internal pair tokens that link transfer sides: 'pair:<id>'
-      cleanedNote = cleanedNote.replaceAll(RegExp(r'pair:[A-Za-z0-9\-]+'), '');
+      String cleanedNote = _sanitizeInternalNoteTokens(source.note!.trim());
 
       // Remove automatic account prefix like: 'account: <Account Name> — user note'
       final lower = cleanedNote.toLowerCase();
@@ -2377,15 +2394,27 @@ class _CategorySelectorSheet extends StatefulWidget {
 class _CategorySelectorSheetState extends State<_CategorySelectorSheet> {
   String _searchText = '';
   late List<Category> _allCategories;
+  late Set<CategoryType> _allowedTypes;
   VoidCallback? _categoriesListener;
+
+  List<Category> _filteredByAllowedTypes(List<Category> source) {
+    if (_allowedTypes.isEmpty) return source;
+    return source.where((c) => _allowedTypes.contains(c.type)).toList();
+  }
+
+  CategoryType _defaultCategoryTypeForAdd() {
+    if (_allowedTypes.length == 1) return _allowedTypes.first;
+    return CategoryType.expense;
+  }
 
   @override
   void initState() {
     super.initState();
-    _allCategories = widget.categories;
+    _allowedTypes = widget.categories.map((c) => c.type).toSet();
+    _allCategories = _filteredByAllowedTypes(widget.categories);
     _categoriesListener = () {
       setState(() {
-        _allCategories = DatabaseService.getAllCategories();
+        _allCategories = _filteredByAllowedTypes(DatabaseService.getAllCategories());
       });
     };
     DatabaseService.categoriesVersion.addListener(_categoriesListener!);
@@ -2439,7 +2468,7 @@ class _CategorySelectorSheetState extends State<_CategorySelectorSheet> {
                                   name: nameController.text.trim(),
                                   iconCodePoint: '0xe85d',
                                   colorValue: '0xFF607D8B',
-                                  type: CategoryType.expense,
+                                  type: _defaultCategoryTypeForAdd(),
                                 );
                                 Navigator.pop(ctx, newCat);
                               }

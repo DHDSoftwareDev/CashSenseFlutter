@@ -69,13 +69,19 @@ class Account extends HiveObject {
   }) : id = id ?? const Uuid().v4();
 
   Map<String, dynamic> toJson() {
+    final institutionValue = (institution ?? description ?? '').trim();
+    final descriptionValue = (description ?? institution ?? '').trim();
     return {
       'accountId': id,
       'name': name,
       'type': type.name,
-      'institution': institution ?? '',
+      'isActive': isActive,
+      'institution': institutionValue,
+      // Keep legacy field for older API handlers that still read description.
+      'description': descriptionValue,
       'accountNumber': accountNumber,
       'cardNumber': cardNumber ?? '',
+      'balance': balance,
       'initialBalance': balance,
       'availableBalance': availableBalance,
       'currency': currency,

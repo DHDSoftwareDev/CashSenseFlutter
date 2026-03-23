@@ -197,8 +197,26 @@ class AwsApiService {
     final typeRaw = (json['type'] ?? 'bank').toString();
     final type = _accountTypeFromString(typeRaw);
     final currency = json['currency'] ?? 'USD';
-    final balance = (json['balance'] as num?)?.toDouble() ?? 0.0;
-    final isActive = json['isActive'] ?? true;
+    final balance = ((json['balance'] ?? json['initialBalance']) as num?)?.toDouble() ?? 0.0;
+    final statusRaw = json['status']?.toString().trim().toLowerCase();
+    final isActiveRaw =
+      json['isActive'] ??
+      json['active'] ??
+      json['enabled'] ??
+      ((statusRaw == 'archived' || statusRaw == 'inactive') ? false : null);
+    final isActive = _parseNullableBool(isActiveRaw) ?? true;
+    final institutionRaw = (
+      json['institution'] ??
+      json['bankName'] ??
+      json['provider'] ??
+      json['description'] ??
+      ''
+    ).toString().trim();
+    final descriptionRaw = (
+      json['description'] ??
+      json['institution'] ??
+      ''
+    ).toString().trim();
 
     return Account(
       id: id.toString(),
@@ -206,8 +224,9 @@ class AwsApiService {
       type: type,
       balance: balance,
       currency: currency.toString(),
-      isActive: isActive == true,
-      description: json['description']?.toString(),
+      isActive: isActive,
+      description: descriptionRaw.isEmpty ? null : descriptionRaw,
+      institution: institutionRaw.isEmpty ? null : institutionRaw,
       accountNumber: json['accountNumber']?.toString(),
       availableBalance: (json['availableBalance'] as num?)?.toDouble(),
       customType: json['customType']?.toString(),
@@ -252,19 +271,61 @@ class AwsApiService {
             ? TransactionType.expense
             : (amount >= 0 ? TransactionType.income : TransactionType.expense);
     final date = _parseDate(json['transactionDate']) ?? DateTime.now();
+    final categoryIdRaw = (
+      json['categoryId'] ??
+      json['category_id'] ??
+      json['category'] ??
+      ''
+    ).toString();
+    String? categoryName = json['categoryName']?.toString() ??
+        json['category_name']?.toString() ??
+        json['categoryDisplayName']?.toString() ??
+        json['categoryLabel']?.toString();
+    final categoryField = json['category']?.toString();
+    if ((categoryName == null || categoryName.trim().isEmpty) &&
+        categoryField != null &&
+        categoryField.isNotEmpty &&
+        categoryField != categoryIdRaw) {
+      categoryName = categoryField;
+    }
+    final clearedRaw =
+        json['cleared'] ?? json['isCleared'] ?? json['is_cleared'] ?? json['clearedStatus'];
+    bool? cleared = _parseNullableBool(clearedRaw);
+    if (cleared == null) {
+      final status = (json['status'] ?? json['transactionStatus'] ?? '').toString().trim().toLowerCase();
+      if (status == 'cleared' || status == 'posted' || status == 'reconciled') {
+        cleared = true;
+      } else if (status == 'uncleared' || status == 'pending') {
+        cleared = false;
+      }
+    }
+
+    final createdAt =
+      _parseDateTime(json['createdAt'] ?? json['created_at'] ?? json['timestamp']) ??
+      date;
+    final updatedAt =
+      _parseDateTime(json['updatedAt'] ?? json['updated_at'] ?? json['lastModified'] ?? json['last_modified']) ??
+      createdAt;
 
     return Transaction(
       id: id.toString(),
       amount: amount.abs(),
-      categoryId: (json['categoryId'] ?? json['category'] ?? '').toString(),
+      categoryId: categoryIdRaw,
+      categoryName: (categoryName == null || categoryName.trim().isEmpty)
+          ? null
+          : categoryName.trim(),
       type: type,
       description: (json['description'] ?? json['merchant'] ?? '').toString(),
       date: date,
       note: json['notes']?.toString(),
       accountId: json['accountId']?.toString(),
+      cleared: cleared,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
       billId: json['billId']?.toString(),
       payerId: json['payerId']?.toString(),
       payeeId: json['payeeId']?.toString(),
+      paymentFor: json['paymentFor']?.toString() ?? json['payment_for']?.toString(),
     );
   }
 
@@ -683,13 +744,35 @@ class AwsApiService {
       'amount': transaction.amount,
       'direction': transaction.type == TransactionType.income ? 'income' : 'expense',
       'category': transaction.categoryId,
+      'categoryId': transaction.categoryId,
+      'category_id': transaction.categoryId,
+      'categoryName': transaction.categoryName,
       'merchant': transaction.payeeId ?? transaction.payerId,
       'description': transaction.description,
       'transactionDate': transaction.date.toIso8601String(),
       'accountId': transaction.accountId,
       'billId': transaction.billId,
       'notes': transaction.note,
+      'paymentFor': transaction.paymentFor,
+      'payment_for': transaction.paymentFor,
+      'cleared': transaction.cleared,
+      'isCleared': transaction.cleared,
     };
+  }
+
+  static bool? _parseNullableBool(dynamic raw) {
+    if (raw == null) return null;
+    if (raw is bool) return raw;
+    if (raw is num) return raw != 0;
+    final value = raw.toString().trim().toLowerCase();
+    if (value.isEmpty) return null;
+    if (value == 'true' || value == '1' || value == 'yes' || value == 'y') {
+      return true;
+    }
+    if (value == 'false' || value == '0' || value == 'no' || value == 'n') {
+      return false;
+    }
+    return null;
   }
 
   static DateTime? _parseDate(dynamic raw) {
@@ -729,6 +812,17 @@ class AwsApiService {
       return DateTime.parse(value);
     } catch (_) {
       return null;
+    }
+  }
+
+  static DateTime? _parseDateTime(dynamic raw) {
+    if (raw == null) return null;
+    final value = raw.toString().trim();
+    if (value.isEmpty) return null;
+    try {
+      return DateTime.parse(value);
+    } catch (_) {
+      return _parseDate(raw);
     }
   }
 

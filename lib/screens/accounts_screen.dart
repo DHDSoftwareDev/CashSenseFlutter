@@ -85,7 +85,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
       final seen = <String>{};
       final list = <String>[];
       for (final a in allAccounts) {
-        final key = (a.description != null && a.description!.isNotEmpty) ? a.description! : 'Unknown';
+        final key = _institutionKey(a);
         if (!seen.contains(key)) {
           seen.add(key);
           list.add(key);
@@ -99,6 +99,17 @@ class _AccountsScreenState extends State<AccountsScreen> {
     if (!mounted) return;
     setState(() {});
   }
+
+  String _institutionKey(Account account) {
+    final key = (account.institution ?? account.description ?? '').trim();
+    return key.isEmpty ? 'Unknown' : key;
+  }
+
+  String? _institutionLabel(Account account) {
+    final label = (account.institution ?? account.description ?? '').trim();
+    return label.isEmpty ? null : label;
+  }
+
   @override
   Widget build(BuildContext context) {
     // Always fetch the latest accounts so balances update after transaction changes
@@ -212,11 +223,11 @@ class _AccountsScreenState extends State<AccountsScreen> {
                       for (final id in orderedIds) {
                         if (!mapById.containsKey(id)) continue;
                         final a = mapById[id]!;
-                        final key = (a.description != null && a.description!.isNotEmpty) ? a.description! : 'Unknown';
+                        final key = _institutionKey(a);
                         grouped.putIfAbsent(key, () => []).add(id);
                       }
                       for (final a in accounts) {
-                        final key = (a.description != null && a.description!.isNotEmpty) ? a.description! : 'Unknown';
+                        final key = _institutionKey(a);
                         grouped.putIfAbsent(key, () => []);
                         if (!grouped[key]!.contains(a.id)) grouped[key]!.add(a.id);
                       }
@@ -414,10 +425,10 @@ class _AccountsScreenState extends State<AccountsScreen> {
       );
     }
 
-    // Group by Institution (use description or 'Unknown')
+    // Group by institution (fallback to legacy description)
     final Map<String, List<Account>> groups = {};
     for (final a in accounts) {
-      final key = (a.description != null && a.description!.isNotEmpty) ? a.description! : 'Unknown';
+      final key = _institutionKey(a);
       groups.putIfAbsent(key, () => <Account>[]).add(a);
     }
 
@@ -617,16 +628,16 @@ class _AccountsScreenState extends State<AccountsScreen> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(acc.name, style: Theme.of(context).textTheme.titleMedium),
-                          if (acc.description != null && acc.description!.isNotEmpty)
+                          if (_institutionLabel(acc) != null)
                             Row(
                               children: [
                                 Expanded(
                                   child: Text(
                                     acc.accountNumber != null && acc.accountNumber!.isNotEmpty
-                                        ? '${acc.description!} - ${acc.accountNumber!}'
-                                        : (_extractNumberFromDescription(acc.description) != null
-                                            ? '${acc.description!} - ${_extractNumberFromDescription(acc.description)!}'
-                                            : acc.description!),
+                                        ? '${_institutionLabel(acc)!} - ${acc.accountNumber!}'
+                                        : (_extractNumberFromDescription(_institutionLabel(acc)) != null
+                                            ? '${_institutionLabel(acc)!} - ${_extractNumberFromDescription(_institutionLabel(acc))!}'
+                                            : _institutionLabel(acc)!),
                                     style: Theme.of(context).textTheme.bodySmall,
                                     overflow: TextOverflow.ellipsis,
                                   ),
@@ -841,16 +852,16 @@ class _AccountsScreenState extends State<AccountsScreen> {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Text(acc.name, style: Theme.of(context).textTheme.titleMedium),
-                                  if (acc.description != null && acc.description!.isNotEmpty)
+                                  if (_institutionLabel(acc) != null)
                                     Row(
                                       children: [
                                         Expanded(
                                           child: Text(
                                             acc.accountNumber != null && acc.accountNumber!.isNotEmpty
-                                                ? '${acc.description!} - ${acc.accountNumber!}'
-                                                : (_extractNumberFromDescription(acc.description) != null
-                                                    ? '${acc.description!} - ${_extractNumberFromDescription(acc.description)!}'
-                                                    : acc.description!),
+                                                ? '${_institutionLabel(acc)!} - ${acc.accountNumber!}'
+                                                : (_extractNumberFromDescription(_institutionLabel(acc)) != null
+                                                    ? '${_institutionLabel(acc)!} - ${_extractNumberFromDescription(_institutionLabel(acc))!}'
+                                                    : _institutionLabel(acc)!),
                                             style: Theme.of(context).textTheme.bodySmall,
                                             overflow: TextOverflow.ellipsis,
                                           ),

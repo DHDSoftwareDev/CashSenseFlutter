@@ -17,7 +17,13 @@ class CategorySelectorSheet extends StatefulWidget {
 class _CategorySelectorSheetState extends State<CategorySelectorSheet> {
   String _searchText = '';
   late List<Category> _allCategories;
+  late Set<CategoryType> _allowedTypes;
   VoidCallback? _categoriesListener;
+
+  List<Category> _filteredByAllowedTypes(List<Category> source) {
+    if (_allowedTypes.isEmpty) return source;
+    return source.where((c) => _allowedTypes.contains(c.type)).toList();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -75,11 +81,14 @@ class _CategorySelectorSheetState extends State<CategorySelectorSheet> {
   @override
   void initState() {
     super.initState();
-    // Initialize with provided categories or full list if none provided
-    _allCategories = widget.categories.isNotEmpty ? widget.categories : DatabaseService.getAllCategories();
+    _allowedTypes = widget.categories.map((c) => c.type).toSet();
+    final initial = widget.categories.isNotEmpty
+        ? widget.categories
+        : DatabaseService.getAllCategories();
+    _allCategories = _filteredByAllowedTypes(initial);
     _categoriesListener = () {
       setState(() {
-        _allCategories = DatabaseService.getAllCategories();
+        _allCategories = _filteredByAllowedTypes(DatabaseService.getAllCategories());
       });
     };
     DatabaseService.categoriesVersion.addListener(_categoriesListener!);

@@ -13,6 +13,74 @@ import 'aws_api_service.dart';
 
 
 class DatabaseService {
+  static const String _hideFromCalendarMarker = '__hide_from_calendar__';
+  static const String _legacyAccountCalendarMigrationKey = 'migratedLegacyAccountCalendarHiddenV1';
+  static const String _legacyCategoryNameMigrationKey = 'migratedLegacyTransactionCategoryNamesV1';
+  static const String _legacyCategoryResolutionMigrationKey = 'migratedLegacyTransactionCategoryResolutionV1';
+  static const String _legacyPaymentForMigrationKey = 'migratedLegacyTransactionPaymentForV1';
+  static const String _deletedAccountsKey = 'deletedAccountIds';
+  static const String _deletedBillsKey = 'deletedBillIds';
+
+  static List<String> _getDeletedAccountIds() {
+    try {
+      final raw = _settingsBox.get(_deletedAccountsKey, defaultValue: <dynamic>[]) as List<dynamic>;
+      return raw.map((e) => e.toString()).toList();
+    } catch (_) {
+      return <String>[];
+    }
+  }
+
+  static Future<void> _addDeletedAccountId(String id) async {
+    final trimmed = id.trim();
+    if (trimmed.isEmpty) return;
+    final ids = _getDeletedAccountIds();
+    if (!ids.contains(trimmed)) {
+      ids.add(trimmed);
+      await _settingsBox.put(_deletedAccountsKey, ids);
+      await _settingsBox.flush();
+    }
+  }
+
+  static Future<void> _removeDeletedAccountId(String id) async {
+    final trimmed = id.trim();
+    if (trimmed.isEmpty) return;
+    final ids = _getDeletedAccountIds();
+    if (ids.remove(trimmed)) {
+      await _settingsBox.put(_deletedAccountsKey, ids);
+      await _settingsBox.flush();
+    }
+  }
+
+  static List<String> _getDeletedBillIds() {
+    try {
+      final raw = _settingsBox.get(_deletedBillsKey, defaultValue: <dynamic>[]) as List<dynamic>;
+      return raw.map((e) => e.toString()).toList();
+    } catch (_) {
+      return <String>[];
+    }
+  }
+
+  static Future<void> _addDeletedBillId(String id) async {
+    final trimmed = id.trim();
+    if (trimmed.isEmpty) return;
+    final ids = _getDeletedBillIds();
+    if (!ids.contains(trimmed)) {
+      ids.add(trimmed);
+      await _settingsBox.put(_deletedBillsKey, ids);
+      await _settingsBox.flush();
+    }
+  }
+
+  static Future<void> _removeDeletedBillId(String id) async {
+    final trimmed = id.trim();
+    if (trimmed.isEmpty) return;
+    final ids = _getDeletedBillIds();
+    if (ids.remove(trimmed)) {
+      await _settingsBox.put(_deletedBillsKey, ids);
+      await _settingsBox.flush();
+    }
+  }
+
   static void _registerAdapterIfNeeded<T>(int typeId, TypeAdapter<T> adapter) {
     try {
       Hive.registerAdapter<T>(adapter, override: true);
@@ -110,41 +178,85 @@ class DatabaseService {
   }
   // Update all transactions, bills, etc. that reference a category when the category is edited
   static Future<void> updateCategoryReferences(Category updatedCategory) async {
-    // Update transactions
+    final normalizedName = updatedCategory.name.trim();
+
     final txs = getAllTransactions().where((t) => t.categoryId == updatedCategory.id).toList();
     for (final tx in txs) {
-      await updateTransaction(tx.copyWith(categoryId: updatedCategory.id));
+      if ((tx.categoryName ?? '').trim() == normalizedName) continue;
+      await updateTransaction(
+        tx.copyWith(
+          categoryId: updatedCategory.id,
+          categoryName: normalizedName,
+        ),
+      );
     }
-    // Update bills
-    final bills = getAllBills().where((b) => b.categoryId == updatedCategory.id).toList();
-    for (final bill in bills) {
-      await updateBill(bill.copyWith(categoryId: updatedCategory.id));
-    }
-    // Notify listeners
-    categoriesVersion.value++;
-    billsVersion.value++;
-    transactionsVersion.value++;
+
+    // Bills reference categoryId directly; no denormalized name to rewrite.
+    // Keep existing IDs unchanged so all bill/category lookups stay consistent.
   }
 
   // Update all transactions, bills, etc. that reference a payee/payer when edited
   static Future<void> updatePayeeReferences(Map<String, dynamic> updatedPayee) async {
-    final payeeId = updatedPayee['id'] as String?;
-    if (payeeId == null) return;
-    // Update transactions
-    final txs = getAllTransactions().where((t) => t.note != null && t.note!.contains(payeeId)).toList();
+    final payeeId = (updatedPayee['id'] ?? '').toString().trim();
+    if (payeeId.isEmpty) return;
+
+    final updatedName = (updatedPayee['name'] ?? '').toString().trim();
+    final updatedType = (updatedPayee['type'] ?? '').toString().trim().toLowerCase();
+    final rawCategoryId = updatedPayee['categoryId']?.toString().trim();
+    final updatedCategoryId = (rawCategoryId == null || rawCategoryId.isEmpty || rawCategoryId.toLowerCase() == 'null')
+        ? null
+        : rawCategoryId;
+    final updatedCategoryName = updatedCategoryId == null
+        ? null
+        : getCategoryById(updatedCategoryId)?.name;
+
+    final txs = getAllTransactions().where((t) => t.payeeId == payeeId || t.payerId == payeeId).toList();
     for (final tx in txs) {
-      // Optionally update note or other fields if needed
-      await updateTransaction(tx);
+      final bool matchesPayee = tx.payeeId == payeeId;
+      final bool matchesPayer = tx.payerId == payeeId;
+
+      String? nextPayeeName = tx.payeeName;
+      String? nextPayerName = tx.payerName;
+      if (updatedName.isNotEmpty) {
+        if (matchesPayee) nextPayeeName = updatedName;
+        if (matchesPayer) nextPayerName = updatedName;
+      }
+
+      String nextCategoryId = tx.categoryId;
+      String? nextCategoryName = tx.categoryName;
+      if (updatedCategoryId != null) {
+        nextCategoryId = updatedCategoryId;
+        nextCategoryName = updatedCategoryName;
+      }
+
+      final samePayeeName = (nextPayeeName ?? '') == (tx.payeeName ?? '');
+      final samePayerName = (nextPayerName ?? '') == (tx.payerName ?? '');
+      final sameCategoryId = nextCategoryId == tx.categoryId;
+      final sameCategoryName = (nextCategoryName ?? '') == (tx.categoryName ?? '');
+      if (samePayeeName && samePayerName && sameCategoryId && sameCategoryName) continue;
+
+      await updateTransaction(
+        tx.copyWith(
+          payeeName: nextPayeeName,
+          payerName: nextPayerName,
+          categoryId: nextCategoryId,
+          categoryName: nextCategoryName,
+        ),
+      );
     }
-    // Update bills
+
     final bills = getAllBills().where((b) => b.payeeId == payeeId).toList();
     for (final bill in bills) {
-      await updateBill(bill.copyWith(payeeId: payeeId));
+      final nextBillType = updatedType == 'payer' ? BillType.income : updatedType == 'payee' ? BillType.expense : bill.type;
+      final nextBillCategoryId = updatedCategoryId ?? bill.categoryId;
+      if (nextBillType == bill.type && nextBillCategoryId == bill.categoryId) continue;
+      await updateBill(
+        bill.copyWith(
+          type: nextBillType,
+          categoryId: nextBillCategoryId,
+        ),
+      );
     }
-    // Notify listeners
-    billsVersion.value++;
-    transactionsVersion.value++;
-    payeesVersion.value++;
   }
   // ...existing code...
   static const String _transactionBoxName = 'transactions';
@@ -236,6 +348,7 @@ class DatabaseService {
         rethrow;
       }
     }
+    await _removeDeletedBillId(bill.id);
     billsVersion.value++;
     await _safeAwsCall(() => AwsApiService.createBill(bill), 'create bill');
   }
@@ -292,11 +405,13 @@ class DatabaseService {
         rethrow;
       }
     }
+    await _removeDeletedBillId(bill.id);
     billsVersion.value++;
     await _safeAwsCall(() => AwsApiService.updateBill(bill), 'update bill');
   }
 
   static Future<void> deleteBill(String id) async {
+    await _addDeletedBillId(id);
     // Remove any per-occurrence status entries for this bill
     try {
       final keysToRemove = <dynamic>[];
@@ -454,6 +569,359 @@ class DatabaseService {
     } catch (_) {
       // Non-critical: do not block transaction edits if status sync fails.
     }
+  }
+
+  /// One-time best-effort migration for legacy account-context transactions.
+  ///
+  /// Older records created from account-specific transaction views may have
+  /// missed the boolean hide flag. This migration backfills both the
+  /// `hideFromCalendarDashboard` flag and the note marker so dashboard
+  /// filtering is robust.
+  static Future<int> migrateLegacyAccountTransactionsHiddenFromCalendar({bool force = false}) async {
+    final alreadyMigrated = getSetting<bool>(_legacyAccountCalendarMigrationKey, false) ?? false;
+    if (!force && alreadyMigrated) return 0;
+
+    int updatedCount = 0;
+    for (final tx in _transactionBox.values) {
+      if (tx.hideFromCalendarDashboard == true) continue;
+      if (tx.billId != null && tx.billId!.isNotEmpty) continue;
+
+      final note = tx.note ?? '';
+      final lowerNote = note.toLowerCase();
+      final looksLikeAccountContext = lowerNote.contains('account:') || note.contains(_hideFromCalendarMarker);
+      if (!looksLikeAccountContext) continue;
+
+      final nextNote = note.contains(_hideFromCalendarMarker)
+          ? note
+          : (note.trim().isEmpty ? _hideFromCalendarMarker : '$note $_hideFromCalendarMarker');
+
+      final updated = tx.copyWith(
+        hideFromCalendarDashboard: true,
+        note: nextNote,
+        updatedAt: DateTime.now(),
+      );
+
+      await _transactionBox.put(updated.id, updated);
+      updatedCount++;
+    }
+
+    if (updatedCount > 0) {
+      await _transactionBox.flush();
+      transactionsVersion.value++;
+    }
+
+    if (!force) {
+      await setSetting(_legacyAccountCalendarMigrationKey, true);
+    }
+    return updatedCount;
+  }
+
+  /// Force-hide all non-bill transactions for a specific account from the
+  /// dashboard calendar/list. This is used as a targeted repair for account-
+  /// scoped transaction flows where older entries may have been saved before
+  /// hide markers were consistently applied.
+  static Future<int> hideTransactionsForAccountFromDashboard(String accountId) async {
+    final normalized = accountId.trim();
+    if (normalized.isEmpty) return 0;
+
+    int updatedCount = 0;
+    for (final tx in _transactionBox.values) {
+      if ((tx.accountId ?? '').trim() != normalized) continue;
+      if (tx.billId != null && tx.billId!.isNotEmpty) continue;
+      if (tx.hideFromCalendarDashboard == true) continue;
+
+      final note = tx.note ?? '';
+      final nextNote = note.contains(_hideFromCalendarMarker)
+          ? note
+          : (note.trim().isEmpty ? _hideFromCalendarMarker : '$note $_hideFromCalendarMarker');
+
+      await _transactionBox.put(
+        tx.id,
+        tx.copyWith(
+          hideFromCalendarDashboard: true,
+          note: nextNote,
+          updatedAt: DateTime.now(),
+        ),
+      );
+      updatedCount++;
+    }
+
+    if (updatedCount > 0) {
+      await _transactionBox.flush();
+      transactionsVersion.value++;
+    }
+    return updatedCount;
+  }
+
+  static bool _looksLikeOpaqueId(String value) {
+    final v = value.trim();
+    if (v.isEmpty) return false;
+    final uuid = RegExp(
+      r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+    );
+    if (uuid.hasMatch(v)) return true;
+    final longToken = RegExp(r'^[A-Za-z0-9_-]{16,}$');
+    return longToken.hasMatch(v) && !v.contains(' ');
+  }
+
+  static String? _extractCounterpartyFromPaymentDescription(String description) {
+    final trimmed = description.trim();
+    if (trimmed.isEmpty) return null;
+    if (!trimmed.toLowerCase().startsWith('payment for ')) return null;
+
+    var raw = trimmed.substring('payment for '.length).trim();
+    if (raw.isEmpty) return null;
+
+    // Strip trailing date patterns from legacy descriptions.
+    raw = raw.replaceFirst(RegExp(r'\s*\(\d{1,2}/\d{1,2}/\d{2,4}\)\s*$'), '').trim();
+    raw = raw.replaceFirst(RegExp(r'\s+\d{1,2}/\d{1,2}/\d{2,4}\s*$'), '').trim();
+    return raw.isEmpty ? null : raw;
+  }
+
+  static DateTime? _extractDateFromPaymentDescription(String description) {
+    final trimmed = description.trim();
+    if (trimmed.isEmpty) return null;
+
+    final match = RegExp(r'(\d{1,2}/\d{1,2}/\d{2,4})').firstMatch(trimmed);
+    if (match == null) return null;
+
+    final raw = match.group(1);
+    if (raw == null) return null;
+
+    DateTime? parsed;
+    try {
+      parsed = DateFormat('MM/dd/yyyy').parseStrict(raw);
+    } catch (_) {
+      try {
+        parsed = DateFormat('M/d/yyyy').parseStrict(raw);
+      } catch (_) {
+        try {
+          parsed = DateFormat('MM/dd/yy').parseStrict(raw);
+        } catch (_) {
+          try {
+            parsed = DateFormat('M/d/yy').parseStrict(raw);
+          } catch (_) {
+            parsed = null;
+          }
+        }
+      }
+    }
+    return parsed;
+  }
+
+  /// One-time backfill for legacy payment transactions so [Transaction.paymentFor]
+  /// is available for historical entries.
+  static Future<int> migrateLegacyTransactionPaymentFor({bool force = false}) async {
+    final alreadyMigrated = getSetting<bool>(_legacyPaymentForMigrationKey, false) ?? false;
+    if (!force && alreadyMigrated) return 0;
+
+    final contacts = getAllPayees();
+    int updatedCount = 0;
+
+    for (final tx in _transactionBox.values) {
+      final existing = (tx.paymentFor ?? '').trim();
+      if (existing.isNotEmpty) continue;
+
+      final hasPaymentDescription = tx.description.trim().toLowerCase().startsWith('payment for ');
+      final hasBillLink = tx.billId != null && tx.billId!.trim().isNotEmpty;
+      if (!hasPaymentDescription && !hasBillLink) continue;
+
+      final DateTime baseDate =
+          tx.occurrenceDate ?? _extractDateFromPaymentDescription(tx.description) ?? tx.date;
+      final dateText = DateFormat('MM/dd/yy').format(baseDate);
+
+      String counterparty = (tx.payeeName ?? '').trim();
+      if (counterparty.isEmpty) {
+        counterparty = (tx.payerName ?? '').trim();
+      }
+
+      if (counterparty.isEmpty) {
+        final contactId = (tx.payeeId ?? tx.payerId ?? '').trim();
+        if (contactId.isNotEmpty) {
+          final match = contacts.where((c) => (c['id'] ?? '').toString().trim() == contactId);
+          if (match.isNotEmpty) {
+            counterparty = (match.first['name'] ?? '').toString().trim();
+          }
+        }
+      }
+
+      if (counterparty.isEmpty) {
+        counterparty = _extractCounterpartyFromPaymentDescription(tx.description) ?? 'Unknown';
+      }
+
+      String category = (tx.categoryName ?? '').trim();
+      if (category.isEmpty || _looksLikeOpaqueId(category)) {
+        final categoryId = tx.categoryId.trim();
+        if (categoryId.isNotEmpty) {
+          final cat = _categoryBox.get(categoryId);
+          final catName = (cat?.name ?? '').trim();
+          if (catName.isNotEmpty && !_looksLikeOpaqueId(catName)) {
+            category = catName;
+          }
+        }
+      }
+      if (category.isEmpty) {
+        category = 'Uncategorized';
+      }
+
+      final paymentFor = '$dateText $counterparty $category'.replaceAll(RegExp(r'\s+'), ' ').trim();
+      if (paymentFor.isEmpty) continue;
+
+      await _transactionBox.put(
+        tx.id,
+        tx.copyWith(
+          paymentFor: paymentFor,
+          updatedAt: DateTime.now(),
+        ),
+      );
+      updatedCount++;
+    }
+
+    if (updatedCount > 0) {
+      await _transactionBox.flush();
+      transactionsVersion.value++;
+    }
+
+    if (!force) {
+      await setSetting(_legacyPaymentForMigrationKey, true);
+    }
+    return updatedCount;
+  }
+
+  /// One-time best-effort migration to ensure transactions display category
+  /// names (not raw category IDs) in dashboard and account transaction lists.
+  static Future<int> migrateLegacyTransactionCategoryNames({bool force = false}) async {
+    final alreadyMigrated = getSetting<bool>(_legacyCategoryNameMigrationKey, false) ?? false;
+    if (!force && alreadyMigrated) return 0;
+
+    int updatedCount = 0;
+    for (final tx in _transactionBox.values) {
+      final existingName = (tx.categoryName ?? '').trim();
+      final hasFriendlyName = existingName.isNotEmpty && !_looksLikeOpaqueId(existingName);
+      if (hasFriendlyName) continue;
+
+      String? nextCategoryName;
+      final categoryId = tx.categoryId.trim();
+      if (categoryId.isNotEmpty) {
+        final cat = _categoryBox.get(categoryId);
+        final candidate = (cat?.name ?? '').trim();
+        if (candidate.isNotEmpty && !_looksLikeOpaqueId(candidate)) {
+          nextCategoryName = candidate;
+        }
+      }
+
+      if (nextCategoryName == null && existingName.isNotEmpty && _looksLikeOpaqueId(existingName)) {
+        nextCategoryName = 'Unknown Category';
+      }
+
+      if (nextCategoryName == null || nextCategoryName == existingName) continue;
+
+      await _transactionBox.put(
+        tx.id,
+        tx.copyWith(
+          categoryName: nextCategoryName,
+          updatedAt: DateTime.now(),
+        ),
+      );
+      updatedCount++;
+    }
+
+    if (updatedCount > 0) {
+      await _transactionBox.flush();
+      transactionsVersion.value++;
+    }
+
+    if (!force) {
+      await setSetting(_legacyCategoryNameMigrationKey, true);
+    }
+    return updatedCount;
+  }
+
+  /// One-time best-effort migration to repair legacy transaction category
+  /// linkage for old records that may show as `Unknown` in list views.
+  ///
+  /// Repairs include:
+  /// - Trimming whitespace around categoryId
+  /// - Re-linking by category name when categoryId is missing/invalid
+  /// - Resolving cases where categoryName accidentally stored an ID
+  /// - Refreshing categoryName from the resolved category record
+  static Future<int> migrateLegacyTransactionCategoryResolution({bool force = false}) async {
+    final alreadyMigrated = getSetting<bool>(_legacyCategoryResolutionMigrationKey, false) ?? false;
+    if (!force && alreadyMigrated) return 0;
+
+    int updatedCount = 0;
+    final categories = _categoryBox.values.toList();
+    final nameToCategory = <String, Category>{};
+    for (final c in categories) {
+      final key = c.name.trim().toLowerCase();
+      if (key.isNotEmpty) {
+        nameToCategory.putIfAbsent(key, () => c);
+      }
+    }
+
+    for (final tx in _transactionBox.values) {
+      final originalId = tx.categoryId;
+      final originalName = tx.categoryName;
+
+      String resolvedId = originalId.trim();
+      String? resolvedName = originalName?.trim();
+      if (resolvedName != null && resolvedName.isEmpty) resolvedName = null;
+
+      Category? resolvedCategory;
+      if (resolvedId.isNotEmpty) {
+        resolvedCategory = _categoryBox.get(resolvedId);
+      }
+
+      // If the saved categoryName is actually an ID, resolve it.
+      if (resolvedCategory == null && resolvedName != null && _looksLikeOpaqueId(resolvedName)) {
+        final byNameAsId = _categoryBox.get(resolvedName);
+        if (byNameAsId != null) {
+          resolvedCategory = byNameAsId;
+          resolvedId = byNameAsId.id;
+          resolvedName = byNameAsId.name;
+        }
+      }
+
+      // If ID is invalid/missing, try to resolve by friendly categoryName.
+      if (resolvedCategory == null && resolvedName != null) {
+        final byFriendlyName = nameToCategory[resolvedName.toLowerCase()];
+        if (byFriendlyName != null) {
+          resolvedCategory = byFriendlyName;
+          resolvedId = byFriendlyName.id;
+          resolvedName = byFriendlyName.name;
+        }
+      }
+
+      // If we have a valid category, ensure display name matches latest name.
+      if (resolvedCategory != null) {
+        resolvedId = resolvedCategory.id;
+        resolvedName = resolvedCategory.name;
+      }
+
+      final idChanged = resolvedId != originalId;
+      final nameChanged = (resolvedName ?? '') != ((originalName ?? '').trim());
+      if (!idChanged && !nameChanged) continue;
+
+      await _transactionBox.put(
+        tx.id,
+        tx.copyWith(
+          categoryId: resolvedId,
+          categoryName: resolvedName,
+          updatedAt: DateTime.now(),
+        ),
+      );
+      updatedCount++;
+    }
+
+    if (updatedCount > 0) {
+      await _transactionBox.flush();
+      transactionsVersion.value++;
+    }
+
+    if (!force) {
+      await setSetting(_legacyCategoryResolutionMigrationKey, true);
+    }
+    return updatedCount;
   }
 
   static Future<void> deleteTransaction(String id) async {
@@ -620,6 +1088,10 @@ class DatabaseService {
 
     // Initialize default data if boxes are empty
     await _initializeDefaultData();
+    await migrateLegacyAccountTransactionsHiddenFromCalendar(force: true);
+    await migrateLegacyTransactionCategoryNames();
+    await migrateLegacyTransactionCategoryResolution();
+    await migrateLegacyTransactionPaymentFor();
   }
 
   static Future<void> _initializeDefaultData() async {
@@ -722,6 +1194,7 @@ class DatabaseService {
         rethrow;
       }
     }
+    await updateCategoryReferences(category);
   categoriesVersion.value++;
     await _safeAwsCall(() => AwsApiService.updateCategory(category), 'update category');
   }
@@ -755,6 +1228,7 @@ class DatabaseService {
     } catch (_) {}
     // Notify listeners that accounts changed
     accountsVersion.value++;
+    await _removeDeletedAccountId(account.id);
     await _safeAwsCall(() => AwsApiService.createAccount(account), 'create account');
   }
 
@@ -763,6 +1237,9 @@ class DatabaseService {
     await _accountBox.flush();
     // Notify listeners that accounts changed
     accountsVersion.value++;
+    if (account.isActive) {
+      await _removeDeletedAccountId(account.id);
+    }
     await _safeAwsCall(() => AwsApiService.updateAccount(account), 'update account');
   }
 
@@ -794,6 +1271,7 @@ class DatabaseService {
   static Future<void> deleteAccount(String id) async {
     await _accountBox.delete(id);
     await _accountBox.flush();
+    await _addDeletedAccountId(id);
     // Notify listeners that accounts changed
     accountsVersion.value++;
     await _safeAwsCall(() => AwsApiService.deleteAccount(id), 'delete account');
@@ -1093,6 +1571,7 @@ class DatabaseService {
         list[idx] = normalized;
         await _settingsBox.put('payees', list);
         await _settingsBox.flush();
+        await updatePayeeReferences(normalized);
         // Notify listeners
         payeesVersion.value++;
         // ignore: avoid_print
@@ -1368,11 +1847,40 @@ class DatabaseService {
     bool transactionsChanged = false;
     bool categoriesChanged = false;
     bool payeesChanged = false;
+    final deletedAccountIds = _getDeletedAccountIds().toSet();
+    final deletedBillIds = _getDeletedBillIds().toSet();
 
     if (accounts.isNotEmpty) {
       for (final account in accounts) {
-        if (account.id.trim().isEmpty) continue;
-        await _accountBox.put(account.id, account);
+        final accountId = account.id.trim();
+        if (accountId.isEmpty) continue;
+        if (deletedAccountIds.contains(accountId)) {
+          // Keep local delete authoritative until explicitly recreated.
+          if (_accountBox.containsKey(accountId)) {
+            await _accountBox.delete(accountId);
+          }
+          continue;
+        }
+        final existing = _accountBox.get(account.id);
+        final incomingInstitution = (account.institution ?? '').trim();
+        final incomingDescription = (account.description ?? '').trim();
+        final existingInstitution = (existing?.institution ?? '').trim();
+        final existingDescription = (existing?.description ?? '').trim();
+        final shouldKeepArchivedLocal =
+            existing != null && existing.isActive == false && account.isActive == true;
+
+        Account toPersist = account;
+        if (existing != null && incomingInstitution.isEmpty && incomingDescription.isEmpty) {
+          toPersist = toPersist.copyWith(
+            institution: existingInstitution.isNotEmpty ? existingInstitution : null,
+            description: existingDescription.isNotEmpty ? existingDescription : null,
+          );
+        }
+        if (shouldKeepArchivedLocal) {
+          toPersist = toPersist.copyWith(isActive: false);
+        }
+
+        await _accountBox.put(toPersist.id, toPersist);
       }
       await _accountBox.flush();
       accountsChanged = true;
@@ -1389,7 +1897,14 @@ class DatabaseService {
 
     if (bills.isNotEmpty) {
       for (final bill in bills) {
-        if (bill.id.trim().isEmpty) continue;
+        final billId = bill.id.trim();
+        if (billId.isEmpty) continue;
+        if (deletedBillIds.contains(billId)) {
+          if (_billsBox.containsKey(billId)) {
+            await _billsBox.delete(billId);
+          }
+          continue;
+        }
         await _billsBox.put(bill.id, bill);
       }
       await _billsBox.flush();
@@ -1399,9 +1914,49 @@ class DatabaseService {
     if (transactions.isNotEmpty) {
       for (final tx in transactions) {
         if (tx.id.trim().isEmpty) continue;
-        await _transactionBox.put(tx.id, tx);
+        final existing = _transactionBox.get(tx.id);
+        Transaction toPersist = (tx.cleared == null && existing?.cleared != null)
+            ? tx.copyWith(cleared: existing!.cleared)
+            : tx;
+
+        if (existing != null) {
+          final incomingCategoryId = tx.categoryId.trim();
+          final existingCategoryId = existing.categoryId.trim();
+          final incomingCategoryName = (tx.categoryName ?? '').trim();
+          final existingCategoryName = (existing.categoryName ?? '').trim();
+
+          final remoteCategoryMissingOrOpaque =
+              incomingCategoryId.isEmpty ||
+              (incomingCategoryName.isEmpty && _looksLikeOpaqueId(incomingCategoryId));
+
+          final localCategoryIsNewer =
+              existing.updatedAt.isAfter(tx.updatedAt) &&
+              existingCategoryId.isNotEmpty &&
+              existingCategoryId != incomingCategoryId;
+
+          if (remoteCategoryMissingOrOpaque || localCategoryIsNewer) {
+            toPersist = toPersist.copyWith(
+              categoryId: existingCategoryId,
+              categoryName: existingCategoryName.isEmpty ? null : existingCategoryName,
+            );
+          }
+        }
+
+        await _transactionBox.put(toPersist.id, toPersist);
       }
       await _transactionBox.flush();
+      transactionsChanged = true;
+    }
+
+    // Ensure imported transactions have friendly category names after
+    // categories and transactions are written.
+    final categoryNamesUpdated = await migrateLegacyTransactionCategoryNames(force: true);
+    if (categoryNamesUpdated > 0) {
+      transactionsChanged = true;
+    }
+
+    final categoryLinksUpdated = await migrateLegacyTransactionCategoryResolution(force: true);
+    if (categoryLinksUpdated > 0) {
       transactionsChanged = true;
     }
 
