@@ -20,6 +20,7 @@ class DatabaseService {
   static const String _legacyPaymentForMigrationKey = 'migratedLegacyTransactionPaymentForV1';
   static const String _deletedAccountsKey = 'deletedAccountIds';
   static const String _deletedBillsKey = 'deletedBillIds';
+  static const String _billRecurrenceEndOverridesKey = 'billRecurrenceEndOverrides';
 
   static List<String> _getDeletedAccountIds() {
     try {
@@ -79,6 +80,55 @@ class DatabaseService {
       await _settingsBox.put(_deletedBillsKey, ids);
       await _settingsBox.flush();
     }
+  }
+
+  static Map<String, DateTime> _getBillRecurrenceEndOverrides() {
+    try {
+      final raw = _settingsBox.get(
+        _billRecurrenceEndOverridesKey,
+        defaultValue: <String, dynamic>{},
+      );
+      if (raw is! Map) return <String, DateTime>{};
+      final out = <String, DateTime>{};
+      for (final entry in raw.entries) {
+        final billId = entry.key.toString().trim();
+        if (billId.isEmpty) continue;
+        final parsed = DateTime.tryParse(entry.value.toString());
+        if (parsed == null) continue;
+        out[billId] = DateTime(parsed.year, parsed.month, parsed.day);
+      }
+      return out;
+    } catch (_) {
+      return <String, DateTime>{};
+    }
+  }
+
+  static Future<void> setBillRecurrenceEndOverride(String billId, DateTime recurrenceEndDate) async {
+    final id = billId.trim();
+    if (id.isEmpty) return;
+    final current = _getBillRecurrenceEndOverrides();
+    current[id] = DateTime(
+      recurrenceEndDate.year,
+      recurrenceEndDate.month,
+      recurrenceEndDate.day,
+    );
+    final encoded = <String, String>{
+      for (final e in current.entries) e.key: e.value.toIso8601String(),
+    };
+    await _settingsBox.put(_billRecurrenceEndOverridesKey, encoded);
+    await _settingsBox.flush();
+  }
+
+  static Future<void> clearBillRecurrenceEndOverride(String billId) async {
+    final id = billId.trim();
+    if (id.isEmpty) return;
+    final current = _getBillRecurrenceEndOverrides();
+    if (current.remove(id) == null) return;
+    final encoded = <String, String>{
+      for (final e in current.entries) e.key: e.value.toIso8601String(),
+    };
+    await _settingsBox.put(_billRecurrenceEndOverridesKey, encoded);
+    await _settingsBox.flush();
   }
 
   static void _registerAdapterIfNeeded<T>(int typeId, TypeAdapter<T> adapter) {
@@ -349,6 +399,7 @@ class DatabaseService {
       }
     }
     await _removeDeletedBillId(bill.id);
+    await clearBillRecurrenceEndOverride(bill.id);
     billsVersion.value++;
     await _safeAwsCall(() => AwsApiService.createBill(bill), 'create bill');
   }
@@ -412,6 +463,7 @@ class DatabaseService {
 
   static Future<void> deleteBill(String id) async {
     await _addDeletedBillId(id);
+    await clearBillRecurrenceEndOverride(id);
     // Remove any per-occurrence status entries for this bill
     try {
       final keysToRemove = <dynamic>[];
@@ -1849,6 +1901,7 @@ class DatabaseService {
     bool payeesChanged = false;
     final deletedAccountIds = _getDeletedAccountIds().toSet();
     final deletedBillIds = _getDeletedBillIds().toSet();
+    final recurrenceEndOverrides = _getBillRecurrenceEndOverrides();
 
     if (accounts.isNotEmpty) {
       for (final account in accounts) {
@@ -1905,7 +1958,15 @@ class DatabaseService {
           }
           continue;
         }
-        await _billsBox.put(bill.id, bill);
+        Bill toPersist = bill;
+        final localCutoff = recurrenceEndOverrides[billId];
+        if (localCutoff != null) {
+          final remoteEnd = bill.recurrenceEndDate;
+          if (remoteEnd == null || remoteEnd.isAfter(localCutoff)) {
+            toPersist = bill.copyWith(recurrenceEndDate: localCutoff);
+          }
+        }
+        await _billsBox.put(toPersist.id, toPersist);
       }
       await _billsBox.flush();
       billsChanged = true;

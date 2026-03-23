@@ -1913,6 +1913,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               recurrenceEndDate: dayBefore,
             );
             await DatabaseService.updateBill(updatedBill);
+            await DatabaseService.setBillRecurrenceEndOverride(updatedBill.id, dayBefore);
             
             // Create a new bill starting from the next occurrence
             final newBill = Bill(
@@ -1949,6 +1950,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               recurrenceEndDate: dayBefore,
             );
             await DatabaseService.updateBill(updatedBill);
+            await DatabaseService.setBillRecurrenceEndOverride(updatedBill.id, dayBefore);
             
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
@@ -1979,6 +1981,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
           final updatedBill = sourceBill.copyWith(recurrenceEndDate: dayBefore);
           await DatabaseService.updateBill(updatedBill);
+          await DatabaseService.setBillRecurrenceEndOverride(updatedBill.id, dayBefore);
 
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
