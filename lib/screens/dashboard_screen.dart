@@ -940,10 +940,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           final fromName = fromAcc?.name ?? 'From account';
           final toName = toAcc?.name ?? 'To account';
           final desc = bill.description ?? 'Transfer from $fromName to $toName';
-          // Prefer including any bill notes in the placeholder note so the dashboard
-          // shows the bill's notes under the amount. Format: 'account: Name — note'
-          String? debitNote = 'account: $fromName';
-          if ((bill.description ?? '').isNotEmpty) debitNote = 'account: $fromName — ${bill.description}';
+          final billNote = (bill.description ?? '').trim();
+          final String? debitNote = billNote.isNotEmpty ? 'account: $fromName — $billNote' : null;
           final debit = Transaction(
             amount: bill.amount,
             categoryId: '',
@@ -953,8 +951,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             note: debitNote,
           );
           recentTransactions.add(TransactionDisplayItem(debit, sourceBill: bill));
-          String? creditNote = 'account: $toName';
-          if ((bill.description ?? '').isNotEmpty) creditNote = 'account: $toName — ${bill.description}';
+          final String? creditNote = billNote.isNotEmpty ? 'account: $toName — $billNote' : null;
           final credit = Transaction(
             amount: bill.amount,
             categoryId: '',
@@ -971,17 +968,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
             final p = payees.firstWhere((p) => p['id'] == bill.payeeId, orElse: () => <String, dynamic>{});
             if (p.containsKey('name')) desc = p['name'] as String;
           }
-          // Build note combining account and bill description so it displays under amount.
+          // Only show dashboard note content when the bill notes field has text.
           String? noteWithAccount;
           final billNote = (bill.description ?? '').trim();
-          if (bill.accountId != null) {
+          if (billNote.isNotEmpty && bill.accountId != null) {
             final account = DatabaseService.getAccountById(bill.accountId!);
             if (account != null) {
-              if (billNote.isNotEmpty) {
-                noteWithAccount = 'account: ${account.name} — $billNote';
-              } else {
-                noteWithAccount = 'account: ${account.name}';
-              }
+              noteWithAccount = 'account: ${account.name} — $billNote';
             }
           } else if (billNote.isNotEmpty) {
             noteWithAccount = billNote;
@@ -1334,8 +1327,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             ),
                     ),
                     const SizedBox(height: 6),
-                    // Always show account name above the note, even if note is empty
-                    if (transaction.note != null && transaction.note!.startsWith('account:')) ...[
+                    // Show account name only when there is visible user note content.
+                    if (plainNote != null &&
+                        plainNote.trim().isNotEmpty &&
+                        transaction.note != null &&
+                        transaction.note!.startsWith('account:')) ...[
                       SizedBox(
                         width: 160,
                         child: Text(
@@ -1355,16 +1351,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                       const SizedBox(height: 2),
                     ],
-                    SizedBox(
-                      width: 160,
-                      child: Text(
-                        plainNote ?? '',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
-                        textAlign: TextAlign.right,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+                    if (plainNote != null && plainNote.trim().isNotEmpty)
+                      SizedBox(
+                        width: 160,
+                        child: Text(
+                          plainNote,
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+                          textAlign: TextAlign.right,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                    ),
                     const SizedBox(height: 6),
                     // Payment status (for bills) — compute from transactions at display time
                     if (sourceBill != null) ...[

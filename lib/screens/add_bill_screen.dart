@@ -563,6 +563,7 @@ class _AddBillScreenState extends State<AddBillScreen> {
   final _amountController = TextEditingController();
   final _notesController = TextEditingController();
   bool _isSaving = false;
+  bool _didUserEditNotes = false;
 
   // New: bill type (expense/income/transfer)
   BillType _billType = BillType.expense;
@@ -707,6 +708,7 @@ class _AddBillScreenState extends State<AddBillScreen> {
                 _fromAccountId = null;
                 _toAccountId = null;
                 _notesController.clear();
+                _didUserEditNotes = true;
               });
             },
             children: const [
@@ -1022,6 +1024,11 @@ class _AddBillScreenState extends State<AddBillScreen> {
       controller: _notesController,
       textCapitalization: TextCapitalization.sentences,
       maxLines: 3,
+      onChanged: (_) {
+        if (!_didUserEditNotes) {
+          setState(() => _didUserEditNotes = true);
+        }
+      },
       decoration: const InputDecoration(
         labelText: 'Notes',
         hintText: 'Optional notes about this bill',
@@ -1705,8 +1712,20 @@ class _AddBillScreenState extends State<AddBillScreen> {
     // Default: persist a Bill (existing behavior)
     final Bill bill;
     final notes = _notesController.text.trim();
-    final shouldSaveNotes = _billType != BillType.transfer || notes.isNotEmpty;
-    final description = shouldSaveNotes ? (notes.isEmpty ? null : notes) : null;
+    final isCreateFlow = widget.existingBill == null || widget.isDuplicate;
+    final existingNotes = widget.existingBill?.description?.trim() ?? '';
+    String? description;
+    if (isCreateFlow) {
+      // For new/duplicate bills, only persist notes explicitly entered in this flow.
+      description = (_didUserEditNotes && notes.isNotEmpty) ? notes : null;
+    } else {
+      // For edits, preserve current notes unless the user intentionally changed them.
+      if (_didUserEditNotes) {
+        description = notes.isEmpty ? null : notes;
+      } else {
+        description = existingNotes.isEmpty ? null : existingNotes;
+      }
+    }
     if (widget.existingBill != null) {
       // Updating existing bill
       bill = widget.existingBill!.copyWith(
