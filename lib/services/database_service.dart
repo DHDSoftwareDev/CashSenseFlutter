@@ -421,6 +421,29 @@ class DatabaseService {
     billsVersion.value++;
   }
 
+  /// Remove all persisted per-occurrence statuses for a bill.
+  /// Useful when bill amount or recurrence changes so stale paid flags do not linger.
+  static Future<void> clearBillOccurrenceStatusesForBill(String billId) async {
+    final id = billId.trim();
+    if (id.isEmpty) return;
+    try {
+      final keysToRemove = <dynamic>[];
+      for (final key in _billOccurrenceBox.keys) {
+        try {
+          if (key is String && key.startsWith('${id}_')) {
+            keysToRemove.add(key);
+          }
+        } catch (_) {}
+      }
+      if (keysToRemove.isEmpty) return;
+      for (final key in keysToRemove) {
+        await _billOccurrenceBox.delete(key);
+      }
+      await _billOccurrenceBox.flush();
+      billsVersion.value++;
+    } catch (_) {}
+  }
+
   /// Return occurrence-level status if present. Null if no persisted occurrence record exists.
   static Map<String, dynamic>? getBillOccurrenceStatus(String billId, DateTime date) {
     final key = _occurrenceKey(billId, date);
@@ -2056,11 +2079,33 @@ class DatabaseService {
     if (payees.isNotEmpty || payers.isNotEmpty) {
       final merged = <String, Map<String, dynamic>>{};
 
+      bool looksOpaque(String value) {
+        final v = value.trim();
+        if (v.isEmpty) return false;
+        final uuid = RegExp(
+          r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+        );
+        if (uuid.hasMatch(v)) return true;
+        final longToken = RegExp(r'^[A-Za-z0-9_-]{16,}$');
+        return longToken.hasMatch(v);
+      }
+
       void mergeContacts(List<Map<String, dynamic>> entries, String defaultType) {
         for (final item in entries) {
           final id = (item['id'] ?? '').toString().trim();
           final name = (item['name'] ?? '').toString().trim();
           if (id.isEmpty || name.isEmpty) continue;
+          final existing = merged[id];
+          final incomingLooksLikeId = name == id || looksOpaque(name);
+          final existingName = (existing?['name'] ?? '').toString().trim();
+          final existingIsGood =
+              existingName.isNotEmpty && existingName != id && !looksOpaque(existingName);
+
+          // Keep existing readable names; do not replace with opaque/id-like names.
+          if (existing != null && incomingLooksLikeId && existingIsGood) {
+            continue;
+          }
+
           merged[id] = {
             'id': id,
             'name': name,

@@ -294,12 +294,25 @@ class RemoteSyncService {
     final payees = <String, Map<String, dynamic>>{};
     final payers = <String, Map<String, dynamic>>{};
 
+    bool isUsableName(String? value) {
+      final v = (value ?? '').trim();
+      if (v.isEmpty) return false;
+      if (_looksLikeOpaqueId(v)) return false;
+      return true;
+    }
+
     for (final tx in transactions) {
       final payeeId = (tx.payeeId ?? '').trim();
       if (payeeId.isNotEmpty) {
+        final inferredName = isUsableName(tx.payeeName)
+            ? tx.payeeName!.trim()
+            : (isUsableName(tx.description) ? tx.description.trim() : '');
+        if (inferredName.isEmpty) {
+          continue;
+        }
         payees[payeeId] = {
           'id': payeeId,
-          'name': payeeId,
+          'name': inferredName,
           'type': 'payee',
           'categoryId': tx.categoryId,
         };
@@ -307,9 +320,15 @@ class RemoteSyncService {
 
       final payerId = (tx.payerId ?? '').trim();
       if (payerId.isNotEmpty) {
+        final inferredName = isUsableName(tx.payerName)
+            ? tx.payerName!.trim()
+            : (isUsableName(tx.description) ? tx.description.trim() : '');
+        if (inferredName.isEmpty) {
+          continue;
+        }
         payers[payerId] = {
           'id': payerId,
-          'name': payerId,
+          'name': inferredName,
           'type': 'payer',
           'categoryId': tx.categoryId,
         };

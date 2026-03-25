@@ -270,7 +270,6 @@ class _PayeeSelectorSheetState extends State<_PayeeSelectorSheet> {
       builder: (ctx) {
         final _nameController = TextEditingController();
         String? _categoryId;
-        Color selectedColor = const Color(0xFF607D8B);
         // Use a StatefulBuilder to update dropdowns inside the dialog
         return StatefulBuilder(builder: (ctx, setState) {
           // Fetch categories here so the list is fresh after adding a new one
@@ -304,34 +303,6 @@ class _PayeeSelectorSheetState extends State<_PayeeSelectorSheet> {
                     },
                   ),
                 ),
-                const SizedBox(height: 8),
-                GestureDetector(
-                  onTap: () async {
-                    final picked = await showAppColorPicker(
-                      context: ctx,
-                      initialColor: selectedColor,
-                      title: 'Pick Payee/Payer Color',
-                    );
-                    if (picked != null) setState(() => selectedColor = picked);
-                  },
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 20,
-                        height: 20,
-                        decoration: BoxDecoration(
-                          color: selectedColor,
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: Colors.black26),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      const Text('Color'),
-                      const Spacer(),
-                      const Icon(Icons.color_lens_outlined, size: 20),
-                    ],
-                  ),
-                ),
               ],
             ),
             actionsAlignment: MainAxisAlignment.center,
@@ -344,7 +315,6 @@ class _PayeeSelectorSheetState extends State<_PayeeSelectorSheet> {
                   Navigator.pop(ctx, {
                     'name': name,
                     'categoryId': _categoryId,
-                    'color': selectedColor.value.toString(),
                   });
                 },
                 child: const Text('Add'),
@@ -362,7 +332,6 @@ class _PayeeSelectorSheetState extends State<_PayeeSelectorSheet> {
         'name': result['name'],
         'type': type,
         'categoryId': result['categoryId'],
-        'color': result['color'],
       };
       await DatabaseService.addPayee(newPayee);
       try {
@@ -1782,6 +1751,11 @@ class _AddBillScreenState extends State<AddBillScreen> {
     try {
       if (widget.existingBill != null && !widget.isDuplicate) {
         await DatabaseService.updateBill(bill);
+
+        // Bill amount/recurrence edits can invalidate cached per-occurrence
+        // payment statuses (e.g., previously paid now becomes partial/unpaid).
+        // Clear cached statuses first, then rebuild from related payments below.
+        await DatabaseService.clearBillOccurrenceStatusesForBill(bill.id);
         
         // If this is an edit of an existing bill, and there are already
         // recorded payments for this bill (partial or otherwise), keep

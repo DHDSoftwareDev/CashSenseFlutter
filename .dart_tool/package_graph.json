@@ -5,7 +5,7 @@
   "packages": [
     {
       "name": "cashsenseflutter",
-      "version": "2.3.11+49",
+      "version": "2.3.12+50",
       "dependencies": [
         "amplify_api",
         "amplify_auth_cognito",
@@ -24,6 +24,7 @@
         "flutter_dotenv",
         "flutter_native_timezone",
         "flutter_secure_storage",
+        "flutter_slidable",
         "flutter_web_auth",
         "google_mobile_ads",
         "hive",
@@ -313,6 +314,13 @@
       "dependencies": [
         "flutter",
         "intl"
+      ]
+    },
+    {
+      "name": "flutter_slidable",
+      "version": "3.1.2",
+      "dependencies": [
+        "flutter"
       ]
     },
     {

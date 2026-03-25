@@ -86,6 +86,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   VoidCallback? _categoriesListener;
   bool _cleared = false;
   bool _showInReports = true;
+  String? _originalCategoryId; // Track the category from the transaction being edited/duplicated
 
   String _sanitizeInternalNoteTokens(String text) {
     var cleaned = text;
@@ -296,7 +297,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                       onPressed: () async {
                         final nameController = TextEditingController();
                         String? selectedCatId;
-                        Color selectedColor = const Color(0xFF607D8B);
                         final categories = _transactionType == TransactionScreenType.expense
                             ? DatabaseService.getAllCategories().where((cat) => cat.type == CategoryType.expense).toList()
                             : DatabaseService.getAllCategories().where((cat) => cat.type == CategoryType.income).toList();
@@ -424,6 +424,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                               body: _CategorySelectorSheet(
                                                 categories: filteredCats,
                                                 hideAddButton: true,
+                                                allowedTypes: {
+                                                  _transactionType == TransactionScreenType.expense
+                                                      ? CategoryType.expense
+                                                      : CategoryType.income,
+                                                },
                                               ),
                                             ),
                                           ),
@@ -439,34 +444,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                             const Icon(Icons.arrow_drop_down),
                                           ],
                                         ),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    GestureDetector(
-                                      onTap: () async {
-                                        final picked = await showAppColorPicker(
-                                          context: ctx,
-                                          initialColor: selectedColor,
-                                          title: 'Pick Payee/Payer Color',
-                                        );
-                                        if (picked != null) setState(() => selectedColor = picked);
-                                      },
-                                      child: Row(
-                                        children: [
-                                          Container(
-                                            width: 20,
-                                            height: 20,
-                                            decoration: BoxDecoration(
-                                              color: selectedColor,
-                                              borderRadius: BorderRadius.circular(4),
-                                              border: Border.all(color: Colors.black26),
-                                            ),
-                                          ),
-                                          const SizedBox(width: 12),
-                                          const Text('Color'),
-                                          const Spacer(),
-                                          const Icon(Icons.color_lens_outlined, size: 20),
-                                        ],
                                       ),
                                     ),
                                   ],
@@ -486,7 +463,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                         'name': nameController.text.trim(),
                                         'type': _transactionType == TransactionScreenType.expense ? 'payee' : 'payer',
                                         'categoryId': dialogCatId,
-                                        'color': selectedColor.value.toString(),
                                       });
                                     },
                                     child: const Text('Add'),
@@ -497,9 +473,12 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                           },
                         );
                         if (result != null) {
-                          await DatabaseService.addPayee(result);
+                          final payeeToAdd = {
+                            ...result,
+                          };
+                          await DatabaseService.addPayee(payeeToAdd);
                           try {
-                            await LookupsSyncHelper.syncPayeeOrPayer(result);
+                            await LookupsSyncHelper.syncPayeeOrPayer(payeeToAdd);
                           } catch (_) {}
                           // Refresh payees after adding
                           payees = DatabaseService.getAllPayees();
@@ -538,7 +517,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             final hasValidCategory = catId != null && DatabaseService.getAllCategories().any((c) => c.id == catId);
             setState(() {
               _selectedPayeeId = selected.isEmpty ? null : selected;
-              if (hasValidCategory) {
+               // If we're editing/duplicating a transaction that already has a category,
+               // preserve the transaction's category instead of using the payee's default category
+               if (_originalCategoryId == null && hasValidCategory) {
+                 // Only auto-select payee's category when creating a new transaction
                 _selectedCategoryId = catId;
               }
             });
@@ -719,7 +701,15 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     ),
                   ],
                 ),
-                body: _CategorySelectorSheet(categories: filteredCats, hideAddButton: true),
+                body: _CategorySelectorSheet(
+                  categories: filteredCats,
+                  hideAddButton: true,
+                  allowedTypes: {
+                    _transactionType == TransactionScreenType.expense
+                        ? CategoryType.expense
+                        : CategoryType.income,
+                  },
+                ),
               ),
             ),
           );
@@ -1957,6 +1947,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     // when edited.
     if (source.categoryId.isNotEmpty) {
       _selectedCategoryId = source.categoryId;
+      _originalCategoryId = source.categoryId;
     } else if (source.billId != null && source.billId!.isNotEmpty) {
       try {
         final billId = source.billId!;
@@ -1969,6 +1960,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         }
         if (linkedBill != null && linkedBill.categoryId != null && linkedBill.categoryId!.isNotEmpty) {
           _selectedCategoryId = linkedBill.categoryId;
+          _originalCategoryId = linkedBill.categoryId;
         } else {
           _selectedCategoryId = null;
         }
@@ -2109,7 +2101,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           // (e.g. the bill's category) so do not overwrite that.
           if (catId != null && DatabaseService.getAllCategories().any((c) => c.id == catId)) {
             final isBillPayment = source.billId != null && source.billId!.isNotEmpty;
-            if (!isBillPayment) {
+             // Don't override the transaction's category if it's already set (i.e., when editing/duplicating)
+             final hasTransactionCategory = source.categoryId.isNotEmpty;
+             if (!isBillPayment && !hasTransactionCategory) {
               _selectedCategoryId = catId;
             }
           }
@@ -2384,8 +2378,9 @@ class _PayeeSelectorSheetWithSearchState extends State<_PayeeSelectorSheetWithSe
 class _CategorySelectorSheet extends StatefulWidget {
   final List<Category> categories;
   final bool hideAddButton;
+  final Set<CategoryType>? allowedTypes;
 
-  const _CategorySelectorSheet({required this.categories, this.hideAddButton = false});
+  const _CategorySelectorSheet({required this.categories, this.hideAddButton = false, this.allowedTypes});
 
   @override
   State<_CategorySelectorSheet> createState() => _CategorySelectorSheetState();
@@ -2410,7 +2405,7 @@ class _CategorySelectorSheetState extends State<_CategorySelectorSheet> {
   @override
   void initState() {
     super.initState();
-    _allowedTypes = widget.categories.map((c) => c.type).toSet();
+    _allowedTypes = widget.allowedTypes ?? widget.categories.map((c) => c.type).toSet();
     _allCategories = _filteredByAllowedTypes(widget.categories);
     _categoriesListener = () {
       setState(() {

@@ -458,6 +458,12 @@
       "languageVersion": "2.12"
     },
     {
+      "name": "flutter_slidable",
+      "rootUri": "file:///Users/siler/.pub-cache/hosted/pub.dev/flutter_slidable-3.1.2",
+      "packageUri": "lib/",
+      "languageVersion": "2.17"
+    },
+    {
       "name": "flutter_test",
       "rootUri": "file:///Users/siler/development/flutter/packages/flutter_test",
       "packageUri": "lib/",

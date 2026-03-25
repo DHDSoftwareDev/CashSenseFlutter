@@ -4,6 +4,7 @@ import '../widgets/banner_ad_widget.dart';
 // ignore_for_file: use_build_context_synchronously
 
 import 'package:flutter/material.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
 import '../services/database_service.dart';
 import '../utils/formatters.dart';
 import '../models/account.dart';
@@ -110,12 +111,88 @@ class _AccountsScreenState extends State<AccountsScreen> {
     return label.isEmpty ? null : label;
   }
 
+  Future<void> _openAccountTransactions(Account acc) async {
+    navigateToRootPage(1, accountId: acc.id);
+  }
+
+  Future<void> _archiveAccount(Account acc) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Archive account'),
+        content: Text('Archive "${acc.name}"? This will hide it from lists.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Archive')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final updated = acc.copyWith(isActive: false);
+    await DatabaseService.updateAccount(updated);
+    if (!mounted) return;
+    setState(() {});
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Account archived'),
+        backgroundColor: Colors.blueGrey[400],
+      ),
+    );
+  }
+
+  Future<void> _deleteAccount(Account acc) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete account'),
+        content: Text('Are you sure you want to permanently delete "${acc.name}"? This cannot be undone.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Delete', style: TextStyle(color: Colors.red))),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await DatabaseService.deleteAccount(acc.id);
+    if (!mounted) return;
+    setState(() {});
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Account deleted'),
+        backgroundColor: Colors.blueGrey[400],
+      ),
+    );
+  }
+
+  Future<void> _editAccount(Account acc) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => AddAccountScreen(account: acc)),
+    );
+    if (!mounted) return;
+    if (result == true) setState(() {});
+  }
+
+  Future<void> _toggleAccountBalanceHidden(Account acc) async {
+    setState(() {
+      if (_hiddenBalances.contains(acc.id)) {
+        _hiddenBalances.remove(acc.id);
+      } else {
+        _hiddenBalances.add(acc.id);
+      }
+    });
+    try {
+      await DatabaseService.setSetting('hiddenAccountBalances', _hiddenBalances.toList());
+    } catch (_) {}
+  }
+
   @override
   Widget build(BuildContext context) {
     // Always fetch the latest accounts so balances update after transaction changes
     final List<Account> accounts = DatabaseService.getAllAccounts();
 
-    return Scaffold(
+    return SlidableAutoCloseBehavior(
+      child: Scaffold(
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.menu),
@@ -308,6 +385,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
             const BannerAdWidget(),
           ],
         ),
+      ),
       ),
     );
   }
@@ -616,7 +694,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
         ? '•••'
         : formatCurrency(displayAmount);
           try {
-            return Card(
+            final card = Card(
               margin: const EdgeInsets.symmetric(vertical: 6.0),
               child: ListTile(
                 leading: const Icon(Icons.account_balance_wallet),
@@ -684,93 +762,113 @@ class _AccountsScreenState extends State<AccountsScreen> {
                   ],
                 ),
                 onTap: () async {
-                  final value = await showMenu<String>(
-                    context: context,
-                    position: RelativeRect.fromLTRB(100, 400, 100, 100),
-                    items: [
-                      const PopupMenuItem(value: 'view_transactions', child: Text('Add/View transactions')),
-                      const PopupMenuItem(value: 'archive', child: Text('Archive')),
-                      const PopupMenuItem(value: 'delete', child: Text('Delete')),
-                      const PopupMenuItem(value: 'edit', child: Text('Edit')),
-                      PopupMenuItem(value: 'toggle_hide', child: Text(_hiddenBalances.contains(acc.id) ? 'Show balance' : 'Hide balance')),
-                    ],
-                  );
-                  switch (value) {
-                    case 'view_transactions':
-                      navigateToRootPage(1, accountId: acc.id);
-                      break;
-                    case 'archive':
-                      final confirmed = await showDialog<bool>(
-                        context: context,
-                        builder: (dialogContext) => AlertDialog(
-                          title: const Text('Archive account'),
-                          content: Text('Archive "${acc.name}"? This will hide it from lists.'),
-                          actions: [
-                            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
-                            TextButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Archive')),
-                          ],
-                        ),
-                      );
-                      if (confirmed == true) {
-                        final updated = acc.copyWith(isActive: false);
-                        await DatabaseService.updateAccount(updated);
-                        if (!mounted) return;
-                        setState(() {});
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: const Text('Account archived'),
-                            backgroundColor: Colors.blueGrey[400],
-                          ),
-                        );
-                      }
-                      break;
-                    case 'delete':
-                      final confirmed = await showDialog<bool>(
-                        context: context,
-                        builder: (dialogContext) => AlertDialog(
-                          title: const Text('Delete account'),
-                          content: Text('Are you sure you want to permanently delete "${acc.name}"? This cannot be undone.'),
-                          actions: [
-                            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
-                            TextButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Delete', style: TextStyle(color: Colors.red))),
-                          ],
-                        ),
-                      );
-                      if (confirmed == true) {
-                        await DatabaseService.deleteAccount(acc.id);
-                        if (!mounted) return;
-                        setState(() {});
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: const Text('Account deleted'),
-                            backgroundColor: Colors.blueGrey[400],
-                          ),
-                        );
-                      }
-                      break;
-                    case 'edit':
-                      final result = await Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => AddAccountScreen(account: acc)),
-                      );
-                      if (!mounted) return;
-                      if (result == true) setState(() {});
-                      break;
-                    case 'toggle_hide':
-                      setState(() {
-                        if (_hiddenBalances.contains(acc.id)) {
-                          _hiddenBalances.remove(acc.id);
-                        } else {
-                          _hiddenBalances.add(acc.id);
-                        }
-                      });
-                      try {
-                        await DatabaseService.setSetting('hiddenAccountBalances', _hiddenBalances.toList());
-                      } catch (_) {}
-                      break;
-                  }
+                  await _openAccountTransactions(acc);
                 },
               ),
+            );
+
+            final isHidden = _hiddenBalances.contains(acc.id);
+            return Slidable(
+              key: ValueKey('account_swipe_${acc.id}'),
+              startActionPane: ActionPane(
+                motion: const DrawerMotion(),
+                extentRatio: 0.50,
+                children: [
+                  CustomSlidableAction(
+                    onPressed: (_) async => _editAccount(acc),
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    foregroundColor: Colors.white,
+                    child: const Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.edit, color: Colors.white),
+                        SizedBox(height: 4),
+                        Text(
+                          'Edit',
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          softWrap: true,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: Colors.white, fontSize: 11, height: 1.1),
+                        ),
+                      ],
+                    ),
+                  ),
+                  CustomSlidableAction(
+                    onPressed: (_) async => _toggleAccountBalanceHidden(acc),
+                    backgroundColor: Colors.blueGrey,
+                    foregroundColor: Colors.white,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          isHidden ? Icons.visibility : Icons.visibility_off,
+                          color: Colors.white,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          isHidden ? 'Show\nBalance' : 'Hide\nBalance',
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          softWrap: false,
+                          overflow: TextOverflow.visible,
+                          style: const TextStyle(color: Colors.white, fontSize: 11, height: 1.1),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              endActionPane: ActionPane(
+                motion: const DrawerMotion(),
+                extentRatio: 0.50,
+                children: [
+                  CustomSlidableAction(
+                    onPressed: (_) async => _archiveAccount(acc),
+                    backgroundColor: Colors.orange,
+                    foregroundColor: Colors.white,
+                    child: const Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.archive, color: Colors.white),
+                        SizedBox(height: 4),
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            'Archive',
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            softWrap: false,
+                            overflow: TextOverflow.visible,
+                            style: TextStyle(color: Colors.white, fontSize: 11, height: 1.1),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  CustomSlidableAction(
+                    onPressed: (_) async => _deleteAccount(acc),
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                    child: const Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.delete, color: Colors.white),
+                        SizedBox(height: 4),
+                        Text(
+                          'Delete',
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          softWrap: true,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: Colors.white, fontSize: 11, height: 1.1),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              child: card,
             );
           } catch (e, st) {
             print('Error rendering account list tile: $e\n$st');

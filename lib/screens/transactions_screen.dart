@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
 import 'dart:convert';
 import '../services/database_service.dart';
 import '../services/lookups_state.dart';
@@ -220,7 +221,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   @override
   Widget build(BuildContext context) {
   final bool hasAnyTransactions = _transactions.isNotEmpty;
-  return Scaffold(
+  return SlidableAutoCloseBehavior(
+    child: Scaffold(
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -316,7 +318,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         ),
       ),
       // FloatingActionButton removed; add button is now in the AppBar actions
-    );
+    ),
+  );
   }
 
   Widget _buildEmptyState() {
@@ -857,72 +860,44 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       }
     }
     
-    Offset? lastTapPosition;
+    Future<void> openEditTransaction() async {
+      final result = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => AddTransactionScreen(
+            existingTransaction: transaction,
+            hideFromCalendarDashboard: true,
+          ),
+        ),
+      );
+      if (result == true || result is Transaction) _loadTransactions();
+    }
 
-    return Card(
+    Future<void> duplicateTransaction() async {
+      final result = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => AddTransactionScreen(
+            prefillTransaction: transaction,
+            isDuplicate: true,
+            hideFromCalendarDashboard: true,
+          ),
+        ),
+      );
+      if (result == true) _loadTransactions();
+    }
+
+    Future<void> toggleClearStatus() async {
+      final newCleared = !(transaction.cleared ?? false);
+      await DatabaseService.updateTransaction(transaction.copyWith(cleared: newCleared));
+      _loadTransactions();
+    }
+
+    final card = Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: InkWell(
-        onTapDown: (TapDownDetails details) {
-          lastTapPosition = details.globalPosition;
-        },
         onTap: () async {
-          // Anchor menu at the tap location when available so it opens next to the card.
-          final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
-          Rect itemRect;
-          if (lastTapPosition != null) {
-            itemRect = Rect.fromLTWH(lastTapPosition!.dx, lastTapPosition!.dy, 1, 1);
-          } else {
-            final renderBox = context.findRenderObject() as RenderBox;
-            final topLeft = renderBox.localToGlobal(Offset.zero, ancestor: overlay);
-            itemRect = Rect.fromLTWH(topLeft.dx, topLeft.dy, renderBox.size.width, renderBox.size.height);
-          }
-          final position = RelativeRect.fromRect(itemRect, Offset.zero & overlay.size);
-
-          final value = await showMenu<String>(
-            context: context,
-            position: position,
-            items: [
-              const PopupMenuItem(value: 'duplicate', child: Text('Duplicate')),
-              const PopupMenuItem(value: 'edit', child: Text('Edit')),
-              const PopupMenuItem(value: 'delete', child: Text('Delete')),
-              PopupMenuItem(
-                value: 'toggleClear',
-                child: Text(transaction.cleared == true ? 'Mark Unclear' : 'Mark Cleared'),
-              ),
-            ],
-          );
-          if (value == 'duplicate') {
-            // Open AddTransactionScreen with the transaction prefilled but in Add mode
-            final result = await Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => AddTransactionScreen(
-                  prefillTransaction: transaction,
-                  isDuplicate: true,
-                  hideFromCalendarDashboard: true,
-                ),
-              ),
-            );
-            if (result == true) _loadTransactions();
-            } else if (value == 'edit') {
-              // Only open the edit screen; transfer edit confirmation handled in add_transaction_screen.dart
-              final result = await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => AddTransactionScreen(
-                    existingTransaction: transaction,
-                    hideFromCalendarDashboard: true,
-                  ),
-                ),
-              );
-              if (result == true || result is Transaction) _loadTransactions();
-          } else if (value == 'delete') {
-            _deleteTransaction(transaction);
-          } else if (value == 'toggleClear') {
-            final newCleared = !(transaction.cleared ?? false);
-            await DatabaseService.updateTransaction(transaction.copyWith(cleared: newCleared));
-            _loadTransactions();
-          }
+          await openEditTransaction();
         },
         child: ListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -1076,6 +1051,89 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           ),
         ),
       ),
+    );
+
+    return Slidable(
+      key: ValueKey('transaction_swipe_${transaction.id}'),
+      startActionPane: ActionPane(
+        motion: const DrawerMotion(),
+        extentRatio: 0.50,
+        children: [
+          CustomSlidableAction(
+            onPressed: (_) async => duplicateTransaction(),
+            backgroundColor: Theme.of(context).colorScheme.primary,
+            foregroundColor: Colors.white,
+            child: const Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.copy, color: Colors.white),
+                SizedBox(height: 4),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    'Duplicate',
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    softWrap: false,
+                    overflow: TextOverflow.visible,
+                    style: TextStyle(color: Colors.white, fontSize: 11, height: 1.1),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          CustomSlidableAction(
+            onPressed: (_) async => toggleClearStatus(),
+            backgroundColor: Colors.blueGrey,
+            foregroundColor: Colors.white,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  transaction.cleared == true ? Icons.undo : Icons.check_circle_outline,
+                  color: Colors.white,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  transaction.cleared == true ? 'Mark Unclear' : 'Mark Cleared',
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  softWrap: true,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.white, fontSize: 11, height: 1.1),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      endActionPane: ActionPane(
+        motion: const DrawerMotion(),
+        extentRatio: 0.25,
+        children: [
+          CustomSlidableAction(
+            onPressed: (_) => _deleteTransaction(transaction),
+            backgroundColor: Colors.red,
+            foregroundColor: Colors.white,
+            child: const Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.delete, color: Colors.white),
+                SizedBox(height: 4),
+                Text(
+                  'Delete',
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  softWrap: true,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: Colors.white, fontSize: 11, height: 1.1),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      child: card,
     );
   }
 

@@ -176,17 +176,21 @@ Future<void> _startDeferredInits(
         debugPrint('Refresh current user session failed: $e');
         return null;
       }),
-    if (isSignedIn)
-      RemoteSyncService.syncUserDataOnLogin().catchError((e) {
-        debugPrint('Remote data sync failed: $e');
-        return null;
-      }),
-    if (isSignedIn)
-      lookupsState.syncRemote().catchError((e) {
-        debugPrint('Lookup sync failed: $e');
-        return null;
-      }),
   ]);
+
+  // Sequence remote sync before lookups sync so subscription plan refresh has
+  // happened; otherwise lookups can be skipped as "Free" on one device.
+  if (isSignedIn) {
+    await RemoteSyncService.syncUserDataOnLogin().catchError((e) {
+      debugPrint('Remote data sync failed: $e');
+      return null;
+    });
+
+    await lookupsState.syncRemote().catchError((e) {
+      debugPrint('Lookup sync failed: $e');
+      return null;
+    });
+  }
 }
 
 Future<void> _refreshCurrentUserSession(UserSessionController userSession) async {

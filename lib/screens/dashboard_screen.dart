@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
 import 'dart:convert';
 import 'package:table_calendar/table_calendar.dart';
 import '../widgets/banner_ad_widget.dart';
@@ -329,21 +330,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String _searchQuery = '';
   final List<Map<String, dynamic>> _searchResults = [];
 
-  String _normalizedText(String? value) => (value ?? '').trim().toLowerCase();
-
   String _billOccurrenceRenderKey(Bill bill, DateTime date) {
     final day = '${date.year}-${date.month}-${date.day}';
-    final amount = bill.amount.toStringAsFixed(2);
+    // Include bill id so visually similar bills don't collapse into one entry.
+    // Otherwise deleting one of duplicates can appear to "come back" immediately.
+    final billId = bill.id.trim();
     return [
+      billId,
       day,
       bill.type.name,
-      amount,
-      _normalizedText(bill.description),
-      bill.payeeId ?? '',
-      bill.accountId ?? '',
-      bill.categoryId ?? '',
-      bill.fromAccountId ?? '',
-      bill.toAccountId ?? '',
     ].join('|');
   }
 
@@ -414,7 +409,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-  return Scaffold(
+  return SlidableAutoCloseBehavior(
+    child: Scaffold(
     appBar: AppBar(
       leading: IconButton(
         icon: const Icon(Icons.menu),
@@ -486,6 +482,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ),
       ],
+    ),
     ),
   );
   }
@@ -1277,126 +1274,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
     }
 
-    Offset? lastTapPosition;
-
-    return Card(
+    final cardContent = Card(
       margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 0),
       child: InkWell(
-        onTapDown: (details) {
-          lastTapPosition = details.globalPosition;
-        },
         onTap: () async {
-          final menuItems = <PopupMenuEntry<String>>[];
-          if (paymentProgress != null && sourceBill != null) {
-            if (isExpanded) {
-              menuItems.add(
-                const PopupMenuItem(
-                  value: 'hide_progress',
-                  child: Row(
-                    children: [
-                      Icon(Icons.close, size: 18),
-                      SizedBox(width: 8),
-                      Text('Hide payment progress'),
-                    ],
-                  ),
-                ),
-              );
-            } else {
-              menuItems.add(
-                const PopupMenuItem(
-                  value: 'show_progress',
-                  child: Row(
-                    children: [
-                      Icon(Icons.show_chart, size: 18),
-                      SizedBox(width: 8),
-                      Text('Show payment progress'),
-                    ],
-                  ),
-                ),
-              );
-            }
-          }
-          // Add common actions. Allow editing bills even if paid/partial to enable safe updates
-          // that preserve payment history.
-          final items = <PopupMenuEntry<String>>[];
-          if (paymentProgress != null && sourceBill != null) {
-            // Preserve the progress show/hide item that may have been added above
-            // (they were added directly to menuItems earlier)
-          }
-          // Always allow editing bills from the calendar
-          items.add(
-            const PopupMenuItem(
-              value: 'edit',
-              child: Row(
-                children: [
-                  Icon(Icons.edit, size: 18),
-                  SizedBox(width: 8),
-                  Text('Edit'),
-                ],
-              ),
-            ),
-          );
-          items.addAll([
-            const PopupMenuItem(
-              value: 'duplicate',
-              child: Row(
-                children: [
-                  Icon(Icons.copy, size: 18),
-                  SizedBox(width: 8),
-                  Text('Duplicate'),
-                ],
-              ),
-            ),
-            const PopupMenuItem(
-              value: 'delete',
-              child: Row(
-                children: [
-                  Icon(Icons.delete, size: 18),
-                  SizedBox(width: 8),
-                  Text('Delete'),
-                ],
-              ),
-            ),
-            const PopupMenuItem(
-              value: 'pay',
-              child: Row(
-                children: [
-                  Icon(Icons.payment, size: 18),
-                  SizedBox(width: 8),
-                  Text('Pay'),
-                ],
-              ),
-            ),
-          ]);
-          menuItems.addAll(items);
-          final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
-            final tap = lastTapPosition;
-          final itemRect = tap != null
-              ? Rect.fromLTWH(tap.dx, tap.dy, 1, 1)
-              : Rect.fromLTWH(100, 400, 1, 1);
-          final value = await showMenu<String>(
-            context: context,
-            position: RelativeRect.fromRect(itemRect, Offset.zero & overlay.size),
-            items: menuItems,
-            color: Theme.of(context).colorScheme.primary,
-          );
-          if (value == 'show_progress') {
-            setState(() {
-              _expandedTransactionIds.add(cardId);
-            });
-          } else if (value == 'hide_progress') {
-            setState(() {
-              _expandedTransactionIds.remove(cardId);
-            });
-          } else if (value == 'edit') {
-            await _handleEdit(transaction, sourceBill);
-          } else if (value == 'delete') {
-            await _handleDelete(transaction, sourceBill);
-          } else if (value == 'pay') {
-            await _handlePay(transaction, sourceBill);
-          } else if (value == 'duplicate') {
-            await _handleDuplicate(transaction, sourceBill);
-          }
+          await _handleEdit(transaction, sourceBill);
         },
         child: Padding(
           padding: const EdgeInsets.all(12.0),
@@ -1570,6 +1452,121 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
       ),
       ),
+    );
+
+    if (sourceBill == null) {
+      return cardContent;
+    }
+
+    return Slidable(
+      key: ValueKey('bill-swipe-$cardId-${sourceBill.id}'),
+      startActionPane: ActionPane(
+        motion: const DrawerMotion(),
+        extentRatio: 0.50,
+        children: [
+          CustomSlidableAction(
+            onPressed: (_) {
+              setState(() {
+                if (isExpanded) {
+                  _expandedTransactionIds.remove(cardId);
+                } else {
+                  _expandedTransactionIds.add(cardId);
+                }
+              });
+            },
+            backgroundColor: Theme.of(context).colorScheme.primary,
+            foregroundColor: Colors.white,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  isExpanded ? Icons.close : Icons.show_chart,
+                  color: Colors.white,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  isExpanded ? 'Hide\nProgress' : 'Show\nProgress',
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  softWrap: false,
+                  overflow: TextOverflow.visible,
+                  style: const TextStyle(color: Colors.white, fontSize: 11, height: 1.1),
+                ),
+              ],
+            ),
+          ),
+          CustomSlidableAction(
+            onPressed: (_) async => _handleDuplicate(transaction, sourceBill),
+            backgroundColor: Colors.blueGrey,
+            foregroundColor: Colors.white,
+            child: const Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.copy, color: Colors.white),
+                SizedBox(height: 4),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    'Duplicate',
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    softWrap: false,
+                    overflow: TextOverflow.visible,
+                    style: TextStyle(color: Colors.white, fontSize: 11, height: 1.1),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      endActionPane: ActionPane(
+        motion: const DrawerMotion(),
+        extentRatio: 0.50,
+        children: [
+          CustomSlidableAction(
+            onPressed: (_) async => _handlePay(transaction, sourceBill),
+            backgroundColor: Colors.green,
+            foregroundColor: Colors.white,
+            child: const Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.payment, color: Colors.white),
+                SizedBox(height: 4),
+                Text(
+                  'Pay',
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  softWrap: true,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: Colors.white, fontSize: 11, height: 1.1),
+                ),
+              ],
+            ),
+          ),
+          CustomSlidableAction(
+            onPressed: (_) async => _handleDelete(transaction, sourceBill),
+            backgroundColor: Colors.red,
+            foregroundColor: Colors.white,
+            child: const Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.delete, color: Colors.white),
+                SizedBox(height: 4),
+                Text(
+                  'Delete',
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  softWrap: true,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: Colors.white, fontSize: 11, height: 1.1),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      child: cardContent,
     );
   }
 
