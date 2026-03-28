@@ -63,17 +63,24 @@ class _ReportTransactionsScreenState extends State<ReportTransactionsScreen> {
   }
 
   bool _matchesPayee(Transaction t, String label) {
+    // Prefer explicit transaction fields and ID-backed lookup first.
+    final txPayeeName = (t.payeeName ?? '').trim();
+    if (txPayeeName.isNotEmpty && _matchesLabelInsensitive(txPayeeName, label)) return true;
+
     // Match by explicit payee id -> name
     if (t.payeeId != null && t.payeeId!.isNotEmpty) {
       final payee = DatabaseService.getAllPayees().firstWhere((p) => (p['id'] ?? '') == t.payeeId, orElse: () => <String, dynamic>{});
       final payeeName = (payee['name'] ?? '').toString();
       if (payeeName.isNotEmpty && _matchesLabelInsensitive(payeeName, label)) return true;
     }
+
     // Match by extracted payee-like description (e.g. "Payment for Rent 11/06/2025")
     final extracted = _extractPayeeName(t.description);
     if (extracted.isNotEmpty && _matchesLabelInsensitive(extracted, label)) return true;
+
     // Match by raw description containing the label
     if (t.description.isNotEmpty && _matchesLabelInsensitive(t.description, label)) return true;
+
     // If transaction links to a bill whose description matches, include it
     if (t.billId != null && t.billId!.isNotEmpty) {
       final bill = DatabaseService.getAllBills().firstWhere(
@@ -95,6 +102,9 @@ class _ReportTransactionsScreenState extends State<ReportTransactionsScreen> {
   }
 
   bool _matchesPayer(Transaction t, String label) {
+    final txPayerName = (t.payerName ?? '').trim();
+    if (txPayerName.isNotEmpty && _matchesLabelInsensitive(txPayerName, label)) return true;
+
     if (t.payerId != null && t.payerId!.isNotEmpty) {
       final payer = DatabaseService.getAllPayees().firstWhere((p) => (p['id'] ?? '') == t.payerId, orElse: () => <String, dynamic>{});
       final payerName = (payer['name'] ?? '').toString();
@@ -138,8 +148,12 @@ class _ReportTransactionsScreenState extends State<ReportTransactionsScreen> {
       if (t.date.isBefore(start) || t.date.isAfter(end)) return false;
       if (widget.type != null && t.type != widget.type) return false;
       if (widget.filterType == 'category' || widget.filterType == 'category_both') {
+        final txCategoryName = (t.categoryName ?? '').trim();
+        if (txCategoryName.isNotEmpty && _matchesLabelInsensitive(txCategoryName, widget.label)) return true;
+
         final cat = DatabaseService.getCategoryById(t.categoryId);
-        if (cat != null && cat.name == widget.label) return true;
+        if (cat != null && _matchesLabelInsensitive(cat.name, widget.label)) return true;
+
         if (t.description.trim() == widget.label) return true;
         return false;
       } else if (widget.filterType == 'both') {

@@ -44,6 +44,7 @@ class LookupsApi {
     required String name,
     String? color,
     String? icon,
+    bool? isIncome,
     int sortOrder = 0,
   }) async {
     final headers = await authHeadersBuilder();
@@ -60,6 +61,7 @@ class LookupsApi {
         'name': name,
         'color': color,
         'icon': icon,
+        if (isIncome != null) 'isIncome': isIncome,
         'sortOrder': sortOrder,
       }),
     );

@@ -353,13 +353,6 @@ class _PayBillScreenState extends State<PayBillScreen> {
         // Notify dashboard/calendar to refresh immediately
         DatabaseService.billsVersion.value++;
         DatabaseService.transactionsVersion.value++;
-        // Show confirmation and close screen
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Payment saved successfully'),
-            backgroundColor: Colors.blueGrey[400],
-          ),
-        );
         Navigator.of(context).pop();
       }
     } catch (e) {
@@ -831,9 +824,7 @@ class _PayBillScreenState extends State<PayBillScreen> {
                                     DatabaseService.billsVersion.value++;
                                   } catch (_) {}
 
-                                  messenger.showSnackBar(
-                                    SnackBar(content: const Text('Payment deleted'), backgroundColor: Colors.blueGrey[400]),
-                                  );
+                                  messenger.clearSnackBars();
                                 }
                               }
                             },

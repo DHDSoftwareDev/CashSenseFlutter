@@ -38,6 +38,7 @@ class LookupsSyncHelper {
       name: category.name,
       color: _toHexColor(category.colorValue),
       icon: category.image ?? category.iconCodePoint,
+      isIncome: category.type == CategoryType.income,
     );
   }
 

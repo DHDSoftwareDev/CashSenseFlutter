@@ -47,6 +47,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   static const String _developerUnlockPassword = 'dev2026';
   static const String _testerUnlockPassword = 'test30days';
+  static const String _autoLogoutEnabledKey = 'biometricAutoLogoutEnabled';
   static const String _autoLogoutTimeoutKey = 'biometricAutoLogoutSeconds';
   static const List<int> _autoLogoutTimeoutOptions = <int>[30, 60, 90];
 
@@ -58,6 +59,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _biometricEnabled = false;
   bool _biometricAvailable = false;
   String _biometricLabel = 'Biometrics';
+  bool _autoLogoutEnabled = true;
   int _autoLogoutTimeoutSeconds = 60;
 
   @override
@@ -66,8 +68,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _loadUserInfo();
     _loadVersion();
     _loadBiometricSettings();
+    _loadAutoLogoutEnabledSetting();
     _loadAutoLogoutTimeoutSetting();
     _autoBackupEnabled = DatabaseService.getSetting<bool>('autoBackupEnabled', false) ?? false;
+  }
+
+  void _loadAutoLogoutEnabledSetting() {
+    final enabled = DatabaseService.getSetting<bool>(_autoLogoutEnabledKey, true) ?? true;
+    if (!mounted) return;
+    setState(() {
+      _autoLogoutEnabled = enabled;
+    });
+  }
+
+  Future<void> _setAutoLogoutEnabled(bool enabled) async {
+    await DatabaseService.setSetting(_autoLogoutEnabledKey, enabled);
+    if (!mounted) return;
+    setState(() {
+      _autoLogoutEnabled = enabled;
+    });
   }
 
   void _loadAutoLogoutTimeoutSetting() {
@@ -1275,117 +1294,128 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _buildAuthCard(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-      child: Card(
-        elevation: 2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Account',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 8),
-
-              // Show status
-              Text(
-                _isLoggedIn
-                    ? 'Signed in as ${_userEmail.isEmpty ? 'your account' : _userEmail}'
-                    : 'You are not signed in.',
-              ),
-              const SizedBox(height: 12),
-
-              if (_isLoggedIn) ...[
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.fingerprint),
-                  title: const Text('Biometric Unlock'),
-                  subtitle: Text(
-                    _biometricAvailable
-                        ? 'Use $_biometricLabel to unlock app'
-                        : 'Not available on this device',
-                  ),
-                  onTap: _biometricAvailable ? () => _setBiometricEnabled(!_biometricEnabled) : null,
-                  trailing: Switch(
-                    value: _biometricEnabled,
-                    onChanged: _biometricAvailable ? (value) => _setBiometricEnabled(value) : null,
-                  ),
-                ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.timer_outlined),
-                  title: const Text('Auto Logout Timeout'),
-                  subtitle: const Text('Log out after app is in background for:'),
-                  trailing: DropdownButtonHideUnderline(
-                    child: DropdownButton<int>(
-                      value: _autoLogoutTimeoutSeconds,
-                      items: _autoLogoutTimeoutOptions
-                          .map(
-                            (seconds) => DropdownMenuItem<int>(
-                              value: seconds,
-                              child: Text('$seconds sec'),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (value) {
-                        if (value == null) return;
-                        _setAutoLogoutTimeoutSeconds(value);
-                      },
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-              ],
-
-              // Buttons depend on sign-in state
-              if (_isLoggedIn) ...[
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () async {
-                      await _signOut();
-                    },
-                    child: const Text('Log out'),
-                  ),
-                ),
-              ] else ...[
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () async {
-                      await Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const LoginScreen()),
-                      );
-                      if (!mounted) return;
-                      await _loadUserInfo();
-                    },
-                    child: const Text('Log in'),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton(
-                    onPressed: () async {
-                      await Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const SignUpScreen()),
-                      );
-                      if (!mounted) return;
-                      await _loadUserInfo();
-                    },
-                    child: const Text('Sign up'),
-                  ),
-                ),
-              ],
-            ],
-          ),
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      child: ExpansionTile(
+        initiallyExpanded: false,
+        leading: const Icon(Icons.person_outline),
+        title: const Text(
+          'Account',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
         ),
+        subtitle: Text(
+          _isLoggedIn
+              ? 'Signed in as ${_userEmail.isEmpty ? 'your account' : _userEmail}'
+              : 'You are not signed in.',
+        ),
+        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        children: [
+          const SizedBox(height: 8),
+          if (_isLoggedIn) ...[
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.fingerprint),
+              title: const Text('Biometric Unlock'),
+              subtitle: Text(
+                _biometricAvailable
+                    ? 'Use $_biometricLabel to unlock app'
+                    : 'Not available on this device',
+              ),
+              onTap: _biometricAvailable ? () => _setBiometricEnabled(!_biometricEnabled) : null,
+              trailing: Switch(
+                value: _biometricEnabled,
+                onChanged: _biometricAvailable ? (value) => _setBiometricEnabled(value) : null,
+              ),
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.lock_clock_outlined),
+              title: const Text('Auto Logout'),
+              subtitle: Text(
+                _autoLogoutEnabled
+                    ? 'Require unlock after time away from app'
+                    : 'Disabled',
+              ),
+              trailing: Switch(
+                value: _autoLogoutEnabled,
+                onChanged: (value) => _setAutoLogoutEnabled(value),
+              ),
+              onTap: () => _setAutoLogoutEnabled(!_autoLogoutEnabled),
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.timer_outlined),
+              title: const Text('Auto Logout Timeout'),
+              subtitle: Text(
+                _autoLogoutEnabled
+                    ? 'Log out after app is in background for:'
+                    : 'Enable Auto Logout to set timeout',
+              ),
+              trailing: DropdownButtonHideUnderline(
+                child: DropdownButton<int>(
+                  value: _autoLogoutTimeoutSeconds,
+                  items: _autoLogoutTimeoutOptions
+                      .map(
+                        (seconds) => DropdownMenuItem<int>(
+                          value: seconds,
+                          child: Text('$seconds sec'),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: _autoLogoutEnabled
+                      ? (value) {
+                          if (value == null) return;
+                          _setAutoLogoutTimeoutSeconds(value);
+                        }
+                      : null,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+          if (_isLoggedIn) ...[
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () async {
+                  await _signOut();
+                },
+                child: const Text('Log out'),
+              ),
+            ),
+          ] else ...[
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () async {
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const LoginScreen()),
+                  );
+                  if (!mounted) return;
+                  await _loadUserInfo();
+                },
+                child: const Text('Log in'),
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: () async {
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const SignUpScreen()),
+                  );
+                  if (!mounted) return;
+                  await _loadUserInfo();
+                },
+                child: const Text('Sign up'),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

@@ -107,6 +107,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _showPaidBills =
         DatabaseService.getSetting<bool>(_showPaidBillsSettingKey, false) ?? false;
     DatabaseService.categoriesVersion.addListener(_onCategoriesChanged);
+    DatabaseService.billsVersion.addListener(_onBillsChanged);
     DatabaseService.payeesVersion.addListener(_onPayeesChanged);
     
     // Add listener to search focus node to show/hide dropdown
@@ -124,8 +125,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
     setState(() {}); // Triggers rebuild to update category names/colors/icons
   }
 
+  void _onBillsChanged() {
+    if (!mounted) return;
+    if (_searchQuery.isNotEmpty) {
+      _performSearch(_searchController.text);
+      return;
+    }
+    setState(() {});
+  }
+
   void _onPayeesChanged() {
     if (!mounted) return;
+    if (_searchQuery.isNotEmpty) {
+      _performSearch(_searchController.text);
+      return;
+    }
     setState(() {}); // Triggers rebuild to update payee names
   }
 
@@ -313,6 +327,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   _searchFocusNode.dispose();
   _searchResultsScrollController.dispose();
   DatabaseService.categoriesVersion.removeListener(_onCategoriesChanged);
+  DatabaseService.billsVersion.removeListener(_onBillsChanged);
   DatabaseService.payeesVersion.removeListener(_onPayeesChanged);
     super.dispose();
   }
@@ -811,19 +826,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // Quick stats removed: income/expense stat cards were intentionally removed from the
   // dashboard bottom area per user request.
 
-  PaymentStatus? _inferBillStatusFromMetadata(Bill bill) {
-    if (bill.paymentStatus != null) return bill.paymentStatus;
-    if (bill.isPaid) return PaymentStatus.paid;
-    final text = (bill.description ?? '').toLowerCase();
-    if (text.contains('unpaid') || text.contains('due') || text.contains('pending')) return PaymentStatus.unpaid;
-    if (text.contains('partial') || text.contains('partially')) return PaymentStatus.partial;
-    if (text.contains('paid') || text.contains('settled') || text.contains('cleared')) return PaymentStatus.paid;
-    return null;
-  }
-
   PaymentStatus _finalizeBillStatus(Bill bill, double totalPaid) {
     if (totalPaid <= 0) {
-      return _inferBillStatusFromMetadata(bill) ?? PaymentStatus.unpaid;
+      return PaymentStatus.unpaid;
     }
     if (totalPaid >= (bill.amount - 0.01)) {
       return PaymentStatus.paid;
@@ -832,14 +837,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   PaymentStatus _getOccurrencePaymentStatus(Bill bill, DateTime occDate) {
-    final occStatus = DatabaseService.getBillOccurrenceStatus(bill.id, occDate);
-    if (occStatus != null) {
-      return occStatus['paymentStatus'] as PaymentStatus? ??
-          ((occStatus['isPaid'] as bool? ?? false)
-              ? PaymentStatus.paid
-              : PaymentStatus.unpaid);
-    }
-
     final occDateStr = DateFormat('MM/dd/yyyy').format(occDate);
     final payments = DatabaseService.getAllTransactions()
       .where((t) => t.hideFromCalendarDashboard != true)
@@ -962,7 +959,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           );
           recentTransactions.add(TransactionDisplayItem(credit, sourceBill: bill));
         } else {
-          String desc = bill.description ?? 'Bill';
+          String desc = bill.description ?? '';
           if (bill.payeeId != null) {
             final payees = DatabaseService.getAllPayees();
             final p = payees.firstWhere((p) => p['id'] == bill.payeeId, orElse: () => <String, dynamic>{});
@@ -1072,7 +1069,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           );
           recentTransactions.add(TransactionDisplayItem(credit, sourceBill: bill));
         } else {
-          String desc = bill.description ?? 'Bill';
+          String desc = bill.description ?? '';
           if (bill.payeeId != null) {
             final payees = DatabaseService.getAllPayees();
             final p = payees.firstWhere((p) => p['id'] == bill.payeeId, orElse: () => <String, dynamic>{});
@@ -1235,7 +1232,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       // Status is now tracked in sourceBill.paymentStatus
     }
     
-  // Try to extract account info if we embedded it in the note as 'account: NAME — rest'
+  // Extract account/name metadata from notes when present.
+    String? accountNameFromNote;
     String? plainNote = transaction.note;
     // Strip any internal hide marker if present so it doesn't render to users.
     // Prefer the persisted hidden-ids; still remove legacy markers from notes
@@ -1249,7 +1247,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       plainNote = plainNote.replaceAll(RegExp(r'pair:[A-Za-z0-9\-]+'), '').trim();
       if (plainNote.isEmpty) plainNote = null;
     }
-  if (plainNote != null && plainNote.startsWith('account:')) {
+    if (plainNote != null && plainNote.startsWith('account:')) {
       // Accept several dash separators (em-dash, en-dash, hyphen) with optional spaces
       // Examples:
       //  'account: Name — notes'
@@ -1258,12 +1256,42 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final after = plainNote.substring('account:'.length).trim();
       // split on em-dash (—), en-dash (–), or hyphen (-) with optional surrounding whitespace
       final parts = after.split(RegExp(r'\s*[—–-]\s*'));
+      if (parts.isNotEmpty) {
+        final extractedAccountName = parts.first.trim();
+        if (extractedAccountName.isNotEmpty) {
+          accountNameFromNote = extractedAccountName;
+        }
+      }
       if (parts.length > 1) {
         plainNote = parts.sublist(1).join(' — ').trim();
         if (plainNote.isEmpty) plainNote = null;
       } else {
         // No trailing note content
         plainNote = null;
+      }
+    }
+
+    String? accountDisplayName;
+    if (sourceBill != null) {
+      accountDisplayName = accountNameFromNote;
+
+      if (accountDisplayName == null || accountDisplayName.trim().isEmpty) {
+        if (sourceBill.type == BillType.transfer) {
+          final accountId = transaction.type == TransactionType.expense
+              ? sourceBill.fromAccountId
+              : sourceBill.toAccountId;
+          if (accountId != null && accountId.isNotEmpty) {
+            accountDisplayName = DatabaseService.getAccountById(accountId)?.name;
+          }
+          accountDisplayName ??= transaction.type == TransactionType.expense
+              ? 'From account'
+              : 'To account';
+        } else {
+          final accountId = sourceBill.accountId ?? transaction.accountId;
+          if (accountId != null && accountId.isNotEmpty) {
+            accountDisplayName = DatabaseService.getAccountById(accountId)?.name;
+          }
+        }
       }
     }
 
@@ -1283,10 +1311,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   Expanded(
                     child: Row(
                       children: [
-                        CircleAvatar(
-                          radius: 18,
-                          backgroundColor: (category != null) ? category.color.withAlpha(0x33) : Colors.grey.withAlpha(0x33),
-                          child: safeCategoryIcon(),
+                        SizedBox(
+                          width: 36,
+                          height: 36,
+                          child: Center(
+                            child: safeCategoryIcon(),
+                          ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
@@ -1327,19 +1357,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             ),
                     ),
                     const SizedBox(height: 6),
-                    // Show account name only when there is visible user note content.
-                    if (plainNote != null &&
-                        plainNote.trim().isNotEmpty &&
-                        transaction.note != null &&
-                        transaction.note!.startsWith('account:')) ...[
+                    if (sourceBill != null &&
+                        accountDisplayName != null &&
+                        accountDisplayName.trim().isNotEmpty) ...[
                       SizedBox(
                         width: 160,
                         child: Text(
-                          (() {
-                            final after = transaction.note!.substring('account:'.length).trim();
-                            final parts = after.split(RegExp(r'\s*[—–-]\s*'));
-                            return parts.isNotEmpty ? parts.first : '';
-                          })(),
+                          accountDisplayName,
                           style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: Theme.of(context).colorScheme.onSurface,
                             fontWeight: FontWeight.w600,
@@ -1373,8 +1397,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         if (status == PaymentStatus.paid) {
                           label = 'Paid';
                           color = AppTheme.incomeGreen;
+                        } else if (status == PaymentStatus.partial) {
+                          label = 'Partial';
+                          color = Colors.orange;
                         } else {
-                          // Treat partial as unpaid in the dashboard list until fully paid.
                           label = 'Unpaid';
                           color = AppTheme.expenseRed;
                         }
@@ -1658,6 +1684,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             // Update original bill to end before this occurrence
             final updatedBill = sourceBill.copyWith(recurrenceEndDate: dayBefore);
             await DatabaseService.updateBill(updatedBill);
+            await DatabaseService.setBillRecurrenceEndOverride(updatedBill.id, dayBefore);
 
             // If there is a next occurrence and the original had an end date beyond it (or no end), recreate the future series
             if (nextOccurrenceDate != null && (sourceBill.recurrenceEndDate == null || nextOccurrenceDate.isBefore(sourceBill.recurrenceEndDate!) || nextOccurrenceDate.isAtSameMomentAs(sourceBill.recurrenceEndDate!))) {
@@ -1720,12 +1747,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             }
 
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: const Text('Occurrence updated'),
-                  backgroundColor: Colors.blueGrey[400],
-                ),
-              );
+              ScaffoldMessenger.of(context).clearSnackBars();
             }
             setState(() {});
           } catch (e) {
@@ -1784,6 +1806,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             // occurrences remain associated with it and are not modified.
             final updatedBill = sourceBill.copyWith(recurrenceEndDate: dayBefore);
             await DatabaseService.updateBill(updatedBill);
+            await DatabaseService.setBillRecurrenceEndOverride(updatedBill.id, dayBefore);
 
             // If a new bill id was returned, migrate transactions that belong
             // to this original bill but are for occurrences on/after the
@@ -1822,12 +1845,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             }
 
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: const Text('Future occurrences updated'),
-                  backgroundColor: Colors.blueGrey[400],
-                ),
-              );
+              ScaffoldMessenger.of(context).clearSnackBars();
             }
             setState(() {});
           } catch (e) {
@@ -1931,12 +1949,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             await DatabaseService.addBill(newBill);
             
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: const Text('This occurrence removed'),
-                  backgroundColor: Colors.blueGrey[400],
-                ),
-              );
+              ScaffoldMessenger.of(context).clearSnackBars();
             }
           } else {
             // This is the last occurrence, just end the bill
@@ -1947,12 +1960,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             await DatabaseService.setBillRecurrenceEndOverride(updatedBill.id, dayBefore);
             
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: const Text('Last occurrence removed'),
-                  backgroundColor: Colors.blueGrey[400],
-                ),
-              );
+              ScaffoldMessenger.of(context).clearSnackBars();
             }
           }
           
@@ -1978,12 +1986,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           await DatabaseService.setBillRecurrenceEndOverride(updatedBill.id, dayBefore);
 
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: const Text('This and all future occurrences removed'),
-                backgroundColor: Colors.blueGrey[400],
-              ),
-            );
+            ScaffoldMessenger.of(context).clearSnackBars();
           }
           setState(() {}); // Refresh the list
         } catch (e) {
@@ -2025,23 +2028,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
             // Delete the bill
             await DatabaseService.deleteBill(sourceBill.id);
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: const Text('Bill deleted'),
-                  backgroundColor: Colors.blueGrey[400],
-                ),
-              );
+              ScaffoldMessenger.of(context).clearSnackBars();
             }
           } else {
             // Delete the transaction
             await DatabaseService.deleteTransaction(transaction.id);
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: const Text('Transaction deleted'),
-                  backgroundColor: Colors.grey[400],
-                ),
-              );
+              ScaffoldMessenger.of(context).clearSnackBars();
             }
           }
           setState(() {}); // Refresh the list

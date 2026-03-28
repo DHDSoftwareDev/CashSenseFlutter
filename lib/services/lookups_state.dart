@@ -13,6 +13,26 @@ class LookupsState extends ChangeNotifier {
 
   LookupsState(this.repository);
 
+  bool _looksLikeOpaqueId(String value) {
+    final v = value.trim();
+    if (v.isEmpty) return false;
+    final uuid = RegExp(
+      r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+    );
+    if (uuid.hasMatch(v)) return true;
+    final longToken = RegExp(r'^[A-Za-z0-9_-]{16,}$');
+    return longToken.hasMatch(v);
+  }
+
+  String _sanitizeCategoryLabel(String? value) {
+    final label = (value ?? '').trim();
+    if (label.isEmpty) return '';
+    final normalized = label.toLowerCase();
+    if (normalized == 'unknown' || normalized == 'unknown category') return '';
+    if (_looksLikeOpaqueId(label)) return '';
+    return label;
+  }
+
   Future<void> loadFromLocal() async {
     final categories = await repository.getLocalByType('category');
     final payees = await repository.getLocalByType('payee');
@@ -41,8 +61,14 @@ class LookupsState extends ChangeNotifier {
   }
 
   String categoryName(String? id, {String? fallbackName}) {
-    if (id == null || id.isEmpty) return fallbackName ?? '';
-    return categoriesById[id]?.name ?? fallbackName ?? id;
+    final resolved = categoriesById[id ?? '']?.name;
+    final sanitizedResolved = _sanitizeCategoryLabel(resolved);
+    if (sanitizedResolved.isNotEmpty) return sanitizedResolved;
+
+    final sanitizedFallback = _sanitizeCategoryLabel(fallbackName);
+    if (sanitizedFallback.isNotEmpty) return sanitizedFallback;
+
+    return '';
   }
 
   String payeeName(String? id, {String? fallbackName}) {

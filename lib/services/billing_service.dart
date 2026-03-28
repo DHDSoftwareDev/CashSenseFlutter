@@ -1,5 +1,10 @@
 import 'database_service.dart';
+import 'dart:async';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
+import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:intl/intl.dart';
+import 'aws_api_service.dart';
 
 /// Lightweight billing shim that provides localized price strings and a
 /// simple promo/trial mechanism for the demo app.
@@ -8,6 +13,16 @@ import 'package:intl/intl.dart';
 /// implemented behind this class so callers (UI) remain unchanged.
 class BillingService {
   static bool _initialized = false;
+  static final InAppPurchase _iap = InAppPurchase.instance;
+  static StreamSubscription<List<PurchaseDetails>>? _purchaseSub;
+  static final Map<String, ProductDetails> _productDetailsByPlan = {};
+  static Completer<bool>? _restoreCompleter;
+
+  // IMPORTANT: These must match Play Console product IDs.
+  // Override by setting these keys in settings if needed.
+  static const String _monthlyProductId = 'premium_monthly';
+  static const String _annualProductId = 'premium_annual';
+  static const String _lifetimeProductId = 'premium_lifetime';
 
   // Internal cache for price data (localized strings). Keys: planId.
   static final Map<String, String> _priceCache = {
@@ -23,10 +38,106 @@ class BillingService {
     'Lifetime': null,
   };
 
+  static String? _planForProductId(String productId) {
+    if (productId == _monthlyProductId) return 'Monthly';
+    if (productId == _annualProductId) return 'Annual';
+    if (productId == _lifetimeProductId) return 'Lifetime';
+    return null;
+  }
+
+  static Future<void> _grantPlan(String planId, {String? purchaseId}) async {
+    await DatabaseService.setSubscriptionPlan(planId);
+    await DatabaseService.setSetting(
+      'lastPurchase',
+      '$planId|${DateTime.now().toIso8601String()}|${purchaseId ?? ''}',
+    );
+    await DatabaseService.setSetting('activeTrialExpiresAt', null);
+    await DatabaseService.setSetting('appliedPromoCode', null);
+  }
+
+  static Future<void> _processPurchaseUpdates(List<PurchaseDetails> purchases) async {
+    bool restoredAny = false;
+
+    for (final purchase in purchases) {
+      try {
+        if (purchase.status == PurchaseStatus.purchased || purchase.status == PurchaseStatus.restored) {
+          final localPlan = _planForProductId(purchase.productID);
+          String? resolvedPlan = localPlan;
+
+          // Optional server-side verification hook for Android purchases.
+          if (Platform.isAndroid) {
+            final token = purchase.verificationData.serverVerificationData;
+            if (token.isNotEmpty) {
+              await DatabaseService.setSetting('lastGooglePlayToken', token);
+              await DatabaseService.setSetting('lastGooglePlayProductId', purchase.productID);
+              final backendPlan = await AwsApiService.verifyAndroidPurchase(
+                productId: purchase.productID,
+                purchaseToken: token,
+                purchaseId: purchase.purchaseID,
+                source: purchase.verificationData.source,
+              );
+              if (backendPlan != null && backendPlan.isNotEmpty) {
+                resolvedPlan = backendPlan;
+              }
+            }
+          }
+
+          if (resolvedPlan != null) {
+            await _grantPlan(resolvedPlan, purchaseId: purchase.purchaseID);
+            restoredAny = true;
+          }
+        }
+
+        if (purchase.pendingCompletePurchase) {
+          await _iap.completePurchase(purchase);
+        }
+      } catch (e) {
+        debugPrint('Billing purchase processing failed: $e');
+      }
+    }
+
+    if (_restoreCompleter != null && !_restoreCompleter!.isCompleted) {
+      _restoreCompleter!.complete(restoredAny);
+    }
+  }
+
+  static Future<void> _queryStoreProducts() async {
+    final ids = <String>{_monthlyProductId, _annualProductId, _lifetimeProductId};
+    final response = await _iap.queryProductDetails(ids);
+
+    if (response.error != null) {
+      debugPrint('Billing product query error: ${response.error}');
+    }
+
+    for (final product in response.productDetails) {
+      final plan = _planForProductId(product.id);
+      if (plan != null) {
+        _productDetailsByPlan[plan] = product;
+        _priceCache[plan] = product.price;
+      }
+    }
+  }
+
   static Future<void> init() async {
-    // Placeholder for platform initialization. In a real implementation
-    // we'd query available products and populate _priceCache with
-    // localized price strings from the store.
+    if (_initialized) return;
+
+    final available = await _iap.isAvailable();
+    if (!available) {
+      debugPrint('Billing unavailable; using fallback prices');
+      _initialized = true;
+      return;
+    }
+
+    _purchaseSub ??= _iap.purchaseStream.listen(
+      _processPurchaseUpdates,
+      onDone: () => _purchaseSub = null,
+      onError: (Object e) => debugPrint('Billing purchase stream error: $e'),
+    );
+
+    if (Platform.isAndroid || Platform.isIOS) {
+      await _queryStoreProducts();
+    }
+
     _initialized = true;
   }
 
@@ -58,20 +169,41 @@ class BillingService {
   /// persists the plan and a lastPurchase timestamp. Returns true on
   /// success.
   static Future<bool> buy(String planId) async {
-  // Persist the selected plan and a simple receipt placeholder.
-  await DatabaseService.setSubscriptionPlan(planId);
-  await DatabaseService.setSetting('lastPurchase', '$planId|${DateTime.now().toIso8601String()}');
+    if (!_initialized) await init();
 
-    // Clear any active trial that may have been tied to this promo
-    await DatabaseService.setSetting('activeTrialExpiresAt', null);
-    await DatabaseService.setSetting('appliedPromoCode', null);
+    final available = await _iap.isAvailable();
+    final product = _productDetailsByPlan[planId];
 
-    return true;
+    // If store billing isn't ready, preserve previous local behavior as fallback.
+    if (!available || product == null) {
+      await _grantPlan(planId);
+      return true;
+    }
+
+    final purchaseParam = PurchaseParam(productDetails: product);
+    // Subscriptions are purchased through buyNonConsumable in this plugin API.
+    return _iap.buyNonConsumable(purchaseParam: purchaseParam);
   }
 
   /// Restore a purchase from persisted data (demo only). Returns true if
   /// a plan was restored.
   static Future<bool> restore() async {
+    if (!_initialized) await init();
+
+    final available = await _iap.isAvailable();
+    if (available) {
+      _restoreCompleter = Completer<bool>();
+      await _iap.restorePurchases();
+
+      // Wait briefly for purchase stream callbacks.
+      try {
+        final restored = await _restoreCompleter!.future.timeout(const Duration(seconds: 8));
+        if (restored) return true;
+      } catch (_) {
+        // Fall back to last persisted entitlement below.
+      }
+    }
+
     final last = DatabaseService.getSetting<String>('lastPurchase');
     if (last != null && last.isNotEmpty) {
       final parts = last.split('|');
@@ -80,6 +212,7 @@ class BillingService {
         return true;
       }
     }
+
     return false;
   }
 

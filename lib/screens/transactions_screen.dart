@@ -1214,9 +1214,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 if (!mounted) return;
                 nav.pop();
                 _loadTransactions();
-                messenger.showSnackBar(
-                  SnackBar(content: Text('Transfer deleted (one side)'), backgroundColor: Colors.blueGrey[400]),
-                );
+                messenger.clearSnackBars();
               },
               child: const Text('Just this side', style: TextStyle(color: Colors.red)),
             ),
@@ -1283,9 +1281,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 if (!mounted) return;
                 nav.pop();
                 _loadTransactions();
-                messenger.showSnackBar(
-                  SnackBar(content: Text('Transfer deleted (both sides)'), backgroundColor: Colors.blueGrey[400]),
-                );
+                messenger.clearSnackBars();
               },
               child: const Text('Both sides', style: TextStyle(color: Colors.red)),
             ),
@@ -1322,9 +1318,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 if (!mounted) return;
                 nav.pop();
                 _loadTransactions();
-                messenger.showSnackBar(
-                  SnackBar(content: Text('Transaction deleted'), backgroundColor: Colors.blueGrey[400]),
-                );
+                messenger.clearSnackBars();
               },
               child: const Text('Delete', style: TextStyle(color: Colors.red)),
             ),

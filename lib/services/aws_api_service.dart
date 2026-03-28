@@ -307,6 +307,9 @@ class AwsApiService {
       _parseDateTime(json['updatedAt'] ?? json['updated_at'] ?? json['lastModified'] ?? json['last_modified']) ??
       createdAt;
 
+    final payeeNameRaw = json['payeeName']?.toString() ?? json['payee_name']?.toString();
+    final payerNameRaw = json['payerName']?.toString() ?? json['payer_name']?.toString();
+
     return Transaction(
       id: id.toString(),
       amount: amount.abs(),
@@ -326,6 +329,8 @@ class AwsApiService {
       payerId: json['payerId']?.toString(),
       payeeId: json['payeeId']?.toString(),
       paymentFor: json['paymentFor']?.toString() ?? json['payment_for']?.toString(),
+      payeeName: (payeeNameRaw == null || payeeNameRaw.trim().isEmpty) ? null : payeeNameRaw.trim(),
+      payerName: (payerNameRaw == null || payerNameRaw.trim().isEmpty) ? null : payerNameRaw.trim(),
     );
   }
 
@@ -498,6 +503,7 @@ class AwsApiService {
       'id': category.id,
       'name': category.name,
       'color': category.colorValue,
+      'isIncome': category.type == CategoryType.income,
     });
     _throwIfNotOk(response);
   }
@@ -508,6 +514,7 @@ class AwsApiService {
       'id': category.id,
       'name': category.name,
       'color': category.colorValue,
+      'isIncome': category.type == CategoryType.income,
     });
     _throwIfNotOk(response);
   }
@@ -610,6 +617,57 @@ class AwsApiService {
       body: payload,
     );
     _throwIfNotOk(response);
+  }
+
+  /// Optional backend verification hook for Google Play purchases.
+  /// Returns canonical plan id when backend resolves entitlement, else null.
+  static Future<String?> verifyAndroidPurchase({
+    required String productId,
+    required String purchaseToken,
+    String? purchaseId,
+    String? source,
+  }) async {
+    try {
+      final response = await _request(
+        'POST',
+        '/billing/google-play/verify',
+        body: {
+          'productId': productId,
+          'purchaseToken': purchaseToken,
+          if (purchaseId != null && purchaseId.isNotEmpty) 'purchaseId': purchaseId,
+          if (source != null && source.isNotEmpty) 'source': source,
+        },
+      );
+
+      if (response.statusCode == 404) {
+        // Endpoint not deployed yet; caller should fall back locally.
+        return null;
+      }
+
+      _throwIfNotOk(response);
+
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map) return null;
+
+      final planRaw = (
+        decoded['plan'] ??
+        decoded['subscriptionPlan'] ??
+        decoded['entitlement'] ??
+        decoded['tier']
+      )?.toString();
+
+      if (planRaw == null || planRaw.trim().isEmpty) return null;
+
+      final normalized = planRaw.trim().toLowerCase();
+      if (normalized == 'monthly') return 'Monthly';
+      if (normalized == 'annual' || normalized == 'yearly') return 'Annual';
+      if (normalized == 'lifetime') return 'Lifetime';
+
+      return planRaw;
+    } catch (e) {
+      debugPrint('verifyAndroidPurchase failed: $e');
+      return null;
+    }
   }
 
   static AccountType _accountTypeFromString(String raw) {

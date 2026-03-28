@@ -18,6 +18,7 @@ class DatabaseService {
   static const String _legacyCategoryNameMigrationKey = 'migratedLegacyTransactionCategoryNamesV1';
   static const String _legacyCategoryResolutionMigrationKey = 'migratedLegacyTransactionCategoryResolutionV1';
   static const String _legacyPaymentForMigrationKey = 'migratedLegacyTransactionPaymentForV1';
+  static const String _legacyRecurringSplitOverlapMigrationKey = 'migratedLegacyRecurringSplitOverlapV1';
   static const String _deletedAccountsKey = 'deletedAccountIds';
   static const String _deletedBillsKey = 'deletedBillIds';
   static const String _billRecurrenceEndOverridesKey = 'billRecurrenceEndOverrides';
@@ -999,6 +1000,160 @@ class DatabaseService {
     return updatedCount;
   }
 
+  static int _monthDelta(DateTime from, DateTime to) {
+    return (to.year - from.year) * 12 + (to.month - from.month);
+  }
+
+  static DateTime? _earliestDate(DateTime? a, DateTime? b) {
+    if (a == null) return b;
+    if (b == null) return a;
+    return a.isBefore(b) ? a : b;
+  }
+
+  static bool _billOccursOnDate(Bill bill, DateTime date, {DateTime? effectiveEndDate}) {
+    final due = DateTime(bill.dueDate.year, bill.dueDate.month, bill.dueDate.day);
+    final target = DateTime(date.year, date.month, date.day);
+    final effectiveEnd = effectiveEndDate == null
+        ? null
+        : DateTime(effectiveEndDate.year, effectiveEndDate.month, effectiveEndDate.day);
+
+    if (target.isBefore(due)) return false;
+    if (effectiveEnd != null && target.isAfter(effectiveEnd)) return false;
+
+    switch (bill.recurrence) {
+      case Recurrence.none:
+        return target.year == due.year && target.month == due.month && target.day == due.day;
+      case Recurrence.daily:
+        final interval = bill.recurrenceInterval <= 0 ? 1 : bill.recurrenceInterval;
+        final days = target.difference(due).inDays;
+        return days % interval == 0;
+      case Recurrence.weekly:
+        final intervalWeeks = bill.recurrenceInterval <= 0 ? 1 : bill.recurrenceInterval;
+        final weekdays = (bill.recurrenceWeekdays == null || bill.recurrenceWeekdays!.isEmpty)
+            ? <int>[due.weekday]
+            : bill.recurrenceWeekdays!;
+        if (!weekdays.contains(target.weekday)) return false;
+        final days = target.difference(due).inDays;
+        final weekIndex = days ~/ 7;
+        return weekIndex % intervalWeeks == 0;
+      case Recurrence.monthly:
+        final intervalMonths = bill.recurrenceInterval <= 0 ? 1 : bill.recurrenceInterval;
+        final months = _monthDelta(due, target);
+        if (months < 0 || months % intervalMonths != 0) return false;
+
+        final days = ((bill.customDays == null || bill.customDays!.isEmpty)
+                ? <int>[due.day]
+                : bill.customDays!)
+            .toSet()
+            .toList()
+          ..sort();
+
+        int day = target.day;
+        final lastDay = DateTime(target.year, target.month + 1, 0).day;
+        if (day == lastDay && days.contains(99)) {
+          day = 99;
+        }
+        if (!days.contains(day)) return false;
+
+        if (target.year == due.year && target.month == due.month && target.day < due.day) {
+          return false;
+        }
+        return true;
+      case Recurrence.yearly:
+        final intervalYears = bill.recurrenceInterval <= 0 ? 1 : bill.recurrenceInterval;
+        final yearDiff = target.year - due.year;
+        if (yearDiff < 0 || yearDiff % intervalYears != 0) return false;
+        return target.month == due.month && target.day == due.day;
+      case Recurrence.custom:
+        return target.year == due.year && target.month == due.month && target.day == due.day;
+    }
+  }
+
+  static String _recurringBillSignature(Bill bill) {
+    final customDays = (bill.customDays ?? <int>[]).toList()..sort();
+    final weekdays = (bill.recurrenceWeekdays ?? <int>[]).toList()..sort();
+    return [
+      bill.type.name,
+      bill.amount.toStringAsFixed(4),
+      bill.categoryId ?? '',
+      bill.payeeId ?? '',
+      bill.accountId ?? '',
+      bill.fromAccountId ?? '',
+      bill.toAccountId ?? '',
+      bill.recurrence.name,
+      bill.recurrenceInterval.toString(),
+      customDays.join(','),
+      weekdays.join(','),
+    ].join('|');
+  }
+
+  /// One-time migration to repair legacy recurring-series splits where both
+  /// the old and new series may still generate the same occurrence date.
+  static Future<int> migrateLegacyRecurringBillSplitOverlaps({bool force = false}) async {
+    final alreadyMigrated = getSetting<bool>(_legacyRecurringSplitOverlapMigrationKey, false) ?? false;
+    if (!force && alreadyMigrated) return 0;
+
+    final overrides = _getBillRecurrenceEndOverrides();
+    final recurringBills = _billsBox.values.where((b) => b.recurrence != Recurrence.none).toList();
+    final grouped = <String, List<Bill>>{};
+    for (final bill in recurringBills) {
+      final signature = _recurringBillSignature(bill);
+      grouped.putIfAbsent(signature, () => <Bill>[]).add(bill);
+    }
+
+    int updatedCount = 0;
+
+    for (final entry in grouped.entries) {
+      final bills = entry.value..sort((a, b) => a.dueDate.compareTo(b.dueDate));
+      if (bills.length < 2) continue;
+
+      for (int i = 0; i < bills.length - 1; i++) {
+        var older = bills[i];
+        final newer = bills[i + 1];
+
+        final newerStart = DateTime(newer.dueDate.year, newer.dueDate.month, newer.dueDate.day);
+        final olderEffectiveEnd = _earliestDate(overrides[older.id], older.recurrenceEndDate);
+
+        if (!_billOccursOnDate(older, newerStart, effectiveEndDate: olderEffectiveEnd)) continue;
+
+        final cutoff = newerStart.subtract(const Duration(days: 1));
+        final normalizedCutoff = DateTime(cutoff.year, cutoff.month, cutoff.day);
+        final normalizedOlderEnd = olderEffectiveEnd == null
+            ? null
+            : DateTime(olderEffectiveEnd.year, olderEffectiveEnd.month, olderEffectiveEnd.day);
+
+        if (normalizedOlderEnd != null && !normalizedOlderEnd.isAfter(normalizedCutoff)) {
+          continue;
+        }
+
+        if (older.recurrenceEndDate == null || older.recurrenceEndDate!.isAfter(normalizedCutoff)) {
+          older = older.copyWith(recurrenceEndDate: normalizedCutoff);
+          await _billsBox.put(older.id, older);
+          bills[i] = older;
+          updatedCount++;
+        }
+
+        overrides[older.id] = normalizedCutoff;
+      }
+    }
+
+    if (updatedCount > 0) {
+      await _billsBox.flush();
+      billsVersion.value++;
+    }
+
+    final encoded = <String, String>{
+      for (final e in overrides.entries) e.key: e.value.toIso8601String(),
+    };
+    await _settingsBox.put(_billRecurrenceEndOverridesKey, encoded);
+    await _settingsBox.flush();
+
+    if (!force) {
+      await setSetting(_legacyRecurringSplitOverlapMigrationKey, true);
+    }
+    return updatedCount;
+  }
+
   static Future<void> deleteTransaction(String id) async {
     // Read the transaction before deleting so we can update any linked
     // bill occurrence status if this transaction represented a bill payment.
@@ -1167,6 +1322,7 @@ class DatabaseService {
     await migrateLegacyTransactionCategoryNames();
     await migrateLegacyTransactionCategoryResolution();
     await migrateLegacyTransactionPaymentFor();
+    await migrateLegacyRecurringBillSplitOverlaps();
   }
 
   static Future<void> _initializeDefaultData() async {
@@ -1713,19 +1869,35 @@ class DatabaseService {
   // Returns a list of maps: {'bill': Bill, 'date': DateTime}.
   // This is a non-persistent view used for calendar rendering and quick checks.
   static List<Map<String, dynamic>> getBillOccurrencesBetween(DateTime startDate, DateTime endDate) {
+    DateTime? earliestDate(DateTime? a, DateTime? b) {
+      if (a == null) return b;
+      if (b == null) return a;
+      return a.isBefore(b) ? a : b;
+    }
+
+    final normalizedStart = DateTime(startDate.year, startDate.month, startDate.day);
+    final normalizedEnd = DateTime(endDate.year, endDate.month, endDate.day);
+    final recurrenceEndOverrides = _getBillRecurrenceEndOverrides();
     final out = <Map<String, dynamic>>[];
+    final seenAcrossBills = <String>{};
     final bills = getAllBills();
     for (final bill in bills) {
       final seenForBill = <String>{};
+      final DateTime? effectiveRecurrenceEndDate = earliestDate(
+        recurrenceEndOverrides[bill.id],
+        bill.recurrenceEndDate,
+      );
       // Skip bills that end before the requested range
-      if (bill.recurrenceEndDate != null && bill.recurrenceEndDate!.isBefore(startDate)) continue;
+      if (effectiveRecurrenceEndDate != null && effectiveRecurrenceEndDate.isBefore(normalizedStart)) continue;
 
       // Helper to add an occurrence if within bounds
       void addIfInRange(DateTime occ) {
-        if ((occ.isAtSameMomentAs(startDate) || occ.isAfter(startDate)) &&
-            (occ.isAtSameMomentAs(endDate) || occ.isBefore(endDate))) {
+        if ((occ.isAtSameMomentAs(normalizedStart) || occ.isAfter(normalizedStart)) &&
+            (occ.isAtSameMomentAs(normalizedEnd) || occ.isBefore(normalizedEnd))) {
           final key = '${occ.year}-${occ.month}-${occ.day}';
           if (seenForBill.contains(key)) return;
+          final globalKey = '${bill.id}|$key|${bill.type.name}';
+          if (!seenAcrossBills.add(globalKey)) return;
           seenForBill.add(key);
           out.add({'bill': bill, 'date': occ});
         }
@@ -1740,8 +1912,8 @@ class DatabaseService {
             final interval = bill.recurrenceInterval <= 0 ? 1 : bill.recurrenceInterval;
             DateTime cur = DateTime(bill.dueDate.year, bill.dueDate.month, bill.dueDate.day);
             // iterate until the earlier of recurrenceEndDate (if any) or endDate
-            while (!(bill.recurrenceEndDate != null && cur.isAfter(bill.recurrenceEndDate!)) && !cur.isAfter(endDate)) {
-              if (!cur.isBefore(startDate)) addIfInRange(cur);
+            while (!(effectiveRecurrenceEndDate != null && cur.isAfter(effectiveRecurrenceEndDate)) && !cur.isAfter(normalizedEnd)) {
+              if (!cur.isBefore(normalizedStart)) addIfInRange(cur);
               cur = cur.add(Duration(days: interval));
             }
           }
@@ -1756,16 +1928,16 @@ class DatabaseService {
             
             // If the due date is after our range, we need to find earlier occurrences
             // Otherwise start from due date and go forward
-            if (cur.isAfter(endDate)) break;
+            if (cur.isAfter(normalizedEnd)) break;
             
             // Generate occurrences week by week
-            while (!cur.isAfter(endDate) && !(bill.recurrenceEndDate != null && cur.isAfter(bill.recurrenceEndDate!))) {
+            while (!cur.isAfter(normalizedEnd) && !(effectiveRecurrenceEndDate != null && cur.isAfter(effectiveRecurrenceEndDate))) {
               // Check each weekday in the current week
               for (int i = 0; i < 7; i++) {
                 final checkDate = cur.add(Duration(days: i));
                 if (weekdays.contains(checkDate.weekday)) {
-                  if (!checkDate.isAfter(endDate) && 
-                      !(bill.recurrenceEndDate != null && checkDate.isAfter(bill.recurrenceEndDate!))) {
+                  if (!checkDate.isAfter(normalizedEnd) && 
+                      !(effectiveRecurrenceEndDate != null && checkDate.isAfter(effectiveRecurrenceEndDate))) {
                     addIfInRange(checkDate);
                   }
                 }
@@ -1788,8 +1960,8 @@ class DatabaseService {
             int currentMonth = bill.dueDate.month;
             while (true) {
               final monthStart = DateTime(currentYear, currentMonth, 1);
-              if (monthStart.isAfter(endDate)) break;
-              if (bill.recurrenceEndDate != null && monthStart.isAfter(bill.recurrenceEndDate!)) break;
+              if (monthStart.isAfter(normalizedEnd)) break;
+              if (effectiveRecurrenceEndDate != null && monthStart.isAfter(effectiveRecurrenceEndDate)) break;
               for (final d in days) {
                 try {
                   int day = d;
@@ -1808,7 +1980,7 @@ class DatabaseService {
                     continue; // skip past-day occurrences in the first month
                   }
 
-                  if (!occ.isAfter(endDate) && (bill.recurrenceEndDate == null || !occ.isAfter(bill.recurrenceEndDate!))) {
+                  if (!occ.isAfter(normalizedEnd) && (effectiveRecurrenceEndDate == null || !occ.isAfter(effectiveRecurrenceEndDate))) {
                     addIfInRange(occ);
                   }
                 } catch (_) {
@@ -1827,8 +1999,8 @@ class DatabaseService {
           {
             final intervalYears = bill.recurrenceInterval <= 0 ? 1 : bill.recurrenceInterval;
             DateTime cur = DateTime(bill.dueDate.year, bill.dueDate.month, bill.dueDate.day);
-            while (!(bill.recurrenceEndDate != null && cur.isAfter(bill.recurrenceEndDate!)) && !cur.isAfter(endDate)) {
-              if (!cur.isBefore(startDate)) addIfInRange(cur);
+            while (!(effectiveRecurrenceEndDate != null && cur.isAfter(effectiveRecurrenceEndDate)) && !cur.isAfter(normalizedEnd)) {
+              if (!cur.isBefore(normalizedStart)) addIfInRange(cur);
               cur = DateTime(cur.year + intervalYears, cur.month, cur.day);
             }
           }
@@ -1963,9 +2135,31 @@ class DatabaseService {
     }
 
     if (categories.isNotEmpty) {
+      bool looksOpaque(String value) {
+        final v = value.trim();
+        if (v.isEmpty) return false;
+        final uuid = RegExp(
+          r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+        );
+        if (uuid.hasMatch(v)) return true;
+        final longToken = RegExp(r'^[A-Za-z0-9_-]{16,}$');
+        return longToken.hasMatch(v);
+      }
+
       for (final category in categories) {
         if (category.id.trim().isEmpty) continue;
-        await _categoryBox.put(category.id, category);
+        final existing = _categoryBox.get(category.id);
+        final incomingName = category.name.trim();
+        final existingName = (existing?.name ?? '').trim();
+
+        final incomingLooksLikeId = incomingName.isEmpty || incomingName == category.id || looksOpaque(incomingName);
+        final existingIsReadable = existingName.isNotEmpty && existingName != category.id && !looksOpaque(existingName);
+
+        final toPersist = (existing != null && incomingLooksLikeId && existingIsReadable)
+            ? category.copyWith(name: existingName)
+            : category;
+
+        await _categoryBox.put(category.id, toPersist);
       }
       await _categoryBox.flush();
       categoriesChanged = true;

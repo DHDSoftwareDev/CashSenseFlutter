@@ -1864,9 +1864,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       }
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Transaction saved'), backgroundColor: Colors.blueGrey[400]),
-        );
         Navigator.pop(context, true);
       }
     } catch (e) {

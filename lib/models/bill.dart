@@ -41,6 +41,8 @@ enum BillType {
 
 @HiveType(typeId: 6)
 class Bill extends HiveObject {
+  static const Object _unset = Object();
+
   static DateTime _parseDateOnly(dynamic raw) {
     final value = raw?.toString();
     if (value == null || value.isEmpty) return DateTime.now();
@@ -191,40 +193,40 @@ class Bill extends HiveObject {
   Bill copyWith({
     String? id,
     double? amount,
-    String? description,
+    Object? description = _unset,
     DateTime? dueDate,
     Recurrence? recurrence,
-    List<int>? customDays,
+    Object? customDays = _unset,
     int? recurrenceInterval,
-    List<int>? recurrenceWeekdays,
-    String? categoryId,
+    Object? recurrenceWeekdays = _unset,
+    Object? categoryId = _unset,
     BillType? type,
-    String? fromAccountId,
-    String? toAccountId,
-    String? payeeId,
-    String? accountId,
+    Object? fromAccountId = _unset,
+    Object? toAccountId = _unset,
+    Object? payeeId = _unset,
+    Object? accountId = _unset,
     bool? isPaid,
-    PaymentStatus? paymentStatus,
-    DateTime? recurrenceEndDate,
+    Object? paymentStatus = _unset,
+    Object? recurrenceEndDate = _unset,
   }) {
     return Bill(
       id: id ?? this.id,
       amount: amount ?? this.amount,
-      description: description ?? this.description,
+      description: identical(description, _unset) ? this.description : description as String?,
       dueDate: dueDate ?? this.dueDate,
       recurrence: recurrence ?? this.recurrence,
-      customDays: customDays ?? this.customDays,
+      customDays: identical(customDays, _unset) ? this.customDays : customDays as List<int>?,
       recurrenceInterval: recurrenceInterval ?? this.recurrenceInterval,
-      recurrenceWeekdays: recurrenceWeekdays ?? this.recurrenceWeekdays,
-      categoryId: categoryId ?? this.categoryId,
+      recurrenceWeekdays: identical(recurrenceWeekdays, _unset) ? this.recurrenceWeekdays : recurrenceWeekdays as List<int>?,
+      categoryId: identical(categoryId, _unset) ? this.categoryId : categoryId as String?,
       type: type ?? this.type,
-      fromAccountId: fromAccountId ?? this.fromAccountId,
-      toAccountId: toAccountId ?? this.toAccountId,
-      payeeId: payeeId ?? this.payeeId,
-      accountId: accountId ?? this.accountId,
+      fromAccountId: identical(fromAccountId, _unset) ? this.fromAccountId : fromAccountId as String?,
+      toAccountId: identical(toAccountId, _unset) ? this.toAccountId : toAccountId as String?,
+      payeeId: identical(payeeId, _unset) ? this.payeeId : payeeId as String?,
+      accountId: identical(accountId, _unset) ? this.accountId : accountId as String?,
       isPaid: isPaid ?? this.isPaid,
-      paymentStatus: paymentStatus ?? this.paymentStatus,
-      recurrenceEndDate: recurrenceEndDate ?? this.recurrenceEndDate,
+      paymentStatus: identical(paymentStatus, _unset) ? this.paymentStatus : paymentStatus as PaymentStatus?,
+      recurrenceEndDate: identical(recurrenceEndDate, _unset) ? this.recurrenceEndDate : recurrenceEndDate as DateTime?,
     );
   }
 }

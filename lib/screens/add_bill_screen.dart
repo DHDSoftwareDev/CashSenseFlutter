@@ -190,18 +190,12 @@ class _CategorySelectorSheetState extends State<_CategorySelectorSheet> {
               itemBuilder: (context, idx) {
                 final c = _filtered[idx];
                 return ListTile(
-                  leading: SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: Center(
-                      child: Container(
-                        width: 10,
-                        height: 10,
-                        decoration: BoxDecoration(
-                          color: c.color,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
+                  leading: Container(
+                    width: 14,
+                    height: 14,
+                    decoration: BoxDecoration(
+                      color: c.color,
+                      shape: BoxShape.circle,
                     ),
                   ),
                   title: Text(c.name),
@@ -564,6 +558,7 @@ class _AddBillScreenState extends State<AddBillScreen> {
   final _notesController = TextEditingController();
   bool _isSaving = false;
   bool _didUserEditNotes = false;
+  String _initialNotes = '';
 
   // New: bill type (expense/income/transfer)
   BillType _billType = BillType.expense;
@@ -600,7 +595,8 @@ class _AddBillScreenState extends State<AddBillScreen> {
     final bill = widget.existingBill;
     if (bill != null) {
       _amountController.text = bill.amount.toString();
-      _notesController.text = bill.description?.trim() ?? '';
+      _initialNotes = _extractEditableNotes(bill);
+      _notesController.text = _initialNotes;
       _dueDate = bill.dueDate;
       _recurrence = bill.recurrence;
       _customDays = bill.customDays;
@@ -622,6 +618,54 @@ class _AddBillScreenState extends State<AddBillScreen> {
     _payees = DatabaseService.getAllPayees();
     accountList = DatabaseService.getAllAccounts();
     _categories = DatabaseService.getAllCategories();
+  }
+
+  String _extractEditableNotes(Bill bill) {
+    final raw = (bill.description ?? '').trim();
+    if (raw.isEmpty) return '';
+
+    final lowerRaw = raw.toLowerCase();
+
+    // Never treat contact labels as notes.
+    final contactNames = _payees
+        .map((p) => (p['name'] ?? '').toString().trim().toLowerCase())
+        .where((name) => name.isNotEmpty)
+        .toSet();
+    if (contactNames.contains(lowerRaw)) {
+      return '';
+    }
+
+    if (lowerRaw.startsWith('payee:') || lowerRaw.startsWith('payer:')) {
+      return '';
+    }
+
+    if (bill.payeeId != null && bill.payeeId!.isNotEmpty) {
+      final payee = _payees.firstWhere(
+        (p) => p['id'] == bill.payeeId,
+        orElse: () => const <String, dynamic>{},
+      );
+      final payeeName = (payee['name'] ?? '').toString().trim();
+      if (payeeName.isNotEmpty && lowerRaw == payeeName.toLowerCase()) {
+        return '';
+      }
+    }
+
+    if (bill.type == BillType.transfer) {
+      final fromName = (bill.fromAccountId != null && bill.fromAccountId!.isNotEmpty)
+          ? DatabaseService.getAccountById(bill.fromAccountId!)?.name
+          : null;
+      final toName = (bill.toAccountId != null && bill.toAccountId!.isNotEmpty)
+          ? DatabaseService.getAccountById(bill.toAccountId!)?.name
+          : null;
+      if (fromName != null && toName != null) {
+        final generated = 'transfer from $fromName to $toName'.toLowerCase();
+        if (lowerRaw == generated) {
+          return '';
+        }
+      }
+    }
+
+    return raw;
   }
 
   List<Map<String, dynamic>> get _visiblePayees {
@@ -1600,18 +1644,12 @@ class _AddBillScreenState extends State<AddBillScreen> {
       child: ListTile(
         leading: categoryForDisplay == null
             ? const Icon(Icons.label)
-            : SizedBox(
-                width: 24,
-                height: 24,
-                child: Center(
-                  child: Container(
-                    width: 10,
-                    height: 10,
-                    decoration: BoxDecoration(
-                      color: categoryForDisplay.color,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
+            : Container(
+                width: 14,
+                height: 14,
+                decoration: BoxDecoration(
+                  color: categoryForDisplay.color,
+                  shape: BoxShape.circle,
                 ),
               ),
         title: const Text('Category'),
@@ -1713,7 +1751,7 @@ class _AddBillScreenState extends State<AddBillScreen> {
     final Bill bill;
     final notes = _notesController.text.trim();
     final isCreateFlow = widget.existingBill == null || widget.isDuplicate;
-    final existingNotes = widget.existingBill?.description?.trim() ?? '';
+    final existingNotes = _initialNotes;
     String? description;
     if (isCreateFlow) {
       // For new/duplicate bills, only persist notes explicitly entered in this flow.
@@ -1859,12 +1897,6 @@ class _AddBillScreenState extends State<AddBillScreen> {
       // which handles both one-time and recurring bills, preventing duplicates
       
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(widget.isDuplicate ? 'Bill duplicated' : (widget.existingBill != null ? 'Bill updated' : 'Bill saved')),
-            backgroundColor: Colors.blueGrey[400],
-          ),
-        );
         // When saving a duplicated bill (used for "Only this occurrence" edits)
         // return the created bill id so callers (e.g. dashboard) can migrate
         // existing payments to the new occurrence-specific bill. For regular

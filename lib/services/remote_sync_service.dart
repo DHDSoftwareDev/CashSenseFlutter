@@ -249,10 +249,21 @@ class RemoteSyncService {
       final value = (id ?? '').trim();
       if (value.isEmpty || byId.containsKey(value)) return;
       final name = (preferredName ?? '').trim();
-      final fallbackName = _looksLikeOpaqueId(value) ? 'Unknown Category' : value;
+      // Skip creating synthetic categories when the ID is opaque and no
+      // readable name is available from upstream payloads.
+      if (_looksLikeOpaqueId(value) && (name.isEmpty || _looksLikeOpaqueId(name))) {
+        return;
+      }
+
+      final fallbackName = _looksLikeOpaqueId(value) ? '' : value;
+      final resolvedName = name.isEmpty ? fallbackName : name;
+      if (resolvedName.trim().isEmpty || _looksLikeOpaqueId(resolvedName)) {
+        return;
+      }
+
       byId[value] = Category(
         id: value,
-        name: name.isEmpty ? fallbackName : name,
+        name: resolvedName,
         iconCodePoint: '0xe88a',
         colorValue: '0xFF607D8B',
         isDefault: false,

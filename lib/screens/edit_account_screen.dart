@@ -124,7 +124,7 @@ class _EditAccountScreenState extends State<EditAccountScreen> {
       } catch (_) {}
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Account updated successfully')));
+      ScaffoldMessenger.of(context).clearSnackBars();
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;

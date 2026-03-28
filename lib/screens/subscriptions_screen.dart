@@ -226,13 +226,13 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                 const SizedBox(height: 8),
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: Text('Auto Backups', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: headerColor)),
+                  child: Text('Auto Backup & Device Sync', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: headerColor)),
                 ),
                 const SizedBox(height: 6),
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    'Keep your data safe with automatic backups.',
+                    'Automatically back up and sync your data across all your devices so nothing is ever lost.',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ),
@@ -314,7 +314,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                           )
                         : TextButton(
                             onPressed: () => _confirmSubscribe(id),
-                            child: const Text('Subscribe in App Store'),
+                            child: const Text('Subscribe'),
                           ),
                   ),
                   if ((_prices[id] ?? '').isNotEmpty)

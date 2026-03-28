@@ -32,6 +32,7 @@ import 'services/lookups_api.dart';
 import 'services/lookups_repository.dart';
 import 'services/lookups_local_store.dart';
 import 'services/lookups_state.dart';
+import 'services/notification_handler_service.dart';
 // Auth screens temporarily hidden
 import 'utils/root_scaffold.dart';
 import 'theme/app_theme.dart';
@@ -55,6 +56,9 @@ void main() async {
   await _safeInitStep('Firebase initialization', () async {
     await Firebase.initializeApp();
     debugPrint('✅ Firebase initialized');
+    // Initialize Firebase message handlers right after Firebase is set up
+    await NotificationHandlerService.initializeMessageHandlers();
+    debugPrint('✅ Notification handlers initialized');
   });
 
   // Initialize AWS Amplify with Cognito (required for auth)
@@ -337,6 +341,7 @@ class AppLifecycleBiometricLock extends StatefulWidget {
 
 class _AppLifecycleBiometricLockState extends State<AppLifecycleBiometricLock>
     with WidgetsBindingObserver {
+  static const String _autoLogoutEnabledKey = 'biometricAutoLogoutEnabled';
   static const String _autoLogoutTimeoutKey = 'biometricAutoLogoutSeconds';
   static const int _defaultAutoLogoutSeconds = 60;
   static const List<int> _allowedAutoLogoutSeconds = <int>[30, 60, 90];
@@ -374,6 +379,12 @@ class _AppLifecycleBiometricLockState extends State<AppLifecycleBiometricLock>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!_isAutoLogoutEnabled()) {
+      _shouldAuthenticateOnResume = false;
+      _backgroundedAt = null;
+      return;
+    }
+
     if (state == AppLifecycleState.resumed) {
       if (!_shouldAuthenticateOnResume) return;
       final backgroundedAt = _backgroundedAt;
@@ -529,6 +540,10 @@ class _AppLifecycleBiometricLockState extends State<AppLifecycleBiometricLock>
       return seconds;
     }
     return _defaultAutoLogoutSeconds;
+  }
+
+  bool _isAutoLogoutEnabled() {
+    return DatabaseService.getSetting<bool>(_autoLogoutEnabledKey, true) ?? true;
   }
 
   @override

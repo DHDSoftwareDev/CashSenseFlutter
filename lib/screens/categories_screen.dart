@@ -1,6 +1,7 @@
 // ignore_for_file: use_build_context_synchronously, deprecated_member_use
 
 import 'package:flutter/material.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
 import '../utils/formatters.dart';
 import '../services/database_service.dart';
 import '../models/category.dart';
@@ -49,6 +50,22 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
 
   void _applyCategoryFilter() {
     setState(() {
+      bool isUnknownCategoryName(String value) {
+        final normalized = value.trim().toLowerCase();
+        return normalized.isEmpty || normalized == 'unknown category' || normalized == 'unknown';
+      }
+
+      bool looksOpaqueId(String value) {
+        final v = value.trim();
+        if (v.isEmpty) return false;
+        final uuid = RegExp(
+          r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+        );
+        if (uuid.hasMatch(v)) return true;
+        final longToken = RegExp(r'^[A-Za-z0-9_-]{16,}$');
+        return longToken.hasMatch(v);
+      }
+
       // Prefer an explicit kind/type field on Category if available.
       // If `Category` has a `kind` or `isIncome` field, use it. Otherwise
       // fall back to the seeded DefaultCategories lists (heuristic).
@@ -77,15 +94,19 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
       final query = _searchQuery.toLowerCase();
       if (_showExpense) {
         _categories = _allCategories.where((c) {
+          final name = c.name.trim();
+          final isDisplayable = !isUnknownCategoryName(name) && !looksOpaqueId(name);
           final isIncome = categoryIsIncome(c);
-          final matchesQuery = query.isEmpty || c.name.toLowerCase().contains(query);
-          return !isIncome && matchesQuery;
+          final matchesQuery = query.isEmpty || name.toLowerCase().contains(query);
+          return isDisplayable && !isIncome && matchesQuery;
         }).toList();
       } else {
         _categories = _allCategories.where((c) {
+          final name = c.name.trim();
+          final isDisplayable = !isUnknownCategoryName(name) && !looksOpaqueId(name);
           final isIncome = categoryIsIncome(c);
-          final matchesQuery = query.isEmpty || c.name.toLowerCase().contains(query);
-          return isIncome && matchesQuery;
+          final matchesQuery = query.isEmpty || name.toLowerCase().contains(query);
+          return isDisplayable && isIncome && matchesQuery;
         }).toList();
       }
     });
@@ -186,55 +207,87 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
   }
 
   Widget _buildCategoriesList() {
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: _categories.length,
-      itemBuilder: (context, index) {
-        final category = _categories[index];
-        return Card(
-          margin: const EdgeInsets.only(bottom: 8),
-          child: Builder(builder: (tileContext) {
-            return ListTile(
-              title: Text(category.name),
-        subtitle: category.budgetLimit != null
-          ? Text('Budget: ${formatCurrency(category.budgetLimit)}')
-          : null,
-              trailing: PopupMenuButton<String>(
-                onSelected: (value) async => await _handleCategoryMenuSelection(value, category),
-                itemBuilder: (context) => [
-                  const PopupMenuItem(value: 'view', child: Text('View')),
-                  const PopupMenuItem(value: 'edit', child: Text('Edit')),
-                  const PopupMenuItem(value: 'delete', child: Text('Delete')),
-                ],
+    return SlidableAutoCloseBehavior(
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: _categories.length,
+        itemBuilder: (context, index) {
+          final category = _categories[index];
+          return Slidable(
+            key: ValueKey('category_swipe_${category.id}'),
+            startActionPane: ActionPane(
+              motion: const DrawerMotion(),
+              extentRatio: 0.25,
+              children: [
+                CustomSlidableAction(
+                  onPressed: (_) async => _handleCategoryMenuSelection('view', category),
+                  backgroundColor: Colors.blueGrey,
+                  foregroundColor: Colors.white,
+                  child: const Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.visibility, color: Colors.white),
+                      SizedBox(height: 4),
+                      Text(
+                        'View',
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        softWrap: false,
+                        overflow: TextOverflow.visible,
+                        style: TextStyle(color: Colors.white, fontSize: 11, height: 1.1),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            endActionPane: ActionPane(
+              motion: const DrawerMotion(),
+              extentRatio: 0.25,
+              children: [
+                CustomSlidableAction(
+                  onPressed: (_) async => _handleCategoryMenuSelection('delete', category),
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                  child: const Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.delete, color: Colors.white),
+                      SizedBox(height: 4),
+                      Text(
+                        'Delete',
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        softWrap: false,
+                        overflow: TextOverflow.visible,
+                        style: TextStyle(color: Colors.white, fontSize: 11, height: 1.1),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            child: Card(
+              margin: const EdgeInsets.only(bottom: 8),
+              child: ListTile(
+                leading: Container(
+                  width: 14,
+                  height: 14,
+                  decoration: BoxDecoration(
+                    color: category.color,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                title: Text(category.name),
+                subtitle: category.budgetLimit != null
+                    ? Text('Budget: ${formatCurrency(category.budgetLimit)}')
+                    : null,
+                onTap: () async => _handleCategoryMenuSelection('edit', category),
               ),
-              onTap: () async {
-                final RenderBox tileBox = tileContext.findRenderObject() as RenderBox;
-                final Offset topLeft = tileBox.localToGlobal(Offset.zero);
-                final RelativeRect position = RelativeRect.fromLTRB(
-                  topLeft.dx,
-                  topLeft.dy,
-                  topLeft.dx + tileBox.size.width,
-                  topLeft.dy + tileBox.size.height,
-                );
-
-                final selected = await showMenu<String>(
-                  context: tileContext,
-                  position: position,
-                  items: [
-                    const PopupMenuItem(value: 'view', child: Text('View')),
-                    const PopupMenuItem(value: 'edit', child: Text('Edit')),
-                    const PopupMenuItem(value: 'delete', child: Text('Delete')),
-                  ],
-                );
-
-                if (selected != null) {
-                  await _handleCategoryMenuSelection(selected, category);
-                }
-              },
-            );
-          }),
-        );
-      },
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -346,19 +399,22 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
         actionsAlignment: MainAxisAlignment.center,
         title: Row(
           children: [
-            CircleAvatar(
-              backgroundColor: category.color.withValues(alpha: 0.2),
-              child: Container(
-                width: 12,
-                height: 12,
-                decoration: BoxDecoration(
-                  color: category.color,
-                  shape: BoxShape.circle,
-                ),
+            Container(
+              width: 14,
+              height: 14,
+              decoration: BoxDecoration(
+                color: category.color,
+                shape: BoxShape.circle,
               ),
             ),
             const SizedBox(width: 16),
-            Text(category.name),
+            Expanded(
+              child: Text(
+                category.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           ],
         ),
         content: Column(

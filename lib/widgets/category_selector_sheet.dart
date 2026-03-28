@@ -7,8 +7,9 @@ import '../services/database_service.dart';
 class CategorySelectorSheet extends StatefulWidget {
   final List<Category> categories;
   final bool hideAddButton;
+  final Set<CategoryType>? allowedTypes;
 
-  const CategorySelectorSheet({required this.categories, this.hideAddButton = false, Key? key}) : super(key: key);
+  const CategorySelectorSheet({required this.categories, this.hideAddButton = false, this.allowedTypes, Key? key}) : super(key: key);
 
   @override
   State<CategorySelectorSheet> createState() => _CategorySelectorSheetState();
@@ -81,7 +82,7 @@ class _CategorySelectorSheetState extends State<CategorySelectorSheet> {
   @override
   void initState() {
     super.initState();
-    _allowedTypes = widget.categories.map((c) => c.type).toSet();
+    _allowedTypes = widget.allowedTypes ?? widget.categories.map((c) => c.type).toSet();
     final initial = widget.categories.isNotEmpty
         ? widget.categories
         : DatabaseService.getAllCategories();

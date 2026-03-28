@@ -124,6 +124,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
           for (final id in _selectedPayeeIds) {
             final payer = _payees.firstWhere((p) => p['id'] == id, orElse: () => <String, dynamic>{});
             final name = (payer['name'] ?? '').toString().trim();
+            if (name.isNotEmpty && (t.payerName ?? '').trim().toLowerCase() == name.toLowerCase()) return true;
             if (name.isNotEmpty && t.description.contains(name)) return true;
           }
           return false;
@@ -134,6 +135,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
           for (final id in _selectedPayeeIds) {
             final payee = _payees.firstWhere((p) => p['id'] == id, orElse: () => <String, dynamic>{});
             final name = (payee['name'] ?? '').toString().trim();
+            if (name.isNotEmpty && (t.payeeName ?? '').trim().toLowerCase() == name.toLowerCase()) return true;
             if (name.isNotEmpty && t.description.contains(name)) return true;
           }
           return false;
@@ -193,14 +195,15 @@ class _ReportsScreenState extends State<ReportsScreen> {
             if (bill.description != null && bill.description!.isNotEmpty) {
               label = bill.description!;
             } else {
-              // Prefer transaction description; if empty, fall back to 'Unknown'
-              // Normalize payment-style descriptions to the underlying
-              // payee/payer name by stripping the 'Payment for' prefix and
-              // any trailing date.
-              label = tx.description.isNotEmpty ? extractPayeeName(tx.description) : 'Unknown';
+              // Prefer category references first, then description fallback.
+              label = (tx.categoryName ?? '').trim().isNotEmpty
+                  ? tx.categoryName!.trim()
+                  : (tx.description.isNotEmpty ? extractPayeeName(tx.description) : 'Unknown');
             }
           } else {
-            label = tx.description.isNotEmpty ? extractPayeeName(tx.description) : 'Unknown';
+            label = (tx.categoryName ?? '').trim().isNotEmpty
+                ? tx.categoryName!.trim()
+                : (tx.description.isNotEmpty ? extractPayeeName(tx.description) : 'Unknown');
           }
         }
       }
@@ -347,6 +350,18 @@ class _ReportsScreenState extends State<ReportsScreen> {
       final extractedName = extractPayeeName(t.description);
       // Try exact match first
       if (payeeId == null || payeeId.isEmpty) {
+        final txPayeeName = (t.payeeName ?? '').trim();
+        if (txPayeeName.isNotEmpty) {
+          for (final p in visiblePayees) {
+            final name = (p['name'] ?? '').toString().trim();
+            if (name.isNotEmpty && txPayeeName.toLowerCase() == name.toLowerCase()) {
+              payeeId = p['id'];
+              break;
+            }
+          }
+        }
+      }
+      if (payeeId == null || payeeId.isEmpty) {
         for (final p in visiblePayees) {
           final name = (p['name'] ?? '').toString().trim();
           if (name.isNotEmpty && extractedName == name) {
@@ -442,10 +457,14 @@ class _ReportsScreenState extends State<ReportsScreen> {
               if (bill.description != null && bill.description!.isNotEmpty) {
                 label = bill.description!;
               } else {
-                label = tx.description.isNotEmpty ? extractPayeeName(tx.description) : (tx.note ?? 'Unknown');
+                label = (tx.payeeName ?? '').trim().isNotEmpty
+                    ? tx.payeeName!.trim()
+                    : (tx.description.isNotEmpty ? extractPayeeName(tx.description) : 'Unknown');
               }
             } else {
-              label = tx.description.isNotEmpty ? extractPayeeName(tx.description) : (tx.note ?? 'Unknown');
+              label = (tx.payeeName ?? '').trim().isNotEmpty
+                  ? tx.payeeName!.trim()
+                  : (tx.description.isNotEmpty ? extractPayeeName(tx.description) : 'Unknown');
             }
           }
         }
@@ -770,10 +789,13 @@ Widget _buildPayerPieChartCard({
           txs = txs.where((t) {
             final extractedName = extractPayeeName(t.description);
             // Match by payeeId or exact extracted name only (do not use notes)
-            if (_selectedPayeeIds.contains(t.payeeId)) return true;
+            if (_selectedPayeeIds.contains(t.payerId)) return true;
             for (final id in _selectedPayeeIds) {
               final payee = visiblePayees.firstWhere((p) => p['id'] == id, orElse: () => <String, dynamic>{});
               final name = (payee['name'] ?? '').toString().trim();
+              if (name.isNotEmpty && (t.payerName ?? '').trim().toLowerCase() == name.toLowerCase()) {
+                return true;
+              }
               if (name.isNotEmpty && (extractedName == name)) {
                 return true;
               }
@@ -815,6 +837,19 @@ Widget _buildPayerPieChartCard({
         }
       }
     }
+    // If still no payerId, prefer stored payerName before description parsing.
+    if (payerId == null || payerId.isEmpty) {
+      final txPayerName = (t.payerName ?? '').trim();
+      if (txPayerName.isNotEmpty) {
+        for (final p in visiblePayees) {
+          final name = (p['name'] ?? '').toString().trim();
+          if (name.isNotEmpty && txPayerName.toLowerCase() == name.toLowerCase()) {
+            payerId = p['id'];
+            break;
+          }
+        }
+      }
+    }
     // If still no payerId, try to match by name in description only (not notes)
     if (payerId == null || payerId.isEmpty) {
       for (final p in visiblePayees) {
@@ -847,7 +882,10 @@ Widget _buildPayerPieChartCard({
       label = '${payer['payeeName']} - ${payer['name']}';
     }
     if (label == 'Unknown') {
-      final txMatchList = txs.where((t) => (t.payerId == e.key) || ((t.payerId == null || (t.payerId?.isEmpty ?? true)) && ((t.description.trim() == e.key) || (t.note?.trim() == e.key)))).toList();
+        final txMatchList = txs.where((t) =>
+          (t.payerId == e.key) ||
+          ((t.payerId == null || (t.payerId?.isEmpty ?? true)) &&
+            (((t.payerName ?? '').trim() == e.key) || (t.description.trim() == e.key)))).toList();
       if (txMatchList.isNotEmpty) {
         // If all matching transactions are transfers, skip this entry.
         if (txMatchList.every((t) => _isTransferLike(t))) continue;
@@ -868,10 +906,14 @@ Widget _buildPayerPieChartCard({
           if (bill.description != null && bill.description!.isNotEmpty) {
             label = bill.description!;
           } else {
-            label = tx.description.isNotEmpty ? extractPayeeName(tx.description) : (tx.note ?? 'Unknown');
+            label = (tx.payerName ?? '').trim().isNotEmpty
+                ? tx.payerName!.trim()
+                : (tx.description.isNotEmpty ? extractPayeeName(tx.description) : 'Unknown');
           }
         } else {
-          label = tx.description.isNotEmpty ? extractPayeeName(tx.description) : (tx.note ?? 'Unknown');
+          label = (tx.payerName ?? '').trim().isNotEmpty
+              ? tx.payerName!.trim()
+              : (tx.description.isNotEmpty ? extractPayeeName(tx.description) : 'Unknown');
         }
       }
     }
@@ -2208,6 +2250,7 @@ Widget _buildPieChartCardGeneric({
           for (final id in _selectedPayeeIds) {
             final payer = _payees.firstWhere((p) => p['id'] == id, orElse: () => <String, dynamic>{});
             final name = (payer['name'] ?? '').toString().trim();
+            if (name.isNotEmpty && (t.payerName ?? '').trim().toLowerCase() == name.toLowerCase()) return true;
             if (name.isNotEmpty && t.description.contains(name)) return true;
           }
           return false;
@@ -2219,6 +2262,7 @@ Widget _buildPieChartCardGeneric({
           for (final id in _selectedPayeeIds) {
             final payee = _payees.firstWhere((p) => p['id'] == id, orElse: () => <String, dynamic>{});
             final name = (payee['name'] ?? '').toString().trim();
+            if (name.isNotEmpty && (t.payeeName ?? '').trim().toLowerCase() == name.toLowerCase()) return true;
             if (name.isNotEmpty && t.description.contains(name)) return true;
           }
           return false;

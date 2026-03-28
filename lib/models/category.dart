@@ -58,7 +58,30 @@ class Category extends HiveObject {
 
   IconData get icon => Category.iconMap[iconCodePoint] ?? const IconData(0xe88a, fontFamily: 'MaterialIcons');
 
-  Color get color => Color(int.parse(colorValue));
+  Color get color {
+    final raw = colorValue.trim();
+    if (raw.isEmpty) return const Color(0xFF607D8B);
+
+    try {
+      if (raw.startsWith('0x') || raw.startsWith('0X')) {
+        return Color(int.parse(raw.substring(2), radix: 16));
+      }
+
+      if (raw.startsWith('#')) {
+        final hex = raw.substring(1);
+        if (hex.length == 6) {
+          return Color(int.parse('FF$hex', radix: 16));
+        }
+        if (hex.length == 8) {
+          return Color(int.parse(hex, radix: 16));
+        }
+      }
+
+      return Color(int.parse(raw));
+    } catch (_) {
+      return const Color(0xFF607D8B);
+    }
+  }
 
   /// Returns a single grapheme emoji for UI display, otherwise null.
   /// This accepts composed emojis (skin tone, ZWJ sequences, flags).
@@ -101,7 +124,7 @@ class Category extends HiveObject {
       id: json['id'],
       name: json['name'],
       iconCodePoint: json['iconCodePoint'],
-      colorValue: json['colorValue'],
+      colorValue: (json['colorValue'] ?? '0xFF607D8B').toString(),
       isDefault: json['isDefault'] ?? false,
       budgetLimit: json['budgetLimit']?.toDouble(),
       image: json['image'],

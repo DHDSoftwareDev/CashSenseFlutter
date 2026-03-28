@@ -132,12 +132,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
     await DatabaseService.updateAccount(updated);
     if (!mounted) return;
     setState(() {});
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Account archived'),
-        backgroundColor: Colors.blueGrey[400],
-      ),
-    );
+    ScaffoldMessenger.of(context).clearSnackBars();
   }
 
   Future<void> _deleteAccount(Account acc) async {
@@ -156,12 +151,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
     await DatabaseService.deleteAccount(acc.id);
     if (!mounted) return;
     setState(() {});
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Account deleted'),
-        backgroundColor: Colors.blueGrey[400],
-      ),
-    );
+    ScaffoldMessenger.of(context).clearSnackBars();
   }
 
   Future<void> _editAccount(Account acc) async {

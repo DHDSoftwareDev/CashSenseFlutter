@@ -1,6 +1,7 @@
 // ignore_for_file: deprecated_member_use, use_build_context_synchronously, unused_import
 
 import 'package:flutter/material.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
 import '../utils/formatters.dart';
 import '../services/database_service.dart';
 import '../models/category.dart';
@@ -148,6 +149,9 @@ class _PayeesScreenState extends State<PayeesScreen> {
                 ? DatabaseService.getAllCategories().where((c) => c.type == CategoryType.expense).toList()
                 : DatabaseService.getAllCategories().where((c) => c.type == CategoryType.income).toList(),
             hideAddButton: true,
+            allowedTypes: {
+              isPayeeChoice ? CategoryType.expense : CategoryType.income,
+            },
           ),
         ),
       ),
@@ -336,70 +340,98 @@ class _PayeesScreenState extends State<PayeesScreen> {
       return Center(child: Text(_buildPlaceholderText()));
     }
 
-    return ListView.separated(
-      padding: const EdgeInsets.all(16),
-      itemCount: filtered.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
-      itemBuilder: (context, index) {
-        final p = filtered[index];
-        return Card(
-          child: Builder(builder: (ctx) {
-            void handleMenuSelection(String v) async {
-              if (v == 'view') {
-                await _showPayeeDetails(Map<String, dynamic>.from(p));
-                return;
-              }
-              if (v == 'delete') {
-                final confirm = await showDialog<bool>(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: const Text('Delete'),
-                    content: Text('Delete "${p['name']}"? This cannot be undone.'),
-                    actions: [
-                      TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-                      TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete')),
-                    ],
-                  ),
-                );
-                if (confirm == true) {
-                  await DatabaseService.deletePayee(p['id']);
-                  _loadPayees();
-                }
-              } else if (v == 'edit') {
-                await _showEditPayeeDialog(Map<String, dynamic>.from(p));
-              }
-            }
+    return SlidableAutoCloseBehavior(
+      child: ListView.separated(
+        padding: const EdgeInsets.all(16),
+        itemCount: filtered.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 8),
+        itemBuilder: (context, index) {
+          final p = filtered[index];
 
-            return ListTile(
-              title: Text(p['name'] ?? ''),
-              subtitle: p['categoryId'] != null ? Text(DatabaseService.getCategoryById(p['categoryId'])?.name ?? '') : null,
-              trailing: PopupMenuButton<String>(
-                onSelected: handleMenuSelection,
-                itemBuilder: (_) => const [
-                  PopupMenuItem(value: 'view', child: Text('View')),
-                  PopupMenuItem(value: 'edit', child: Text('Edit')),
-                  PopupMenuItem(value: 'delete', child: Text('Delete')),
+          Future<void> deletePayeeOrPayer() async {
+            final confirm = await showDialog<bool>(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: const Text('Delete'),
+                content: Text('Delete "${p['name']}"? This cannot be undone.'),
+                actions: [
+                  TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+                  TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete')),
                 ],
               ),
-              onTap: () async {
-                // Show same menu when the list tile is tapped. Compute the position from the tile's RenderBox.
-                final renderBox = ctx.findRenderObject() as RenderBox?;
-                final offset = renderBox != null ? renderBox.localToGlobal(Offset.zero) : Offset.zero;
-                final selected = await showMenu<String>(
-                  context: context,
-                  position: RelativeRect.fromLTRB(offset.dx, offset.dy, offset.dx + (renderBox?.size.width ?? 0), offset.dy + (renderBox?.size.height ?? 0)),
-                  items: const [
-                    PopupMenuItem(value: 'view', child: Text('View')),
-                    PopupMenuItem(value: 'edit', child: Text('Edit')),
-                    PopupMenuItem(value: 'delete', child: Text('Delete')),
-                  ],
-                );
-                if (selected != null) handleMenuSelection(selected);
-              },
             );
-          }),
-        );
-      },
+            if (confirm == true) {
+              await DatabaseService.deletePayee(p['id']);
+              _loadPayees();
+            }
+          }
+
+          return Slidable(
+            key: ValueKey('payee_payer_swipe_${p['id']}'),
+            startActionPane: ActionPane(
+              motion: const DrawerMotion(),
+              extentRatio: 0.25,
+              children: [
+                CustomSlidableAction(
+                  onPressed: (_) async => _showPayeeDetails(Map<String, dynamic>.from(p)),
+                  backgroundColor: Colors.blueGrey,
+                  foregroundColor: Colors.white,
+                  child: const Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.visibility, color: Colors.white),
+                      SizedBox(height: 4),
+                      Text(
+                        'View',
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        softWrap: false,
+                        overflow: TextOverflow.visible,
+                        style: TextStyle(color: Colors.white, fontSize: 11, height: 1.1),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            endActionPane: ActionPane(
+              motion: const DrawerMotion(),
+              extentRatio: 0.25,
+              children: [
+                CustomSlidableAction(
+                  onPressed: (_) async => deletePayeeOrPayer(),
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                  child: const Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.delete, color: Colors.white),
+                      SizedBox(height: 4),
+                      Text(
+                        'Delete',
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        softWrap: false,
+                        overflow: TextOverflow.visible,
+                        style: TextStyle(color: Colors.white, fontSize: 11, height: 1.1),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            child: Card(
+              child: ListTile(
+                title: Text(p['name'] ?? ''),
+                subtitle: p['categoryId'] != null
+                    ? Text(DatabaseService.getCategoryById(p['categoryId'])?.name ?? '')
+                    : null,
+                onTap: () async => _showEditPayeeDialog(Map<String, dynamic>.from(p)),
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -416,7 +448,13 @@ class _PayeesScreenState extends State<PayeesScreen> {
               child: Text(((payee['name'] ?? '') as String).isNotEmpty ? (payee['name'][0] ?? '').toString() : '?'),
             ),
             const SizedBox(width: 16),
-            Text(payee['name'] ?? 'Payee'),
+            Expanded(
+              child: Text(
+                payee['name'] ?? 'Payee',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           ],
         ),
         content: Column(

@@ -39,6 +39,7 @@ class LookupsRepository {
     required String name,
     String? color,
     String? icon,
+    bool? isIncome,
     int sortOrder = 0,
   }) async {
     final saved = await api.upsert(
@@ -47,6 +48,7 @@ class LookupsRepository {
       name: name,
       color: color,
       icon: icon,
+      isIncome: isIncome,
       sortOrder: sortOrder,
     );
 
