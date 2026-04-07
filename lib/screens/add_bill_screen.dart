@@ -7,10 +7,21 @@ import '../models/bill.dart';
 import '../models/transaction.dart';
 import '../models/category.dart';
 import '../models/account.dart';
+import '../models/reminder_offset.dart';
 import '../services/database_service.dart';
+import '../services/bill_reminder_service.dart';
 import '../services/lookups_sync_helper.dart';
+import '../widgets/bill_reminder_picker.dart';
 import '../widgets/app_color_picker.dart';
 import 'package:uuid/uuid.dart';
+
+Category? _findCategoryById(Iterable<Category> categories, String? id) {
+  if (id == null || id.isEmpty) return null;
+  for (final category in categories) {
+    if (category.id == id) return category;
+  }
+  return null;
+}
 
 class AddBillScreen extends StatefulWidget {
   final Bill? existingBill;
@@ -282,7 +293,11 @@ class _PayeeSelectorSheetState extends State<_PayeeSelectorSheet> {
                   child: ListTile(
                     contentPadding: const EdgeInsets.symmetric(horizontal: 8),
                     title: const Text('Select category'),
-                    subtitle: Text(_categoryId == null ? 'None' : (filteredCats.firstWhere((c) => c.id == _categoryId, orElse: () => Category(name: 'Unknown', iconCodePoint: '0xe85d', colorValue: '0xFF607D8B')).name)),
+                    subtitle: Text(
+                      _categoryId == null
+                          ? 'None'
+                          : (_findCategoryById(filteredCats, _categoryId)?.name ?? 'None'),
+                    ),
                     trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                     onTap: () async {
                       final selected = await showModalBottomSheet<String?> (
@@ -577,6 +592,17 @@ class _AddBillScreenState extends State<AddBillScreen> {
   // Transfer-specific accounts
   String? _fromAccountId;
   String? _toAccountId;
+  bool _remindersEnabled = true;
+
+  List<ReminderOffset> _selectedReminders = [
+    const ReminderOffset(daysBefore: 7, hour: 9, minute: 0),
+    const ReminderOffset(daysBefore: 1, hour: 9, minute: 0),
+  ];
+
+  static const List<ReminderOffset> _defaultReminders = [
+    ReminderOffset(daysBefore: 7, hour: 9, minute: 0),
+    ReminderOffset(daysBefore: 1, hour: 9, minute: 0),
+  ];
   
 
   List<Map<String, dynamic>> _payees = [];
@@ -610,8 +636,29 @@ class _AddBillScreenState extends State<AddBillScreen> {
       _toAccountId = bill.toAccountId;
       _selectedPayeeId = bill.payeeId;
       _selectedAccountId = bill.accountId;
+      _loadBillReminders(bill.toJson());
   // preserve existing reminder setting but do not expose toggle in UI
     }
+  }
+
+  void _loadBillReminders(Map<String, dynamic> billData) {
+    final rawOffsets = billData['reminderOffsets'] as List?;
+
+    final parsed = rawOffsets == null
+        ? <ReminderOffset>[]
+        : rawOffsets
+            .whereType<Map>()
+            .map((e) => ReminderOffset.fromJson(Map<String, dynamic>.from(e)))
+            .toList();
+
+    if (parsed.isEmpty) {
+      _selectedReminders = List<ReminderOffset>.from(_defaultReminders);
+      _remindersEnabled = false;
+      return;
+    }
+
+    _selectedReminders = parsed;
+    _remindersEnabled = true;
   }
 
   void _loadLookups() {
@@ -721,7 +768,30 @@ class _AddBillScreenState extends State<AddBillScreen> {
             _buildDueDateSelector(),
             const SizedBox(height: 16),
             _buildRecurrenceField(),
-            // Reminder toggle removed from Add Bill screen
+            const SizedBox(height: 12),
+            Card(
+              child: SwitchListTile(
+                title: const Text('Enable reminders'),
+                subtitle: Text(_remindersEnabled ? 'On' : 'Off'),
+                value: _remindersEnabled,
+                onChanged: (value) {
+                  setState(() {
+                    _remindersEnabled = value;
+                  });
+                },
+              ),
+            ),
+            if (_remindersEnabled) ...[
+              const SizedBox(height: 12),
+              BillReminderPicker(
+                initialValue: _selectedReminders,
+                onChanged: (value) {
+                  setState(() {
+                    _selectedReminders = value;
+                  });
+                },
+              ),
+            ],
             const SizedBox(height: 12),
             _buildNotesField(),
             const SizedBox(height: 16),
@@ -1631,14 +1701,7 @@ class _AddBillScreenState extends State<AddBillScreen> {
   }
   
   Widget _buildCategorySelector() {
-    final selectedCategory = _selectedCategoryId == null
-        ? null
-        : _categories.firstWhere(
-            (c) => c.id == _selectedCategoryId,
-            orElse: () => Category(name: 'Unknown', iconCodePoint: '0xe85d', colorValue: '0xFF607D8B'),
-          );
-    final bool hasSelectedCategory = selectedCategory != null && selectedCategory.id == _selectedCategoryId;
-    final categoryForDisplay = hasSelectedCategory ? selectedCategory : null;
+    final categoryForDisplay = _findCategoryById(_categories, _selectedCategoryId);
 
     return Card(
       child: ListTile(
@@ -1656,7 +1719,7 @@ class _AddBillScreenState extends State<AddBillScreen> {
         subtitle: Text(
           _selectedCategoryId == null
               ? 'Select'
-              : (_categories.firstWhere((c) => c.id == _selectedCategoryId, orElse: () => Category(name: 'Unknown', iconCodePoint: '0xe85d', colorValue: '0xFF607D8B')).name),
+              : (categoryForDisplay?.name ?? 'Select'),
         ),
         trailing: const Icon(Icons.arrow_forward_ios, size: 16),
         onTap: () async {
@@ -1718,6 +1781,12 @@ class _AddBillScreenState extends State<AddBillScreen> {
     );
   }
 
+  void _refreshBillReminders() {
+    BillReminderService().refreshAllReminders().catchError((e) {
+      debugPrint('Reminder refresh failed after bill save: $e');
+    });
+  }
+
   Future<void> _saveBill() async {
     if (_isSaving) return;
     FocusScope.of(context).unfocus();
@@ -1742,9 +1811,27 @@ class _AddBillScreenState extends State<AddBillScreen> {
     }
 
     setState(() => _isSaving = true);
-    final List<int>? normalizedCustomDays = _recurrence == Recurrence.monthly
+    final normalizedDueDate = DateTime(_dueDate.year, _dueDate.month, _dueDate.day);
+    final normalizedRecurrence = _recurrence;
+    final normalizedRecurrenceEndDate = normalizedRecurrence == Recurrence.none
+      ? null
+      : (_recurrenceForever
+        ? null
+        : (_recurrenceEndDate == null
+          ? null
+          : DateTime(
+            _recurrenceEndDate!.year,
+            _recurrenceEndDate!.month,
+            _recurrenceEndDate!.day,
+            )));
+    final List<int>? normalizedRecurrenceWeekdays = normalizedRecurrence == Recurrence.weekly
+      ? ((_recurrenceWeekdays == null || _recurrenceWeekdays!.isEmpty)
+        ? null
+        : (_recurrenceWeekdays!.toSet().toList()..sort()))
+      : null;
+    final List<int>? normalizedCustomDays = normalizedRecurrence == Recurrence.monthly
         ? ((_customDays == null || _customDays!.isEmpty)
-            ? <int>[_dueDate.day]
+        ? <int>[normalizedDueDate.day]
             : (_customDays!.toSet().toList()..sort()))
         : null;
     // Default: persist a Bill (existing behavior)
@@ -1769,12 +1856,12 @@ class _AddBillScreenState extends State<AddBillScreen> {
       bill = widget.existingBill!.copyWith(
         amount: amount,
         description: description,
-        dueDate: _dueDate,
-        recurrence: _recurrence,
+        dueDate: normalizedDueDate,
+        recurrence: normalizedRecurrence,
         customDays: normalizedCustomDays,
-        recurrenceEndDate: _recurrenceForever ? null : _recurrenceEndDate,
+        recurrenceEndDate: normalizedRecurrenceEndDate,
         recurrenceInterval: _recurrenceInterval,
-        recurrenceWeekdays: (_recurrenceWeekdays == null || _recurrenceWeekdays!.isEmpty) ? null : _recurrenceWeekdays,
+        recurrenceWeekdays: normalizedRecurrenceWeekdays,
         categoryId: _selectedCategoryId,
         type: _billType,
         fromAccountId: _billType == BillType.transfer ? _fromAccountId : null,
@@ -1788,12 +1875,12 @@ class _AddBillScreenState extends State<AddBillScreen> {
       bill = Bill(
         amount: amount,
         description: description,
-        dueDate: _dueDate,
-        recurrence: _recurrence,
+        dueDate: normalizedDueDate,
+        recurrence: normalizedRecurrence,
         customDays: normalizedCustomDays,
-        recurrenceEndDate: _recurrenceForever ? null : _recurrenceEndDate,
+        recurrenceEndDate: normalizedRecurrenceEndDate,
         recurrenceInterval: _recurrenceInterval,
-        recurrenceWeekdays: (_recurrenceWeekdays == null || _recurrenceWeekdays!.isEmpty) ? null : _recurrenceWeekdays,
+        recurrenceWeekdays: normalizedRecurrenceWeekdays,
         categoryId: _selectedCategoryId,
         type: _billType,
         fromAccountId: _billType == BillType.transfer ? _fromAccountId : null,
@@ -1807,7 +1894,59 @@ class _AddBillScreenState extends State<AddBillScreen> {
 
     try {
       if (widget.existingBill != null && !widget.isDuplicate) {
-        await DatabaseService.updateBill(bill);
+        await DatabaseService.updateBill(
+          bill,
+          reminderOffsets: _remindersEnabled ? _selectedReminders : const <ReminderOffset>[],
+        );
+
+        final previousBill = widget.existingBill!;
+        final oldDueDate = DateTime(
+          previousBill.dueDate.year,
+          previousBill.dueDate.month,
+          previousBill.dueDate.day,
+        );
+        final newDueDate = DateTime(
+          bill.dueDate.year,
+          bill.dueDate.month,
+          bill.dueDate.day,
+        );
+
+        // Preserve payment history linkage when editing a one-time bill's due date.
+        if (previousBill.recurrence == Recurrence.none &&
+            bill.recurrence == Recurrence.none &&
+            oldDueDate != newDueDate) {
+          final oldDateToken = DateFormat('MM/dd/yyyy').format(oldDueDate);
+          final relatedTx = DatabaseService.getAllTransactions()
+              .where((t) => t.billId == bill.id)
+              .toList();
+
+          for (final tx in relatedTx) {
+            final txDateOnly = DateTime(tx.date.year, tx.date.month, tx.date.day);
+            final txOccurrenceOnly = tx.occurrenceDate == null
+                ? null
+                : DateTime(
+                    tx.occurrenceDate!.year,
+                    tx.occurrenceDate!.month,
+                    tx.occurrenceDate!.day,
+                  );
+            final hasLegacyDateLink =
+                tx.description.contains(oldDateToken) ||
+                (tx.paymentFor ?? '').contains(oldDateToken);
+
+            final shouldRemap =
+                (txOccurrenceOnly != null && txOccurrenceOnly == oldDueDate) ||
+                (txOccurrenceOnly == null && (txDateOnly == oldDueDate || hasLegacyDateLink));
+
+            if (!shouldRemap) continue;
+
+            await DatabaseService.updateTransaction(
+              tx.copyWith(
+                occurrenceDate: newDueDate,
+                updatedAt: DateTime.now(),
+              ),
+            );
+          }
+        }
 
         // Bill amount/recurrence edits can invalidate cached per-occurrence
         // payment statuses (e.g., previously paid now becomes partial/unpaid).
@@ -1884,7 +2023,10 @@ class _AddBillScreenState extends State<AddBillScreen> {
           }
         } catch (_) {}
       } else {
-        await DatabaseService.addBill(bill);
+        await DatabaseService.addBill(
+          bill,
+          reminderOffsets: _remindersEnabled ? _selectedReminders : const <ReminderOffset>[],
+        );
       }
       // Ensure listeners get a definitive notification (defensive) so
       // UI like the dashboard/calendar always refreshes when notes are
@@ -1892,6 +2034,7 @@ class _AddBillScreenState extends State<AddBillScreen> {
       try {
         DatabaseService.billsVersion.value++;
       } catch (_) {}
+      _refreshBillReminders();
       
       // Bills are now displayed via the recurring system (getBillOccurrencesBetween)
       // which handles both one-time and recurring bills, preventing duplicates

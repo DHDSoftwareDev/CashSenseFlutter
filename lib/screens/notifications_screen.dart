@@ -1,7 +1,9 @@
 // ignore_for_file: deprecated_member_use
 
 import 'package:flutter/material.dart';
+import 'dart:convert';
 import 'package:package_info_plus/package_info_plus.dart';
+import '../models/reminder_offset.dart';
 import '../services/database_service.dart';
 import '../services/bill_reminder_service.dart';
 import '../services/cognito_service.dart';
@@ -17,6 +19,7 @@ class NotificationsScreen extends StatefulWidget {
 class _NotificationsScreenState extends State<NotificationsScreen> {
   bool _billReminders = false;
   int _billRemindersLeadDays = 1; // 0 = on due date, 1 = 1 day before, etc.
+  List<ReminderOffset> selectedReminders = [];
   bool _syncingToken = false;
   bool _reschedulingReminders = false;
   // Only bill reminders are shown for now; other notification types hidden temporarily
@@ -30,8 +33,85 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   void _loadSettings() {
     _billReminders = DatabaseService.getSetting<bool>('notif_billReminders', false) ?? false;
     _billRemindersLeadDays = DatabaseService.getSetting<int>('notif_billReminders_leadDays', 1) ?? 1;
+    _loadSelectedReminders();
   // no-op: other notification settings intentionally not loaded
     setState(() {});
+  }
+
+  void _loadSelectedReminders() {
+    final raw = DatabaseService.getSetting<String>('notif_billReminderOffsets', null);
+    if (raw != null && raw.trim().isNotEmpty) {
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is List) {
+          final loaded = <ReminderOffset>[];
+          for (final item in decoded) {
+            if (item is Map<String, dynamic>) {
+              loaded.add(
+                ReminderOffset(
+                  daysBefore: (item['daysBefore'] as num?)?.toInt() ?? 1,
+                  hour: (item['hour'] as num?)?.toInt() ?? 9,
+                  minute: (item['minute'] as num?)?.toInt() ?? 0,
+                ),
+              );
+            } else if (item is Map) {
+              loaded.add(
+                ReminderOffset(
+                  daysBefore: (item['daysBefore'] as num?)?.toInt() ?? 1,
+                  hour: (item['hour'] as num?)?.toInt() ?? 9,
+                  minute: (item['minute'] as num?)?.toInt() ?? 0,
+                ),
+              );
+            }
+          }
+          if (loaded.isNotEmpty) {
+            selectedReminders = loaded;
+            _billRemindersLeadDays = selectedReminders
+                .map((r) => r.daysBefore)
+                .reduce((a, b) => a < b ? a : b);
+            return;
+          }
+        }
+      } catch (_) {}
+    }
+
+    // Backward compatible default from existing lead-days setting.
+    selectedReminders = [
+      ReminderOffset(daysBefore: _billRemindersLeadDays, hour: 9, minute: 0),
+    ];
+  }
+
+  Future<void> _persistSelectedReminders() async {
+    final encoded = jsonEncode(selectedReminders.map((r) => r.toJson()).toList());
+    await DatabaseService.setSetting('notif_billReminderOffsets', encoded);
+    if (selectedReminders.isNotEmpty) {
+      _billRemindersLeadDays = selectedReminders
+          .map((r) => r.daysBefore)
+          .reduce((a, b) => a < b ? a : b);
+      await DatabaseService.setSetting('notif_billReminders_leadDays', _billRemindersLeadDays);
+    }
+  }
+
+  Future<void> _toggleReminderOffset({required int daysBefore, required bool enabled}) async {
+    setState(() {
+      if (enabled) {
+        if (!selectedReminders.any((r) => r.daysBefore == daysBefore)) {
+          selectedReminders.add(
+            ReminderOffset(daysBefore: daysBefore, hour: 9, minute: 0),
+          );
+        }
+      } else {
+        selectedReminders.removeWhere((r) => r.daysBefore == daysBefore);
+      }
+      selectedReminders.sort((a, b) => a.daysBefore.compareTo(b.daysBefore));
+    });
+
+    await _persistSelectedReminders();
+    if (_billReminders) {
+      try {
+        await BillReminderService().refreshAllReminders();
+      } catch (_) {}
+    }
   }
 
   Future<void> _setSetting(String key, bool value) async {
@@ -194,7 +274,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     // If reminders are enabled, re-schedule immediately with the new lead time
     try {
-      if (_billReminders) await BillReminderService().scheduleAllReminders();
+      if (_billReminders) await BillReminderService().refreshAllReminders();
     } catch (_) {}
   }
 
@@ -295,7 +375,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         return;
       }
 
-      await BillReminderService().scheduleAllReminders();
+      await BillReminderService().refreshAllReminders();
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -321,6 +401,20 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       body: ListView(
         children: [
           _buildSwitch('Bill Reminders', _billReminders, 'notif_billReminders'),
+          CheckboxListTile(
+            title: const Text('7 days before'),
+            value: selectedReminders.any((r) => r.daysBefore == 7),
+            onChanged: (val) {
+              _toggleReminderOffset(daysBefore: 7, enabled: val == true);
+            },
+          ),
+          CheckboxListTile(
+            title: const Text('1 day before'),
+            value: selectedReminders.any((r) => r.daysBefore == 1),
+            onChanged: (val) {
+              _toggleReminderOffset(daysBefore: 1, enabled: val == true);
+            },
+          ),
           ListTile(
             title: const Text('Reminder timing'),
             subtitle: Text(

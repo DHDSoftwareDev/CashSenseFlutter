@@ -14,6 +14,7 @@ import '../models/bill.dart';
 
 const String _workManagerTaskReminders = 'cashsense_schedule_reminders';
 const String _storedScheduleIdsKey = 'notif_billReminders_scheduleIds';
+const int _scheduleHorizonDays = 90;
 
 class BillReminderService {
   BillReminderService._private();
@@ -50,6 +51,9 @@ class BillReminderService {
       // read global enable toggle and leadDays preference
       final bool globalEnabled = DatabaseService.getSetting<bool>('notif_billReminders', false) ?? false;
       final int leadDays = DatabaseService.getSetting<int>('notif_billReminders_leadDays', 1) ?? 1;
+      // Reminder time is fixed to 9:00 AM local.
+      const int reminderHour = 9;
+      const int reminderMinute = 0;
 
       if (!globalEnabled) {
         debugPrint('Bill reminders disabled; skipping server scheduling');
@@ -73,14 +77,12 @@ class BillReminderService {
       final timeZone = TimezoneInit.localTimeZoneName();
 
       final now = DateTime.now();
-      final DateTime targetDueDate = DateTime(now.year, now.month, now.day).add(Duration(days: leadDays));
-
-      final start = targetDueDate;
-      final end = targetDueDate.add(const Duration(days: 1)).subtract(const Duration(milliseconds: 1));
+      final start = DateTime(now.year, now.month, now.day);
+      final end = start.add(const Duration(days: _scheduleHorizonDays));
       final occurrences = DatabaseService.getBillOccurrencesBetween(start, end);
 
       if (occurrences.isEmpty) {
-        debugPrint('No bill occurrences due on $targetDueDate; nothing to schedule');
+        debugPrint('No bill occurrences found in reminder scheduling window; nothing to schedule');
         return;
       }
 
@@ -96,11 +98,22 @@ class BillReminderService {
           timeZone: timeZone,
           dueDateForMessage: occDate,
           leadDays: leadDays,
+          reminderHour: reminderHour,
+          reminderMinute: reminderMinute,
         );
       }
     } catch (e) {
       debugPrint('scheduleAllReminders failed: $e');
     }
+  }
+
+  Future<void> refreshAllReminders() async {
+    try {
+      await cancelAllReminders();
+    } catch (e) {
+      debugPrint('refreshAllReminders cancel failed: $e');
+    }
+    await scheduleAllReminders();
   }
 
   Future<void> scheduleReminderForBill({
@@ -109,16 +122,26 @@ class BillReminderService {
     required String timeZone,
     DateTime? dueDateForMessage,
     required int leadDays,
+    required int reminderHour,
+    required int reminderMinute,
   }) async {
     try {
       final dueForMsg = dueDateForMessage ?? bill.dueDate;
-      final runAtUtcIso = _computeRunAtUtcIso(dueForMsg, leadDays);
+      final runAtUtcIso = _computeRunAtUtcIsoOrNull(
+        dueForMsg,
+        leadDays,
+        reminderHour,
+        reminderMinute,
+      );
+      if (runAtUtcIso == null) {
+        return;
+      }
       final billName = _buildBillName(bill);
       final billNote = _buildBillNote(bill, fallbackName: billName);
       final amountText = NumberFormat.simpleCurrency().format(bill.amount);
       final dueLabel = DateFormat('MM/dd/yyyy').format(dueForMsg);
 
-      final dedupeKey = 'bill:${bill.id}:$dueLabel:lead$leadDays:v2';
+      final dedupeKey = 'bill:${bill.id}:$dueLabel:lead$leadDays:t${reminderHour.toString().padLeft(2, '0')}${reminderMinute.toString().padLeft(2, '0')}:v3';
       final data = <String, dynamic>{
         'type': 'bill_reminder',
         'billId': bill.id,
@@ -128,6 +151,8 @@ class BillReminderService {
         'dueDate': dueLabel,
         'amount': bill.amount,
         'leadDays': leadDays,
+        'reminderHour': reminderHour,
+        'reminderMinute': reminderMinute,
       };
 
       final body = billNote == null || billNote.isEmpty
@@ -139,10 +164,12 @@ class BillReminderService {
         getIdToken: AwsApiService.getIdToken,
       );
 
+      final title = billName.isEmpty ? 'Payment due' : '$billName due';
+
       final result = await api.createSchedule(
         runAtUtcIso: runAtUtcIso,
         timeZone: timeZone,
-        title: '$billName due',
+        title: title,
         body: body,
         data: data,
         dedupeKey: dedupeKey,
@@ -220,18 +247,30 @@ class BillReminderService {
     }
   }
 
-  String _computeRunAtUtcIso(DateTime dueDate, int leadDays) {
+  String? _computeRunAtUtcIsoOrNull(
+    DateTime dueDate,
+    int leadDays,
+    int reminderHour,
+    int reminderMinute,
+  ) {
     final dueDateStr = DateFormat('yyyy-MM-dd').format(dueDate);
-    var runAtUtcIso = computeRunAtUtcIso(
+    final runAtUtcIso = computeRunAtUtcIso(
       dueDate: dueDateStr,
       daysBefore: leadDays,
-      reminderHour: 9,
-      reminderMinute: 0,
+      reminderHour: reminderHour,
+      reminderMinute: reminderMinute,
     );
     final runAtUtc = DateTime.parse(runAtUtcIso);
     final nowUtc = DateTime.now().toUtc();
     if (!runAtUtc.isAfter(nowUtc)) {
-      runAtUtcIso = nowUtc.add(const Duration(minutes: 1)).toIso8601String();
+      // For overdue unpaid bills, send a catch-up reminder soon.
+      final todayLocal = DateTime.now();
+      final dueLocalDate = DateTime(dueDate.year, dueDate.month, dueDate.day);
+      final todayDate = DateTime(todayLocal.year, todayLocal.month, todayLocal.day);
+      if (dueLocalDate.isBefore(todayDate)) {
+        return nowUtc.add(const Duration(minutes: 1)).toIso8601String();
+      }
+      return null;
     }
     return runAtUtcIso;
   }
@@ -281,40 +320,34 @@ class BillReminderService {
   }
 
   String _buildBillName(Bill bill) {
-    final desc = bill.description?.trim() ?? '';
-    if (desc.isNotEmpty) return _truncate(desc, 60);
-
-    if (bill.payeeId != null && bill.payeeId!.trim().isNotEmpty) {
-      final payees = DatabaseService.getAllPayees();
-      final match = payees.cast<Map<String, dynamic>?>().firstWhere(
-            (entry) => (entry?['id']?.toString() ?? '').trim() == bill.payeeId!.trim(),
-            orElse: () => null,
-          );
-      final name = match?['name']?.toString().trim() ?? '';
-      if (name.isNotEmpty) return _truncate(name, 60);
+    final counterparty = _buildCounterpartyName(bill);
+    if (counterparty != null && counterparty.isNotEmpty) {
+      return _truncate(counterparty, 60);
     }
 
-    return 'Bill';
+    final desc = bill.description?.trim() ?? '';
+    if (desc.isNotEmpty && desc.toLowerCase() != 'bill') return _truncate(desc, 60);
+
+    return '';
   }
 
   String? _buildBillNote(Bill bill, {required String fallbackName}) {
-    if (bill.payeeId != null && bill.payeeId!.trim().isNotEmpty) {
-      final payees = DatabaseService.getAllPayees();
-      final match = payees.cast<Map<String, dynamic>?>().firstWhere(
-            (entry) => (entry?['id']?.toString() ?? '').trim() == bill.payeeId!.trim(),
-            orElse: () => null,
-          );
-      final name = match?['name']?.toString().trim() ?? '';
-      if (name.isNotEmpty && name.toLowerCase() != fallbackName.toLowerCase()) {
-        return _truncate(name, 80);
-      }
-    }
-
     final desc = bill.description?.trim() ?? '';
     if (desc.isNotEmpty && desc.toLowerCase() != fallbackName.toLowerCase()) {
       return _truncate(desc, 80);
     }
     return null;
+  }
+
+  String? _buildCounterpartyName(Bill bill) {
+    if (bill.payeeId == null || bill.payeeId!.trim().isEmpty) return null;
+    final payees = DatabaseService.getAllPayees();
+    final match = payees.cast<Map<String, dynamic>?>().firstWhere(
+          (entry) => (entry?['id']?.toString() ?? '').trim() == bill.payeeId!.trim(),
+          orElse: () => null,
+        );
+    final name = match?['name']?.toString().trim() ?? '';
+    return name.isEmpty ? null : name;
   }
 
   String _truncate(String value, int maxLen) {

@@ -16,7 +16,6 @@ import '../providers/theme_provider.dart';
 import '../providers/user_session_controller.dart';
 import '../widgets/app_color_picker.dart';
 import 'subscriptions_screen.dart';
-import 'notifications_screen.dart';
 import 'backup_restore_screen.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -545,16 +544,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               },
             ),
           ]),
-          _buildSection('General', [
-            _buildSettingsTile(
-              'Notifications',
-              _getNotificationSummary(),
-              Icons.notifications,
-              () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NotificationsScreen())),
-              trailing: null,
-            ),
-            // Login/Sign Up UI setting removed — auth UI controlled elsewhere
-          ]),
+          // General section removed (notification options hidden)
           _buildSection('Data', [
             if (_hasActiveSubscription()) _buildAutoBackupCard(),
             _buildSettingsTile(

@@ -7,6 +7,25 @@
   "client": [
     {
       "client_info": {
+        "mobilesdk_app_id": "1:191837137195:android:31ab934175628019137d6e",
+        "android_client_info": {
+          "package_name": "com.dhdsoftware.cashsense"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDB8V99_8bDT5l7TSV10aNGpuzQ5fWKNSk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:191837137195:android:f1e47b60b5ba2333137d6e",
         "android_client_info": {
           "package_name": "name.dhdsoftware.cashsenseflutter"

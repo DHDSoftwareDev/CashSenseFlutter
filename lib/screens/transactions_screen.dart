@@ -21,6 +21,8 @@ class TransactionsScreen extends StatefulWidget {
   State<TransactionsScreen> createState() => _TransactionsScreenState();
 }
 
+enum _TransferClearChoice { bothSides, oneSide }
+
 class _TransactionsScreenState extends State<TransactionsScreen> {
   final NumberFormat _currencyFormat = NumberFormat.currency(symbol: '\$');
   List<Transaction> _transactions = [];
@@ -85,6 +87,119 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     if (oldWidget.accountId != widget.accountId) {
       _loadTransactions();
     }
+  }
+
+  bool _isTransferTransaction(Transaction transaction) {
+    final note = (transaction.note ?? '').trim().toLowerCase();
+    final description = transaction.description.trim().toLowerCase();
+    return note.startsWith('__transfer_manual__') ||
+        note.startsWith('__transfer_bill__') ||
+        description.startsWith('transfer from ');
+  }
+
+  Transaction? _findLinkedTransferTransaction(Transaction transaction) {
+    final allTransactions = DatabaseService.getAllTransactions();
+    final note = transaction.note ?? '';
+    final pairMatch = RegExp(r'pair:([A-Za-z0-9\-]+)', caseSensitive: false).firstMatch(note);
+    if (pairMatch != null) {
+      final linkedId = pairMatch.group(1);
+      if (linkedId != null && linkedId.isNotEmpty) {
+        try {
+          return allTransactions.firstWhere((candidate) => candidate.id == linkedId);
+        } catch (_) {}
+      }
+    }
+
+    try {
+      return allTransactions.firstWhere(
+        (candidate) =>
+            candidate.id != transaction.id &&
+            candidate.note != null &&
+            (candidate.note!.contains(transaction.id) ||
+                (transaction.note != null && transaction.note!.contains(candidate.id))),
+      );
+    } catch (_) {}
+
+    final candidates = allTransactions.where((candidate) {
+      if (candidate.id == transaction.id) return false;
+      final sameAmount = candidate.amount == transaction.amount;
+      final sameDate = candidate.date.year == transaction.date.year &&
+          candidate.date.month == transaction.date.month &&
+          candidate.date.day == transaction.date.day;
+      final sameCategory = candidate.categoryId == transaction.categoryId;
+      final differentAccount = candidate.accountId != transaction.accountId;
+      return sameAmount && sameDate && sameCategory && differentAccount;
+    }).toList();
+
+    if (candidates.isEmpty) return null;
+    return candidates.first;
+  }
+
+  Future<void> _reverseAccountBalanceForDeletedTransaction(Transaction transaction) async {
+    final accId = transaction.accountId;
+    if (accId == null) return;
+
+    final acc = DatabaseService.getAccountById(accId);
+    if (acc == null) return;
+
+    final effect = transaction.type == TransactionType.income ? transaction.amount : -transaction.amount;
+    final updatedAcc = acc.copyWith(balance: acc.balance - effect);
+    await DatabaseService.updateAccount(updatedAcc);
+  }
+
+  Future<void> _deleteTransferTransaction(Transaction transaction, {required bool deleteBothSides}) async {
+    try {
+      final linked = deleteBothSides ? _findLinkedTransferTransaction(transaction) : null;
+
+      await _reverseAccountBalanceForDeletedTransaction(transaction);
+      if (linked != null) {
+        await _reverseAccountBalanceForDeletedTransaction(linked);
+      }
+
+      if (linked != null) {
+        await DatabaseService.deleteTransaction(linked.id);
+      }
+      await DatabaseService.deleteTransaction(transaction.id);
+
+      if (!mounted) return;
+      _loadTransactions();
+      ScaffoldMessenger.of(context).clearSnackBars();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error deleting transfer: $e'),
+          backgroundColor: Colors.blueGrey[400],
+        ),
+      );
+    }
+  }
+
+  Future<_TransferClearChoice?> _askTransferClearChoice({required bool newCleared}) async {
+    final actionLabel = newCleared ? 'cleared' : 'uncleared';
+    return showDialog<_TransferClearChoice>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Apply status to transfer?'),
+          content: Text('Do you want to mark both sides of this transfer as $actionLabel?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(_TransferClearChoice.oneSide),
+              child: const Text('One Side'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(_TransferClearChoice.bothSides),
+              child: const Text('Both Sides'),
+            ),
+          ],
+        );
+      },
+    );
   }
   
     List<Transaction> get _searchResults {
@@ -752,6 +867,12 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     return name;
   }
 
+  String _extractPaymentForValue(String description) {
+    final trimmed = description.trim();
+    if (!trimmed.toLowerCase().startsWith('payment for ')) return '';
+    return trimmed.substring('payment for '.length).trim();
+  }
+
   Widget _buildTransactionItem(Transaction transaction, {double? runningBalance}) {
     final lookupsState = context.watch<LookupsState>();
     final normalizedCategoryId = transaction.categoryId.trim();
@@ -808,6 +929,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     final rawPaymentFor = (transaction.paymentFor ?? '').trim();
     if (rawPaymentFor.isNotEmpty) {
       paymentForDisplay = rawPaymentFor;
+    } else {
+      paymentForDisplay = _extractPaymentForValue(transaction.description);
+    }
+    if (paymentForDisplay.isNotEmpty) {
       final cat = categoryText.trim();
       if (cat.isNotEmpty) {
         final lowerValue = paymentForDisplay.toLowerCase();
@@ -889,7 +1014,25 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
     Future<void> toggleClearStatus() async {
       final newCleared = !(transaction.cleared ?? false);
+      Transaction? linked;
+      var shouldApplyToBothSides = true;
+
+      if (_isTransferTransaction(transaction)) {
+        linked = _findLinkedTransferTransaction(transaction);
+
+        if (linked != null) {
+          final choice = await _askTransferClearChoice(newCleared: newCleared);
+          if (choice == null) return;
+          shouldApplyToBothSides = choice == _TransferClearChoice.bothSides;
+        }
+      }
+
       await DatabaseService.updateTransaction(transaction.copyWith(cleared: newCleared));
+
+      if (shouldApplyToBothSides && linked != null && linked.cleared != newCleared) {
+        await DatabaseService.updateTransaction(linked.copyWith(cleared: newCleared));
+      }
+
       _loadTransactions();
     }
 
@@ -901,93 +1044,86 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         },
         child: ListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          title: Row(
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            DateFormat('MM/dd/yy').format(transaction.date),
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          // Extract clean payee/payer name for payment transactions,
-                          // removing "Payment for" prefix and trailing date
-                          Builder(
-                            builder: (context) {
-                              final isPayment = transaction.description.toLowerCase().startsWith('payment for ');
-                              final fallbackCounterparty =
-                                  transaction.type == TransactionType.expense
-                                      ? payeeText
-                                      : payerText;
-                              var baseTitle = isPayment
-                                  ? (fallbackCounterparty.isNotEmpty
-                                      ? fallbackCounterparty
-                                      : _extractPayeeName(transaction.description))
-                                  : transaction.description;
-                              baseTitle = baseTitle.replaceFirst(
-                                RegExp(r'^\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\s+'),
-                                '',
-                              );
-                              final cat = categoryText.trim();
-                              if (cat.isNotEmpty && baseTitle.toLowerCase().endsWith(' ${cat.toLowerCase()}')) {
-                                baseTitle = baseTitle.substring(0, baseTitle.length - cat.length - 1).trim();
-                              }
-                              final displayTitle =
-                                  (baseTitle.trim().isEmpty || baseTitle.trim().toLowerCase() == 'transaction')
-                                      ? (fallbackCounterparty.isEmpty ? baseTitle : fallbackCounterparty)
-                                      : baseTitle;
-                              return Text(
-                                displayTitle,
-                                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              );
-                            },
-                          ),
-                          const SizedBox(height: 4),
-                          // Make the account/category name smaller. If transaction is split,
-                          // show each category and allocated amount in-line.
-                          Text(
-                            categoryDisplay,
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Colors.grey[700],
-                            ),
-                          ),
-                          if (paymentForDisplay.isNotEmpty) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              'Payment for $paymentForDisplay',
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: Colors.grey[600],
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
+              Row(
+                children: [
+                  Expanded(
+                    child: Row(
                       children: [
-                        Text(
-                          '${transaction.type == TransactionType.income ? '+' : '-'}${_currencyFormat.format(transaction.amount)}',
-                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                            color: transaction.type == TransactionType.income
-                                ? AppTheme.incomeGreen
-                                : AppTheme.expenseRed,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                DateFormat('MM/dd/yy').format(transaction.date),
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              // Extract clean payee/payer name for payment transactions,
+                              // removing "Payment for" prefix and trailing date
+                              Builder(
+                                builder: (context) {
+                                  final isPayment = transaction.description.toLowerCase().startsWith('payment for ');
+                                  final fallbackCounterparty =
+                                      transaction.type == TransactionType.expense
+                                          ? payeeText
+                                          : payerText;
+                                  var baseTitle = isPayment
+                                      ? (fallbackCounterparty.isNotEmpty
+                                          ? fallbackCounterparty
+                                          : _extractPayeeName(transaction.description))
+                                      : transaction.description;
+                                  baseTitle = baseTitle.replaceFirst(
+                                    RegExp(r'^\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\s+'),
+                                    '',
+                                  );
+                                  final cat = categoryText.trim();
+                                  if (cat.isNotEmpty && baseTitle.toLowerCase().endsWith(' ${cat.toLowerCase()}')) {
+                                    baseTitle = baseTitle.substring(0, baseTitle.length - cat.length - 1).trim();
+                                  }
+                                  final displayTitle =
+                                      (baseTitle.trim().isEmpty || baseTitle.trim().toLowerCase() == 'transaction')
+                                          ? (fallbackCounterparty.isEmpty ? baseTitle : fallbackCounterparty)
+                                          : baseTitle;
+                                  return Text(
+                                    displayTitle,
+                                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  );
+                                },
+                              ),
+                              const SizedBox(height: 4),
+                              // Make the account/category name smaller. If transaction is split,
+                              // show each category and allocated amount in-line.
+                              Text(
+                                categoryDisplay,
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: Colors.grey[700],
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        if (transaction.note != null && transaction.note!.trim().isNotEmpty) ...[
+                        const SizedBox(width: 16),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              '${transaction.type == TransactionType.income ? '+' : '-'}${_currencyFormat.format(transaction.amount)}',
+                              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                color: transaction.type == TransactionType.income
+                                    ? AppTheme.incomeGreen
+                                    : AppTheme.expenseRed,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                            if (transaction.note != null && transaction.note!.trim().isNotEmpty) ...[
                           Builder(
                             builder: (ctx) {
                               String raw = transaction.note!;
@@ -1030,23 +1166,37 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                               );
                             },
                           ),
-                        ],
-                        const SizedBox(height: 4),
-                        if (runningBalance != null) ...[
-                          Text(
-                            _currencyFormat.format(runningBalance),
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              fontWeight: FontWeight.w500,
-                              color: Colors.grey[600],
-                              fontSize: 9,
-                            ),
-                          ),
-                        ],
+                            ],
+                            const SizedBox(height: 4),
+                            if (runningBalance != null) ...[
+                              Text(
+                                _currencyFormat.format(runningBalance),
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.grey[600],
+                                  fontSize: 9,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
                       ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
+              if (widget.accountId != null &&
+                  widget.accountId!.isNotEmpty &&
+                  paymentForDisplay.isNotEmpty &&
+                  (transaction.billId?.trim().isNotEmpty ?? false)) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'Payment for $paymentForDisplay',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Colors.grey[700],
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -1197,91 +1347,16 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             TextButton(
               onPressed: () async {
                 final nav = Navigator.of(context);
-                final messenger = ScaffoldMessenger.of(context);
-                // Delete only this side
-                try {
-                  final accId = transaction.accountId;
-                  if (accId != null) {
-                    final acc = DatabaseService.getAccountById(accId);
-                    if (acc != null) {
-                      final effect = transaction.type == TransactionType.income ? transaction.amount : -transaction.amount;
-                      final updatedAcc = acc.copyWith(balance: acc.balance - effect);
-                      await DatabaseService.updateAccount(updatedAcc);
-                    }
-                  }
-                } catch (_) {}
-                await DatabaseService.deleteTransaction(transaction.id);
-                if (!mounted) return;
                 nav.pop();
-                _loadTransactions();
-                messenger.clearSnackBars();
+                _deleteTransferTransaction(transaction, deleteBothSides: false);
               },
               child: const Text('Just this side', style: TextStyle(color: Colors.red)),
             ),
             TextButton(
               onPressed: () async {
                 final nav = Navigator.of(context);
-                final messenger = ScaffoldMessenger.of(context);
-                // Delete both sides
-                try {
-                  final accId = transaction.accountId;
-                  if (accId != null) {
-                    final acc = DatabaseService.getAccountById(accId);
-                    if (acc != null) {
-                      final effect = transaction.type == TransactionType.income ? transaction.amount : -transaction.amount;
-                      final updatedAcc = acc.copyWith(balance: acc.balance - effect);
-                      await DatabaseService.updateAccount(updatedAcc);
-                    }
-                  }
-                } catch (_) {}
-                // Find the linked transfer transaction (check both directions)
-                final allTx = DatabaseService.getAllTransactions();
-                Transaction? linked;
-                // First try note-based linking
-                try {
-                  linked = allTx.firstWhere(
-                    (t) =>
-                      t.id != transaction.id &&
-                      t.note != null &&
-                      (
-                        t.note!.contains(transaction.id) ||
-                        (transaction.note != null && transaction.note!.contains(t.id))
-                      ),
-                  );
-                } catch (_) {
-                  linked = null;
-                }
-                // If not found, try matching by account, amount, date, and category
-                if (linked == null) {
-                  final candidates = allTx.where(
-                    (t) =>
-                      t.id != transaction.id &&
-                      t.amount == transaction.amount &&
-                      t.date == transaction.date &&
-                      t.categoryId == transaction.categoryId &&
-                      t.accountId != transaction.accountId,
-                  );
-                  linked = candidates.isNotEmpty ? candidates.first : null;
-                }
-                if (linked != null) {
-                  try {
-                    final accId2 = linked.accountId;
-                    if (accId2 != null) {
-                      final acc2 = DatabaseService.getAccountById(accId2);
-                      if (acc2 != null) {
-                        final effect2 = linked.type == TransactionType.income ? linked.amount : -linked.amount;
-                        final updatedAcc2 = acc2.copyWith(balance: acc2.balance - effect2);
-                        await DatabaseService.updateAccount(updatedAcc2);
-                      }
-                    }
-                  } catch (_) {}
-                  await DatabaseService.deleteTransaction(linked.id);
-                }
-                await DatabaseService.deleteTransaction(transaction.id);
-                if (!mounted) return;
                 nav.pop();
-                _loadTransactions();
-                messenger.clearSnackBars();
+                _deleteTransferTransaction(transaction, deleteBothSides: true);
               },
               child: const Text('Both sides', style: TextStyle(color: Colors.red)),
             ),
@@ -1292,8 +1367,16 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text('Delete Transaction'),
-          content: Text('Are you sure you want to delete "${transaction.description}"?'),
+          title: Text(
+            transaction.billId != null && transaction.billId!.isNotEmpty
+                ? 'Delete Bill Payment'
+                : 'Delete Transaction',
+          ),
+          content: Text(
+            transaction.billId != null && transaction.billId!.isNotEmpty
+                ? 'Delete this payment? It will also be removed from the bill payment history and the bill status will be updated.'
+                : 'Are you sure you want to delete "${transaction.description}"?',
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
@@ -1303,6 +1386,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               onPressed: () async {
                 final nav = Navigator.of(context);
                 final messenger = ScaffoldMessenger.of(context);
+                nav.pop();
                 try {
                   final accId = transaction.accountId;
                   if (accId != null) {
@@ -1316,7 +1400,6 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 } catch (_) {}
                 await DatabaseService.deleteTransaction(transaction.id);
                 if (!mounted) return;
-                nav.pop();
                 _loadTransactions();
                 messenger.clearSnackBars();
               },

@@ -7,10 +7,31 @@ import '../services/database_service.dart';
 import 'pay_bill_screen.dart';
 import 'add_bill_screen.dart';
 
-class BillDetailScreen extends StatelessWidget {
+class BillDetailScreen extends StatefulWidget {
   final Bill bill;
 
   const BillDetailScreen({super.key, required this.bill});
+
+  @override
+  State<BillDetailScreen> createState() => _BillDetailScreenState();
+}
+
+class _BillDetailScreenState extends State<BillDetailScreen> {
+  late Bill _bill;
+
+  @override
+  void initState() {
+    super.initState();
+    _bill = widget.bill;
+  }
+
+  void _reloadBill() {
+    final refreshed = DatabaseService.getAllBills().where((b) => b.id == _bill.id);
+    if (refreshed.isEmpty) return;
+    setState(() {
+      _bill = refreshed.first;
+    });
+  }
 
   String _recurrenceText(Recurrence r) {
     switch (r) {
@@ -32,8 +53,8 @@ class BillDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dateFmt = DateFormat('yyyy-MM-dd');
-    final category = (bill.categoryId != null && bill.categoryId!.isNotEmpty)
-        ? DatabaseService.getCategoryById(bill.categoryId!)
+    final category = (_bill.categoryId != null && _bill.categoryId!.isNotEmpty)
+        ? DatabaseService.getCategoryById(_bill.categoryId!)
         : null;
     return Scaffold(
       appBar: AppBar(
@@ -45,31 +66,31 @@ class BillDetailScreen extends StatelessWidget {
           children: [
             ListTile(
               title: const Text('Description'),
-              subtitle: Text(bill.description ?? ''),
+              subtitle: Text(_bill.description ?? ''),
             ),
             ListTile(
               title: const Text('Amount'),
-              subtitle: Text(bill.amount.toStringAsFixed(2)),
+              subtitle: Text(_bill.amount.toStringAsFixed(2)),
             ),
             ListTile(
               title: const Text('Due Date'),
-              subtitle: Text(dateFmt.format(bill.dueDate.toLocal())),
+              subtitle: Text(dateFmt.format(_bill.dueDate.toLocal())),
             ),
             ListTile(
               title: const Text('Recurrence'),
-              subtitle: Text(_recurrenceText(bill.recurrence)),
+              subtitle: Text(_recurrenceText(_bill.recurrence)),
             ),
-            if (bill.recurrenceEndDate != null)
+            if (_bill.recurrenceEndDate != null)
               ListTile(
                 title: const Text('Recurrence End'),
-                subtitle: Text(dateFmt.format(bill.recurrenceEndDate!.toLocal())),
+                subtitle: Text(dateFmt.format(_bill.recurrenceEndDate!.toLocal())),
               ),
             // Reminder is controlled globally via Settings now; per-bill flag removed.
             ListTile(
               title: const Text('Payment Status'),
-              subtitle: Text(bill.paymentStatus?.toString().split('.').last ?? ''),
+              subtitle: Text(_bill.paymentStatus?.toString().split('.').last ?? ''),
             ),
-            if (bill.categoryId != null)
+            if (_bill.categoryId != null)
               ListTile(
                 leading: Container(
                   width: 14,
@@ -85,12 +106,12 @@ class BillDetailScreen extends StatelessWidget {
                   // Open categories screen (if present) or simply do nothing for now
                 },
               ),
-            if (bill.payeeId != null)
+            if (_bill.payeeId != null)
               ListTile(
                 title: const Text('Payee'),
                 subtitle: Text(() {
                   final payees = DatabaseService.getAllPayees();
-                  final p = payees.firstWhere((p) => (p['id'] ?? '') == bill.payeeId, orElse: () => <String, dynamic>{});
+                  final p = payees.firstWhere((p) => (p['id'] ?? '') == _bill.payeeId, orElse: () => <String, dynamic>{});
                   return p.containsKey('name') ? (p['name'] as String) : 'Unknown';
                 }()),
                 onTap: () {
@@ -105,9 +126,17 @@ class BillDetailScreen extends StatelessWidget {
                   child: ElevatedButton.icon(
                     icon: const Icon(Icons.payment),
                     label: const Text('Pay'),
-                    onPressed: () {
-                      // Open pay bill screen for this bill's occurrence (use due date)
-                      Navigator.of(context).push(MaterialPageRoute(builder: (ctx) => PayBillScreen(bill: bill, occurrenceDate: bill.dueDate)));
+                    onPressed: () async {
+                      await Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (ctx) => PayBillScreen(
+                            bill: _bill,
+                            occurrenceDate: _bill.dueDate,
+                          ),
+                        ),
+                      );
+                      if (!mounted) return;
+                      _reloadBill();
                     },
                   ),
                 ),
@@ -116,8 +145,14 @@ class BillDetailScreen extends StatelessWidget {
                   child: OutlinedButton.icon(
                     icon: const Icon(Icons.edit),
                     label: const Text('Edit'),
-                    onPressed: () {
-                      Navigator.of(context).push(MaterialPageRoute(builder: (ctx) => AddBillScreen(existingBill: bill)));
+                    onPressed: () async {
+                      final result = await Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (ctx) => AddBillScreen(existingBill: _bill),
+                        ),
+                      );
+                      if (!mounted || result != true) return;
+                      _reloadBill();
                     },
                   ),
                 ),

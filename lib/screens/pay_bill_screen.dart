@@ -9,6 +9,7 @@ import 'add_transaction_screen.dart';
 import '../models/account.dart';
 import '../models/category.dart';
 import '../services/database_service.dart';
+import '../services/bill_reminder_service.dart';
 import '../services/lookups_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/splits_editor.dart';
@@ -45,10 +46,51 @@ class _PayBillScreenState extends State<PayBillScreen> {
   bool _showInReports = true;
   bool _isSaving = false;
 
+  String _visibleBillText(String? raw) {
+    final text = (raw ?? '').trim();
+    if (text.toLowerCase() == 'bill') return '';
+    return text;
+  }
+
+  String _extractPaymentForValue(String description) {
+    final trimmed = description.trim();
+    if (!trimmed.toLowerCase().startsWith('payment for ')) return '';
+    return trimmed.substring('payment for '.length).trim();
+  }
+
+  bool _isSameDay(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+
+  bool _matchesBillOccurrence(Transaction tx, DateTime occurrenceDate) {
+    final dateShort = DateFormat('MM/dd/yy').format(occurrenceDate);
+    final dateLong = DateFormat('MM/dd/yyyy').format(occurrenceDate);
+
+    final billMatches = tx.billId == widget.bill.id;
+    final paymentFor = (tx.paymentFor ?? '').trim();
+    final paymentForMatches = paymentFor.isNotEmpty &&
+        (paymentFor.contains(dateLong) || paymentFor.contains(dateShort));
+
+    if (!billMatches && !paymentForMatches) return false;
+
+    if (tx.occurrenceDate != null) {
+      return _isSameDay(tx.occurrenceDate!, occurrenceDate);
+    }
+
+    if (_isSameDay(tx.date, occurrenceDate)) return true;
+    final description = tx.description;
+
+    return description.contains(dateLong) ||
+        description.contains(dateShort) ||
+        paymentFor.contains(dateLong) ||
+        paymentFor.contains(dateShort);
+  }
+
   @override
   void initState() {
     super.initState();
-    _paymentDate = widget.occurrenceDate;
+    final now = DateTime.now();
+    _paymentDate = DateTime(now.year, now.month, now.day);
   // Show bill amount as placeholder, let user input their own amount
     // Load payment history first so we can compute the current amount due and prefill the amount field
     _loadAccounts();
@@ -58,9 +100,10 @@ class _PayBillScreenState extends State<PayBillScreen> {
     final amountDue = widget.bill.amount - totalPaid;
     // Prefill the amount field with the amount due (if > 0), otherwise default to the bill amount
     // Use setState so the UI reliably updates after init
+    final initialBillNote = _visibleBillText(widget.bill.description);
     setState(() {
       _amountController.text = amountDue > 0 ? amountDue.toStringAsFixed(2) : widget.bill.amount.toStringAsFixed(2);
-      _notesController.text = '';
+      _notesController.text = initialBillNote;
       _selectedAccountId = widget.bill.accountId;
     });
     _refreshAutoPaymentFor(force: true);
@@ -93,15 +136,9 @@ class _PayBillScreenState extends State<PayBillScreen> {
   Future<void> _recalculateAndPersistBillStatus() async {
     try {
       final allTransactions = DatabaseService.getAllTransactions();
-      final formattedDate = DateFormat('MM/dd/yyyy').format(widget.occurrenceDate);
-      final relatedPayments = allTransactions.where((tx) =>
-        tx.billId == widget.bill.id && (
-          (tx.occurrenceDate != null
-            ? (tx.occurrenceDate!.year == widget.occurrenceDate.year && tx.occurrenceDate!.month == widget.occurrenceDate.month && tx.occurrenceDate!.day == widget.occurrenceDate.day)
-            : ((tx.date.year == widget.occurrenceDate.year && tx.date.month == widget.occurrenceDate.month && tx.date.day == widget.occurrenceDate.day) || tx.description.contains(formattedDate))
-          )
-        )
-      ).toList();
+      final relatedPayments = allTransactions
+          .where((tx) => _matchesBillOccurrence(tx, widget.occurrenceDate))
+          .toList();
       double totalPaid = 0.0;
       for (final tx in relatedPayments) {
         if (widget.bill.type == BillType.expense) {
@@ -114,17 +151,7 @@ class _PayBillScreenState extends State<PayBillScreen> {
           totalPaid += (tx.type == TransactionType.income) ? tx.amount : -tx.amount;
         }
       }
-      final amountDue = widget.bill.amount - totalPaid;
-
-      PaymentStatus newStatus;
-      // Use tolerance of 0.01 to handle floating-point precision issues
-      if (amountDue <= 0.01) {
-        newStatus = PaymentStatus.paid;
-      } else if (totalPaid > 0 && amountDue > 0) {
-        newStatus = PaymentStatus.partial;
-      } else {
-        newStatus = PaymentStatus.unpaid;
-      }
+      final newStatus = _statusForTotalPaid(totalPaid);
 
       // Persist occurrence-level status instead of editing the top-level Bill.
       final existing = DatabaseService.getBillOccurrenceStatus(widget.bill.id, widget.occurrenceDate);
@@ -138,6 +165,16 @@ class _PayBillScreenState extends State<PayBillScreen> {
     }
   }
 
+  PaymentStatus _statusForTotalPaid(double totalPaid) {
+    if (totalPaid >= (widget.bill.amount - 0.01)) {
+      return PaymentStatus.paid;
+    }
+    if (totalPaid > 0) {
+      return PaymentStatus.partial;
+    }
+    return PaymentStatus.unpaid;
+  }
+
   void _loadAccounts() {
     _accounts = DatabaseService.getAllAccounts();
   }
@@ -149,20 +186,14 @@ class _PayBillScreenState extends State<PayBillScreen> {
     // or the transaction description includes the occurrence date string (this
     // covers payments recorded on a different date but explicitly for this
     // occurrence).
-    final occDateStr = DateFormat('MM/dd/yyyy').format(widget.occurrenceDate);
-    _paymentHistory = allTransactions.where((tx) =>
-      tx.billId == widget.bill.id && (
-        (tx.occurrenceDate != null
-          ? (tx.occurrenceDate!.year == widget.occurrenceDate.year && tx.occurrenceDate!.month == widget.occurrenceDate.month && tx.occurrenceDate!.day == widget.occurrenceDate.day)
-          : ((tx.date.year == widget.occurrenceDate.year && tx.date.month == widget.occurrenceDate.month && tx.date.day == widget.occurrenceDate.day) || tx.description.contains(occDateStr))
-        )
-      )
-    ).toList()
+    _paymentHistory = allTransactions
+        .where((tx) => _matchesBillOccurrence(tx, widget.occurrenceDate))
+        .toList()
       ..sort((a, b) => b.date.compareTo(a.date)); // Sort by date, newest first
   }
 
   String _resolveCounterpartyName() {
-    String counterparty = widget.bill.description?.trim() ?? '';
+    String counterparty = _visibleBillText(widget.bill.description);
     if (widget.bill.payeeId != null) {
       final payees = DatabaseService.getAllPayees();
       final p = payees.firstWhere(
@@ -188,7 +219,7 @@ class _PayBillScreenState extends State<PayBillScreen> {
   }
 
   String _buildAutoPaymentFor({String? counterpartyName}) {
-    final formattedDate = DateFormat('MM/dd/yy').format(widget.occurrenceDate);
+    final formattedDate = DateFormat('MM/dd/yyyy').format(widget.occurrenceDate);
     final counterparty = (counterpartyName ?? _resolveCounterpartyName()).trim();
     final category = _resolveCategoryName().trim();
     return '$formattedDate $counterparty $category';
@@ -212,6 +243,12 @@ class _PayBillScreenState extends State<PayBillScreen> {
     _notesController.dispose();
     DatabaseService.transactionsVersion.removeListener(_onTransactionsChanged);
     super.dispose();
+  }
+
+  void _refreshBillReminders() {
+    BillReminderService().refreshAllReminders().catchError((e) {
+      debugPrint('Reminder refresh failed after payment change: $e');
+    });
   }
 
   Future<void> _handlePay() async {
@@ -256,7 +293,6 @@ class _PayBillScreenState extends State<PayBillScreen> {
       // Build description with unique format: "Payment for (BillName) (DueDate)"
         final counterpartyName = _resolveCounterpartyName();
       
-      final formattedDate = DateFormat('MM/dd/yyyy').format(widget.occurrenceDate);
         final paymentForInput = _paymentForController.text.trim();
         final paymentForValue = paymentForInput.isNotEmpty
           ? paymentForInput
@@ -291,6 +327,7 @@ class _PayBillScreenState extends State<PayBillScreen> {
         note: finalNote,
         paymentFor: paymentForValue,
         accountId: _selectedAccountId,
+        cleared: false,
         payeeId: widget.bill.payeeId,
         payeeName: payeeLookup?.name ?? counterpartyName,
         billId: widget.bill.id,
@@ -316,17 +353,9 @@ class _PayBillScreenState extends State<PayBillScreen> {
 
       // Calculate total paid and amount due for this specific bill occurrence
       final allTransactions = DatabaseService.getAllTransactions();
-      // Match related payments by billId and either the occurrence date or the
-      // occurrence date string embedded in the description (covers payments
-      // made on a different date but explicitly for this occurrence).
-      final relatedPayments = allTransactions.where((tx) =>
-        tx.billId == widget.bill.id && (
-          (tx.occurrenceDate != null
-            ? (tx.occurrenceDate!.year == widget.occurrenceDate.year && tx.occurrenceDate!.month == widget.occurrenceDate.month && tx.occurrenceDate!.day == widget.occurrenceDate.day)
-            : ((tx.date.year == widget.occurrenceDate.year && tx.date.month == widget.occurrenceDate.month && tx.date.day == widget.occurrenceDate.day) || tx.description.contains(formattedDate))
-          )
-        )
-      ).toList();
+      final relatedPayments = allTransactions
+          .where((tx) => _matchesBillOccurrence(tx, widget.occurrenceDate))
+          .toList();
       double totalPaid2 = 0.0;
       for (final tx in relatedPayments) {
         if (widget.bill.type == BillType.expense) {
@@ -336,16 +365,7 @@ class _PayBillScreenState extends State<PayBillScreen> {
         }
       }
       final totalPaid = totalPaid2;
-      final amountDue = widget.bill.amount - totalPaid;
-
-      PaymentStatus newStatus;
-      if (amountDue <= 0) {
-        newStatus = PaymentStatus.paid;
-      } else if (totalPaid > 0 && amountDue > 0) {
-        newStatus = PaymentStatus.partial;
-      } else {
-        newStatus = PaymentStatus.unpaid;
-      }
+      final newStatus = _statusForTotalPaid(totalPaid);
       // Persist occurrence-level status instead of editing top-level Bill
       await DatabaseService.setBillOccurrenceStatus(widget.bill.id, widget.occurrenceDate, newStatus == PaymentStatus.paid, newStatus);
 
@@ -353,6 +373,7 @@ class _PayBillScreenState extends State<PayBillScreen> {
         // Notify dashboard/calendar to refresh immediately
         DatabaseService.billsVersion.value++;
         DatabaseService.transactionsVersion.value++;
+        _refreshBillReminders();
         Navigator.of(context).pop();
       }
     } catch (e) {
@@ -467,7 +488,7 @@ class _PayBillScreenState extends State<PayBillScreen> {
     final amountDue = widget.bill.amount - totalPaid;
 
     // Get payee name if available
-    String billName = widget.bill.description ?? 'Bill';
+    String billName = _visibleBillText(widget.bill.description);
     if (widget.bill.payeeId != null) {
       final payees = DatabaseService.getAllPayees();
       final p = payees.firstWhere(
@@ -482,6 +503,10 @@ class _PayBillScreenState extends State<PayBillScreen> {
     // Payment status display removed here; the displayed status below is
     // computed from the actual payments for the bill occurrence so the
     // dashboard reflects the same computed state.
+
+    if (billName.isEmpty) {
+      billName = 'Payment';
+    }
 
     return Card(
       elevation: 2,
@@ -640,7 +665,10 @@ class _PayBillScreenState extends State<PayBillScreen> {
                         }
                         // Prepare a user-visible note by stripping internal markers and pair tokens
                         String displayNote = '';
-                        final displayPaymentFor = (tx.paymentFor ?? '').trim();
+                        final displayPaymentFor =
+                          (tx.paymentFor ?? '').trim().isNotEmpty
+                            ? (tx.paymentFor ?? '').trim()
+                            : _extractPaymentForValue(tx.description);
                         final rawNote = (tx.note ?? '').trim();
                         if (rawNote.isNotEmpty) {
                           String n = rawNote;
@@ -723,31 +751,18 @@ class _PayBillScreenState extends State<PayBillScreen> {
                                   // Recalculate and persist bill payment status after an edited payment
                                   try {
                                     final allTransactions = DatabaseService.getAllTransactions();
-                                    final occDateStr = DateFormat('MM/dd/yyyy').format(widget.occurrenceDate);
-                                    final relatedPayments = allTransactions.where((t) =>
-                                      t.billId == widget.bill.id && (
-                                        (t.occurrenceDate != null
-                                            ? (t.occurrenceDate!.year == widget.occurrenceDate.year && t.occurrenceDate!.month == widget.occurrenceDate.month && t.occurrenceDate!.day == widget.occurrenceDate.day)
-                                            : ((t.date.year == widget.occurrenceDate.year && t.date.month == widget.occurrenceDate.month && t.date.day == widget.occurrenceDate.day) || t.description.contains(occDateStr))
-                                          )
-                                        )
-                                      ).toList();
+                                    final relatedPayments = allTransactions
+                                        .where((t) => _matchesBillOccurrence(t, widget.occurrenceDate))
+                                        .toList();
                                     final totalPaid = relatedPayments.fold<double>(0.0, (sum, tx) => sum + tx.amount);
-                                    final amountDue = widget.bill.amount - totalPaid;
-                                    PaymentStatus newStatus;
-                                    if (amountDue <= 0) {
-                                      newStatus = PaymentStatus.paid;
-                                    } else if (totalPaid > 0 && amountDue > 0) {
-                                      newStatus = PaymentStatus.partial;
-                                    } else {
-                                      newStatus = PaymentStatus.unpaid;
-                                    }
+                                    final newStatus = _statusForTotalPaid(totalPaid);
                                     final updatedBill = widget.bill.copyWith(
                                       isPaid: newStatus == PaymentStatus.paid,
                                       paymentStatus: newStatus,
                                     );
                                     await DatabaseService.updateBill(updatedBill);
                                     DatabaseService.billsVersion.value++;
+                                    _refreshBillReminders();
                                   } catch (_) {}
                                 }
                               } else if (result == 'delete') {
@@ -794,36 +809,10 @@ class _PayBillScreenState extends State<PayBillScreen> {
                                   setState(() {
                                     _loadPaymentHistory();
                                   });
-                                  // Recalculate and persist bill payment status after deletion
-                                    try {
-                                    final allTransactions = DatabaseService.getAllTransactions();
-                                    final occDateStr = DateFormat('MM/dd/yyyy').format(widget.occurrenceDate);
-                                    final relatedPayments = allTransactions.where((t) =>
-                                      t.billId == widget.bill.id && (
-                                        (t.occurrenceDate != null
-                                          ? (t.occurrenceDate!.year == widget.occurrenceDate.year && t.occurrenceDate!.month == widget.occurrenceDate.month && t.occurrenceDate!.day == widget.occurrenceDate.day)
-                                          : ((t.date.year == widget.occurrenceDate.year && t.date.month == widget.occurrenceDate.month && t.date.day == widget.occurrenceDate.day) || t.description.contains(occDateStr))
-                                        )
-                                      )
-                                    ).toList();
-                                    final totalPaid = relatedPayments.fold<double>(0.0, (sum, tx) => sum + tx.amount);
-                                    final amountDue = widget.bill.amount - totalPaid;
-                                    PaymentStatus newStatus;
-                                    if (amountDue <= 0) {
-                                      newStatus = PaymentStatus.paid;
-                                    } else if (totalPaid > 0 && amountDue > 0) {
-                                      newStatus = PaymentStatus.partial;
-                                    } else {
-                                      newStatus = PaymentStatus.unpaid;
-                                    }
-                                    final updatedBill = widget.bill.copyWith(
-                                      isPaid: newStatus == PaymentStatus.paid,
-                                      paymentStatus: newStatus,
-                                    );
-                                    await DatabaseService.updateBill(updatedBill);
-                                    DatabaseService.billsVersion.value++;
-                                  } catch (_) {}
+                                  // Keep occurrence-level status in sync with dashboard after deletion.
+                                  await _recalculateAndPersistBillStatus();
 
+                                  _refreshBillReminders();
                                   messenger.clearSnackBars();
                                 }
                               }

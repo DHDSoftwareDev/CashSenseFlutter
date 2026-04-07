@@ -11,6 +11,7 @@ import 'package:http/http.dart' as http;
 import '../models/account.dart';
 import '../models/bill.dart';
 import '../models/category.dart';
+import '../models/reminder_offset.dart';
 import '../models/transaction.dart';
 import 'device_id_service.dart';
 import 'user_auth_service.dart';
@@ -292,7 +293,7 @@ class AwsApiService {
         json['cleared'] ?? json['isCleared'] ?? json['is_cleared'] ?? json['clearedStatus'];
     bool? cleared = _parseNullableBool(clearedRaw);
     if (cleared == null) {
-      final status = (json['status'] ?? json['transactionStatus'] ?? '').toString().trim().toLowerCase();
+      final status = clearedRaw?.toString().trim().toLowerCase() ?? '';
       if (status == 'cleared' || status == 'posted' || status == 'reconciled') {
         cleared = true;
       } else if (status == 'uncleared' || status == 'pending') {
@@ -391,22 +392,22 @@ class AwsApiService {
     return [];
   }
 
-  static Future<void> createBill(Bill bill) async {
+  static Future<void> createBill(Bill bill, {List<ReminderOffset> reminderOffsets = const []}) async {
     final userId = await _resolveUserId();
     if (userId.isEmpty) {
       throw StateError('No userId available for bill creation');
     }
-    final payload = _billToApiPayload(bill, userId);
+    final payload = _billToApiPayload(bill, userId, reminderOffsets: reminderOffsets);
     final response = await _request('POST', '/bills', body: payload);
     _throwIfNotOk(response);
   }
 
-  static Future<void> updateBill(Bill bill) async {
+  static Future<void> updateBill(Bill bill, {List<ReminderOffset> reminderOffsets = const []}) async {
     final userId = await _resolveUserId();
     if (userId.isEmpty) {
       throw StateError('No userId available for bill update');
     }
-    final payload = _billToApiPayload(bill, userId);
+    final payload = _billToApiPayload(bill, userId, reminderOffsets: reminderOffsets);
     final response = await _request('PUT', '/bills/${bill.id}', body: payload);
     _throwIfNotOk(response);
   }
@@ -722,6 +723,13 @@ class AwsApiService {
 
   static Recurrence _recurrenceFromString(String? raw) {
     switch ((raw ?? '').toLowerCase()) {
+      case 'none':
+      case 'one-time':
+      case 'one_time':
+      case 'onetime':
+      case 'once':
+      case 'single':
+        return Recurrence.none;
       case 'daily':
         return Recurrence.daily;
       case 'weekly':
@@ -778,11 +786,18 @@ class AwsApiService {
     }
   }
 
-  static Map<String, dynamic> _billToApiPayload(Bill bill, String userId) {
+  static Map<String, dynamic> _billToApiPayload(
+    Bill bill,
+    String userId, {
+    required List<ReminderOffset> reminderOffsets,
+  }) {
+    final sanitizedName = ((bill.description ?? '').trim().toLowerCase() == 'bill')
+        ? ''
+        : (bill.description ?? '');
     return {
       'userId': userId,
       'billId': bill.id,
-      'name': bill.description ?? 'Bill',
+      'name': sanitizedName,
       'amount': bill.amount,
       'dueDate': _formatDateMMDDYYYY(bill.dueDate),
       'frequency': _recurrenceToApi(bill.recurrence),
@@ -794,6 +809,9 @@ class AwsApiService {
       'payeeId': bill.payeeId,
       'fromAccountId': bill.fromAccountId,
       'toAccountId': bill.toAccountId,
+      'remindersEnabled': reminderOffsets.isNotEmpty,
+      'reminderOffsets': reminderOffsets.map((r) => r.toJson()).toList(),
+      'reminderDaysBefore': reminderOffsets.isNotEmpty ? reminderOffsets.first.daysBefore : 0,
     };
   }
 

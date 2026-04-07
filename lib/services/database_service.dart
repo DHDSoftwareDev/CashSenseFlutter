@@ -9,6 +9,7 @@ import '../models/transaction.dart';
 import '../models/category.dart';
 import '../models/account.dart';
 import '../models/bill.dart';
+import '../models/reminder_offset.dart';
 import 'aws_api_service.dart';
 
 
@@ -19,9 +20,47 @@ class DatabaseService {
   static const String _legacyCategoryResolutionMigrationKey = 'migratedLegacyTransactionCategoryResolutionV1';
   static const String _legacyPaymentForMigrationKey = 'migratedLegacyTransactionPaymentForV1';
   static const String _legacyRecurringSplitOverlapMigrationKey = 'migratedLegacyRecurringSplitOverlapV1';
+  static const String _legacyBillPlaceholderTextMigrationKey = 'migratedLegacyBillPlaceholderTextV1';
   static const String _deletedAccountsKey = 'deletedAccountIds';
   static const String _deletedBillsKey = 'deletedBillIds';
   static const String _billRecurrenceEndOverridesKey = 'billRecurrenceEndOverrides';
+
+  static List<ReminderOffset> _selectedReminderOffsetsForApi() {
+    try {
+      final raw = getSetting<String>('notif_billReminderOffsets', null);
+      if (raw == null || raw.trim().isEmpty) return const <ReminderOffset>[];
+
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return const <ReminderOffset>[];
+
+      final out = <ReminderOffset>[];
+      for (final entry in decoded) {
+        if (entry is Map<String, dynamic>) {
+          out.add(
+            ReminderOffset(
+              daysBefore: (entry['daysBefore'] as num?)?.toInt() ?? 1,
+              hour: (entry['hour'] as num?)?.toInt() ?? 9,
+              minute: (entry['minute'] as num?)?.toInt() ?? 0,
+            ),
+          );
+          continue;
+        }
+
+        if (entry is Map) {
+          out.add(
+            ReminderOffset(
+              daysBefore: (entry['daysBefore'] as num?)?.toInt() ?? 1,
+              hour: (entry['hour'] as num?)?.toInt() ?? 9,
+              minute: (entry['minute'] as num?)?.toInt() ?? 0,
+            ),
+          );
+        }
+      }
+      return out;
+    } catch (_) {
+      return const <ReminderOffset>[];
+    }
+  }
 
   static List<String> _getDeletedAccountIds() {
     try {
@@ -386,7 +425,10 @@ class DatabaseService {
   }
 
   // Bill operations
-  static Future<void> addBill(Bill bill) async {
+  static Future<void> addBill(
+    Bill bill, {
+    List<ReminderOffset>? reminderOffsets,
+  }) async {
     try {
       await _billsBox.put(bill.id, bill);
       await _billsBox.flush();
@@ -402,7 +444,13 @@ class DatabaseService {
     await _removeDeletedBillId(bill.id);
     await clearBillRecurrenceEndOverride(bill.id);
     billsVersion.value++;
-    await _safeAwsCall(() => AwsApiService.createBill(bill), 'create bill');
+    await _safeAwsCall(
+      () => AwsApiService.createBill(
+        bill,
+        reminderOffsets: reminderOffsets ?? _selectedReminderOffsetsForApi(),
+      ),
+      'create bill',
+    );
   }
 
   // Per-occurrence bill status helpers
@@ -467,7 +515,10 @@ class DatabaseService {
     }
   }
 
-  static Future<void> updateBill(Bill bill) async {
+  static Future<void> updateBill(
+    Bill bill, {
+    List<ReminderOffset>? reminderOffsets,
+  }) async {
     try {
       await _billsBox.put(bill.id, bill);
       await _billsBox.flush();
@@ -482,7 +533,13 @@ class DatabaseService {
     }
     await _removeDeletedBillId(bill.id);
     billsVersion.value++;
-    await _safeAwsCall(() => AwsApiService.updateBill(bill), 'update bill');
+    await _safeAwsCall(
+      () => AwsApiService.updateBill(
+        bill,
+        reminderOffsets: reminderOffsets ?? _selectedReminderOffsetsForApi(),
+      ),
+      'update bill',
+    );
   }
 
   static Future<void> deleteBill(String id) async {
@@ -571,7 +628,32 @@ class DatabaseService {
         final allTx = getAllTransactions();
         final occDates = <DateTime>{};
 
-        void addOccSeed(DateTime? occDate, DateTime? date, String? description) {
+        void addDatesFromText(String? text) {
+          if (text == null || text.trim().isEmpty) return;
+          final raw = text.trim();
+          final matches = <String>{};
+          final longMatch = RegExp(r'(0[1-9]|1[0-2])/(0[1-9]|[12][0-9]|3[01])/\d{4}').allMatches(raw);
+          for (final match in longMatch) {
+            matches.add(match.group(0)!);
+          }
+          final shortMatch = RegExp(r'(0?[1-9]|1[0-2])/(0?[1-9]|[12][0-9]|3[01])/\d{2}').allMatches(raw);
+          for (final match in shortMatch) {
+            matches.add(match.group(0)!);
+          }
+          for (final token in matches) {
+            try {
+              final parsed = DateFormat('MM/dd/yyyy').parseLoose(token);
+              occDates.add(DateTime(parsed.year, parsed.month, parsed.day));
+            } catch (_) {
+              try {
+                final parsed = DateFormat('MM/dd/yy').parseLoose(token);
+                occDates.add(DateTime(parsed.year, parsed.month, parsed.day));
+              } catch (_) {}
+            }
+          }
+        }
+
+        void addOccSeed(DateTime? occDate, DateTime? date, String? description, String? paymentFor) {
           if (occDate != null) {
             occDates.add(DateTime(occDate.year, occDate.month, occDate.day));
             return;
@@ -580,22 +662,15 @@ class DatabaseService {
             occDates.add(DateTime(date.year, date.month, date.day));
             return;
           }
-          if (description != null) {
-            final match = RegExp(r"(0[1-9]|1[0-2])/(0[1-9]|[12][0-9]|3[01])/\d{4}").firstMatch(description);
-            if (match != null) {
-              try {
-                final parsed = DateFormat('MM/dd/yyyy').parse(match.group(0)!);
-                occDates.add(DateTime(parsed.year, parsed.month, parsed.day));
-              } catch (_) {}
-            }
-          }
+          addDatesFromText(description);
+          addDatesFromText(paymentFor);
         }
 
         if (previous?.billId == billId) {
-          addOccSeed(previous!.occurrenceDate, previous.date, previous.description);
+          addOccSeed(previous!.occurrenceDate, previous.date, previous.description, previous.paymentFor);
         }
         if (toPersist.billId == billId) {
-          addOccSeed(toPersist.occurrenceDate, toPersist.date, toPersist.description);
+          addOccSeed(toPersist.occurrenceDate, toPersist.date, toPersist.description, toPersist.paymentFor);
         }
 
         for (final t in allTx) {
@@ -609,6 +684,7 @@ class DatabaseService {
 
         for (final occ in occDates) {
           final occDateStr = DateFormat('MM/dd/yyyy').format(occ);
+          final occDateShort = DateFormat('MM/dd/yy').format(occ);
           double totalPaid = 0.0;
 
           for (final t in allTx) {
@@ -620,7 +696,10 @@ class DatabaseService {
                 : ((t.date.year == occ.year &&
                         t.date.month == occ.month &&
                         t.date.day == occ.day) ||
-                    t.description.contains(occDateStr));
+                    t.description.contains(occDateStr) ||
+                    t.description.contains(occDateShort) ||
+                    (t.paymentFor ?? '').contains(occDateStr) ||
+                    (t.paymentFor ?? '').contains(occDateShort));
             if (!matchesOccurrence) continue;
 
             if (bill.type == BillType.expense) {
@@ -1154,16 +1233,69 @@ class DatabaseService {
     return updatedCount;
   }
 
+  static Future<int> migrateLegacyBillPlaceholderText({bool force = false}) async {
+    final alreadyMigrated =
+        getSetting<bool>(_legacyBillPlaceholderTextMigrationKey, false) ?? false;
+    if (!force && alreadyMigrated) return 0;
+
+    int updatedCount = 0;
+
+    for (final bill in _billsBox.values) {
+      final description = (bill.description ?? '').trim();
+      if (description.toLowerCase() != 'bill') continue;
+
+      final updatedBill = bill.copyWith(description: null);
+      await _billsBox.put(updatedBill.id, updatedBill);
+      updatedCount++;
+    }
+
+    for (final tx in _transactionBox.values) {
+      final desc = tx.description.trim();
+      String? updatedDescription;
+
+      if (desc.toLowerCase() == 'bill') {
+        updatedDescription = 'Payment';
+      } else {
+        final match = RegExp(r'^payment\s+for\s+bill\b\s*(.*)$', caseSensitive: false)
+            .firstMatch(desc);
+        if (match != null) {
+          final suffix = (match.group(1) ?? '').trim();
+          updatedDescription = suffix.isEmpty ? 'Payment' : 'Payment for $suffix';
+        }
+      }
+
+      if (updatedDescription == null || updatedDescription == tx.description) continue;
+
+      final updatedTx = tx.copyWith(
+        description: updatedDescription,
+        updatedAt: DateTime.now(),
+      );
+      await _transactionBox.put(updatedTx.id, updatedTx);
+      updatedCount++;
+    }
+
+    if (updatedCount > 0) {
+      await _billsBox.flush();
+      await _transactionBox.flush();
+      billsVersion.value++;
+      transactionsVersion.value++;
+    }
+
+    if (!force) {
+      await setSetting(_legacyBillPlaceholderTextMigrationKey, true);
+    }
+
+    return updatedCount;
+  }
+
   static Future<void> deleteTransaction(String id) async {
     // Read the transaction before deleting so we can update any linked
     // bill occurrence status if this transaction represented a bill payment.
     final Transaction? tx = _transactionBox.get(id);
-    String? billId;
     DateTime? txOccDate;
     DateTime? txDate;
     String? txDescription;
     if (tx != null) {
-      billId = tx.billId;
       txOccDate = tx.occurrenceDate;
       txDate = tx.date;
       txDescription = tx.description;
@@ -1180,71 +1312,109 @@ class DatabaseService {
     // If this transaction was linked to a bill, recompute the per-occurrence
     // paid totals for the affected occurrence(s) and persist the new status.
     try {
-      if (billId != null && billId.isNotEmpty) {
-  final Bill? bill = _billsBox.get(billId);
-        if (bill == null) return;
+      final allTx = getAllTransactions();
+      final bills = _billsBox.values.toList();
+      final affectedDates = <DateTime>{};
 
-        // Build a set of occurrence dates to update: include the deleted
-        // transaction's occurrence/date and any occurrence dates present
-        // in the remaining transactions for this bill.
-        final allTx = getAllTransactions();
-        final occDates = <DateTime>{};
+      void addAffectedDate(DateTime? sourceDate) {
+        if (sourceDate == null) return;
+        affectedDates.add(DateTime(sourceDate.year, sourceDate.month, sourceDate.day));
+      }
 
-        // Add deleted tx's occurrence/date (normalize to Y-M-D)
-        if (txOccDate != null) {
-          occDates.add(DateTime(txOccDate.year, txOccDate.month, txOccDate.day));
-        } else if (txDate != null) {
-          occDates.add(DateTime(txDate.year, txDate.month, txDate.day));
-        } else if (txDescription != null) {
-          // Best-effort: try to extract a MM/dd/yyyy substring and parse it
-          final match = RegExp(r"(0[1-9]|1[0-2])/(0[1-9]|[12][0-9]|3[01])/\d{4}").firstMatch(txDescription);
-          if (match != null) {
+      void addDatesFromText(String? text) {
+        if (text == null || text.trim().isEmpty) return;
+        final raw = text.trim();
+        final matches = <String>{};
+        final longMatch = RegExp(r'(0[1-9]|1[0-2])/(0[1-9]|[12][0-9]|3[01])/\d{4}').allMatches(raw);
+        for (final match in longMatch) {
+          matches.add(match.group(0)!);
+        }
+        final shortMatch = RegExp(r'(0?[1-9]|1[0-2])/(0?[1-9]|[12][0-9]|3[01])/\d{2}').allMatches(raw);
+        for (final match in shortMatch) {
+          matches.add(match.group(0)!);
+        }
+        for (final token in matches) {
+          try {
+            final parsed = DateFormat('MM/dd/yyyy').parseLoose(token);
+            addAffectedDate(parsed);
+          } catch (_) {
             try {
-              final parsed = DateFormat('MM/dd/yyyy').parse(match.group(0)!);
-              occDates.add(DateTime(parsed.year, parsed.month, parsed.day));
+              final parsed = DateFormat('MM/dd/yy').parseLoose(token);
+              addAffectedDate(parsed);
             } catch (_) {}
           }
         }
+      }
 
-        // Add occurrence dates from remaining transactions for this bill
-        for (final t in allTx) {
-          if (t.billId != billId) continue;
-          if (t.occurrenceDate != null) {
-            occDates.add(DateTime(t.occurrenceDate!.year, t.occurrenceDate!.month, t.occurrenceDate!.day));
-          } else {
-            occDates.add(DateTime(t.date.year, t.date.month, t.date.day));
-          }
+      addAffectedDate(txOccDate);
+      addAffectedDate(txDate);
+      addDatesFromText(txDescription);
+      addDatesFromText(tx is Transaction ? tx.paymentFor : null);
+
+      bool _matchesBillOccurrence(Transaction candidate, Bill bill, DateTime occ) {
+        final sameOcc = (candidate.occurrenceDate != null)
+            ? (candidate.occurrenceDate!.year == occ.year &&
+                candidate.occurrenceDate!.month == occ.month &&
+                candidate.occurrenceDate!.day == occ.day)
+            : ((candidate.date.year == occ.year &&
+                    candidate.date.month == occ.month &&
+                    candidate.date.day == occ.day) ||
+                candidate.description.contains(DateFormat('MM/dd/yyyy').format(occ)) ||
+                candidate.description.contains(DateFormat('MM/dd/yy').format(occ)) ||
+                (candidate.paymentFor ?? '').contains(DateFormat('MM/dd/yyyy').format(occ)) ||
+                (candidate.paymentFor ?? '').contains(DateFormat('MM/dd/yy').format(occ)));
+
+        if (!sameOcc) return false;
+
+        if (candidate.billId != null && candidate.billId!.trim() == bill.id) {
+          return true;
         }
 
-        // For each affected occurrence date, recompute the paid total and
-        // persist the new PaymentStatus.
-        for (final occ in occDates) {
-          final occDateStr = DateFormat('MM/dd/yyyy').format(occ);
-          double totalPaid = 0.0;
+        // Legacy/partial link: allow paymentFor-based matches to keep old bill
+        // history entries and account transactions synchronized.
+        final paymentFor = (candidate.paymentFor ?? '').trim().toLowerCase();
+        final description = candidate.description.trim().toLowerCase();
+        if (paymentFor.isEmpty && description.isEmpty) return false;
 
+        final billName = (bill.description ?? '').trim().toLowerCase();
+        final billPayee = bill.payeeId?.trim().toLowerCase() ?? '';
+        final billAccountId = bill.accountId?.trim().toLowerCase() ?? '';
+        final billFromAccountId = bill.fromAccountId?.trim().toLowerCase() ?? '';
+        final billToAccountId = bill.toAccountId?.trim().toLowerCase() ?? '';
+
+        bool textMatchesBill = false;
+        if (billName.isNotEmpty && billName != 'bill') {
+          textMatchesBill = paymentFor.contains(billName) || description.contains(billName);
+        }
+        if (!textMatchesBill && billPayee.isNotEmpty) {
+          textMatchesBill = paymentFor.contains(billPayee) || description.contains(billPayee);
+        }
+        if (!textMatchesBill && billAccountId.isNotEmpty) {
+          textMatchesBill = candidate.accountId?.trim().toLowerCase() == billAccountId;
+        }
+        if (!textMatchesBill && billFromAccountId.isNotEmpty) {
+          textMatchesBill = candidate.accountId?.trim().toLowerCase() == billFromAccountId;
+        }
+        if (!textMatchesBill && billToAccountId.isNotEmpty) {
+          textMatchesBill = candidate.accountId?.trim().toLowerCase() == billToAccountId;
+        }
+
+        return textMatchesBill;
+      }
+
+      for (final occ in affectedDates) {
+        for (final bill in bills) {
+          // Only recompute bills that plausibly occur on this date.
+          if (!_billOccursOnDate(bill, occ)) continue;
+
+          double totalPaid = 0.0;
           for (final t in allTx) {
-            if (t.billId != billId) continue;
-            // Match same occurrence by explicit occurrenceDate or by date/string
-            if (t.occurrenceDate != null) {
-              if (t.occurrenceDate!.year == occ.year && t.occurrenceDate!.month == occ.month && t.occurrenceDate!.day == occ.day) {
-                if (bill.type == BillType.expense) {
-                  totalPaid += (t.type == TransactionType.expense) ? t.amount : -t.amount;
-                } else {
-                  totalPaid += (t.type == TransactionType.income) ? t.amount : -t.amount;
-                }
-              }
-            } else if (t.date.year == occ.year && t.date.month == occ.month && t.date.day == occ.day) {
-              if (bill.type == BillType.expense) {
-                totalPaid += (t.type == TransactionType.expense) ? t.amount : -t.amount;
-              } else {
-                totalPaid += (t.type == TransactionType.income) ? t.amount : -t.amount;
-              }
-            } else if (t.description.contains(occDateStr)) {
-              if (bill.type == BillType.expense) {
-                totalPaid += (t.type == TransactionType.expense) ? t.amount : -t.amount;
-              } else {
-                totalPaid += (t.type == TransactionType.income) ? t.amount : -t.amount;
-              }
+            if (!_matchesBillOccurrence(t, bill, occ)) continue;
+
+            if (bill.type == BillType.expense) {
+              totalPaid += (t.type == TransactionType.expense) ? t.amount : -t.amount;
+            } else {
+              totalPaid += (t.type == TransactionType.income) ? t.amount : -t.amount;
             }
           }
 
@@ -1257,7 +1427,7 @@ class DatabaseService {
             newStatus = PaymentStatus.partial;
           }
 
-          await setBillOccurrenceStatus(billId, occ, newStatus == PaymentStatus.paid, newStatus);
+          await setBillOccurrenceStatus(bill.id, occ, newStatus == PaymentStatus.paid, newStatus);
         }
       }
     } catch (_) {
@@ -1323,6 +1493,7 @@ class DatabaseService {
     await migrateLegacyTransactionCategoryResolution();
     await migrateLegacyTransactionPaymentFor();
     await migrateLegacyRecurringBillSplitOverlaps();
+    await migrateLegacyBillPlaceholderText();
   }
 
   static Future<void> _initializeDefaultData() async {

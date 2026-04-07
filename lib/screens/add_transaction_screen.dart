@@ -19,6 +19,14 @@ import 'dart:convert';
 // Marker used to indicate a transaction should not appear on the calendar/dashboard
 const String _hideFromCalendarMarker = '__hide_from_calendar__';
 
+Category? _findCategoryById(Iterable<Category> categories, String? id) {
+  if (id == null || id.isEmpty) return null;
+  for (final category in categories) {
+    if (category.id == id) return category;
+  }
+  return null;
+}
+
 enum TransactionScreenType { expense, income, transfer }
 
 class AddTransactionScreen extends StatefulWidget {
@@ -531,15 +539,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   }
 
   Widget _buildCategorySelector() {
-  Category? selectedCategory = _selectedCategoryId != null
-      ? (() {
-          final cat = _categories.firstWhere(
-            (c) => c.id == _selectedCategoryId,
-            orElse: () => Category(name: 'Unknown', iconCodePoint: '0xe85d', colorValue: '0xFF607D8B', type: CategoryType.expense),
-          );
-          return cat.id == _selectedCategoryId ? cat : null;
-        })()
-      : null;
+  Category? selectedCategory = _findCategoryById(_categories, _selectedCategoryId);
   String? categoryName = _transactionType == TransactionScreenType.transfer
       ? 'Transfer'
       : selectedCategory?.name;
@@ -2305,6 +2305,7 @@ class _PayeeSelectorSheetWithSearchState extends State<_PayeeSelectorSheetWithSe
   String _query = '';
   String? _selectedCategoryId;
   List<Category> _categories = [];
+
   VoidCallback? _categoriesListener;
 
   @override
