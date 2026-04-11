@@ -12,6 +12,7 @@ import '../services/database_service.dart';
 import '../services/bill_reminder_service.dart';
 import '../services/lookups_state.dart';
 import '../theme/app_theme.dart';
+import '../utils/duplication_guards.dart';
 import '../widgets/splits_editor.dart';
 import '../utils/split_utils.dart';
 import 'dart:convert';
@@ -66,12 +67,23 @@ class _PayBillScreenState extends State<PayBillScreen> {
     final dateShort = DateFormat('MM/dd/yy').format(occurrenceDate);
     final dateLong = DateFormat('MM/dd/yyyy').format(occurrenceDate);
 
-    final billMatches = tx.billId == widget.bill.id;
-    final paymentFor = (tx.paymentFor ?? '').trim();
-    final paymentForMatches = paymentFor.isNotEmpty &&
-        (paymentFor.contains(dateLong) || paymentFor.contains(dateShort));
+    final txBillId = (tx.billId ?? '').trim();
+    if (txBillId.isNotEmpty && txBillId != widget.bill.id) return false;
 
-    if (!billMatches && !paymentForMatches) return false;
+    final paymentFor = (tx.paymentFor ?? '').trim();
+    if (txBillId.isEmpty) {
+      // Legacy fallback for old bill payments that predate billId linkage.
+      final billText = _visibleBillText(widget.bill.description).toLowerCase();
+      final paymentForLower = paymentFor.toLowerCase();
+      final descriptionLower = tx.description.toLowerCase();
+      final dateMatches = paymentFor.contains(dateLong) ||
+          paymentFor.contains(dateShort) ||
+          descriptionLower.contains(dateLong.toLowerCase()) ||
+          descriptionLower.contains(dateShort.toLowerCase());
+      final billMatches = billText.isNotEmpty &&
+          (paymentForLower.contains(billText) || descriptionLower.contains(billText));
+      if (!(dateMatches && billMatches)) return false;
+    }
 
     if (tx.occurrenceDate != null) {
       return _isSameDay(tx.occurrenceDate!, occurrenceDate);
@@ -96,7 +108,7 @@ class _PayBillScreenState extends State<PayBillScreen> {
     _loadAccounts();
     _loadPaymentHistory();
     // Compute amount due (original amount minus payments made for this occurrence)
-    final totalPaid = _paymentHistory.fold<double>(0.0, (sum, tx) => sum + tx.amount);
+    final totalPaid = _computeSignedTotalPaidForBill(_paymentHistory);
     final amountDue = widget.bill.amount - totalPaid;
     // Prefill the amount field with the amount due (if > 0), otherwise default to the bill amount
     // Use setState so the UI reliably updates after init
@@ -173,6 +185,18 @@ class _PayBillScreenState extends State<PayBillScreen> {
       return PaymentStatus.partial;
     }
     return PaymentStatus.unpaid;
+  }
+
+  double _computeSignedTotalPaidForBill(Iterable<Transaction> txs) {
+    double totalPaid = 0.0;
+    for (final tx in txs) {
+      if (widget.bill.type == BillType.expense) {
+        totalPaid += (tx.type == TransactionType.expense) ? tx.amount : -tx.amount;
+      } else {
+        totalPaid += (tx.type == TransactionType.income) ? tx.amount : -tx.amount;
+      }
+    }
+    return totalPaid;
   }
 
   void _loadAccounts() {
@@ -311,6 +335,34 @@ class _PayBillScreenState extends State<PayBillScreen> {
       final userNote = _notesController.text.trim();
       final String? finalNote = userNote.isNotEmpty ? userNote : null;
 
+      final txType = _isRefund
+          ? TransactionType.income
+          : (widget.bill.type == BillType.income
+              ? TransactionType.income
+              : TransactionType.expense);
+
+      if (isLikelyDuplicateBillPayment(
+        transactions: DatabaseService.getAllTransactions(),
+        billId: widget.bill.id,
+        occurrenceDate: widget.occurrenceDate,
+        paymentDate: _paymentDate,
+        amount: amount,
+        type: txType,
+        accountId: _selectedAccountId,
+        description: desc,
+        paymentFor: paymentForValue,
+      )) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('This payment was already saved.'),
+              backgroundColor: Colors.blueGrey[400],
+            ),
+          );
+        }
+        return;
+      }
+
       // Create transaction for the payment, set billId and unique id
       final transaction = Transaction(
         id: const Uuid().v4(),
@@ -320,7 +372,7 @@ class _PayBillScreenState extends State<PayBillScreen> {
           ?? (widget.bill.categoryId != null
             ? DatabaseService.getCategoryById(widget.bill.categoryId!)?.name
             : null),
-        type: _isRefund ? TransactionType.income : (widget.bill.type == BillType.income ? TransactionType.income : TransactionType.expense),
+        type: txType,
         description: desc,
         date: _paymentDate,
         updatedAt: DateTime.now(),
@@ -480,10 +532,7 @@ class _PayBillScreenState extends State<PayBillScreen> {
 
   Widget _buildTransactionDetailsCard(category) {
     // Calculate total amount paid from payment history
-    final totalPaid = _paymentHistory.fold<double>(
-      0.0,
-      (sum, tx) => sum + tx.amount,
-    );
+    final totalPaid = _computeSignedTotalPaidForBill(_paymentHistory);
     // Calculate amount due (remaining balance)
     final amountDue = widget.bill.amount - totalPaid;
 
@@ -748,22 +797,9 @@ class _PayBillScreenState extends State<PayBillScreen> {
                                   setState(() {
                                     _loadPaymentHistory();
                                   });
-                                  // Recalculate and persist bill payment status after an edited payment
-                                  try {
-                                    final allTransactions = DatabaseService.getAllTransactions();
-                                    final relatedPayments = allTransactions
-                                        .where((t) => _matchesBillOccurrence(t, widget.occurrenceDate))
-                                        .toList();
-                                    final totalPaid = relatedPayments.fold<double>(0.0, (sum, tx) => sum + tx.amount);
-                                    final newStatus = _statusForTotalPaid(totalPaid);
-                                    final updatedBill = widget.bill.copyWith(
-                                      isPaid: newStatus == PaymentStatus.paid,
-                                      paymentStatus: newStatus,
-                                    );
-                                    await DatabaseService.updateBill(updatedBill);
-                                    DatabaseService.billsVersion.value++;
-                                    _refreshBillReminders();
-                                  } catch (_) {}
+                                  await _recalculateAndPersistBillStatus();
+                                  DatabaseService.billsVersion.value++;
+                                  _refreshBillReminders();
                                 }
                               } else if (result == 'delete') {
                                 if (!mounted) return;

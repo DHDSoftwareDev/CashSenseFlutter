@@ -20,6 +20,7 @@ class DatabaseService {
   static const String _legacyCategoryResolutionMigrationKey = 'migratedLegacyTransactionCategoryResolutionV1';
   static const String _legacyPaymentForMigrationKey = 'migratedLegacyTransactionPaymentForV1';
   static const String _legacyRecurringSplitOverlapMigrationKey = 'migratedLegacyRecurringSplitOverlapV1';
+  static const String _postFixRecurringSplitRepairKey = 'postFixRecurringSplitRepairV2';
   static const String _legacyBillPlaceholderTextMigrationKey = 'migratedLegacyBillPlaceholderTextV1';
   static const String _deletedAccountsKey = 'deletedAccountIds';
   static const String _deletedBillsKey = 'deletedBillIds';
@@ -1233,6 +1234,22 @@ class DatabaseService {
     return updatedCount;
   }
 
+  /// Runs the recurring split overlap repair without migration gating.
+  /// Safe to call repeatedly; only applies changes when overlaps exist.
+  static Future<int> repairRecurringBillSplitOverlaps() async {
+    return migrateLegacyRecurringBillSplitOverlaps(force: true);
+  }
+
+  static Future<void> runPostFixRecurringSplitRepairIfNeeded() async {
+    final alreadyRan = getSetting<bool>(_postFixRecurringSplitRepairKey, false) ?? false;
+    if (alreadyRan) return;
+    try {
+      await repairRecurringBillSplitOverlaps();
+    } finally {
+      await setSetting(_postFixRecurringSplitRepairKey, true);
+    }
+  }
+
   static Future<int> migrateLegacyBillPlaceholderText({bool force = false}) async {
     final alreadyMigrated =
         getSetting<bool>(_legacyBillPlaceholderTextMigrationKey, false) ?? false;
@@ -1351,7 +1368,7 @@ class DatabaseService {
       addDatesFromText(txDescription);
       addDatesFromText(tx is Transaction ? tx.paymentFor : null);
 
-      bool _matchesBillOccurrence(Transaction candidate, Bill bill, DateTime occ) {
+      bool matchesBillOccurrence(Transaction candidate, Bill bill, DateTime occ) {
         final sameOcc = (candidate.occurrenceDate != null)
             ? (candidate.occurrenceDate!.year == occ.year &&
                 candidate.occurrenceDate!.month == occ.month &&
@@ -1409,7 +1426,7 @@ class DatabaseService {
 
           double totalPaid = 0.0;
           for (final t in allTx) {
-            if (!_matchesBillOccurrence(t, bill, occ)) continue;
+            if (!matchesBillOccurrence(t, bill, occ)) continue;
 
             if (bill.type == BillType.expense) {
               totalPaid += (t.type == TransactionType.expense) ? t.amount : -t.amount;
@@ -1493,6 +1510,7 @@ class DatabaseService {
     await migrateLegacyTransactionCategoryResolution();
     await migrateLegacyTransactionPaymentFor();
     await migrateLegacyRecurringBillSplitOverlaps();
+    await runPostFixRecurringSplitRepairIfNeeded();
     await migrateLegacyBillPlaceholderText();
   }
 

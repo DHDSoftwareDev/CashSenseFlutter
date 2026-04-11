@@ -1657,31 +1657,99 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         // If editing, prompt user if date or note changed
         if (isEditing) {
           final orig = widget.existingTransaction!;
+          String? extractPairId(String? note) {
+            if (note == null || note.isEmpty) return null;
+            final m = RegExp(r'pair:([A-Za-z0-9\-]+)', caseSensitive: false).firstMatch(note);
+            final id = m?.group(1);
+            if (id == null || id.isEmpty) return null;
+            return id;
+          }
+
+          String buildTransferNote({required String? linkedId, required String userText}) {
+            var result = '__transfer_bill__';
+            if (linkedId != null && linkedId.isNotEmpty) {
+              result += ' pair:$linkedId';
+            }
+            if (userText.isNotEmpty) {
+              result += ' $userText';
+            }
+            return result;
+          }
+
+          bool sameCalendarDay(DateTime a, DateTime b) {
+            return a.year == b.year && a.month == b.month && a.day == b.day;
+          }
+
           final dateChanged = orig.date != _transactionDate;
           final amountChanged = orig.amount != amount;
+          final clearedChanged = (orig.cleared ?? false) != _cleared;
           String origNote = orig.note ?? '';
           // Remove internal transfer marker and any pair tokens when comparing notes
           String cleanedOrigNote = origNote.replaceAll('__transfer_bill__', '').replaceAll(RegExp(r'pair:[A-Za-z0-9\-]+'), '').trim();
           String cleanedNewNote = userNote.replaceAll(RegExp(r'pair:[A-Za-z0-9\-]+'), '').trim();
           final noteChanged = cleanedOrigNote != cleanedNewNote;
+
+          // Find the paired transaction (other side of the transfer)
+          final allTxs = DatabaseService.getAllTransactions();
+          Transaction? pair;
+
+          final explicitPairId = extractPairId(orig.note);
+          if (explicitPairId != null) {
+            try {
+              pair = allTxs.firstWhere((t) => t.id == explicitPairId);
+            } catch (_) {
+              pair = null;
+            }
+          }
+
+          if (pair == null) {
+            try {
+              pair = allTxs.firstWhere(
+                (t) =>
+                    t.id != orig.id &&
+                    t.note != null &&
+                    (t.note!.contains(orig.id) ||
+                        (orig.note != null && orig.note!.contains(t.id))),
+              );
+            } catch (_) {
+              pair = null;
+            }
+          }
+
+          if (pair == null) {
+            final candidates = allTxs.where(
+              (t) =>
+                  t.id != orig.id &&
+                  t.amount == orig.amount &&
+                  sameCalendarDay(t.date, orig.date) &&
+                  t.categoryId == orig.categoryId &&
+                  t.accountId != orig.accountId,
+            );
+            pair = candidates.isNotEmpty ? candidates.first : null;
+          }
+
+          final currentFromId =
+              orig.type == TransactionType.expense ? orig.accountId : pair?.accountId;
+          final currentToId =
+              orig.type == TransactionType.income ? orig.accountId : pair?.accountId;
+          final accountChanged = currentFromId != _fromAccountId || currentToId != _toAccountId;
+
           bool updateBoth = false;
-          if (dateChanged || noteChanged || amountChanged) {
+          if (dateChanged || noteChanged || amountChanged || clearedChanged || accountChanged) {
             transferEditPrompted = true;
             String changeText = '';
-            if (dateChanged && noteChanged && amountChanged) {
-              changeText = 'date, notes, and amount';
-            } else if (dateChanged && noteChanged) {
-              changeText = 'date and notes';
-            } else if (dateChanged && amountChanged) {
-              changeText = 'date and amount';
-            } else if (noteChanged && amountChanged) {
-              changeText = 'notes and amount';
-            } else if (dateChanged) {
-              changeText = 'date';
-            } else if (noteChanged) {
-              changeText = 'notes';
-            } else if (amountChanged) {
-              changeText = 'amount';
+            final changedParts = <String>[];
+            if (dateChanged) changedParts.add('date');
+            if (noteChanged) changedParts.add('notes');
+            if (amountChanged) changedParts.add('amount');
+            if (clearedChanged) changedParts.add('cleared status');
+            if (accountChanged) changedParts.add('accounts');
+            if (changedParts.length == 1) {
+              changeText = changedParts.first;
+            } else if (changedParts.length == 2) {
+              changeText = '${changedParts[0]} and ${changedParts[1]}';
+            } else {
+              changeText = '${changedParts.sublist(0, changedParts.length - 1).join(', ')}, and ${changedParts.last}';
             }
             updateBoth = await showDialog<bool>(
               context: context,
@@ -1701,32 +1769,19 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               ),
             ) ?? false;
           }
-          // Find the paired transaction (other side of the transfer)
-          final allTxs = DatabaseService.getAllTransactions();
-          Transaction? pair;
-          // First try note-based linking
-          try {
-            pair = allTxs.firstWhere(
-              (t) =>
-                t.id != orig.id &&
-                t.note != null &&
-                (t.note!.contains(orig.id) || (orig.note != null && orig.note!.contains(t.id))),
-            );
-          } catch (_) {
-            pair = null;
+
+          if (updateBoth && pair == null) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Could not find the linked transfer side. Please edit both entries manually once to relink.'),
+                  backgroundColor: Colors.blueGrey[400],
+                ),
+              );
+            }
+            return;
           }
-          // If not found, try matching by account, amount, date, and category
-          if (pair == null) {
-            final candidates = allTxs.where(
-              (t) =>
-                t.id != orig.id &&
-                t.amount == orig.amount &&
-                t.date == orig.date &&
-                t.categoryId == orig.categoryId &&
-                t.accountId != orig.accountId,
-            );
-            pair = candidates.isNotEmpty ? candidates.first : null;
-          }
+
           // Determine old and new account IDs for both sides
           final oldFromId = orig.type == TransactionType.expense ? orig.accountId : (pair != null ? pair.accountId : null);
           final oldToId = orig.type == TransactionType.income ? orig.accountId : (pair != null ? pair.accountId : null);
@@ -1759,14 +1814,14 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           if (cleanedNotes.contains('__transfer_bill__')) {
             cleanedNotes = cleanedNotes.replaceAll('__transfer_bill__', '').trim();
           }
-          // Only use transfer id for linking, do NOT add it to the note field
-          // User-facing note should only be the user's note, no transfer id or internal marker
+
+          final linkedIdForOrig = pair?.id;
           updatedOrig = updatedOrig.copyWith(
             amount: amount,
             description: newDescription,
             date: newDate,
             updatedAt: DateTime.now(),
-            note: cleanedNotes.isNotEmpty ? cleanedNotes : null,
+            note: buildTransferNote(linkedId: linkedIdForOrig, userText: cleanedNotes),
             cleared: _cleared,
             showInReports: false,
             hideFromCalendarDashboard: true,
@@ -1777,7 +1832,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               description: newDescription,
               date: newDate,
               updatedAt: DateTime.now(),
-              note: cleanedNotes.isNotEmpty ? cleanedNotes : null,
+              note: buildTransferNote(linkedId: updatedOrig.id, userText: cleanedNotes),
               cleared: _cleared,
               showInReports: false,
               hideFromCalendarDashboard: true,
@@ -1788,36 +1843,30 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           if (updateBoth && updatedPair != null) {
             await DatabaseService.updateTransaction(updatedPair);
           }
-          // Adjust balances for all affected accounts
-          // First, revert old balances
-          if (oldFromId != null) {
-            final oldFromAcc = DatabaseService.getAccountById(oldFromId);
-            if (oldFromAcc != null) {
-              final updatedOldFrom = oldFromAcc.copyWith(balance: oldFromAcc.balance + orig.amount);
-              await DatabaseService.updateAccount(updatedOldFrom);
+
+          final accountDeltaById = <String, double>{};
+          void applyDeltaForUpdate(Transaction before, Transaction after) {
+            final beforeEffect = before.type == TransactionType.income ? before.amount : -before.amount;
+            final afterEffect = after.type == TransactionType.income ? after.amount : -after.amount;
+
+            if (before.accountId != null) {
+              accountDeltaById[before.accountId!] = (accountDeltaById[before.accountId!] ?? 0.0) - beforeEffect;
+            }
+            if (after.accountId != null) {
+              accountDeltaById[after.accountId!] = (accountDeltaById[after.accountId!] ?? 0.0) + afterEffect;
             }
           }
-          if (oldToId != null) {
-            final oldToAcc = DatabaseService.getAccountById(oldToId);
-            if (oldToAcc != null) {
-              final updatedOldTo = oldToAcc.copyWith(balance: oldToAcc.balance - orig.amount);
-              await DatabaseService.updateAccount(updatedOldTo);
-            }
+
+          applyDeltaForUpdate(orig, updatedOrig);
+          if (updateBoth && pair != null && updatedPair != null) {
+            applyDeltaForUpdate(pair, updatedPair);
           }
-          // Then, apply new balances
-          if (newFromId != null) {
-            final newFromAcc = DatabaseService.getAccountById(newFromId);
-            if (newFromAcc != null) {
-              final updatedNewFrom = newFromAcc.copyWith(balance: newFromAcc.balance - amount);
-              await DatabaseService.updateAccount(updatedNewFrom);
-            }
-          }
-          if (newToId != null) {
-            final newToAcc = DatabaseService.getAccountById(newToId);
-            if (newToAcc != null) {
-              final updatedNewTo = newToAcc.copyWith(balance: newToAcc.balance + amount);
-              await DatabaseService.updateAccount(updatedNewTo);
-            }
+
+          for (final entry in accountDeltaById.entries) {
+            if (entry.value == 0.0) continue;
+            final acc = DatabaseService.getAccountById(entry.key);
+            if (acc == null) continue;
+            await DatabaseService.updateAccount(acc.copyWith(balance: acc.balance + entry.value));
           }
           DatabaseService.transactionsVersion.value++;
           DatabaseService.accountsVersion.value++;

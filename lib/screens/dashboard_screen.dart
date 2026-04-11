@@ -17,6 +17,7 @@ import '../models/transaction.dart';
 import '../models/bill.dart';
 import '../models/category.dart';
 import '../theme/app_theme.dart';
+import '../utils/duplication_guards.dart';
 import 'add_bill_screen.dart';
 import 'add_transaction_screen.dart';
 import 'pay_bill_screen.dart';
@@ -208,16 +209,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (_searchResults.isEmpty) return;
     final today = DateTime.now();
     final todayStart = DateTime(today.year, today.month, today.day);
-    var idx = _searchResults.indexWhere(
+    // Anchor the dropdown at today when possible. If there is no exact
+    // today match, start at the nearest past result (not a future entry).
+    var idx = _searchResults.lastIndexWhere(
       (r) {
         final d = r['date'] as DateTime;
         final normalized = DateTime(d.year, d.month, d.day);
-        return !normalized.isBefore(todayStart);
+        return !normalized.isAfter(todayStart);
       },
     );
 
-    // If there are no upcoming results, start near the most recent past result.
-    if (idx < 0) idx = _searchResults.length - 1;
+    if (idx < 0) idx = 0;
     _searchInitialIndex = idx;
   }
 
@@ -390,53 +392,78 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   // Search bills by description, payee name, or notes
   void _performSearch(String query) {
+    final normalizedQuery = query.toLowerCase().trim();
+    if (normalizedQuery.isEmpty) {
+      setState(() {
+        _searchQuery = '';
+        _searchResults.clear();
+      });
+      _removeSearchDropdown();
+      return;
+    }
+
+    final allBills = DatabaseService.getAllBills();
+    final allPayees = DatabaseService.getAllPayees();
+
+    final payeeNameById = <String, String>{};
+    for (final payee in allPayees) {
+      final id = payee['id']?.toString();
+      final name = payee['name']?.toString();
+      if (id == null || id.isEmpty || name == null) continue;
+      payeeNameById[id] = name;
+    }
+
+    final matchedBillIds = <String>{};
+    final displayByBillId = <String, String>{};
+    for (final bill in allBills) {
+      final billDescription = bill.description ?? '';
+      final payeeName = (bill.payeeId != null && bill.payeeId!.isNotEmpty)
+          ? (payeeNameById[bill.payeeId!] ?? '')
+          : '';
+      final searchText = '$billDescription $payeeName'.toLowerCase();
+      if (!searchText.contains(normalizedQuery)) continue;
+      matchedBillIds.add(bill.id);
+      displayByBillId[bill.id] = payeeName.isNotEmpty ? payeeName : billDescription;
+    }
+
+    final results = <Map<String, dynamic>>[];
+    if (matchedBillIds.isNotEmpty) {
+      final now = DateTime.now();
+      final startDate = DateTime(now.year - 1, now.month, now.day);
+      final endDate = DateTime(now.year + 1, now.month, now.day);
+
+      final allOccurrences = _dedupeBillOccurrences(
+        DatabaseService.getBillOccurrencesBetween(startDate, endDate),
+      );
+
+      for (final occ in allOccurrences) {
+        final bill = occ['bill'];
+        final date = occ['date'];
+        if (bill is! Bill || date is! DateTime) continue;
+        if (!matchedBillIds.contains(bill.id)) continue;
+        results.add({
+          'bill': bill,
+          'date': date,
+          'description': displayByBillId[bill.id] ?? bill.description,
+        });
+      }
+    }
+
+    results.sort((a, b) => (a['date'] as DateTime).compareTo(b['date'] as DateTime));
+
     setState(() {
-      _searchQuery = query.toLowerCase().trim();
-      _searchResults.clear();
-      if (_searchQuery.isEmpty) {
-        _removeSearchDropdown();
-        return;
-      }
-      final allBills = DatabaseService.getAllBills();
-      final allPayees = DatabaseService.getAllPayees();
-      for (final bill in allBills) {
-        String billDescription = bill.description ?? '';
-        String payeeName = '';
-        if (bill.payeeId != null) {
-          final payee = allPayees.firstWhere(
-            (p) => p['id'] == bill.payeeId,
-            orElse: () => <String, dynamic>{},
-          );
-          if (payee.containsKey('name')) {
-            payeeName = payee['name'] as String;
-          }
-        }
-        final searchText = '$billDescription $payeeName'.toLowerCase();
-        if (searchText.contains(_searchQuery)) {
-          final now = DateTime.now();
-          final startDate = DateTime(now.year - 1, now.month, now.day);
-          final endDate = DateTime(now.year + 1, now.month, now.day);
-          final occurrences = DatabaseService.getBillOccurrencesBetween(startDate, endDate)
-              .where((occ) => (occ['bill'] as Bill).id == bill.id)
-              .toList();
-          final uniqueOccurrences = _dedupeBillOccurrences(occurrences);
-          for (final occ in uniqueOccurrences) {
-            _searchResults.add({
-              'bill': bill,
-              'date': occ['date'] as DateTime,
-              'description': payeeName.isNotEmpty ? payeeName : billDescription,
-            });
-          }
-        }
-      }
-      _searchResults.sort((a, b) => (a['date'] as DateTime).compareTo(b['date'] as DateTime));
+      _searchQuery = normalizedQuery;
+      _searchResults
+        ..clear()
+        ..addAll(results);
       _positionSearchResultsAtToday();
-      if (_searchResults.isNotEmpty && _searchFocusNode.hasFocus) {
-        _showSearchDropdown();
-      } else {
-        _removeSearchDropdown();
-      }
     });
+
+    if (_searchResults.isNotEmpty && _searchFocusNode.hasFocus) {
+      _showSearchDropdown();
+    } else {
+      _removeSearchDropdown();
+    }
   }
 
   void _scheduleSearch(String query) {
@@ -853,35 +880,61 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return PaymentStatus.partial;
   }
 
-  PaymentStatus _getOccurrencePaymentStatus(Bill bill, DateTime occDate) {
-    final persisted = DatabaseService.getBillOccurrenceStatus(bill.id, occDate);
-    if (persisted != null) {
-      final persistedStatus = persisted['paymentStatus'] as PaymentStatus?;
-      if (persistedStatus != null) return persistedStatus;
-      final persistedIsPaid = persisted['isPaid'] as bool?;
-      if (persistedIsPaid == true) return PaymentStatus.paid;
-      if (persistedIsPaid == false) return PaymentStatus.unpaid;
+  bool _matchesBillOccurrenceForStatus(Bill bill, Transaction tx, DateTime occDate) {
+    final dateShort = DateFormat('MM/dd/yy').format(occDate);
+    final dateLong = DateFormat('MM/dd/yyyy').format(occDate);
+
+    final txBillId = (tx.billId ?? '').trim();
+    if (txBillId.isNotEmpty && txBillId != bill.id) return false;
+
+    final paymentFor = (tx.paymentFor ?? '').trim();
+    if (txBillId.isEmpty) {
+      // Legacy fallback for old bill payments created before billId linkage.
+      final billText = _visibleBillText(bill.description).toLowerCase();
+      final paymentForLower = paymentFor.toLowerCase();
+      final descriptionLower = tx.description.toLowerCase();
+      final dateMatches = paymentFor.contains(dateLong) ||
+          paymentFor.contains(dateShort) ||
+          descriptionLower.contains(dateLong.toLowerCase()) ||
+          descriptionLower.contains(dateShort.toLowerCase());
+      final billMatches = billText.isNotEmpty &&
+          (paymentForLower.contains(billText) || descriptionLower.contains(billText));
+      if (!(dateMatches && billMatches)) return false;
     }
 
-    final occDateStr = DateFormat('MM/dd/yyyy').format(occDate);
+    if (tx.occurrenceDate != null) {
+      return _isSameDay(tx.occurrenceDate!, occDate);
+    }
+
+    if (_isSameDay(tx.date, occDate)) return true;
+    return tx.description.contains(dateLong) ||
+        tx.description.contains(dateShort) ||
+        paymentFor.contains(dateLong) ||
+        paymentFor.contains(dateShort);
+  }
+
+  PaymentStatus _getOccurrencePaymentStatus(Bill bill, DateTime occDate) {
+    final persisted = DatabaseService.getBillOccurrenceStatus(bill.id, occDate);
+    final persistedStatus = persisted?['paymentStatus'] as PaymentStatus?;
+    final persistedIsPaid = persisted?['isPaid'] as bool?;
+
     final payments = DatabaseService.getAllTransactions()
-      .where((t) => t.hideFromCalendarDashboard != true)
-        .where((tx) =>
-            tx.billId == bill.id &&
-            ((tx.occurrenceDate != null)
-                ? (tx.occurrenceDate!.year == occDate.year &&
-                    tx.occurrenceDate!.month == occDate.month &&
-                    tx.occurrenceDate!.day == occDate.day)
-                : ((tx.date.year == occDate.year &&
-                        tx.date.month == occDate.month &&
-                        tx.date.day == occDate.day) ||
-                    tx.description.contains(occDateStr))))
+        .where((tx) => _matchesBillOccurrenceForStatus(bill, tx, occDate))
         .toList();
 
     final totalPaid = _computeSignedTotalPaid(bill, payments);
-    final fallbackStatus = _finalizeBillStatus(bill, totalPaid);
-    _backfillOccurrenceStatus(bill, occDate, fallbackStatus);
-    return fallbackStatus;
+    final computedStatus = _finalizeBillStatus(bill, totalPaid);
+
+    // Keep persisted status in sync with computed status, but always return
+    // the computed value so dashboard matches Pay Bill status immediately.
+    final persistedFromBool = persistedIsPaid == null
+        ? null
+        : (persistedIsPaid ? PaymentStatus.paid : PaymentStatus.unpaid);
+    if (persistedStatus != computedStatus && persistedFromBool != computedStatus) {
+      _backfillOccurrenceStatus(bill, occDate, computedStatus);
+    }
+
+    return computedStatus;
   }
 
   void _backfillOccurrenceStatus(Bill bill, DateTime occDate, PaymentStatus status) {
@@ -1739,6 +1792,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
             // If there is a next occurrence and the original had an end date beyond it (or no end), recreate the future series
             if (nextOccurrenceDate != null && (sourceBill.recurrenceEndDate == null || nextOccurrenceDate.isBefore(sourceBill.recurrenceEndDate!) || nextOccurrenceDate.isAtSameMomentAs(sourceBill.recurrenceEndDate!))) {
+              final splitSourceBill = sourceBill;
+
+              final existingSuccessor = hasEquivalentRecurringSuccessor(
+                candidates: DatabaseService.getAllBills(),
+                sourceBill: splitSourceBill,
+                nextOccurrenceDate: nextOccurrenceDate,
+                excludedBillId: occurrenceBillId,
+              );
+
+              if (!existingSuccessor) {
               final newBill = Bill(
                 amount: sourceBill.amount,
                 description: sourceBill.description,
@@ -1758,6 +1821,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 // per-bill reminder flag removed
               );
               await DatabaseService.addBill(newBill);
+              }
               // If the AddBillScreen returned a specific occurrence bill id, migrate
               // payments for this occurrence to that bill so history remains visible.
               try {
@@ -2025,10 +2089,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  Future<void> _deleteBillFromDashboard(Bill sourceBill, DateTime occurrenceDate) async {
+  Future<bool> _deleteBillFromDashboard(Bill sourceBill, DateTime occurrenceDate) async {
     if (!_hasFutureOccurrences(sourceBill, occurrenceDate)) {
       await DatabaseService.deleteBill(sourceBill.id);
-      return;
+      return true;
     }
 
     final choice = await showDialog<String>(
@@ -2046,7 +2110,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     if (choice == 'this') {
       await _deleteSingleRecurringOccurrence(sourceBill, occurrenceDate);
-      return;
+      return true;
     }
 
     if (choice == 'all') {
@@ -2055,20 +2119,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
       if (occ.isAtSameMomentAs(start) || occ.isBefore(start)) {
         await DatabaseService.deleteBill(sourceBill.id);
-        return;
+        return true;
       }
 
       final dayBefore = occ.subtract(const Duration(days: 1));
       final updatedBill = sourceBill.copyWith(recurrenceEndDate: dayBefore);
       await DatabaseService.updateBill(updatedBill);
       await DatabaseService.setBillRecurrenceEndOverride(updatedBill.id, dayBefore);
+      return true;
     }
+
+    return false;
   }
 
-  Future<void> _deleteBillOccurrencePayments(Bill bill, DateTime occurrenceDate) async {
+  Future<void> _deleteBillOccurrencePayments(Bill bill, DateTime occurrenceDate, {bool showNoPaymentsMessage = true}) async {
     final relatedPayments = _getTransactionsForBillOccurrence(bill, occurrenceDate);
     if (relatedPayments.isEmpty) {
-      if (mounted) {
+      if (showNoPaymentsMessage && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text('No payment transaction found for this bill occurrence.'),
@@ -2108,72 +2175,47 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Future<void> _handleDelete(Transaction transaction, Bill? sourceBill) async {
     if (sourceBill != null) {
       final relatedPayments = _getTransactionsForBillOccurrence(sourceBill, transaction.date);
-
-      if (relatedPayments.isNotEmpty) {
-        final confirmed = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Delete Payment'),
-            content: const Text('Delete this payment and its linked account transaction?'),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-              TextButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Delete', style: TextStyle(color: Colors.red)),
-              ),
-            ],
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Delete Bill'),
+          content: Text(
+            relatedPayments.isNotEmpty
+                ? 'Delete this bill from the calendar and remove related payment transaction(s) for this occurrence?'
+                : 'Delete this bill from the calendar?',
           ),
-        );
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        ),
+      );
 
-        if (confirmed == true) {
-          try {
-            await _deleteBillOccurrencePayments(sourceBill, transaction.date);
-            if (mounted) {
-              ScaffoldMessenger.of(context).clearSnackBars();
-            }
-          } catch (e) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Error deleting payment: $e'),
-                  backgroundColor: Colors.blueGrey[400],
-                ),
-              );
-            }
+      if (confirmed == true) {
+        try {
+          final billDeleted = await _deleteBillFromDashboard(sourceBill, transaction.date);
+          if (billDeleted && relatedPayments.isNotEmpty) {
+            await _deleteBillOccurrencePayments(
+              sourceBill,
+              transaction.date,
+              showNoPaymentsMessage: false,
+            );
           }
-        }
-      } else {
-        final confirmed = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Delete Bill'),
-            content: const Text('Delete this bill from the calendar?'),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-              TextButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          if (mounted) {
+            ScaffoldMessenger.of(context).clearSnackBars();
+            setState(() {});
+          }
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Error deleting bill: $e'),
+                backgroundColor: Colors.blueGrey[400],
               ),
-            ],
-          ),
-        );
-
-        if (confirmed == true) {
-          try {
-            await _deleteBillFromDashboard(sourceBill, transaction.date);
-            if (mounted) {
-              ScaffoldMessenger.of(context).clearSnackBars();
-              setState(() {});
-            }
-          } catch (e) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Error deleting bill: $e'),
-                  backgroundColor: Colors.blueGrey[400],
-                ),
-              );
-            }
+            );
           }
         }
       }

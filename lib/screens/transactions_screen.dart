@@ -181,8 +181,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text('Apply status to transfer?'),
-          content: Text('Do you want to mark both sides of this transfer as $actionLabel?'),
+          title: const Text('Update Transfer Status'),
+          content: Text(
+            'Do you want to mark just this side or both sides of the transfer as $actionLabel?',
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(),
@@ -190,11 +192,11 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             ),
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(_TransferClearChoice.oneSide),
-              child: const Text('One Side'),
+              child: const Text('Just this side', style: TextStyle(color: Colors.red)),
             ),
-            FilledButton(
+            TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(_TransferClearChoice.bothSides),
-              child: const Text('Both Sides'),
+              child: const Text('Both sides', style: TextStyle(color: Colors.red)),
             ),
           ],
         );
@@ -1015,7 +1017,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     Future<void> toggleClearStatus() async {
       final newCleared = !(transaction.cleared ?? false);
       Transaction? linked;
-      var shouldApplyToBothSides = true;
+      var shouldApplyToBothSides = false;
 
       if (_isTransferTransaction(transaction)) {
         linked = _findLinkedTransferTransaction(transaction);
@@ -1338,27 +1340,44 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         context: context,
         builder: (context) => AlertDialog(
           title: const Text('Delete Transfer'),
-          content: Text('Do you want to delete just this side or both sides of the transfer?'),
+          content: const Text(
+            'Delete only this transfer side, or delete both linked sides?',
+          ),
           actions: [
             TextButton(
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.zero,
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
               onPressed: () => Navigator.pop(context),
               child: const Text('Cancel'),
             ),
             TextButton(
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.zero,
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
               onPressed: () async {
                 final nav = Navigator.of(context);
                 nav.pop();
                 _deleteTransferTransaction(transaction, deleteBothSides: false);
               },
-              child: const Text('Just this side', style: TextStyle(color: Colors.red)),
+              child: const Text('This Side Only'),
             ),
             TextButton(
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.zero,
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
               onPressed: () async {
                 final nav = Navigator.of(context);
                 nav.pop();
                 _deleteTransferTransaction(transaction, deleteBothSides: true);
               },
-              child: const Text('Both sides', style: TextStyle(color: Colors.red)),
+              child: const Text('Both Sides', style: TextStyle(color: Colors.red)),
             ),
           ],
         ),

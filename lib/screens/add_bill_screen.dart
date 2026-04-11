@@ -592,7 +592,7 @@ class _AddBillScreenState extends State<AddBillScreen> {
   // Transfer-specific accounts
   String? _fromAccountId;
   String? _toAccountId;
-  bool _remindersEnabled = true;
+  bool _remindersEnabled = false;
 
   List<ReminderOffset> _selectedReminders = [
     const ReminderOffset(daysBefore: 7, hour: 9, minute: 0),
@@ -777,6 +777,9 @@ class _AddBillScreenState extends State<AddBillScreen> {
                 onChanged: (value) {
                   setState(() {
                     _remindersEnabled = value;
+                    if (_remindersEnabled && _selectedReminders.isEmpty) {
+                      _selectedReminders = List<ReminderOffset>.from(_defaultReminders);
+                    }
                   });
                 },
               ),

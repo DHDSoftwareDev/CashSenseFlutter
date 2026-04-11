@@ -236,7 +236,7 @@ class _ReminderEditorSheetState extends State<_ReminderEditorSheet> {
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<int>(
-              value: _daysBefore,
+              initialValue: _daysBefore,
               decoration: const InputDecoration(
                 labelText: 'When',
                 border: OutlineInputBorder(),
