@@ -693,7 +693,14 @@ class AwsApiService {
     final iconCodePoint = (json['iconCodePoint'] ?? '0xe88a').toString();
     final colorValue = (json['colorValue'] ?? '0xFF4CAF50').toString();
     final typeRaw = (json['type'] ?? '').toString().toLowerCase();
-    final isIncome = json['isIncome'] == true || typeRaw == 'income';
+    final isIncomeRaw = json['isIncome'];
+    final normalizedIncome = isIncomeRaw?.toString().trim().toLowerCase();
+    final isIncome =
+      isIncomeRaw == true ||
+      isIncomeRaw == 1 ||
+      normalizedIncome == 'true' ||
+      normalizedIncome == '1' ||
+      typeRaw == 'income';
 
     return Category(
       id: id,

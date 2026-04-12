@@ -55,12 +55,17 @@ class _CategorySelectorSheetState extends State<_CategorySelectorSheet> {
   @override
   void initState() {
     super.initState();
-    _all = widget.categories;
+    _all = List<Category>.from(widget.categories)
+      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
     _filtered = _all;
     _selectedId = widget.initialSelectedId;
     _categoriesListener = () {
       setState(() {
-        _all = DatabaseService.getAllCategories().where((c) => c.type == (widget.billType == BillType.income ? CategoryType.income : CategoryType.expense)).toList();
+        _all = DatabaseService
+            .getAllCategories()
+            .where((c) => c.type == (widget.billType == BillType.income ? CategoryType.income : CategoryType.expense))
+            .toList()
+          ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
         _filtered = _all.where((c) => c.name.toLowerCase().contains(_query)).toList();
       });
     };
@@ -160,7 +165,11 @@ class _CategorySelectorSheetState extends State<_CategorySelectorSheet> {
           await LookupsSyncHelper.syncCategory(result.copyWith(id: newCatId));
         } catch (_) {}
         if (!mounted) return;
-        _all = DatabaseService.getAllCategories().where((c) => c.type == result.type).toList();
+        _all = DatabaseService
+            .getAllCategories()
+            .where((c) => c.type == result.type)
+            .toList()
+          ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
         setState(() {
           _filtered = _all.where((c) => c.name.toLowerCase().contains(_query)).toList();
           _selectedId = newCatId;
@@ -244,7 +253,12 @@ class _PayeeSelectorSheetState extends State<_PayeeSelectorSheet> {
   @override
   void initState() {
     super.initState();
-    _all = widget.payees;
+    _all = List<Map<String, dynamic>>.from(widget.payees)
+      ..sort((a, b) {
+        final an = (a['name'] ?? '').toString().toLowerCase();
+        final bn = (b['name'] ?? '').toString().toLowerCase();
+        return an.compareTo(bn);
+      });
     _filtered = _all;
     _selectedId = widget.initialSelectedId;
     _categoriesListener = () {
@@ -349,7 +363,12 @@ class _PayeeSelectorSheetState extends State<_PayeeSelectorSheet> {
       // If the widget was disposed while waiting, stop before touching context/state
       if (!mounted) return;
       // Refresh the full list from settings
-      _all = DatabaseService.getAllPayees();
+      _all = DatabaseService.getAllPayees()
+        ..sort((a, b) {
+          final an = (a['name'] ?? '').toString().toLowerCase();
+          final bn = (b['name'] ?? '').toString().toLowerCase();
+          return an.compareTo(bn);
+        });
       setState(() {
         _filtered = _all.where((p) => (p['name'] as String).toLowerCase().contains(_query)).toList();
         _selectedId = newPayee['id'] as String;
@@ -628,7 +647,7 @@ class _AddBillScreenState extends State<AddBillScreen> {
       _customDays = bill.customDays;
       _recurrenceEndDate = bill.recurrenceEndDate;
       _recurrenceForever = bill.recurrenceEndDate == null;
-      _recurrenceInterval = bill.recurrenceInterval;
+      _recurrenceInterval = bill.recurrenceInterval <= 0 ? 1 : bill.recurrenceInterval;
       _recurrenceWeekdays = bill.recurrenceWeekdays ?? [];
       _selectedCategoryId = bill.categoryId;
       _billType = bill.type;
@@ -1105,17 +1124,18 @@ class _AddBillScreenState extends State<AddBillScreen> {
   }
 
   String _recurrenceSummary() {
+    final interval = _recurrenceInterval <= 0 ? 1 : _recurrenceInterval;
     switch (_recurrence) {
       case Recurrence.none:
         return 'None';
       case Recurrence.daily:
-        return 'Daily';
+        return interval == 1 ? 'Every day' : 'Every $interval days';
       case Recurrence.weekly:
-        return 'Weekly';
+        return interval == 1 ? 'Every week' : 'Every $interval weeks';
       case Recurrence.monthly:
-        return 'Monthly';
+        return interval == 1 ? 'Every month' : 'Every $interval months';
       case Recurrence.yearly:
-        return 'Yearly';
+        return interval == 1 ? 'Every year' : 'Every $interval years';
       default:
         // For any other (legacy) recurrence values, fallback to a generic label
   final s = _recurrence.toString().split('.').last;

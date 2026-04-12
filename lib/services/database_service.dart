@@ -24,6 +24,7 @@ class DatabaseService {
   static const String _legacyBillPlaceholderTextMigrationKey = 'migratedLegacyBillPlaceholderTextV1';
   static const String _deletedAccountsKey = 'deletedAccountIds';
   static const String _deletedBillsKey = 'deletedBillIds';
+  static const String _deletedCategoriesKey = 'deletedCategoryIds';
   static const String _billRecurrenceEndOverridesKey = 'billRecurrenceEndOverrides';
 
   static List<ReminderOffset> _selectedReminderOffsetsForApi() {
@@ -99,6 +100,36 @@ class DatabaseService {
       return raw.map((e) => e.toString()).toList();
     } catch (_) {
       return <String>[];
+    }
+  }
+
+  static List<String> _getDeletedCategoryIds() {
+    try {
+      final raw = _settingsBox.get(_deletedCategoriesKey, defaultValue: <dynamic>[]) as List<dynamic>;
+      return raw.map((e) => e.toString()).toList();
+    } catch (_) {
+      return <String>[];
+    }
+  }
+
+  static Future<void> _addDeletedCategoryId(String id) async {
+    final trimmed = id.trim();
+    if (trimmed.isEmpty) return;
+    final ids = _getDeletedCategoryIds();
+    if (!ids.contains(trimmed)) {
+      ids.add(trimmed);
+      await _settingsBox.put(_deletedCategoriesKey, ids);
+      await _settingsBox.flush();
+    }
+  }
+
+  static Future<void> _removeDeletedCategoryId(String id) async {
+    final trimmed = id.trim();
+    if (trimmed.isEmpty) return;
+    final ids = _getDeletedCategoryIds();
+    if (ids.remove(trimmed)) {
+      await _settingsBox.put(_deletedCategoriesKey, ids);
+      await _settingsBox.flush();
     }
   }
 
@@ -1596,6 +1627,7 @@ class DatabaseService {
         rethrow;
       }
     }
+    await _removeDeletedCategoryId(category.id);
     categoriesVersion.value++;
     await _safeAwsCall(() => AwsApiService.createCategory(category), 'create category');
     return category.id;
@@ -1614,12 +1646,14 @@ class DatabaseService {
         rethrow;
       }
     }
+    await _removeDeletedCategoryId(category.id);
     await updateCategoryReferences(category);
   categoriesVersion.value++;
     await _safeAwsCall(() => AwsApiService.updateCategory(category), 'update category');
   }
 
   static Future<void> deleteCategory(String id) async {
+    await _addDeletedCategoryId(id);
     await _categoryBox.delete(id);
     await _categoryBox.flush();
   categoriesVersion.value++;
@@ -2111,28 +2145,29 @@ class DatabaseService {
           {
             final intervalWeeks = bill.recurrenceInterval <= 0 ? 1 : bill.recurrenceInterval;
             final weekdays = (bill.recurrenceWeekdays == null || bill.recurrenceWeekdays!.isEmpty) ? [bill.dueDate.weekday] : bill.recurrenceWeekdays!;
-            
-            // Start from the bill's due date
-            DateTime cur = DateTime(bill.dueDate.year, bill.dueDate.month, bill.dueDate.day);
-            
-            // If the due date is after our range, we need to find earlier occurrences
-            // Otherwise start from due date and go forward
-            if (cur.isAfter(normalizedEnd)) break;
-            
-            // Generate occurrences week by week
-            while (!cur.isAfter(normalizedEnd) && !(effectiveRecurrenceEndDate != null && cur.isAfter(effectiveRecurrenceEndDate))) {
-              // Check each weekday in the current week
-              for (int i = 0; i < 7; i++) {
-                final checkDate = cur.add(Duration(days: i));
-                if (weekdays.contains(checkDate.weekday)) {
-                  if (!checkDate.isAfter(normalizedEnd) && 
-                      !(effectiveRecurrenceEndDate != null && checkDate.isAfter(effectiveRecurrenceEndDate))) {
-                    addIfInRange(checkDate);
-                  }
-                }
+
+            final due = DateTime(bill.dueDate.year, bill.dueDate.month, bill.dueDate.day);
+            if (due.isAfter(normalizedEnd)) break;
+
+            final sortedWeekdays = weekdays.toSet().toList()..sort();
+            final dueWeekStart = due.subtract(Duration(days: due.weekday - 1)); // Monday start
+
+            var cycle = 0;
+            while (true) {
+              final weekStart = dueWeekStart.add(Duration(days: 7 * intervalWeeks * cycle));
+              if (weekStart.isAfter(normalizedEnd)) break;
+              if (effectiveRecurrenceEndDate != null && weekStart.isAfter(effectiveRecurrenceEndDate)) break;
+
+              for (final weekday in sortedWeekdays) {
+                final occ = weekStart.add(Duration(days: weekday - 1));
+                // Never generate before the bill's initial due date.
+                if (occ.isBefore(due)) continue;
+                if (occ.isAfter(normalizedEnd)) continue;
+                if (effectiveRecurrenceEndDate != null && occ.isAfter(effectiveRecurrenceEndDate)) continue;
+                addIfInRange(occ);
               }
-              // Move to next interval
-              cur = cur.add(Duration(days: 7 * intervalWeeks));
+
+              cycle += 1;
             }
           }
           break;
@@ -2285,6 +2320,7 @@ class DatabaseService {
     bool payeesChanged = false;
     final deletedAccountIds = _getDeletedAccountIds().toSet();
     final deletedBillIds = _getDeletedBillIds().toSet();
+    final deletedCategoryIds = _getDeletedCategoryIds().toSet();
     final recurrenceEndOverrides = _getBillRecurrenceEndOverrides();
 
     if (accounts.isNotEmpty) {
@@ -2336,7 +2372,14 @@ class DatabaseService {
       }
 
       for (final category in categories) {
-        if (category.id.trim().isEmpty) continue;
+        final categoryId = category.id.trim();
+        if (categoryId.isEmpty) continue;
+        if (deletedCategoryIds.contains(categoryId)) {
+          if (_categoryBox.containsKey(categoryId)) {
+            await _categoryBox.delete(categoryId);
+          }
+          continue;
+        }
         final existing = _categoryBox.get(category.id);
         final incomingName = category.name.trim();
         final existingName = (existing?.name ?? '').trim();

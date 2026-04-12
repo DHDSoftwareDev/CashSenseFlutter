@@ -2385,9 +2385,16 @@ class _PayeeSelectorSheetWithSearchState extends State<_PayeeSelectorSheetWithSe
 
   @override
   Widget build(BuildContext context) {
-    final filtered = _query.isEmpty
-        ? widget.payees
-        : widget.payees.where((p) => (p['name'] as String).toLowerCase().contains(_query.toLowerCase())).toList();
+    final filtered = (_query.isEmpty
+            ? List<Map<String, dynamic>>.from(widget.payees)
+            : widget.payees
+                .where((p) => (p['name'] as String).toLowerCase().contains(_query.toLowerCase()))
+                .toList())
+      ..sort((a, b) {
+        final an = (a['name'] ?? '').toString().toLowerCase();
+        final bn = (b['name'] ?? '').toString().toLowerCase();
+        return an.compareTo(bn);
+      });
     return Container(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -2453,10 +2460,12 @@ class _CategorySelectorSheetState extends State<_CategorySelectorSheet> {
   void initState() {
     super.initState();
     _allowedTypes = widget.allowedTypes ?? widget.categories.map((c) => c.type).toSet();
-    _allCategories = _filteredByAllowedTypes(widget.categories);
+    _allCategories = _filteredByAllowedTypes(widget.categories)
+      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
     _categoriesListener = () {
       setState(() {
-        _allCategories = _filteredByAllowedTypes(DatabaseService.getAllCategories());
+        _allCategories = _filteredByAllowedTypes(DatabaseService.getAllCategories())
+          ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
       });
     };
     DatabaseService.categoriesVersion.addListener(_categoriesListener!);

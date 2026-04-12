@@ -3,19 +3,21 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
-import 'package:path_provider/path_provider.dart';
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:intl/intl.dart';
+
 import 'package:background_fetch/background_fetch.dart' as bf;
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:provider/provider.dart';
+
+import '../models/account.dart';
+import '../models/bill.dart';
+import '../models/category.dart';
+import '../models/transaction.dart';
 import '../providers/user_session_controller.dart';
 import '../services/auto_backup_service.dart';
 import '../services/database_service.dart';
-import '../models/category.dart';
-import '../models/account.dart';
-import '../models/transaction.dart';
-import '../models/bill.dart';
 
 class BackupRestoreScreen extends StatefulWidget {
   const BackupRestoreScreen({super.key});
@@ -28,14 +30,11 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
   bool _isRunning = false;
 
   void _showAutoBackupHistoryPopup() async {
-    // Get the CashSense folder in appropriate directory based on platform
     Directory dir;
     if (Platform.isIOS) {
-      // iOS: Use app's documents directory
       final docsDir = await getApplicationDocumentsDirectory();
       dir = Directory('${docsDir.path}/CashSense');
     } else {
-      // Android/Desktop: Use Downloads directory
       final downloadsDir = await getDownloadsDirectory();
       if (downloadsDir == null) {
         if (!mounted) return;
@@ -56,21 +55,19 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
       }
       dir = Directory('${downloadsDir.path}/CashSense');
     }
-    
+
     List<File> files = [];
     if (await dir.exists()) {
-      // Only include files that are automatic backups created by the app.
-      // Filenames are expected to be like: cashsense_auto_backup_YYYY-MM-DDTHH-MM-SS.json
       files = dir
           .listSync()
           .whereType<File>()
           .where((f) {
             final name = f.path.split('/').last;
-            return name.startsWith('cashsense_auto_backup_') && name.endsWith('.json');
+            return name.startsWith('cashsense_auto_backup_') &&
+                name.endsWith('.json');
           })
           .toList();
 
-      // Sort by last modified time (newest first)
       files.sort((a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()));
     }
 
@@ -92,8 +89,9 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
                     String titleText;
                     try {
                       final modified = file.lastModifiedSync();
-                      // Example: 11/6/25, 3:15 pm
-                      final formatted = DateFormat('M/d/yy, h:mm a').format(modified).toLowerCase();
+                      final formatted = DateFormat('M/d/yy, h:mm a')
+                          .format(modified)
+                          .toLowerCase();
                       titleText = 'Backup $formatted';
                     } catch (_) {
                       titleText = 'Backup ${file.path.split('/').last}';
@@ -103,11 +101,16 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
                       title: Text(titleText),
                       subtitle: Text(
                         file.path,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: Colors.grey[600]),
                         overflow: TextOverflow.ellipsis,
                       ),
                       trailing: TextButton(
-                        style: TextButton.styleFrom(foregroundColor: Colors.grey[700]),
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.grey[700],
+                        ),
                         child: const Text('Restore'),
                         onPressed: () async {
                           Navigator.pop(context);
@@ -134,31 +137,37 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
     try {
       final jsonString = await AutoBackupService.buildBackupJsonString();
       if (!mounted) return;
+
       if (jsonString == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Backup failed'), backgroundColor: Colors.redAccent),
+          const SnackBar(
+            content: Text('Backup failed'),
+            backgroundColor: Colors.redAccent,
+          ),
         );
         return;
       }
 
       final bytes = utf8.encode(jsonString);
       final bytesData = Uint8List.fromList(bytes);
-      final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-').split('.')[0];
-      final name = 'cashsense_backup_' + timestamp + '.json';
+      final timestamp =
+          DateTime.now().toIso8601String().replaceAll(':', '-').split('.')[0];
+      final name = 'cashsense_backup_$timestamp.json';
 
       String filePath;
       if (Platform.isIOS) {
-        // Use app's documents directory on iOS
         final docsDir = await getApplicationDocumentsDirectory();
         final dir = Directory('${docsDir.path}/CashSense');
         await dir.create(recursive: true);
         filePath = '${dir.path}/$name';
       } else {
-        // Use Downloads/CashSense on Android/desktop
         final downloadsDir = await getDownloadsDirectory();
         if (downloadsDir == null) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Downloads directory not available.'), backgroundColor: Colors.redAccent),
+            const SnackBar(
+              content: Text('Downloads directory not available.'),
+              backgroundColor: Colors.redAccent,
+            ),
           );
           return;
         }
@@ -167,23 +176,23 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
         filePath = '${dir.path}/$name';
       }
 
-      try {
-        final outFile = File(filePath);
-        await outFile.writeAsBytes(bytesData);
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Backup saved: $filePath'), backgroundColor: Colors.blueGrey[400]),
-        );
-      } catch (e) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Save failed: $e'), backgroundColor: Colors.orangeAccent),
-        );
-      }
+      final outFile = File(filePath);
+      await outFile.writeAsBytes(bytesData);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Backup saved: $filePath'),
+          backgroundColor: Colors.blueGrey[400],
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Backup error: $e'), backgroundColor: Colors.redAccent),
+        SnackBar(
+          content: Text('Backup error: $e'),
+          backgroundColor: Colors.redAccent,
+        ),
       );
     } finally {
       if (mounted) setState(() => _isRunning = false);
@@ -205,19 +214,26 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
       final jsonString = await file.readAsString();
       await _performRestore(jsonString);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Restore error: $e'), backgroundColor: Colors.redAccent),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Restore error: $e'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
     }
   }
 
   Future<void> _performRestore(String jsonData) async {
     try {
-      final Map<String, dynamic> backupData = jsonDecode(jsonData);
+      final decoded = jsonDecode(jsonData);
+      if (decoded is! Map<String, dynamic>) {
+        throw Exception('Invalid backup data format');
+      }
 
-      if (!backupData.containsKey('version') || !backupData.containsKey('transactions')) {
+      final backupData = decoded;
+      if (!backupData.containsKey('version') ||
+          !backupData.containsKey('transactions')) {
         throw Exception('Invalid backup data format');
       }
 
@@ -225,90 +241,110 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
         context: context,
         builder: (context) => AlertDialog(
           title: const Text('Confirm Restore'),
-          content: const Text('This will replace current data with the backup. Continue?'),
+          content: const Text(
+            'This will replace current data with the backup. Continue?',
+          ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-            TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Restore', style: TextStyle(color: Colors.red))),
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text(
+                'Restore',
+                style: TextStyle(color: Colors.red),
+              ),
+            ),
           ],
         ),
       );
 
       if (confirmed != true) return;
 
-      // Clear existing data then restore
       await DatabaseService.clearAllData();
 
-      // Restore categories
-      for (var catData in backupData['categories'] as List) {
+      final categoriesRaw =
+          (backupData['categories'] as List?) ?? const <dynamic>[];
+      for (final catData in categoriesRaw) {
         try {
-          final category = Category.fromJson(Map<String, dynamic>.from(catData));
+          final category =
+              Category.fromJson(Map<String, dynamic>.from(catData as Map));
           await DatabaseService.addCategory(category);
         } catch (_) {}
       }
 
-      // Restore accounts
-      for (var accData in backupData['accounts'] as List) {
+      final accountsRaw =
+          (backupData['accounts'] as List?) ?? const <dynamic>[];
+      for (final accData in accountsRaw) {
         try {
-          final account = Account.fromJson(Map<String, dynamic>.from(accData));
+          final account =
+              Account.fromJson(Map<String, dynamic>.from(accData as Map));
           await DatabaseService.addAccount(account);
         } catch (_) {}
       }
 
-      // Restore transactions
-      for (var txData in backupData['transactions'] as List) {
+      final transactionsRaw =
+          (backupData['transactions'] as List?) ?? const <dynamic>[];
+      for (final txData in transactionsRaw) {
         try {
-          final transaction = Transaction.fromJson(Map<String, dynamic>.from(txData));
+          final transaction =
+              Transaction.fromJson(Map<String, dynamic>.from(txData as Map));
           await DatabaseService.addTransaction(transaction);
         } catch (_) {}
       }
 
-      // Restore bills
-      for (var billData in backupData['bills'] as List) {
+      final billsRaw = (backupData['bills'] as List?) ?? const <dynamic>[];
+      for (final billData in billsRaw) {
         try {
-          final bd = Map<String, dynamic>.from(billData);
-          final bill = Bill(
-            id: bd['id'],
-            description: bd['description'],
-            amount: (bd['amount'] is num) ? (bd['amount'] as num).toDouble() : double.parse(bd['amount'].toString()),
-            dueDate: DateTime.parse(bd['dueDate']),
-            categoryId: bd['categoryId'],
-            recurrence: Recurrence.values.firstWhere(
-              (e) => e.toString().split('.').last == (bd['recurrence'] ?? 'none'),
-              orElse: () => Recurrence.none,
-            ),
-            isPaid: bd['isPaid'] ?? false,
-          );
+          final bill =
+              Bill.fromJson(Map<String, dynamic>.from(billData as Map));
           await DatabaseService.addBill(bill);
         } catch (_) {}
       }
 
-      // Restore settings if included
-      if (backupData.containsKey('settings')) {
-        final settings = backupData['settings'] as Map<String, dynamic>;
-        for (var entry in settings.entries) {
+      final payeesRaw = backupData['payees'];
+      if (payeesRaw is List) {
+        for (final entry in payeesRaw) {
+          try {
+            if (entry is Map) {
+              await DatabaseService.addPayee(
+                Map<String, dynamic>.from(entry),
+              );
+            }
+          } catch (_) {}
+        }
+      }
+
+      final settingsRaw = backupData['settings'];
+      if (settingsRaw is Map<String, dynamic>) {
+        for (final entry in settingsRaw.entries) {
           await DatabaseService.setSetting(entry.key, entry.value);
         }
       }
 
-      // Restore payment history / bill occurrence statuses if present
-      if (backupData.containsKey('payments_history') || backupData.containsKey('bill_occurrence_status')) {
-        try {
-          final occ = (backupData['payments_history'] ?? backupData['bill_occurrence_status']) as Map<String, dynamic>;
-          await DatabaseService.importBillOccurrenceStatuses(occ);
-        } catch (_) {}
+      final occurrenceRaw = backupData['bill_occurrence_status'];
+      if (occurrenceRaw is Map<String, dynamic>) {
+        await DatabaseService.importBillOccurrenceStatuses(occurrenceRaw);
       }
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Restore complete'), backgroundColor: Colors.blueGrey),
-        );
-      }
+      await DatabaseService.persistBillOccurrenceStatuses();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Restore complete'),
+          backgroundColor: Colors.blueGrey,
+        ),
+      );
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Restore failed: $e'), backgroundColor: Colors.redAccent),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Restore failed: $e'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
     }
   }
 
@@ -316,8 +352,11 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
   Widget build(BuildContext context) {
     final userSessionController = context.watch<UserSessionController>();
     final isPremium = userSessionController.isPremium;
-    final autoBackupEnabled = DatabaseService.getSetting<bool>('autoBackupEnabled', false) ?? false;
-    final lastBackupRaw = DatabaseService.getSetting<String>('lastAutoBackupAt', null);
+    final autoBackupEnabled =
+        DatabaseService.getSetting<bool>('autoBackupEnabled', false) ?? false;
+    final lastBackupRaw =
+        DatabaseService.getSetting<String>('lastAutoBackupAt', null);
+
     DateTime? lastBackup;
     if (lastBackupRaw != null) {
       try {
@@ -334,7 +373,11 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
             title: const Text('Backup Data'),
             subtitle: const Text('Create a local backup file'),
             trailing: _isRunning
-                ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator())
+                ? const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(),
+                  )
                 : null,
             onTap: _isRunning ? null : _runBackup,
           ),
@@ -344,11 +387,35 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
             subtitle: const Text('Restore from a backup file'),
             onTap: _restoreFromFile,
           ),
+          if (isPremium) ...[
+            ListTile(
+              leading: const Icon(Icons.history),
+              title: const Text('Automatic Backup History'),
+              subtitle: const Text('View and restore recent automatic backups'),
+              onTap: _showAutoBackupHistoryPopup,
+            ),
+            SwitchListTile(
+              secondary: const Icon(Icons.cloud_upload),
+              title: const Text('Automatic Cloud Backup'),
+              subtitle: Text(
+                autoBackupEnabled
+                    ? lastBackup != null
+                        ? 'Enabled • Last backup ${DateFormat('M/d/yy h:mm a').format(lastBackup)}'
+                        : 'Enabled'
+                    : 'Disabled',
+              ),
+              value: autoBackupEnabled,
+              onChanged: (value) async {
+                await DatabaseService.setSetting('autoBackupEnabled', value);
+                setState(() {});
+              },
+            ),
+          ],
           const Divider(),
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Text(
-              'Backups include transactions, categories, accounts, bills, payment history, app settings, and bill occurrence statuses. Attachments are not included.',
+              'Backups include transactions, categories, accounts, bills, payees, app settings, and bill occurrence statuses. Attachments are not included.',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ),

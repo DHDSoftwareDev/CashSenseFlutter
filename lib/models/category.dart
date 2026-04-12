@@ -116,7 +116,10 @@ class Category extends HiveObject {
         final s = (json['type'] as String).toLowerCase();
         if (s.contains('income')) type = CategoryType.income;
       } else if (json.containsKey('isIncome')) {
-        if (json['isIncome'] == true) type = CategoryType.income;
+        final raw = json['isIncome'];
+        final normalized = raw?.toString().trim().toLowerCase();
+        final isIncome = raw == true || raw == 1 || normalized == 'true' || normalized == '1';
+        if (isIncome) type = CategoryType.income;
       }
     } catch (_) {}
 

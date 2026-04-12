@@ -33,18 +33,20 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
     });
   }
 
-  String _recurrenceText(Recurrence r) {
+  String _recurrenceText(Bill bill) {
+    final r = bill.recurrence;
+    final interval = bill.recurrenceInterval <= 0 ? 1 : bill.recurrenceInterval;
     switch (r) {
       case Recurrence.none:
         return 'None';
       case Recurrence.daily:
-        return 'Daily';
+        return interval == 1 ? 'Every day' : 'Every $interval days';
       case Recurrence.weekly:
-        return 'Weekly';
+        return interval == 1 ? 'Every week' : 'Every $interval weeks';
       case Recurrence.monthly:
-        return 'Monthly';
+        return interval == 1 ? 'Every month' : 'Every $interval months';
       case Recurrence.yearly:
-        return 'Yearly';
+        return interval == 1 ? 'Every year' : 'Every $interval years';
       case Recurrence.custom:
         return 'Custom';
     }
@@ -78,7 +80,7 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
             ),
             ListTile(
               title: const Text('Recurrence'),
-              subtitle: Text(_recurrenceText(_bill.recurrence)),
+              subtitle: Text(_recurrenceText(_bill)),
             ),
             if (_bill.recurrenceEndDate != null)
               ListTile(

@@ -145,9 +145,13 @@ class _PayeesScreenState extends State<PayeesScreen> {
             ],
           ),
           body: CategorySelectorSheet(
-            categories: isPayeeChoice
-                ? DatabaseService.getAllCategories().where((c) => c.type == CategoryType.expense).toList()
-                : DatabaseService.getAllCategories().where((c) => c.type == CategoryType.income).toList(),
+            categories: (() {
+              final categories = isPayeeChoice
+                  ? DatabaseService.getAllCategories().where((c) => c.type == CategoryType.expense).toList()
+                  : DatabaseService.getAllCategories().where((c) => c.type == CategoryType.income).toList();
+              categories.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+              return categories;
+            })(),
             hideAddButton: true,
             allowedTypes: {
               isPayeeChoice ? CategoryType.expense : CategoryType.income,
@@ -162,6 +166,11 @@ class _PayeesScreenState extends State<PayeesScreen> {
   void _loadPayees() {
     setState(() {
       _payees = DatabaseService.getAllPayees();
+      _payees.sort((a, b) {
+        final an = (a['name'] ?? '').toString().toLowerCase();
+        final bn = (b['name'] ?? '').toString().toLowerCase();
+        return an.compareTo(bn);
+      });
     });
   }
 
@@ -335,6 +344,11 @@ class _PayeesScreenState extends State<PayeesScreen> {
       final name = (p['name'] ?? '').toString().toLowerCase();
       return name.contains(_searchQuery.toLowerCase());
     }).toList();
+    filtered.sort((a, b) {
+      final an = (a['name'] ?? '').toString().toLowerCase();
+      final bn = (b['name'] ?? '').toString().toLowerCase();
+      return an.compareTo(bn);
+    });
 
     if (filtered.isEmpty) {
       return Center(child: Text(_buildPlaceholderText()));

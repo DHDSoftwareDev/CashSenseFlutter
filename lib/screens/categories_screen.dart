@@ -109,6 +109,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
           return isDisplayable && isIncome && matchesQuery;
         }).toList();
       }
+      _categories.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
     });
   }
 

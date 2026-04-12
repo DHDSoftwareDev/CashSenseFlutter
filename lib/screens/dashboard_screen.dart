@@ -111,6 +111,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     DatabaseService.categoriesVersion.addListener(_onCategoriesChanged);
     DatabaseService.billsVersion.addListener(_onBillsChanged);
     DatabaseService.payeesVersion.addListener(_onPayeesChanged);
+    DatabaseService.transactionsVersion.addListener(_onTransactionsChanged);
     
     // Add listener to search focus node to show/hide dropdown
     _searchFocusNode.addListener(() {
@@ -129,6 +130,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   void _onBillsChanged() {
     if (!mounted) return;
+    _occurrenceStatusCache.clear();
+    if (_searchQuery.isNotEmpty) {
+      _performSearch(_searchController.text);
+      return;
+    }
+    setState(() {});
+  }
+
+  void _onTransactionsChanged() {
+    if (!mounted) return;
+    _occurrenceStatusCache.clear();
     if (_searchQuery.isNotEmpty) {
       _performSearch(_searchController.text);
       return;
@@ -346,6 +358,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     DatabaseService.categoriesVersion.removeListener(_onCategoriesChanged);
     DatabaseService.billsVersion.removeListener(_onBillsChanged);
     DatabaseService.payeesVersion.removeListener(_onPayeesChanged);
+    DatabaseService.transactionsVersion.removeListener(_onTransactionsChanged);
     super.dispose();
   }
   final NumberFormat _currencyFormat = NumberFormat.currency(symbol: '\$');
@@ -362,7 +375,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Timer? _searchDebounceTimer;
   String _searchQuery = '';
   final List<Map<String, dynamic>> _searchResults = [];
+  final Set<String> _matchedSearchBillIds = <String>{};
+  final Map<String, PaymentStatus> _occurrenceStatusCache = <String, PaymentStatus>{};
   final Set<String> _occurrenceStatusBackfillInFlight = <String>{};
+
+  String _occurrenceStatusKey(String billId, DateTime occDate) {
+    return '$billId:${occDate.year}-${occDate.month}-${occDate.day}';
+  }
 
   String _billOccurrenceRenderKey(Bill bill, DateTime date) {
     final day = '${date.year}-${date.month}-${date.day}';
@@ -397,6 +416,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       setState(() {
         _searchQuery = '';
         _searchResults.clear();
+        _matchedSearchBillIds.clear();
       });
       _removeSearchDropdown();
       return;
@@ -416,7 +436,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final matchedBillIds = <String>{};
     final displayByBillId = <String, String>{};
     for (final bill in allBills) {
-      final billDescription = bill.description ?? '';
+      final billDescription = _visibleBillText(bill.description);
       final payeeName = (bill.payeeId != null && bill.payeeId!.isNotEmpty)
           ? (payeeNameById[bill.payeeId!] ?? '')
           : '';
@@ -441,10 +461,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final date = occ['date'];
         if (bill is! Bill || date is! DateTime) continue;
         if (!matchedBillIds.contains(bill.id)) continue;
+        if (!_showPaidBills) {
+          // Fast path for search typing: rely on persisted occurrence state to
+          // avoid expensive recomputation for every keypress.
+          final persisted = DatabaseService.getBillOccurrenceStatus(bill.id, date);
+          final persistedStatus = persisted?['paymentStatus'] as PaymentStatus?;
+          final persistedIsPaid = persisted?['isPaid'] as bool?;
+          final isPaid = persistedStatus == PaymentStatus.paid ||
+              (persistedStatus == null && persistedIsPaid == true);
+          if (isPaid) continue;
+        }
         results.add({
           'bill': bill,
           'date': date,
-          'description': displayByBillId[bill.id] ?? bill.description,
+          'description': displayByBillId[bill.id] ?? _visibleBillText(bill.description),
         });
       }
     }
@@ -456,6 +486,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _searchResults
         ..clear()
         ..addAll(results);
+      _matchedSearchBillIds
+        ..clear()
+        ..addAll(matchedBillIds);
       _positionSearchResultsAtToday();
     });
 
@@ -475,7 +508,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return;
     }
 
-    _searchDebounceTimer = Timer(const Duration(milliseconds: 120), () {
+    _searchDebounceTimer = Timer(const Duration(milliseconds: 300), () {
       if (!mounted) return;
       if (_searchController.text.toLowerCase().trim() != normalizedQuery) return;
       _performSearch(query);
@@ -690,24 +723,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 
                 // Apply search filter if search query is not empty
                 if (_searchQuery.isNotEmpty) {
-                  final allPayees = DatabaseService.getAllPayees();
                   billOcc = billOcc.where((occ) {
                     final bill = occ['bill'] as Bill;
-                    String billDescription = bill.description ?? '';
-                    String payeeName = '';
-                    
-                    if (bill.payeeId != null) {
-                      final payee = allPayees.firstWhere(
-                        (p) => p['id'] == bill.payeeId,
-                        orElse: () => <String, dynamic>{},
-                      );
-                      if (payee.containsKey('name')) {
-                        payeeName = payee['name'] as String;
-                      }
-                    }
-                    
-                    final searchText = '$billDescription $payeeName'.toLowerCase();
-                    return searchText.contains(_searchQuery);
+                    return _matchedSearchBillIds.contains(bill.id);
                   }).toList();
                 }
                 
@@ -735,24 +753,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   
                   // Apply search filter if search query is not empty
                   if (_searchQuery.isNotEmpty) {
-                    final allPayees = DatabaseService.getAllPayees();
                     billOcc = billOcc.where((occ) {
                       final bill = occ['bill'] as Bill;
-                      String billDescription = bill.description ?? '';
-                      String payeeName = '';
-                      
-                      if (bill.payeeId != null) {
-                        final payee = allPayees.firstWhere(
-                          (p) => p['id'] == bill.payeeId,
-                          orElse: () => <String, dynamic>{},
-                        );
-                        if (payee.containsKey('name')) {
-                          payeeName = payee['name'] as String;
-                        }
-                      }
-                      
-                      final searchText = '$billDescription $payeeName'.toLowerCase();
-                      return searchText.contains(_searchQuery);
+                      return _matchedSearchBillIds.contains(bill.id);
                     }).toList();
                   }
                   
@@ -775,24 +778,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   
                   // Apply search filter if search query is not empty
                   if (_searchQuery.isNotEmpty) {
-                    final allPayees = DatabaseService.getAllPayees();
                     billOcc = billOcc.where((occ) {
                       final bill = occ['bill'] as Bill;
-                      String billDescription = bill.description ?? '';
-                      String payeeName = '';
-                      
-                      if (bill.payeeId != null) {
-                        final payee = allPayees.firstWhere(
-                          (p) => p['id'] == bill.payeeId,
-                          orElse: () => <String, dynamic>{},
-                        );
-                        if (payee.containsKey('name')) {
-                          payeeName = payee['name'] as String;
-                        }
-                      }
-                      
-                      final searchText = '$billDescription $payeeName'.toLowerCase();
-                      return searchText.contains(_searchQuery);
+                      return _matchedSearchBillIds.contains(bill.id);
                     }).toList();
                   }
                   
@@ -914,6 +902,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   PaymentStatus _getOccurrencePaymentStatus(Bill bill, DateTime occDate) {
+    final cacheKey = _occurrenceStatusKey(bill.id, occDate);
+    final cached = _occurrenceStatusCache[cacheKey];
+    if (cached != null) return cached;
+
     final persisted = DatabaseService.getBillOccurrenceStatus(bill.id, occDate);
     final persistedStatus = persisted?['paymentStatus'] as PaymentStatus?;
     final persistedIsPaid = persisted?['isPaid'] as bool?;
@@ -934,6 +926,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _backfillOccurrenceStatus(bill, occDate, computedStatus);
     }
 
+    _occurrenceStatusCache[cacheKey] = computedStatus;
     return computedStatus;
   }
 

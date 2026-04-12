@@ -55,6 +55,15 @@ class Bill extends HiveObject {
       return DateTime(yyyy, mm, dd);
     }
 
+    // Handle MM/DD/YYYY from backend
+    final mmddyyyy = RegExp(r'^(\d{2})\/(\d{2})\/(\d{4})$').firstMatch(value);
+    if (mmddyyyy != null) {
+      final mm = int.parse(mmddyyyy.group(1)!);
+      final dd = int.parse(mmddyyyy.group(2)!);
+      final yyyy = int.parse(mmddyyyy.group(3)!);
+      return DateTime(yyyy, mm, dd);
+    }
+
     final parsed = DateTime.parse(value);
     return DateTime(parsed.year, parsed.month, parsed.day);
   }
@@ -153,13 +162,16 @@ class Bill extends HiveObject {
   }
 
   factory Bill.fromJson(Map<String, dynamic> json) {
-    final recurrenceName = json['recurrence']?.toString() ?? Recurrence.none.name;
+    final recurrenceName =
+        json['recurrence']?.toString() ??
+        json['frequency']?.toString() ??
+        Recurrence.none.name;
     final typeName = json['type']?.toString() ?? BillType.expense.name;
     final paymentName = json['paymentStatus']?.toString();
     return Bill(
       id: json['id'] ?? json['billId'],
       amount: (json['amount'] as num).toDouble(),
-      description: json['description'],
+      description: json['description'] ?? json['name'],
       dueDate: _parseDateOnly(json['dueDate']),
       recurrence: Recurrence.values.firstWhere(
         (e) => e.name == recurrenceName,

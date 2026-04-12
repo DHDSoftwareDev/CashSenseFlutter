@@ -1462,7 +1462,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         'payees': payees,
         'settings': settings,
         'bill_occurrence_status': billOccurrences,
-        'payments_history': billOccurrences,
       };
 
       // Convert to JSON
@@ -1685,41 +1684,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
       // Restore bills
       for (var billData in backupData['bills'] as List) {
-        final bill = Bill(
-          id: billData['id'],
-          description: billData['description'],
-          amount: billData['amount'].toDouble(),
-          dueDate: DateTime.parse(billData['dueDate']),
-          recurrence: billData['recurrence'] != null
-              ? Recurrence.values.firstWhere(
-                  (e) => e.toString().split('.').last == billData['recurrence'],
-                  orElse: () => Recurrence.none,
-                )
-              : Recurrence.none,
-          customDays: billData['customDays'] != null ? List<int>.from(billData['customDays']) : null,
-          recurrenceEndDate: billData['recurrenceEndDate'] != null ? DateTime.tryParse(billData['recurrenceEndDate']) : null,
-          recurrenceInterval: billData['recurrenceInterval'] ?? 1,
-          recurrenceWeekdays: billData['recurrenceWeekdays'] != null ? List<int>.from(billData['recurrenceWeekdays']) : null,
-          categoryId: billData['categoryId'],
-          type: billData['type'] != null
-              ? BillType.values.firstWhere(
-                  (e) => e.toString().split('.').last == billData['type'],
-                  orElse: () => BillType.expense,
-                )
-              : BillType.expense,
-          fromAccountId: billData['fromAccountId'],
-          toAccountId: billData['toAccountId'],
-          payeeId: billData['payeeId'],
-          accountId: billData['accountId'],
-          isPaid: billData['isPaid'] ?? false,
-          paymentStatus: billData['paymentStatus'] != null
-              ? PaymentStatus.values.firstWhere(
-                  (e) => e.toString().split('.').last == billData['paymentStatus'],
-                  orElse: () => PaymentStatus.unpaid,
-                )
-              : PaymentStatus.unpaid,
-          // per-bill reminder flag removed; global setting controls reminders
-        );
+        final bill = Bill.fromJson(Map<String, dynamic>.from(billData));
         await DatabaseService.addBill(bill);
       }
 
