@@ -108,6 +108,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.initState();
     _showPaidBills =
         DatabaseService.getSetting<bool>(_showPaidBillsSettingKey, false) ?? false;
+    _refreshCachedData();
     DatabaseService.categoriesVersion.addListener(_onCategoriesChanged);
     DatabaseService.billsVersion.addListener(_onBillsChanged);
     DatabaseService.payeesVersion.addListener(_onPayeesChanged);
@@ -121,16 +122,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _removeSearchDropdown();
       }
     });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scheduleOccurrenceStatusBackgroundSync();
+    });
   }
 
   void _onCategoriesChanged() {
     if (!mounted) return;
+    _refreshCachedData();
     setState(() {}); // Triggers rebuild to update category names/colors/icons
   }
 
   void _onBillsChanged() {
     if (!mounted) return;
+    _refreshCachedData();
     _occurrenceStatusCache.clear();
+    if (!_suppressOccurrenceStatusSync) {
+      _scheduleOccurrenceStatusBackgroundSync();
+    }
     if (_searchQuery.isNotEmpty) {
       _performSearch(_searchController.text);
       return;
@@ -140,7 +150,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   void _onTransactionsChanged() {
     if (!mounted) return;
+    _refreshCachedData();
     _occurrenceStatusCache.clear();
+    if (!_suppressOccurrenceStatusSync) {
+      _scheduleOccurrenceStatusBackgroundSync();
+    }
     if (_searchQuery.isNotEmpty) {
       _performSearch(_searchController.text);
       return;
@@ -150,6 +164,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   void _onPayeesChanged() {
     if (!mounted) return;
+    _refreshCachedData();
     if (_searchQuery.isNotEmpty) {
       _performSearch(_searchController.text);
       return;
@@ -352,6 +367,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   void dispose() {
     _searchDebounceTimer?.cancel();
+    _occurrenceStatusSyncDebounce?.cancel();
     _searchController.dispose();
     _searchFocusNode.dispose();
     _searchResultsScrollController.dispose();
@@ -377,7 +393,103 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final List<Map<String, dynamic>> _searchResults = [];
   final Set<String> _matchedSearchBillIds = <String>{};
   final Map<String, PaymentStatus> _occurrenceStatusCache = <String, PaymentStatus>{};
-  final Set<String> _occurrenceStatusBackfillInFlight = <String>{};
+  List<Bill> _allBillsCache = <Bill>[];
+  List<Map<String, dynamic>> _allPayeesCache = <Map<String, dynamic>>[];
+  List<Transaction> _allTransactionsCache = <Transaction>[];
+  List<Transaction> _visibleTransactionsCache = <Transaction>[];
+  Timer? _occurrenceStatusSyncDebounce;
+  bool _occurrenceStatusSyncInFlight = false;
+  bool _suppressOccurrenceStatusSync = false;
+
+  void _refreshCachedData() {
+    _allBillsCache = DatabaseService.getAllBills();
+    _allPayeesCache = DatabaseService.getAllPayees();
+    _allTransactionsCache = DatabaseService.getAllTransactions();
+    _visibleTransactionsCache = _allTransactionsCache
+        .where((t) => t.hideFromCalendarDashboard != true)
+        .toList();
+  }
+
+  DateTime _dateOnly(DateTime dt) => DateTime(dt.year, dt.month, dt.day);
+
+  void _scheduleOccurrenceStatusBackgroundSync() {
+    if (!mounted) return;
+    _occurrenceStatusSyncDebounce?.cancel();
+    _occurrenceStatusSyncDebounce = Timer(const Duration(milliseconds: 450), () {
+      unawaited(_syncOccurrenceStatusesInBackground());
+    });
+  }
+
+  Future<void> _syncOccurrenceStatusesInBackground() async {
+    if (!mounted || _occurrenceStatusSyncInFlight || _suppressOccurrenceStatusSync) return;
+    _occurrenceStatusSyncInFlight = true;
+    try {
+      final DateTime start;
+      final DateTime end;
+      if (_selectedDay != null) {
+        start = _dateOnly(_selectedDay!);
+        end = start;
+      } else {
+        start = DateTime(_focusedDay.year, _focusedDay.month, 1);
+        end = DateTime(_focusedDay.year, _focusedDay.month + 1, 0);
+      }
+
+      var occurrences = _dedupeBillOccurrences(
+        DatabaseService.getBillOccurrencesBetween(start, end),
+      );
+
+      if (_searchQuery.isNotEmpty) {
+        occurrences = occurrences.where((occ) {
+          final bill = occ['bill'] as Bill?;
+          return bill != null && _matchedSearchBillIds.contains(bill.id);
+        }).toList();
+      }
+
+      final updates = <Map<String, dynamic>>[];
+      for (final occ in occurrences) {
+        final bill = occ['bill'];
+        final occDate = occ['date'];
+        if (bill is! Bill || occDate is! DateTime) continue;
+
+        final computed = _computeOccurrencePaymentStatus(
+          bill,
+          occDate,
+          _allTransactionsCache,
+        );
+        final persisted = DatabaseService.getBillOccurrenceStatus(bill.id, occDate);
+        final persistedStatus = persisted?['paymentStatus'] as PaymentStatus?;
+        final persistedIsPaid = persisted?['isPaid'] as bool?;
+        final persistedFromBool = persistedIsPaid == null
+            ? null
+            : (persistedIsPaid ? PaymentStatus.paid : PaymentStatus.unpaid);
+
+        if (persistedStatus == computed || persistedFromBool == computed) continue;
+
+        updates.add({
+          'billId': bill.id,
+          'date': occDate,
+          'status': computed,
+        });
+      }
+
+      if (updates.isEmpty) return;
+
+      _suppressOccurrenceStatusSync = true;
+      for (final update in updates.take(24)) {
+        await DatabaseService.setBillOccurrenceStatus(
+          update['billId'] as String,
+          update['date'] as DateTime,
+          (update['status'] as PaymentStatus) == PaymentStatus.paid,
+          update['status'] as PaymentStatus,
+        );
+      }
+    } catch (_) {
+      // Keep dashboard responsive even if backfill fails.
+    } finally {
+      _suppressOccurrenceStatusSync = false;
+      _occurrenceStatusSyncInFlight = false;
+    }
+  }
 
   String _occurrenceStatusKey(String billId, DateTime occDate) {
     return '$billId:${occDate.year}-${occDate.month}-${occDate.day}';
@@ -422,8 +534,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return;
     }
 
-    final allBills = DatabaseService.getAllBills();
-    final allPayees = DatabaseService.getAllPayees();
+    final allBills = _allBillsCache;
+    final allPayees = _allPayeesCache;
 
     final payeeNameById = <String, String>{};
     for (final payee in allPayees) {
@@ -532,7 +644,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           icon: const Icon(Icons.add),
           onPressed: () async {
             final isSubscriber = (DatabaseService.getSetting<String>('subscriptionPlan', 'Free') ?? 'Free') != 'Free';
-            final bills = DatabaseService.getAllBills();
+            final bills = _allBillsCache;
             if (!isSubscriber && bills.length >= 100) {
               await showDialog(
                 context: context,
@@ -825,6 +937,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   _selectedDay = selectedDay;
                   _focusedDay = focusedDay; // update _focusedDay here as well
                 });
+                _scheduleOccurrenceStatusBackgroundSync();
               },
               calendarStyle: CalendarStyle(
                 todayDecoration: BoxDecoration(
@@ -852,6 +965,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _refreshData() async {
+    _refreshCachedData();
+    _scheduleOccurrenceStatusBackgroundSync();
     setState(() {});
   }
 
@@ -906,45 +1021,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final cached = _occurrenceStatusCache[cacheKey];
     if (cached != null) return cached;
 
-    final persisted = DatabaseService.getBillOccurrenceStatus(bill.id, occDate);
-    final persistedStatus = persisted?['paymentStatus'] as PaymentStatus?;
-    final persistedIsPaid = persisted?['isPaid'] as bool?;
-
-    final payments = DatabaseService.getAllTransactions()
-        .where((tx) => _matchesBillOccurrenceForStatus(bill, tx, occDate))
-        .toList();
-
-    final totalPaid = _computeSignedTotalPaid(bill, payments);
-    final computedStatus = _finalizeBillStatus(bill, totalPaid);
-
-    // Keep persisted status in sync with computed status, but always return
-    // the computed value so dashboard matches Pay Bill status immediately.
-    final persistedFromBool = persistedIsPaid == null
-        ? null
-        : (persistedIsPaid ? PaymentStatus.paid : PaymentStatus.unpaid);
-    if (persistedStatus != computedStatus && persistedFromBool != computedStatus) {
-      _backfillOccurrenceStatus(bill, occDate, computedStatus);
-    }
+    final computedStatus = _computeOccurrencePaymentStatus(
+      bill,
+      occDate,
+      _allTransactionsCache,
+    );
 
     _occurrenceStatusCache[cacheKey] = computedStatus;
     return computedStatus;
   }
 
-  void _backfillOccurrenceStatus(Bill bill, DateTime occDate, PaymentStatus status) {
-    final key = '${bill.id}_${occDate.year}-${occDate.month}-${occDate.day}';
-    if (!_occurrenceStatusBackfillInFlight.add(key)) return;
-
-    DatabaseService
-        .setBillOccurrenceStatus(
-          bill.id,
-          occDate,
-          status == PaymentStatus.paid,
-          status,
-        )
-        .catchError((_) {})
-        .whenComplete(() {
-          _occurrenceStatusBackfillInFlight.remove(key);
-        });
+  PaymentStatus _computeOccurrencePaymentStatus(
+    Bill bill,
+    DateTime occDate,
+    List<Transaction> allTransactions,
+  ) {
+    final payments = allTransactions
+        .where((tx) => _matchesBillOccurrenceForStatus(bill, tx, occDate))
+        .toList();
+    final totalPaid = _computeSignedTotalPaid(bill, payments);
+    return _finalizeBillStatus(bill, totalPaid);
   }
 
   // ignore: unused_element
@@ -959,6 +1055,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _showPaidBills = !_showPaidBills;
         });
         DatabaseService.setSetting(_showPaidBillsSettingKey, _showPaidBills);
+        _scheduleOccurrenceStatusBackgroundSync();
       },
       selectedColor: theme.colorScheme.primary.withAlpha((0.18 * 255).round()),
       checkmarkColor: theme.colorScheme.primary,
@@ -980,8 +1077,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       
       // Get payee name if available
       if (bill.payeeId != null) {
-        final allPayees = DatabaseService.getAllPayees();
-        final payee = allPayees.firstWhere(
+        final payee = _allPayeesCache.firstWhere(
           (p) => p['id'] == bill.payeeId,
           orElse: () => <String, dynamic>{},
         );
@@ -1055,8 +1151,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         } else {
           String desc = _visibleBillText(bill.description);
           if (bill.payeeId != null) {
-            final payees = DatabaseService.getAllPayees();
-            final p = payees.firstWhere((p) => p['id'] == bill.payeeId, orElse: () => <String, dynamic>{});
+            final p = _allPayeesCache.firstWhere((p) => p['id'] == bill.payeeId, orElse: () => <String, dynamic>{});
             if (p.containsKey('name')) desc = p['name'] as String;
           }
           // Only show dashboard note content when the bill notes field has text.
@@ -1089,7 +1184,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
       recentTransactions.sort((a, b) => b.transaction.date.compareTo(a.transaction.date));
     } else {
-      final allBills = DatabaseService.getAllBills();
+      final allBills = _allBillsCache;
       final now = DateTime.now();
       DateTime start;
       DateTime end;
@@ -1168,8 +1263,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         } else {
           String desc = _visibleBillText(bill.description);
           if (bill.payeeId != null) {
-            final payees = DatabaseService.getAllPayees();
-            final p = payees.firstWhere((p) => p['id'] == bill.payeeId, orElse: () => <String, dynamic>{});
+            final p = _allPayeesCache.firstWhere((p) => p['id'] == bill.payeeId, orElse: () => <String, dynamic>{});
             if (p.containsKey('name')) desc = p['name'] as String;
           }
           String? noteWithAccount;
@@ -1304,9 +1398,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     if (sourceBill != null) {
       // Only count payments for this bill occurrence (billId + occurrence date)
-        final allTransactions = DatabaseService.getAllTransactions()
-          .where((t) => t.hideFromCalendarDashboard != true)
-          .toList();
+      final allTransactions = _visibleTransactionsCache;
       final occDate = transaction.date;
       final occDateStr = DateFormat('MM/dd/yyyy').format(occDate);
       final paymentHistory = allTransactions.where((tx) =>
@@ -1994,7 +2086,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   List<Transaction> _getTransactionsForBillOccurrence(Bill bill, DateTime occurrenceDate) {
     final occDateStr = DateFormat('MM/dd/yyyy').format(occurrenceDate);
-    return DatabaseService.getAllTransactions().where((tx) {
+    return _allTransactionsCache.where((tx) {
       if (tx.billId != bill.id) return false;
 
       if (tx.occurrenceDate != null) {
@@ -2004,8 +2096,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return _isSameDay(tx.date, occurrenceDate) || tx.description.contains(occDateStr);
     }).toList();
   }
-
-  DateTime _dateOnly(DateTime dt) => DateTime(dt.year, dt.month, dt.day);
 
   bool _isWithinOriginalSeriesEnd(Bill bill, DateTime occurrenceDate) {
     if (bill.recurrenceEndDate == null) return true;

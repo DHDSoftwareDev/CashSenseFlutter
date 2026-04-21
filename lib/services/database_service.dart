@@ -25,6 +25,7 @@ class DatabaseService {
   static const String _deletedAccountsKey = 'deletedAccountIds';
   static const String _deletedBillsKey = 'deletedBillIds';
   static const String _deletedCategoriesKey = 'deletedCategoryIds';
+  static const String _deletedTransactionsKey = 'deletedTransactionIds';
   static const String _billRecurrenceEndOverridesKey = 'billRecurrenceEndOverrides';
 
   static List<ReminderOffset> _selectedReminderOffsetsForApi() {
@@ -129,6 +130,36 @@ class DatabaseService {
     final ids = _getDeletedCategoryIds();
     if (ids.remove(trimmed)) {
       await _settingsBox.put(_deletedCategoriesKey, ids);
+      await _settingsBox.flush();
+    }
+  }
+
+  static List<String> _getDeletedTransactionIds() {
+    try {
+      final raw = _settingsBox.get(_deletedTransactionsKey, defaultValue: <dynamic>[]) as List<dynamic>;
+      return raw.map((e) => e.toString()).toList();
+    } catch (_) {
+      return <String>[];
+    }
+  }
+
+  static Future<void> _addDeletedTransactionId(String id) async {
+    final trimmed = id.trim();
+    if (trimmed.isEmpty) return;
+    final ids = _getDeletedTransactionIds();
+    if (!ids.contains(trimmed)) {
+      ids.add(trimmed);
+      await _settingsBox.put(_deletedTransactionsKey, ids);
+      await _settingsBox.flush();
+    }
+  }
+
+  static Future<void> _removeDeletedTransactionId(String id) async {
+    final trimmed = id.trim();
+    if (trimmed.isEmpty) return;
+    final ids = _getDeletedTransactionIds();
+    if (ids.remove(trimmed)) {
+      await _settingsBox.put(_deletedTransactionsKey, ids);
       await _settingsBox.flush();
     }
   }
@@ -601,6 +632,7 @@ class DatabaseService {
         try {
           await removeHiddenTransactionId(tx.id);
         } catch (_) {}
+        await _addDeletedTransactionId(tx.id);
         await _transactionBox.delete(tx.id);
       }
       await _transactionBox.flush();
@@ -625,6 +657,7 @@ class DatabaseService {
     // Ensure the transaction box is flushed so UI/readers see the new transaction
     // immediately and any persistence occurs if the app exits.
     await _transactionBox.flush();
+    await _removeDeletedTransactionId(transaction.id);
     transactionsVersion.value++;
     await _safeAwsCall(() => AwsApiService.createTransaction(transaction), 'create transaction');
   }
@@ -639,6 +672,7 @@ class DatabaseService {
     // Ensure the transaction box is flushed so readers (UI/listeners)
     // observe the updated value when transactionsVersion is incremented.
     await _transactionBox.flush();
+    await _removeDeletedTransactionId(toPersist.id);
     transactionsVersion.value++;
     await _safeAwsCall(() => AwsApiService.updateTransaction(toPersist), 'update transaction');
 
@@ -1349,6 +1383,7 @@ class DatabaseService {
       txDescription = tx.description;
     }
 
+    await _addDeletedTransactionId(id);
     await _transactionBox.delete(id);
     // Flush so the deletion is persisted and any subsequent reads from
     // the Hive box return the updated set of transactions. Notify
@@ -2321,6 +2356,7 @@ class DatabaseService {
     final deletedAccountIds = _getDeletedAccountIds().toSet();
     final deletedBillIds = _getDeletedBillIds().toSet();
     final deletedCategoryIds = _getDeletedCategoryIds().toSet();
+    final deletedTransactionIds = _getDeletedTransactionIds().toSet();
     final recurrenceEndOverrides = _getBillRecurrenceEndOverrides();
 
     if (accounts.isNotEmpty) {
@@ -2423,7 +2459,14 @@ class DatabaseService {
 
     if (transactions.isNotEmpty) {
       for (final tx in transactions) {
-        if (tx.id.trim().isEmpty) continue;
+        final txId = tx.id.trim();
+        if (txId.isEmpty) continue;
+        if (deletedTransactionIds.contains(txId)) {
+          if (_transactionBox.containsKey(txId)) {
+            await _transactionBox.delete(txId);
+          }
+          continue;
+        }
         final existing = _transactionBox.get(tx.id);
         Transaction toPersist = (tx.cleared == null && existing?.cleared != null)
             ? tx.copyWith(cleared: existing!.cleared)

@@ -25,3 +25,6 @@ DerivedData/
 
 # Android signing
 android/key.properties
+
+# Generated Gradle/NetBeans cache artifacts in vendored examples
+third_party/permission_handler_android/example/android/.gradle/nb-cache/
