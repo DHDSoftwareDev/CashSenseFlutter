@@ -45,7 +45,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   static const String _developerUnlockPassword = 'dev2026';
-  static const String _testerUnlockPassword = 'test30days';
+  static const String _testerUnlockPassword = 'tester30days';
   static const String _autoLogoutEnabledKey = 'biometricAutoLogoutEnabled';
   static const String _autoLogoutTimeoutKey = 'biometricAutoLogoutSeconds';
   static const List<int> _autoLogoutTimeoutOptions = <int>[30, 60, 90];

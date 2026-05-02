@@ -360,6 +360,8 @@ class _PayeeSelectorSheetState extends State<_PayeeSelectorSheet> {
       try {
         await LookupsSyncHelper.syncPayeeOrPayer(newPayee);
       } catch (_) {}
+      // Ensure all transactions/bills referencing this payee/payer are updated
+      await DatabaseService.updatePayeeReferences(newPayee);
       // If the widget was disposed while waiting, stop before touching context/state
       if (!mounted) return;
       // Refresh the full list from settings

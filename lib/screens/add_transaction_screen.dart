@@ -162,6 +162,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               _buildAccountSelector(),
             ],
             const SizedBox(height: 8),
+            if (_transactionType != TransactionScreenType.transfer)
               _buildClearedToggle(),
             const SizedBox(height: 8),
             _buildShowInReportsToggle(),

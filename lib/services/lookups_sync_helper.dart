@@ -45,6 +45,13 @@ class LookupsSyncHelper {
   static Future<void> syncPayeeOrPayer(Map<String, dynamic> item) async {
     final type = (item['type'] ?? '').toString().toLowerCase();
     if (type != 'payee' && type != 'payer') return;
+    final rawCategoryId = item['categoryId']?.toString().trim();
+    final categoryId =
+        rawCategoryId == null ||
+            rawCategoryId.isEmpty ||
+            rawCategoryId.toLowerCase() == 'null'
+        ? null
+        : rawCategoryId;
 
     await _repository().createOrUpdate(
       type: type,
@@ -52,6 +59,7 @@ class LookupsSyncHelper {
       name: (item['name'] ?? '').toString(),
       color: _toHexColor(item['color']?.toString()),
       icon: item['icon']?.toString(),
+      categoryId: categoryId,
       sortOrder: (item['sortOrder'] as int?) ?? 0,
     );
   }

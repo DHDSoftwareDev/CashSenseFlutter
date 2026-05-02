@@ -4,6 +4,7 @@ class LookupItem {
   final String name;
   final String? color;
   final String? icon;
+  final String? categoryId;
   final int sortOrder;
   final bool isDeleted;
   final DateTime createdAt;
@@ -15,6 +16,7 @@ class LookupItem {
     required this.name,
     this.color,
     this.icon,
+    this.categoryId,
     required this.sortOrder,
     required this.isDeleted,
     required this.createdAt,
@@ -28,6 +30,7 @@ class LookupItem {
       name: json['name'] as String,
       color: json['color'] as String?,
       icon: json['icon'] as String?,
+      categoryId: json['categoryId']?.toString(),
       sortOrder: (json['sortOrder'] ?? 0) as int,
       isDeleted: (json['isDeleted'] ?? false) as bool,
       createdAt: DateTime.parse(json['createdAt'] as String),
@@ -42,6 +45,7 @@ class LookupItem {
       'name': name,
       'color': color,
       'icon': icon,
+      'categoryId': categoryId,
       'sortOrder': sortOrder,
       'isDeleted': isDeleted,
       'createdAt': createdAt.toIso8601String(),
@@ -55,6 +59,7 @@ class LookupItem {
     String? name,
     String? color,
     String? icon,
+    String? categoryId,
     int? sortOrder,
     bool? isDeleted,
     DateTime? createdAt,
@@ -66,6 +71,7 @@ class LookupItem {
       name: name ?? this.name,
       color: color ?? this.color,
       icon: icon ?? this.icon,
+      categoryId: categoryId ?? this.categoryId,
       sortOrder: sortOrder ?? this.sortOrder,
       isDeleted: isDeleted ?? this.isDeleted,
       createdAt: createdAt ?? this.createdAt,

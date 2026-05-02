@@ -8,10 +8,7 @@ class LookupsApi {
   final String baseUrl;
   final Future<Map<String, String>> Function() authHeadersBuilder;
 
-  LookupsApi({
-    required this.baseUrl,
-    required this.authHeadersBuilder,
-  });
+  LookupsApi({required this.baseUrl, required this.authHeadersBuilder});
 
   Uri _uri(String path, [Map<String, String>? query]) {
     return Uri.parse('$baseUrl$path').replace(queryParameters: query);
@@ -44,6 +41,7 @@ class LookupsApi {
     required String name,
     String? color,
     String? icon,
+    String? categoryId,
     bool? isIncome,
     int sortOrder = 0,
   }) async {
@@ -51,16 +49,14 @@ class LookupsApi {
 
     final response = await http.post(
       _uri('/lookups'),
-      headers: {
-        ...headers,
-        'Content-Type': 'application/json',
-      },
+      headers: {...headers, 'Content-Type': 'application/json'},
       body: jsonEncode({
         'type': type,
         'id': id,
         'name': name,
         'color': color,
         'icon': icon,
+        if (categoryId != null) 'categoryId': categoryId,
         if (isIncome != null) 'isIncome': isIncome,
         'sortOrder': sortOrder,
       }),
@@ -74,21 +70,12 @@ class LookupsApi {
     return LookupItem.fromJson(decoded['item'] as Map<String, dynamic>);
   }
 
-  Future<void> delete({
-    required String type,
-    required String id,
-  }) async {
+  Future<void> delete({required String type, required String id}) async {
     final headers = await authHeadersBuilder();
 
     final request = http.Request('DELETE', _uri('/lookups'));
-    request.headers.addAll({
-      ...headers,
-      'Content-Type': 'application/json',
-    });
-    request.body = jsonEncode({
-      'type': type,
-      'id': id,
-    });
+    request.headers.addAll({...headers, 'Content-Type': 'application/json'});
+    request.body = jsonEncode({'type': type, 'id': id});
 
     final streamed = await request.send();
     final response = await http.Response.fromStream(streamed);

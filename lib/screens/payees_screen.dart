@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import '../utils/formatters.dart';
 import '../services/database_service.dart';
+import '../services/lookups_sync_helper.dart';
 import '../models/category.dart';
 import '../widgets/app_color_picker.dart';
 import '../widgets/category_selector_sheet.dart';
@@ -42,7 +43,11 @@ class _PayeesScreenState extends State<PayeesScreen> {
   }
 
   // Opens a dialog with a search bar and list of available categories. Returns the selected category id or null.
-  Future<String?> _pickCategory(BuildContext parentContext, bool isPayeeChoice, String? currentSelected) async {
+  Future<String?> _pickCategory(
+    BuildContext parentContext,
+    bool isPayeeChoice,
+    String? currentSelected,
+  ) async {
     final selected = await showModalBottomSheet<String?>(
       context: parentContext,
       isScrollControlled: true,
@@ -77,7 +82,9 @@ class _PayeesScreenState extends State<PayeesScreen> {
                             TextField(
                               controller: nameController,
                               textCapitalization: TextCapitalization.sentences,
-                              decoration: const InputDecoration(labelText: 'Name'),
+                              decoration: const InputDecoration(
+                                labelText: 'Name',
+                              ),
                             ),
                             const SizedBox(height: 8),
                             GestureDetector(
@@ -87,7 +94,9 @@ class _PayeesScreenState extends State<PayeesScreen> {
                                   initialColor: selectedColor,
                                   title: 'Pick Category Color',
                                 );
-                                if (picked != null) setState(() => selectedColor = picked);
+                                if (picked != null) {
+                                  setState(() => selectedColor = picked);
+                                }
                               },
                               child: Row(
                                 children: [
@@ -103,7 +112,10 @@ class _PayeesScreenState extends State<PayeesScreen> {
                                   const SizedBox(width: 12),
                                   const Text('Category Color'),
                                   const Spacer(),
-                                  const Icon(Icons.color_lens_outlined, size: 20),
+                                  const Icon(
+                                    Icons.color_lens_outlined,
+                                    size: 20,
+                                  ),
                                 ],
                               ),
                             ),
@@ -122,7 +134,9 @@ class _PayeesScreenState extends State<PayeesScreen> {
                                   name: nameController.text.trim(),
                                   iconCodePoint: '0xe85d',
                                   colorValue: selectedColor.value.toString(),
-                                  type: isPayeeChoice ? CategoryType.expense : CategoryType.income,
+                                  type: isPayeeChoice
+                                      ? CategoryType.expense
+                                      : CategoryType.income,
                                 );
                                 Navigator.pop(ctx, newCat);
                               }
@@ -147,9 +161,15 @@ class _PayeesScreenState extends State<PayeesScreen> {
           body: CategorySelectorSheet(
             categories: (() {
               final categories = isPayeeChoice
-                  ? DatabaseService.getAllCategories().where((c) => c.type == CategoryType.expense).toList()
-                  : DatabaseService.getAllCategories().where((c) => c.type == CategoryType.income).toList();
-              categories.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+                  ? DatabaseService.getAllCategories()
+                        .where((c) => c.type == CategoryType.expense)
+                        .toList()
+                  : DatabaseService.getAllCategories()
+                        .where((c) => c.type == CategoryType.income)
+                        .toList();
+              categories.sort(
+                (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+              );
               return categories;
             })(),
             hideAddButton: true,
@@ -183,8 +203,8 @@ class _PayeesScreenState extends State<PayeesScreen> {
           icon: const Icon(Icons.menu),
           onPressed: openRootDrawer,
         ),
-  title: const Text('Payees / Payers'),
-  centerTitle: true,
+        title: const Text('Payees / Payers'),
+        centerTitle: true,
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
@@ -207,8 +227,14 @@ class _PayeesScreenState extends State<PayeesScreen> {
                 });
               },
               children: const [
-                Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('Payees')),
-                Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('Payers')),
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 12),
+                  child: Text('Payees'),
+                ),
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 12),
+                  child: Text('Payers'),
+                ),
               ],
             ),
           ),
@@ -231,9 +257,7 @@ class _PayeesScreenState extends State<PayeesScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          Expanded(
-            child: _buildPayeesList(),
-          ),
+          Expanded(child: _buildPayeesList()),
         ],
       ),
     );
@@ -260,78 +284,124 @@ class _PayeesScreenState extends State<PayeesScreen> {
 
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(builder: (context, setState) {
-        final allCats = DatabaseService.getAllCategories();
-        final availableCategories = allCats.where((c) {
-          return _showPayee ? c.type == CategoryType.expense : c.type == CategoryType.income;
-        }).toList();
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) {
+          final allCats = DatabaseService.getAllCategories();
+          final availableCategories = allCats.where((c) {
+            return _showPayee
+                ? c.type == CategoryType.expense
+                : c.type == CategoryType.income;
+          }).toList();
 
-        if (availableCategories.isEmpty) {
-          selectedCategoryId = null;
-        } else if (selectedCategoryId != null && !availableCategories.any((c) => c.id == selectedCategoryId)) {
-          selectedCategoryId = null;
-        }
+          if (availableCategories.isEmpty) {
+            selectedCategoryId = null;
+          } else if (selectedCategoryId != null &&
+              !availableCategories.any((c) => c.id == selectedCategoryId)) {
+            selectedCategoryId = null;
+          }
 
-        return AlertDialog(
-          actionsAlignment: MainAxisAlignment.center,
-          title: Center(child: Text('Add ${_showPayee ? 'Payee' : 'Payer'}')),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(controller: nameCtrl, textCapitalization: TextCapitalization.sentences, decoration: const InputDecoration(labelText: 'Name')),
-              const SizedBox(height: 8),
-              if (availableCategories.isNotEmpty) ...[
-                GestureDetector(
-                  onTap: () async {
-                    final picked = await _pickCategory(context, _showPayee, selectedCategoryId);
-                    if (picked != null) setState(() { selectedCategoryId = picked; categoryError = null; });
-                  },
-                  child: InputDecorator(
-                    decoration: const InputDecoration(labelText: 'Category'),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(child: Text(selectedCategoryId == null ? 'Select Category' : (DatabaseService.getCategoryById(selectedCategoryId ?? '')?.name ?? ''))),
-                        const Icon(Icons.arrow_drop_down),
-                      ],
+          return AlertDialog(
+            actionsAlignment: MainAxisAlignment.center,
+            title: Center(child: Text('Add ${_showPayee ? 'Payee' : 'Payer'}')),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameCtrl,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: const InputDecoration(labelText: 'Name'),
+                ),
+                const SizedBox(height: 8),
+                if (availableCategories.isNotEmpty) ...[
+                  GestureDetector(
+                    onTap: () async {
+                      final picked = await _pickCategory(
+                        context,
+                        _showPayee,
+                        selectedCategoryId,
+                      );
+                      if (picked != null) {
+                        setState(() {
+                          selectedCategoryId = picked;
+                          categoryError = null;
+                        });
+                      }
+                    },
+                    child: InputDecorator(
+                      decoration: const InputDecoration(labelText: 'Category'),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              selectedCategoryId == null
+                                  ? 'Select Category'
+                                  : (DatabaseService.getCategoryById(
+                                          selectedCategoryId ?? '',
+                                        )?.name ??
+                                        ''),
+                            ),
+                          ),
+                          const Icon(Icons.arrow_drop_down),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-                if (categoryError != null) ...[
-                  const SizedBox(height: 8),
-                  Text(categoryError!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                  if (categoryError != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      categoryError!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  ],
+                ] else ...[
+                  const SizedBox.shrink(),
                 ],
-              ] else ...[
-                const SizedBox.shrink(),
               ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () async {
+                  final name = nameCtrl.text.trim();
+                  if (name.isEmpty) return;
+                  if (availableCategories.isEmpty) {
+                    setState(() {
+                      categoryError =
+                          'No ${_showPayee ? 'expense' : 'income'} categories available. Create one first.';
+                    });
+                    return;
+                  }
+                  if (selectedCategoryId == null) {
+                    setState(() {
+                      categoryError = 'Please select a category.';
+                    });
+                    return;
+                  }
+                  final newPayee = {
+                    'id': DateTime.now().microsecondsSinceEpoch.toString(),
+                    'name': name,
+                    'type': _showPayee ? 'payee' : 'payer',
+                    'categoryId': selectedCategoryId,
+                  };
+                  await DatabaseService.addPayee(newPayee);
+                  try {
+                    await LookupsSyncHelper.syncPayeeOrPayer(newPayee);
+                  } catch (_) {}
+                  Navigator.pop(context);
+                  _loadPayees();
+                },
+                child: const Text('Add'),
+              ),
             ],
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-            TextButton(onPressed: () async {
-              final name = nameCtrl.text.trim();
-              if (name.isEmpty) return;
-              if (availableCategories.isEmpty) {
-                setState(() { categoryError = 'No ${_showPayee ? 'expense' : 'income'} categories available. Create one first.'; });
-                return;
-              }
-              if (selectedCategoryId == null) {
-                setState(() { categoryError = 'Please select a category.'; });
-                return;
-              }
-              final newPayee = {
-                'id': DateTime.now().microsecondsSinceEpoch.toString(),
-                'name': name,
-                'type': _showPayee ? 'payee' : 'payer',
-                'categoryId': selectedCategoryId,
-              };
-              await DatabaseService.addPayee(newPayee);
-              Navigator.pop(context);
-              _loadPayees();
-            }, child: const Text('Add')),
-          ],
-        );
-      }),
+          );
+        },
+      ),
     );
   }
 
@@ -369,8 +439,14 @@ class _PayeesScreenState extends State<PayeesScreen> {
                 title: const Text('Delete'),
                 content: Text('Delete "${p['name']}"? This cannot be undone.'),
                 actions: [
-                  TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-                  TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete')),
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text('Cancel'),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    child: const Text('Delete'),
+                  ),
                 ],
               ),
             );
@@ -387,7 +463,8 @@ class _PayeesScreenState extends State<PayeesScreen> {
               extentRatio: 0.25,
               children: [
                 CustomSlidableAction(
-                  onPressed: (_) async => _showPayeeDetails(Map<String, dynamic>.from(p)),
+                  onPressed: (_) async =>
+                      _showPayeeDetails(Map<String, dynamic>.from(p)),
                   backgroundColor: Colors.blueGrey,
                   foregroundColor: Colors.white,
                   child: const Column(
@@ -401,7 +478,11 @@ class _PayeesScreenState extends State<PayeesScreen> {
                         maxLines: 1,
                         softWrap: false,
                         overflow: TextOverflow.visible,
-                        style: TextStyle(color: Colors.white, fontSize: 11, height: 1.1),
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          height: 1.1,
+                        ),
                       ),
                     ],
                   ),
@@ -427,7 +508,11 @@ class _PayeesScreenState extends State<PayeesScreen> {
                         maxLines: 1,
                         softWrap: false,
                         overflow: TextOverflow.visible,
-                        style: TextStyle(color: Colors.white, fontSize: 11, height: 1.1),
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          height: 1.1,
+                        ),
                       ),
                     ],
                   ),
@@ -438,9 +523,15 @@ class _PayeesScreenState extends State<PayeesScreen> {
               child: ListTile(
                 title: Text(p['name'] ?? ''),
                 subtitle: p['categoryId'] != null
-                    ? Text(DatabaseService.getCategoryById(p['categoryId'])?.name ?? '')
+                    ? Text(
+                        DatabaseService.getCategoryById(
+                              p['categoryId'],
+                            )?.name ??
+                            '',
+                      )
                     : null,
-                onTap: () async => _showEditPayeeDialog(Map<String, dynamic>.from(p)),
+                onTap: () async =>
+                    _showEditPayeeDialog(Map<String, dynamic>.from(p)),
               ),
             ),
           );
@@ -458,8 +549,14 @@ class _PayeesScreenState extends State<PayeesScreen> {
         title: Row(
           children: [
             CircleAvatar(
-              backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.12),
-              child: Text(((payee['name'] ?? '') as String).isNotEmpty ? (payee['name'][0] ?? '').toString() : '?'),
+              backgroundColor: Theme.of(
+                context,
+              ).colorScheme.primary.withOpacity(0.12),
+              child: Text(
+                ((payee['name'] ?? '') as String).isNotEmpty
+                    ? (payee['name'][0] ?? '').toString()
+                    : '?',
+              ),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -476,7 +573,10 @@ class _PayeesScreenState extends State<PayeesScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 8),
-            Text('Transaction Statistics', style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              'Transaction Statistics',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
             const SizedBox(height: 8),
             FutureBuilder<int>(
               future: _getPayeeTransactionCount(payee),
@@ -502,7 +602,10 @@ class _PayeesScreenState extends State<PayeesScreen> {
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
         ],
       ),
     );
@@ -514,10 +617,14 @@ class _PayeesScreenState extends State<PayeesScreen> {
     final name = (payee['name'] ?? '').toString().toLowerCase();
     final txs = allTx.where((t) {
       try {
-        if (t.note != null && id.isNotEmpty && t.note!.contains(id)) return true;
+        if (t.note != null && id.isNotEmpty && t.note!.contains(id)) {
+          return true;
+        }
       } catch (_) {}
       try {
-        if (t.description.toLowerCase().contains(name) && name.isNotEmpty) return true;
+        if (t.description.toLowerCase().contains(name) && name.isNotEmpty) {
+          return true;
+        }
       } catch (_) {}
       return false;
     }).toList();
@@ -530,10 +637,14 @@ class _PayeesScreenState extends State<PayeesScreen> {
     final name = (payee['name'] ?? '').toString().toLowerCase();
     final txs = allTx.where((t) {
       try {
-        if (t.note != null && id.isNotEmpty && t.note!.contains(id)) return true;
+        if (t.note != null && id.isNotEmpty && t.note!.contains(id)) {
+          return true;
+        }
       } catch (_) {}
       try {
-        if (t.description.toLowerCase().contains(name) && name.isNotEmpty) return true;
+        if (t.description.toLowerCase().contains(name) && name.isNotEmpty) {
+          return true;
+        }
       } catch (_) {}
       return false;
     }).toList();
@@ -549,11 +660,15 @@ class _PayeesScreenState extends State<PayeesScreen> {
           SizedBox(
             width: 100,
             child: Text(
-                '$label:',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
+              '$label:',
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
             ),
           ),
-          Expanded(child: Text(value, style: Theme.of(context).textTheme.bodyMedium)),
+          Expanded(
+            child: Text(value, style: Theme.of(context).textTheme.bodyMedium),
+          ),
         ],
       ),
     );
@@ -569,84 +684,135 @@ class _PayeesScreenState extends State<PayeesScreen> {
 
     await showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(builder: (context, setState) {
-        // Re-fetch categories so edits/adds done from the picker are visible immediately
-        final allCats = DatabaseService.getAllCategories();
-        final availableCategories = allCats.where((c) {
-          return isPayeeChoice ? c.type == CategoryType.expense : c.type == CategoryType.income;
-        }).toList();
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) {
+          // Re-fetch categories so edits/adds done from the picker are visible immediately
+          final allCats = DatabaseService.getAllCategories();
+          final availableCategories = allCats.where((c) {
+            return isPayeeChoice
+                ? c.type == CategoryType.expense
+                : c.type == CategoryType.income;
+          }).toList();
 
-        if (availableCategories.isEmpty) {
-          selectedCategoryId = null;
-        } else if (selectedCategoryId != null && !availableCategories.any((c) => c.id == selectedCategoryId)) {
-          selectedCategoryId = null;
-        }
+          if (availableCategories.isEmpty) {
+            selectedCategoryId = null;
+          } else if (selectedCategoryId != null &&
+              !availableCategories.any((c) => c.id == selectedCategoryId)) {
+            selectedCategoryId = null;
+          }
 
-        return AlertDialog(
-          actionsAlignment: MainAxisAlignment.center,
-          title: Center(child: Text('Edit ${isPayeeChoice ? 'Payee' : 'Payer'}')),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text('Type: ${isPayeeChoice ? 'Payee' : 'Payer'}', style: Theme.of(context).textTheme.bodyMedium),
-                ],
-              ),
-              const SizedBox(height: 8),
-              TextField(controller: nameCtrl, textCapitalization: TextCapitalization.sentences, decoration: const InputDecoration(labelText: 'Name')),
-              const SizedBox(height: 8),
-              if (availableCategories.isNotEmpty) ...[
-                GestureDetector(
-                  onTap: () async {
-                    final picked = await _pickCategory(context, isPayeeChoice, selectedCategoryId);
-                    if (picked != null) setState(() { selectedCategoryId = picked; categoryError = null; });
-                  },
-                  child: InputDecorator(
-                    decoration: const InputDecoration(labelText: 'Category'),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(child: Text(selectedCategoryId == null ? 'Select Category' : (DatabaseService.getCategoryById(selectedCategoryId ?? '')?.name ?? ''))),
-                        const Icon(Icons.arrow_drop_down),
-                      ],
+          return AlertDialog(
+            actionsAlignment: MainAxisAlignment.center,
+            title: Center(
+              child: Text('Edit ${isPayeeChoice ? 'Payee' : 'Payer'}'),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      'Type: ${isPayeeChoice ? 'Payee' : 'Payer'}',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: nameCtrl,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: const InputDecoration(labelText: 'Name'),
+                ),
+                const SizedBox(height: 8),
+                if (availableCategories.isNotEmpty) ...[
+                  GestureDetector(
+                    onTap: () async {
+                      final picked = await _pickCategory(
+                        context,
+                        isPayeeChoice,
+                        selectedCategoryId,
+                      );
+                      if (picked != null) {
+                        setState(() {
+                          selectedCategoryId = picked;
+                          categoryError = null;
+                        });
+                      }
+                    },
+                    child: InputDecorator(
+                      decoration: const InputDecoration(labelText: 'Category'),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              selectedCategoryId == null
+                                  ? 'Select Category'
+                                  : (DatabaseService.getCategoryById(
+                                          selectedCategoryId ?? '',
+                                        )?.name ??
+                                        ''),
+                            ),
+                          ),
+                          const Icon(Icons.arrow_drop_down),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-                if (categoryError != null) ...[
-                  const SizedBox(height: 8),
-                  Text(categoryError!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                  if (categoryError != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      categoryError!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  ],
+                ] else ...[
+                  const SizedBox.shrink(),
                 ],
-              ] else ...[
-                const SizedBox.shrink(),
               ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () async {
+                  final name = nameCtrl.text.trim();
+                  if (name.isEmpty) return;
+                  if (availableCategories.isEmpty) {
+                    setState(() {
+                      categoryError =
+                          'No ${isPayeeChoice ? 'expense' : 'income'} categories available. Create one first.';
+                    });
+                    return;
+                  }
+                  if (selectedCategoryId == null) {
+                    setState(() {
+                      categoryError = 'Please select a category.';
+                    });
+                    return;
+                  }
+                  final updated = Map<String, dynamic>.from(payee)
+                    ..['name'] = name
+                    ..['type'] = isPayeeChoice ? 'payee' : 'payer'
+                    ..['categoryId'] = selectedCategoryId;
+                  await DatabaseService.updatePayee(updated);
+                  try {
+                    await LookupsSyncHelper.syncPayeeOrPayer(updated);
+                  } catch (_) {}
+                  Navigator.pop(context);
+                  _loadPayees();
+                },
+                child: const Text('Save'),
+              ),
             ],
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-            TextButton(onPressed: () async {
-              final name = nameCtrl.text.trim();
-              if (name.isEmpty) return;
-              if (availableCategories.isEmpty) {
-                setState(() { categoryError = 'No ${isPayeeChoice ? 'expense' : 'income'} categories available. Create one first.'; });
-                return;
-              }
-              if (selectedCategoryId == null) {
-                setState(() { categoryError = 'Please select a category.'; });
-                return;
-              }
-              final updated = Map<String, dynamic>.from(payee)
-                ..['name'] = name
-                ..['type'] = isPayeeChoice ? 'payee' : 'payer'
-                ..['categoryId'] = selectedCategoryId;
-              await DatabaseService.updatePayee(updated);
-              Navigator.pop(context);
-              _loadPayees();
-            }, child: const Text('Save')),
-          ],
-        );
-      }),
+          );
+        },
+      ),
     );
   }
 }

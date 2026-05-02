@@ -12,10 +12,7 @@ class LookupsRepository {
   final LookupsApi api;
   final LookupsLocalStore localStore;
 
-  LookupsRepository({
-    required this.api,
-    required this.localStore,
-  });
+  LookupsRepository({required this.api, required this.localStore});
 
   Future<List<LookupItem>> syncType(String type) async {
     final remote = await api.fetchByType(type);
@@ -39,6 +36,7 @@ class LookupsRepository {
     required String name,
     String? color,
     String? icon,
+    String? categoryId,
     bool? isIncome,
     int sortOrder = 0,
   }) async {
@@ -48,18 +46,19 @@ class LookupsRepository {
       name: name,
       color: color,
       icon: icon,
+      categoryId: categoryId,
       isIncome: isIncome,
       sortOrder: sortOrder,
     );
 
-    await localStore.upsertOne(saved);
-    return saved;
+    final toStore = categoryId != null && saved.categoryId == null
+        ? saved.copyWith(categoryId: categoryId)
+        : saved;
+    await localStore.upsertOne(toStore);
+    return toStore;
   }
 
-  Future<void> delete({
-    required String type,
-    required String id,
-  }) async {
+  Future<void> delete({required String type, required String id}) async {
     await api.delete(type: type, id: id);
     await localStore.deleteOne(type, id);
   }
