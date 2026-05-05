@@ -281,6 +281,7 @@ class _PayeesScreenState extends State<PayeesScreen> {
     // Type is determined by _showPayee
     String? selectedCategoryId;
     String? categoryError;
+    bool isSaving = false;
 
     showDialog(
       context: context,
@@ -367,36 +368,47 @@ class _PayeesScreenState extends State<PayeesScreen> {
                 child: const Text('Cancel'),
               ),
               TextButton(
-                onPressed: () async {
-                  final name = nameCtrl.text.trim();
-                  if (name.isEmpty) return;
-                  if (availableCategories.isEmpty) {
-                    setState(() {
-                      categoryError =
-                          'No ${_showPayee ? 'expense' : 'income'} categories available. Create one first.';
-                    });
-                    return;
-                  }
-                  if (selectedCategoryId == null) {
-                    setState(() {
-                      categoryError = 'Please select a category.';
-                    });
-                    return;
-                  }
-                  final newPayee = {
-                    'id': DateTime.now().microsecondsSinceEpoch.toString(),
-                    'name': name,
-                    'type': _showPayee ? 'payee' : 'payer',
-                    'categoryId': selectedCategoryId,
-                  };
-                  await DatabaseService.addPayee(newPayee);
-                  try {
-                    await LookupsSyncHelper.syncPayeeOrPayer(newPayee);
-                  } catch (_) {}
-                  Navigator.pop(context);
-                  _loadPayees();
-                },
-                child: const Text('Add'),
+                onPressed: isSaving
+                    ? null
+                    : () async {
+                        final name = nameCtrl.text.trim();
+                        if (name.isEmpty) return;
+                        if (availableCategories.isEmpty) {
+                          setState(() {
+                            categoryError =
+                                'No ${_showPayee ? 'expense' : 'income'} categories available. Create one first.';
+                          });
+                          return;
+                        }
+                        if (selectedCategoryId == null) {
+                          setState(() {
+                            categoryError = 'Please select a category.';
+                          });
+                          return;
+                        }
+                        setState(() => isSaving = true);
+                        final newPayee = {
+                          'id': DateTime.now().microsecondsSinceEpoch
+                              .toString(),
+                          'name': name,
+                          'type': _showPayee ? 'payee' : 'payer',
+                          'categoryId': selectedCategoryId,
+                        };
+                        try {
+                          await DatabaseService.addPayee(newPayee);
+                          try {
+                            await LookupsSyncHelper.syncPayeeOrPayer(newPayee);
+                          } catch (_) {}
+                          if (!context.mounted) return;
+                          Navigator.pop(context);
+                          _loadPayees();
+                        } finally {
+                          if (context.mounted) {
+                            setState(() => isSaving = false);
+                          }
+                        }
+                      },
+                child: isSaving ? const Text('Saving...') : const Text('Add'),
               ),
             ],
           );
@@ -681,6 +693,7 @@ class _PayeesScreenState extends State<PayeesScreen> {
     // Start with no preselected category so the dropdown shows the hint; keep payee's existing selection if valid
     String? selectedCategoryId = payee['categoryId'];
     String? categoryError;
+    bool isSaving = false;
 
     await showDialog(
       context: context,
@@ -780,34 +793,44 @@ class _PayeesScreenState extends State<PayeesScreen> {
                 child: const Text('Cancel'),
               ),
               TextButton(
-                onPressed: () async {
-                  final name = nameCtrl.text.trim();
-                  if (name.isEmpty) return;
-                  if (availableCategories.isEmpty) {
-                    setState(() {
-                      categoryError =
-                          'No ${isPayeeChoice ? 'expense' : 'income'} categories available. Create one first.';
-                    });
-                    return;
-                  }
-                  if (selectedCategoryId == null) {
-                    setState(() {
-                      categoryError = 'Please select a category.';
-                    });
-                    return;
-                  }
-                  final updated = Map<String, dynamic>.from(payee)
-                    ..['name'] = name
-                    ..['type'] = isPayeeChoice ? 'payee' : 'payer'
-                    ..['categoryId'] = selectedCategoryId;
-                  await DatabaseService.updatePayee(updated);
-                  try {
-                    await LookupsSyncHelper.syncPayeeOrPayer(updated);
-                  } catch (_) {}
-                  Navigator.pop(context);
-                  _loadPayees();
-                },
-                child: const Text('Save'),
+                onPressed: isSaving
+                    ? null
+                    : () async {
+                        final name = nameCtrl.text.trim();
+                        if (name.isEmpty) return;
+                        if (availableCategories.isEmpty) {
+                          setState(() {
+                            categoryError =
+                                'No ${isPayeeChoice ? 'expense' : 'income'} categories available. Create one first.';
+                          });
+                          return;
+                        }
+                        if (selectedCategoryId == null) {
+                          setState(() {
+                            categoryError = 'Please select a category.';
+                          });
+                          return;
+                        }
+                        setState(() => isSaving = true);
+                        final updated = Map<String, dynamic>.from(payee)
+                          ..['name'] = name
+                          ..['type'] = isPayeeChoice ? 'payee' : 'payer'
+                          ..['categoryId'] = selectedCategoryId;
+                        try {
+                          await DatabaseService.updatePayee(updated);
+                          try {
+                            await LookupsSyncHelper.syncPayeeOrPayer(updated);
+                          } catch (_) {}
+                          if (!context.mounted) return;
+                          Navigator.pop(context);
+                          _loadPayees();
+                        } finally {
+                          if (context.mounted) {
+                            setState(() => isSaving = false);
+                          }
+                        }
+                      },
+                child: isSaving ? const Text('Saving...') : const Text('Save'),
               ),
             ],
           );

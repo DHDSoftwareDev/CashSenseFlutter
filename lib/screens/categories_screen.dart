@@ -301,6 +301,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     if (value == 'edit') {
   final nameCtrl = TextEditingController(text: category.name);
   Color selectedColor = category.color;
+  bool isSaving = false;
       await showDialog(
         context: context,
         builder: (context) => StatefulBuilder(
@@ -345,9 +346,12 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
             actions: [
               TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
               TextButton(
-                onPressed: () async {
+                onPressed: isSaving
+                    ? null
+                    : () async {
                   final name = nameCtrl.text.trim();
                   if (name.isEmpty) return;
+                  setState(() => isSaving = true);
                   final edited = Category(
                     id: category.id,
                     name: name,
@@ -358,13 +362,18 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                     image: null,
                     type: _showExpense ? CategoryType.expense : CategoryType.income,
                   );
-                  await DatabaseService.updateCategory(edited);
-                  await DatabaseService.updateCategoryReferences(edited);
-                  if (!mounted) return;
-                  Navigator.pop(context);
-                  _loadCategories();
+                  try {
+                    await DatabaseService.updateCategory(edited);
+                    if (!mounted) return;
+                    Navigator.pop(context);
+                    _loadCategories();
+                  } finally {
+                    if (context.mounted) {
+                      setState(() => isSaving = false);
+                    }
+                  }
                 },
-                child: const Text('Save'),
+                child: isSaving ? const Text('Saving...') : const Text('Save'),
               ),
             ],
           ),

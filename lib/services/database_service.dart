@@ -334,14 +334,21 @@ class DatabaseService {
     final normalizedName = updatedCategory.name.trim();
 
     final txs = getAllTransactions().where((t) => t.categoryId == updatedCategory.id).toList();
+    var updatedCount = 0;
     for (final tx in txs) {
       if ((tx.categoryName ?? '').trim() == normalizedName) continue;
-      await updateTransaction(
-        tx.copyWith(
-          categoryId: updatedCategory.id,
-          categoryName: normalizedName,
-        ),
+      final updated = tx.copyWith(
+        categoryId: updatedCategory.id,
+        categoryName: normalizedName,
+        updatedAt: DateTime.now(),
       );
+      await _transactionBox.put(updated.id, updated);
+      updatedCount++;
+    }
+
+    if (updatedCount > 0) {
+      await _transactionBox.flush();
+      transactionsVersion.value++;
     }
 
     // Bills reference categoryId directly; no denormalized name to rewrite.
@@ -364,6 +371,7 @@ class DatabaseService {
         : getCategoryById(updatedCategoryId)?.name;
 
     final txs = getAllTransactions().where((t) => t.payeeId == payeeId || t.payerId == payeeId).toList();
+    var transactionsUpdated = 0;
     for (final tx in txs) {
       final bool matchesPayee = tx.payeeId == payeeId;
       final bool matchesPayer = tx.payerId == payeeId;
@@ -388,27 +396,39 @@ class DatabaseService {
       final sameCategoryName = (nextCategoryName ?? '') == (tx.categoryName ?? '');
       if (samePayeeName && samePayerName && sameCategoryId && sameCategoryName) continue;
 
-      await updateTransaction(
-        tx.copyWith(
-          payeeName: nextPayeeName,
-          payerName: nextPayerName,
-          categoryId: nextCategoryId,
-          categoryName: nextCategoryName,
-        ),
+      final updated = tx.copyWith(
+        payeeName: nextPayeeName,
+        payerName: nextPayerName,
+        categoryId: nextCategoryId,
+        categoryName: nextCategoryName,
+        updatedAt: DateTime.now(),
       );
+      await _transactionBox.put(updated.id, updated);
+      transactionsUpdated++;
+    }
+
+    if (transactionsUpdated > 0) {
+      await _transactionBox.flush();
+      transactionsVersion.value++;
     }
 
     final bills = getAllBills().where((b) => b.payeeId == payeeId).toList();
+    var billsUpdated = 0;
     for (final bill in bills) {
       final nextBillType = updatedType == 'payer' ? BillType.income : updatedType == 'payee' ? BillType.expense : bill.type;
       final nextBillCategoryId = updatedCategoryId ?? bill.categoryId;
       if (nextBillType == bill.type && nextBillCategoryId == bill.categoryId) continue;
-      await updateBill(
-        bill.copyWith(
-          type: nextBillType,
-          categoryId: nextBillCategoryId,
-        ),
+      final updated = bill.copyWith(
+        type: nextBillType,
+        categoryId: nextBillCategoryId,
       );
+      await _billsBox.put(updated.id, updated);
+      billsUpdated++;
+    }
+
+    if (billsUpdated > 0) {
+      await _billsBox.flush();
+      billsVersion.value++;
     }
   }
   // ...existing code...
@@ -2565,6 +2585,18 @@ class DatabaseService {
           final name = (item['name'] ?? '').toString().trim();
           if (id.isEmpty || name.isEmpty) continue;
           final existing = merged[id];
+          final rawCategoryId = item['categoryId']?.toString().trim();
+          final incomingCategoryId =
+              rawCategoryId == null || rawCategoryId.isEmpty || rawCategoryId.toLowerCase() == 'null'
+                  ? null
+                  : rawCategoryId;
+          final rawExistingCategoryId = existing?['categoryId']?.toString().trim();
+          final existingCategoryId =
+              rawExistingCategoryId == null ||
+                  rawExistingCategoryId.isEmpty ||
+                  rawExistingCategoryId.toLowerCase() == 'null'
+              ? null
+              : rawExistingCategoryId;
           final incomingLooksLikeId = name == id || looksOpaque(name);
           final existingName = (existing?['name'] ?? '').toString().trim();
           final existingIsGood =
@@ -2579,7 +2611,7 @@ class DatabaseService {
             'id': id,
             'name': name,
             'type': (item['type'] ?? defaultType).toString(),
-            'categoryId': item['categoryId']?.toString(),
+            'categoryId': incomingCategoryId ?? existingCategoryId,
           };
         }
       }
