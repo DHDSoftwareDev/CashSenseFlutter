@@ -7,14 +7,23 @@ import '../models/cashsense_user.dart';
 import 'aws_api_service.dart';
 import 'user_auth_service.dart';
 
+class BackendUserInvalidatedException implements Exception {
+  final int statusCode;
+  final String body;
+
+  const BackendUserInvalidatedException(this.statusCode, this.body);
+
+  @override
+  String toString() =>
+      'Backend user invalidated: $statusCode${body.isEmpty ? '' : ' $body'}';
+}
+
 class CashSenseUserApi {
   final String baseUrl;
 
   CashSenseUserApi({required this.baseUrl});
 
-  Future<CashSenseUser> getCurrentUser({
-    required String idToken,
-  }) async {
+  Future<CashSenseUser> getCurrentUser({required String idToken}) async {
     final normalizedBase = baseUrl.endsWith('/')
         ? baseUrl.substring(0, baseUrl.length - 1)
         : baseUrl;
@@ -27,6 +36,12 @@ class CashSenseUserApi {
         'Authorization': 'Bearer $idToken',
       },
     );
+
+    if (res.statusCode == 401 ||
+        res.statusCode == 403 ||
+        res.statusCode == 404) {
+      throw BackendUserInvalidatedException(res.statusCode, res.body);
+    }
 
     if (res.statusCode != 200) {
       throw Exception('Failed to load user: ${res.statusCode} ${res.body}');

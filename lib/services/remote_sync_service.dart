@@ -12,6 +12,7 @@ import 'aws_api_service.dart';
 import 'cognito_service.dart';
 import 'database_service.dart';
 import 'amplify_service.dart';
+import 'session_cleanup_service.dart';
 import 'user_api_service.dart';
 import 'user_auth_service.dart';
 
@@ -36,6 +37,8 @@ class RemoteSyncService {
       }
       debugPrint('Remote sync allowed for premium user ($plan)');
 
+      await DatabaseService.syncLocallyModifiedBills();
+
       var accounts = await safeFetch(AwsApiService.fetchAccounts);
       var bills = await safeFetch(AwsApiService.fetchBills);
       var transactions = await safeFetch(AwsApiService.fetchTransactions);
@@ -56,7 +59,9 @@ class RemoteSyncService {
       if (remoteEmpty) {
         final cloudSnapshot = await _fetchCloudBackupSnapshot();
         if (cloudSnapshot != null) {
-          debugPrint('Remote API empty. Restoring latest cloud backup on login.');
+          debugPrint(
+            'Remote API empty. Restoring latest cloud backup on login.',
+          );
           accounts = cloudSnapshot.accounts;
           bills = cloudSnapshot.bills;
           transactions = cloudSnapshot.transactions;
@@ -79,9 +84,7 @@ class RemoteSyncService {
         bills: bills,
       );
 
-      final inferredContacts = _inferContactsFromTransactions(
-        transactions,
-      );
+      final inferredContacts = _inferContactsFromTransactions(transactions);
 
       await DatabaseService.hydrateFromRemoteSnapshot(
         accounts: accounts,
@@ -98,6 +101,9 @@ class RemoteSyncService {
         'transactions=${transactions.length}, categories=${categories.length}, '
         'payees=${remotePayees.length}, payers=${remotePayers.length}, payments=${payments.length}',
       );
+    } on BackendUserInvalidatedException {
+      await SessionCleanupService.clearInvalidatedBackendUser();
+      rethrow;
     } catch (e) {
       debugPrint('Remote sync failed: $e');
     } finally {
@@ -115,6 +121,8 @@ class RemoteSyncService {
         await DatabaseService.setSubscriptionPlan(resolvedPlan);
         debugPrint('Subscription synced from /users/me: $resolvedPlan');
       }
+    } on BackendUserInvalidatedException {
+      rethrow;
     } catch (e) {
       debugPrint('Failed to refresh subscription from /users/me: $e');
     }
@@ -139,7 +147,9 @@ class RemoteSyncService {
 
     if (tier == 'monthly' || tier == 'month') return 'Monthly';
     if (tier == 'annual' || tier == 'yearly' || tier == 'year') return 'Annual';
-    if (tier == 'lifetime' || tier == 'premium' || tier == 'pro') return 'Lifetime';
+    if (tier == 'lifetime' || tier == 'premium' || tier == 'pro') {
+      return 'Lifetime';
+    }
     if (tier == 'free') return 'Free';
 
     return 'Lifetime';
@@ -154,9 +164,12 @@ class RemoteSyncService {
       if (userId.isEmpty) return null;
 
       final key = 'backups/$userId/auto/latest.json';
-      final tmpDir = Directory('${Directory.systemTemp.path}/cashsense_cloud_restore');
+      final tmpDir = Directory(
+        '${Directory.systemTemp.path}/cashsense_cloud_restore',
+      );
       await tmpDir.create(recursive: true);
-      final tmpPath = '${tmpDir.path}/latest_${DateTime.now().millisecondsSinceEpoch}.json';
+      final tmpPath =
+          '${tmpDir.path}/latest_${DateTime.now().millisecondsSinceEpoch}.json';
 
       final downloaded = await AmplifyService.downloadFile(key, tmpPath);
       if (!downloaded) return null;
@@ -170,11 +183,19 @@ class RemoteSyncService {
       final decoded = jsonDecode(raw);
       if (decoded is! Map<String, dynamic>) return null;
 
-      final accounts = _parseModelList<Account>(decoded['accounts'], Account.fromJson);
+      final accounts = _parseModelList<Account>(
+        decoded['accounts'],
+        Account.fromJson,
+      );
       final bills = _parseModelList<Bill>(decoded['bills'], Bill.fromJson);
-      final transactions =
-          _parseModelList<Transaction>(decoded['transactions'], Transaction.fromJson);
-      final categories = _parseModelList<Category>(decoded['categories'], Category.fromJson);
+      final transactions = _parseModelList<Transaction>(
+        decoded['transactions'],
+        Transaction.fromJson,
+      );
+      final categories = _parseModelList<Category>(
+        decoded['categories'],
+        Category.fromJson,
+      );
       final payees = _parseMapList(decoded['payees']);
       final payers = _parseMapList(decoded['payers']);
 
@@ -183,10 +204,12 @@ class RemoteSyncService {
           ? _parseMapList(paymentsRaw)
           : <Map<String, dynamic>>[];
 
-      final statusRaw = decoded['bill_occurrence_status'] ??
+      final statusRaw =
+          decoded['bill_occurrence_status'] ??
           (paymentsRaw is Map<String, dynamic> ? paymentsRaw : null);
-      final billOccurrenceStatuses =
-          statusRaw is Map<String, dynamic> ? statusRaw : <String, dynamic>{};
+      final billOccurrenceStatuses = statusRaw is Map<String, dynamic>
+          ? statusRaw
+          : <String, dynamic>{};
 
       try {
         await file.delete();
@@ -245,13 +268,18 @@ class RemoteSyncService {
       for (final c in remoteCategories) c.id: c,
     };
 
-    void ensureCategoryId(String? id, CategoryType type, {String? preferredName}) {
+    void ensureCategoryId(
+      String? id,
+      CategoryType type, {
+      String? preferredName,
+    }) {
       final value = (id ?? '').trim();
       if (value.isEmpty || byId.containsKey(value)) return;
       final name = (preferredName ?? '').trim();
       // Skip creating synthetic categories when the ID is opaque and no
       // readable name is available from upstream payloads.
-      if (_looksLikeOpaqueId(value) && (name.isEmpty || _looksLikeOpaqueId(name))) {
+      if (_looksLikeOpaqueId(value) &&
+          (name.isEmpty || _looksLikeOpaqueId(name))) {
         return;
       }
 
@@ -274,14 +302,18 @@ class RemoteSyncService {
     for (final tx in transactions) {
       ensureCategoryId(
         tx.categoryId,
-        tx.type == TransactionType.income ? CategoryType.income : CategoryType.expense,
+        tx.type == TransactionType.income
+            ? CategoryType.income
+            : CategoryType.expense,
         preferredName: tx.categoryName,
       );
     }
 
     for (final bill in bills) {
       final id = bill.categoryId;
-      final type = bill.type.toString().contains('income') ? CategoryType.income : CategoryType.expense;
+      final type = bill.type.toString().contains('income')
+          ? CategoryType.income
+          : CategoryType.expense;
       ensureCategoryId(id, type);
     }
 
@@ -346,10 +378,7 @@ class RemoteSyncService {
       }
     }
 
-    return {
-      'payees': payees.values.toList(),
-      'payers': payers.values.toList(),
-    };
+    return {'payees': payees.values.toList(), 'payers': payers.values.toList()};
   }
 }
 

@@ -144,7 +144,6 @@ class _BillReminderPickerState extends State<BillReminderPicker> {
                   ),
                   child: ListTile(
                     title: Text(reminder.daysLabel),
-                    subtitle: Text(reminder.timeLabel),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () => _editReminder(index),
                   ),
@@ -168,7 +167,6 @@ class _ReminderEditorSheet extends StatefulWidget {
 
 class _ReminderEditorSheetState extends State<_ReminderEditorSheet> {
   late int _daysBefore;
-  late TimeOfDay _time;
 
   static const List<int> _dayOptions = [0, 1, 2, 3, 5, 7, 14, 30];
 
@@ -177,39 +175,21 @@ class _ReminderEditorSheetState extends State<_ReminderEditorSheet> {
     super.initState();
     final initial = widget.initialValue;
     _daysBefore = initial?.daysBefore ?? 1;
-    _time = TimeOfDay(
-      hour: initial?.hour ?? 9,
-      minute: initial?.minute ?? 0,
-    );
+    // Time is fixed to 9:00 AM
   }
 
-  Future<void> _pickTime() async {
-    final picked = await showTimePicker(
-      context: context,
-      initialTime: _time,
-    );
-    if (picked != null) {
-      setState(() => _time = picked);
-    }
-  }
 
   void _save() {
     Navigator.pop(
       context,
       ReminderOffset(
         daysBefore: _daysBefore,
-        hour: _time.hour,
-        minute: _time.minute,
+        hour: 9,
+        minute: 0,
       ),
     );
   }
 
-  String _timeText(TimeOfDay time) {
-    final hour = time.hourOfPeriod == 0 ? 12 : time.hourOfPeriod;
-    final minute = time.minute.toString().padLeft(2, '0');
-    final period = time.period == DayPeriod.am ? 'AM' : 'PM';
-    return '$hour:$minute $period';
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -259,23 +239,6 @@ class _ReminderEditorSheetState extends State<_ReminderEditorSheet> {
               },
             ),
             const SizedBox(height: 12),
-            InkWell(
-              onTap: _pickTime,
-              borderRadius: BorderRadius.circular(12),
-              child: InputDecorator(
-                decoration: const InputDecoration(
-                  labelText: 'Time',
-                  border: OutlineInputBorder(),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(child: Text(_timeText(_time))),
-                    const Icon(Icons.schedule),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(

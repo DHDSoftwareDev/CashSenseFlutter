@@ -21,6 +21,7 @@ import 'services/bill_reminder_service.dart';
 import 'services/push_token_service.dart';
 import 'services/biometric_auth_service.dart';
 import 'services/remote_sync_service.dart';
+import 'services/session_cleanup_service.dart';
 import 'timezone_init.dart';
 import 'screens/main_navigation_screen.dart';
 import 'screens/login_screen.dart';
@@ -40,9 +41,14 @@ import 'package:provider/provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/user_session_controller.dart';
 
+bool _isHandlingBackendUserInvalidation = false;
+
 void main() async {
- WidgetsFlutterBinding.ensureInitialized();
-  await _safeInitStep('Timezone initialization', () => TimezoneInit.ensureInitialized());
+  WidgetsFlutterBinding.ensureInitialized();
+  await _safeInitStep(
+    'Timezone initialization',
+    () => TimezoneInit.ensureInitialized(),
+  );
   // Load environment variables (block: required for backend config)
   await _safeInitStep('Load .env', () => dotenv.load(fileName: ".env"));
 
@@ -69,8 +75,10 @@ void main() async {
   );
 
   // Decide initial home: show auth screens at startup when enabled and user not signed in
-  final bool enableAuthUI = DatabaseService.getSetting<bool>('enableAuthUI', true) ?? true;
-  final bool isSignedIn = await _safeInitValue<bool>(
+  final bool enableAuthUI =
+      DatabaseService.getSetting<bool>('enableAuthUI', true) ?? true;
+  final bool isSignedIn =
+      await _safeInitValue<bool>(
         'Check Cognito sign-in',
         () => CognitoService.isSignedIn(),
         timeout: const Duration(seconds: 8),
@@ -78,7 +86,9 @@ void main() async {
       false;
 
   final shouldShowLogin = enableAuthUI && !isSignedIn;
-  final Widget initialHome = shouldShowLogin ? const LoginScreen() : MainNavigationScreen(key: mainNavKey);
+  final Widget initialHome = shouldShowLogin
+      ? const LoginScreen()
+      : MainNavigationScreen(key: mainNavKey);
   final userSession = UserSessionController(
     api: CashSenseUserApi(baseUrl: AwsApiService.baseUrl),
   );
@@ -101,7 +111,10 @@ void main() async {
 
   // Local-first: hydrate lookups before first frame when already authenticated.
   if (isSignedIn) {
-    await _safeInitStep('Load local lookups', () => lookupsState.loadFromLocal());
+    await _safeInitStep(
+      'Load local lookups',
+      () => lookupsState.loadFromLocal(),
+    );
   }
 
   runApp(
@@ -180,6 +193,9 @@ Future<void> _startDeferredInits(
       }),
     if (isSignedIn)
       _refreshCurrentUserSession(userSession).catchError((e) {
+        if (e is BackendUserInvalidatedException) {
+          return _handleBackendUserInvalidated(userSession);
+        }
         debugPrint('Refresh current user session failed: $e');
         return null;
       }),
@@ -188,10 +204,14 @@ Future<void> _startDeferredInits(
   // Sequence remote sync before lookups sync so subscription plan refresh has
   // happened; otherwise lookups can be skipped as "Free" on one device.
   if (isSignedIn) {
-    await RemoteSyncService.syncUserDataOnLogin().catchError((e) {
+    try {
+      await RemoteSyncService.syncUserDataOnLogin();
+    } on BackendUserInvalidatedException {
+      await _handleBackendUserInvalidated(userSession);
+      return;
+    } catch (e) {
       debugPrint('Remote data sync failed: $e');
-      return null;
-    });
+    }
 
     await lookupsState.syncRemote().catchError((e) {
       debugPrint('Lookup sync failed: $e');
@@ -200,10 +220,30 @@ Future<void> _startDeferredInits(
   }
 }
 
-Future<void> _refreshCurrentUserSession(UserSessionController userSession) async {
+Future<void> _refreshCurrentUserSession(
+  UserSessionController userSession,
+) async {
   final idToken = await AwsApiService.getIdToken();
   if (idToken.isEmpty) return;
   await userSession.refreshUser(idToken: idToken);
+}
+
+Future<void> _handleBackendUserInvalidated(
+  UserSessionController userSession,
+) async {
+  if (_isHandlingBackendUserInvalidation) return;
+  _isHandlingBackendUserInvalidation = true;
+  try {
+    await SessionCleanupService.clearInvalidatedBackendUser(
+      userSession: userSession,
+    );
+    navigatorKey.currentState?.pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (route) => false,
+    );
+  } finally {
+    _isHandlingBackendUserInvalidation = false;
+  }
 }
 
 Future<void> _initDatabase() async {
@@ -231,8 +271,10 @@ Future<void> _configureAmplify() async {
   try {
     final bucketRaw = (dotenv.env['S3_BUCKET'] ?? '').trim();
     final bucket = _normalizeBucketName(bucketRaw);
-    final region = (dotenv.env['AWS_REGION'] ?? dotenv.env['COGNITO_REGION'] ?? '').trim();
-    final identityPoolId = (dotenv.env['COGNITO_IDENTITY_POOL_ID'] ?? '').trim();
+    final region =
+        (dotenv.env['AWS_REGION'] ?? dotenv.env['COGNITO_REGION'] ?? '').trim();
+    final identityPoolId = (dotenv.env['COGNITO_IDENTITY_POOL_ID'] ?? '')
+        .trim();
     final storageEnabled = bucket.isNotEmpty && region.isNotEmpty;
 
     final List<AmplifyPluginInterface> plugins = [
@@ -270,16 +312,16 @@ String _withStorageConfig(
   final decoded = jsonDecode(baseConfig) as Map<String, dynamic>;
 
   if (identityPoolId.isNotEmpty) {
-    final auth = (decoded['auth'] as Map<String, dynamic>?) ?? <String, dynamic>{};
-    final plugins = (auth['plugins'] as Map<String, dynamic>?) ?? <String, dynamic>{};
+    final auth =
+        (decoded['auth'] as Map<String, dynamic>?) ?? <String, dynamic>{};
+    final plugins =
+        (auth['plugins'] as Map<String, dynamic>?) ?? <String, dynamic>{};
     final cognito =
-        (plugins['awsCognitoAuthPlugin'] as Map<String, dynamic>?) ?? <String, dynamic>{};
+        (plugins['awsCognitoAuthPlugin'] as Map<String, dynamic>?) ??
+        <String, dynamic>{};
 
     cognito['CognitoIdentity'] = {
-      'Default': {
-        'PoolId': identityPoolId,
-        'Region': region,
-      },
+      'Default': {'PoolId': identityPoolId, 'Region': region},
     };
 
     plugins['awsCognitoAuthPlugin'] = cognito;
@@ -289,10 +331,7 @@ String _withStorageConfig(
 
   decoded['storage'] = {
     'plugins': {
-      'awsS3StoragePlugin': {
-        'bucket': bucket,
-        'region': region,
-      },
+      'awsS3StoragePlugin': {'bucket': bucket, 'region': region},
     },
   };
   return jsonEncode(decoded);
@@ -319,17 +358,19 @@ class CashSenseApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<ThemeProvider>(builder: (context, themeProvider, _) {
-      return MaterialApp(
-        navigatorKey: navigatorKey,
-        title: 'CashSense',
-        theme: AppTheme.lightThemeFor(themeProvider.primaryColor),
-        darkTheme: AppTheme.darkThemeFor(themeProvider.primaryColor),
-        themeMode: themeProvider.themeMode,
-        home: AppLifecycleBiometricLock(child: initialHome),
-        debugShowCheckedModeBanner: false,
-      );
-    });
+    return Consumer<ThemeProvider>(
+      builder: (context, themeProvider, _) {
+        return MaterialApp(
+          navigatorKey: navigatorKey,
+          title: 'CashSense',
+          theme: AppTheme.lightThemeFor(themeProvider.primaryColor),
+          darkTheme: AppTheme.darkThemeFor(themeProvider.primaryColor),
+          themeMode: themeProvider.themeMode,
+          home: AppLifecycleBiometricLock(child: initialHome),
+          debugShowCheckedModeBanner: false,
+        );
+      },
+    );
   }
 }
 
@@ -339,7 +380,8 @@ class AppLifecycleBiometricLock extends StatefulWidget {
   const AppLifecycleBiometricLock({super.key, required this.child});
 
   @override
-  State<AppLifecycleBiometricLock> createState() => _AppLifecycleBiometricLockState();
+  State<AppLifecycleBiometricLock> createState() =>
+      _AppLifecycleBiometricLockState();
 }
 
 class _AppLifecycleBiometricLockState extends State<AppLifecycleBiometricLock>
@@ -363,7 +405,9 @@ class _AppLifecycleBiometricLockState extends State<AppLifecycleBiometricLock>
       try {
         await _authenticateOnAppOpen().timeout(const Duration(seconds: 10));
       } on TimeoutException {
-        debugPrint('⚠️ Biometric startup auth timed out; continuing app startup');
+        debugPrint(
+          '⚠️ Biometric startup auth timed out; continuing app startup',
+        );
       } catch (e) {
         debugPrint('⚠️ Biometric startup auth failed: $e');
       }
@@ -546,7 +590,8 @@ class _AppLifecycleBiometricLockState extends State<AppLifecycleBiometricLock>
   }
 
   bool _isAutoLogoutEnabled() {
-    return DatabaseService.getSetting<bool>(_autoLogoutEnabledKey, true) ?? true;
+    return DatabaseService.getSetting<bool>(_autoLogoutEnabledKey, true) ??
+        true;
   }
 
   @override
@@ -630,7 +675,9 @@ class _AppLifecycleBiometricLockState extends State<AppLifecycleBiometricLock>
                           child: TextButton(
                             onPressed: () {
                               Navigator.of(context).pushAndRemoveUntil(
-                                MaterialPageRoute(builder: (_) => const LoginScreen()),
+                                MaterialPageRoute(
+                                  builder: (_) => const LoginScreen(),
+                                ),
                                 (route) => false,
                               );
                             },
@@ -672,12 +719,14 @@ Future<void> runUpgradeMigrations() async {
 }
 
 Future<void> _registerDeviceAfterUpgradeIfNeeded() async {
-  final bool notifEnabled = DatabaseService.getSetting<bool>('notif_billReminders', false) ?? false;
+  final bool notifEnabled =
+      DatabaseService.getSetting<bool>('notif_billReminders', false) ?? false;
   if (!notifEnabled) return;
 
   final info = await PackageInfo.fromPlatform();
   final currentBuild = int.tryParse(info.buildNumber) ?? 0;
-  final lastRegisteredBuild = DatabaseService.getSetting<int>('lastDeviceRegisterBuild', 0) ?? 0;
+  final lastRegisteredBuild =
+      DatabaseService.getSetting<int>('lastDeviceRegisterBuild', 0) ?? 0;
   if (currentBuild <= lastRegisteredBuild) return;
 
   await PushTokenService.registerDeviceOnLogin();
@@ -687,7 +736,8 @@ Future<void> _registerDeviceAfterUpgradeIfNeeded() async {
 
 /// Register device on every app launch (if notifications enabled).
 Future<void> _registerDeviceEveryLaunch() async {
-  final bool notifEnabled = DatabaseService.getSetting<bool>('notif_billReminders', false) ?? false;
+  final bool notifEnabled =
+      DatabaseService.getSetting<bool>('notif_billReminders', false) ?? false;
   if (!notifEnabled) return;
 
   await PushTokenService.registerDeviceOnLogin();

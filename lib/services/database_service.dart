@@ -1,4 +1,3 @@
-
 import 'package:hive_flutter/hive_flutter.dart';
 import 'dart:convert';
 import 'dart:io';
@@ -12,21 +11,29 @@ import '../models/bill.dart';
 import '../models/reminder_offset.dart';
 import 'aws_api_service.dart';
 
-
 class DatabaseService {
   static const String _hideFromCalendarMarker = '__hide_from_calendar__';
-  static const String _legacyAccountCalendarMigrationKey = 'migratedLegacyAccountCalendarHiddenV1';
-  static const String _legacyCategoryNameMigrationKey = 'migratedLegacyTransactionCategoryNamesV1';
-  static const String _legacyCategoryResolutionMigrationKey = 'migratedLegacyTransactionCategoryResolutionV1';
-  static const String _legacyPaymentForMigrationKey = 'migratedLegacyTransactionPaymentForV1';
-  static const String _legacyRecurringSplitOverlapMigrationKey = 'migratedLegacyRecurringSplitOverlapV1';
-  static const String _postFixRecurringSplitRepairKey = 'postFixRecurringSplitRepairV2';
-  static const String _legacyBillPlaceholderTextMigrationKey = 'migratedLegacyBillPlaceholderTextV1';
+  static const String _legacyAccountCalendarMigrationKey =
+      'migratedLegacyAccountCalendarHiddenV1';
+  static const String _legacyCategoryNameMigrationKey =
+      'migratedLegacyTransactionCategoryNamesV1';
+  static const String _legacyCategoryResolutionMigrationKey =
+      'migratedLegacyTransactionCategoryResolutionV1';
+  static const String _legacyPaymentForMigrationKey =
+      'migratedLegacyTransactionPaymentForV1';
+  static const String _legacyRecurringSplitOverlapMigrationKey =
+      'migratedLegacyRecurringSplitOverlapV1';
+  static const String _postFixRecurringSplitRepairKey =
+      'postFixRecurringSplitRepairV2';
+  static const String _legacyBillPlaceholderTextMigrationKey =
+      'migratedLegacyBillPlaceholderTextV1';
   static const String _deletedAccountsKey = 'deletedAccountIds';
   static const String _deletedBillsKey = 'deletedBillIds';
   static const String _deletedCategoriesKey = 'deletedCategoryIds';
   static const String _deletedTransactionsKey = 'deletedTransactionIds';
-  static const String _billRecurrenceEndOverridesKey = 'billRecurrenceEndOverrides';
+  static const String _billRecurrenceEndOverridesKey =
+      'billRecurrenceEndOverrides';
+  static const String _locallyModifiedBillsKey = 'locallyModifiedBillIds';
 
   static List<ReminderOffset> _selectedReminderOffsetsForApi() {
     try {
@@ -67,7 +74,9 @@ class DatabaseService {
 
   static List<String> _getDeletedAccountIds() {
     try {
-      final raw = _settingsBox.get(_deletedAccountsKey, defaultValue: <dynamic>[]) as List<dynamic>;
+      final raw =
+          _settingsBox.get(_deletedAccountsKey, defaultValue: <dynamic>[])
+              as List<dynamic>;
       return raw.map((e) => e.toString()).toList();
     } catch (_) {
       return <String>[];
@@ -97,7 +106,9 @@ class DatabaseService {
 
   static List<String> _getDeletedBillIds() {
     try {
-      final raw = _settingsBox.get(_deletedBillsKey, defaultValue: <dynamic>[]) as List<dynamic>;
+      final raw =
+          _settingsBox.get(_deletedBillsKey, defaultValue: <dynamic>[])
+              as List<dynamic>;
       return raw.map((e) => e.toString()).toList();
     } catch (_) {
       return <String>[];
@@ -106,7 +117,9 @@ class DatabaseService {
 
   static List<String> _getDeletedCategoryIds() {
     try {
-      final raw = _settingsBox.get(_deletedCategoriesKey, defaultValue: <dynamic>[]) as List<dynamic>;
+      final raw =
+          _settingsBox.get(_deletedCategoriesKey, defaultValue: <dynamic>[])
+              as List<dynamic>;
       return raw.map((e) => e.toString()).toList();
     } catch (_) {
       return <String>[];
@@ -136,7 +149,9 @@ class DatabaseService {
 
   static List<String> _getDeletedTransactionIds() {
     try {
-      final raw = _settingsBox.get(_deletedTransactionsKey, defaultValue: <dynamic>[]) as List<dynamic>;
+      final raw =
+          _settingsBox.get(_deletedTransactionsKey, defaultValue: <dynamic>[])
+              as List<dynamic>;
       return raw.map((e) => e.toString()).toList();
     } catch (_) {
       return <String>[];
@@ -185,6 +200,38 @@ class DatabaseService {
     }
   }
 
+  static List<String> _getLocallyModifiedBillIds() {
+    try {
+      final raw =
+          _settingsBox.get(_locallyModifiedBillsKey, defaultValue: <dynamic>[])
+              as List<dynamic>;
+      return raw.map((e) => e.toString()).toList();
+    } catch (_) {
+      return <String>[];
+    }
+  }
+
+  static Future<void> _addLocallyModifiedBillId(String id) async {
+    final trimmed = id.trim();
+    if (trimmed.isEmpty) return;
+    final ids = _getLocallyModifiedBillIds();
+    if (!ids.contains(trimmed)) {
+      ids.add(trimmed);
+      await _settingsBox.put(_locallyModifiedBillsKey, ids);
+      await _settingsBox.flush();
+    }
+  }
+
+  static Future<void> _removeLocallyModifiedBillId(String id) async {
+    final trimmed = id.trim();
+    if (trimmed.isEmpty) return;
+    final ids = _getLocallyModifiedBillIds();
+    if (ids.remove(trimmed)) {
+      await _settingsBox.put(_locallyModifiedBillsKey, ids);
+      await _settingsBox.flush();
+    }
+  }
+
   static Map<String, DateTime> _getBillRecurrenceEndOverrides() {
     try {
       final raw = _settingsBox.get(
@@ -206,7 +253,10 @@ class DatabaseService {
     }
   }
 
-  static Future<void> setBillRecurrenceEndOverride(String billId, DateTime recurrenceEndDate) async {
+  static Future<void> setBillRecurrenceEndOverride(
+    String billId,
+    DateTime recurrenceEndDate,
+  ) async {
     final id = billId.trim();
     if (id.isEmpty) return;
     final current = _getBillRecurrenceEndOverrides();
@@ -329,11 +379,14 @@ class DatabaseService {
     await addCategory(transferCat);
     return transferCat;
   }
+
   // Update all transactions, bills, etc. that reference a category when the category is edited
   static Future<void> updateCategoryReferences(Category updatedCategory) async {
     final normalizedName = updatedCategory.name.trim();
 
-    final txs = getAllTransactions().where((t) => t.categoryId == updatedCategory.id).toList();
+    final txs = getAllTransactions()
+        .where((t) => t.categoryId == updatedCategory.id)
+        .toList();
     var updatedCount = 0;
     for (final tx in txs) {
       if ((tx.categoryName ?? '').trim() == normalizedName) continue;
@@ -356,21 +409,31 @@ class DatabaseService {
   }
 
   // Update all transactions, bills, etc. that reference a payee/payer when edited
-  static Future<void> updatePayeeReferences(Map<String, dynamic> updatedPayee) async {
+  static Future<void> updatePayeeReferences(
+    Map<String, dynamic> updatedPayee,
+  ) async {
     final payeeId = (updatedPayee['id'] ?? '').toString().trim();
     if (payeeId.isEmpty) return;
 
     final updatedName = (updatedPayee['name'] ?? '').toString().trim();
-    final updatedType = (updatedPayee['type'] ?? '').toString().trim().toLowerCase();
+    final updatedType = (updatedPayee['type'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
     final rawCategoryId = updatedPayee['categoryId']?.toString().trim();
-    final updatedCategoryId = (rawCategoryId == null || rawCategoryId.isEmpty || rawCategoryId.toLowerCase() == 'null')
+    final updatedCategoryId =
+        (rawCategoryId == null ||
+            rawCategoryId.isEmpty ||
+            rawCategoryId.toLowerCase() == 'null')
         ? null
         : rawCategoryId;
     final updatedCategoryName = updatedCategoryId == null
         ? null
         : getCategoryById(updatedCategoryId)?.name;
 
-    final txs = getAllTransactions().where((t) => t.payeeId == payeeId || t.payerId == payeeId).toList();
+    final txs = getAllTransactions()
+        .where((t) => t.payeeId == payeeId || t.payerId == payeeId)
+        .toList();
     var transactionsUpdated = 0;
     for (final tx in txs) {
       final bool matchesPayee = tx.payeeId == payeeId;
@@ -393,8 +456,14 @@ class DatabaseService {
       final samePayeeName = (nextPayeeName ?? '') == (tx.payeeName ?? '');
       final samePayerName = (nextPayerName ?? '') == (tx.payerName ?? '');
       final sameCategoryId = nextCategoryId == tx.categoryId;
-      final sameCategoryName = (nextCategoryName ?? '') == (tx.categoryName ?? '');
-      if (samePayeeName && samePayerName && sameCategoryId && sameCategoryName) continue;
+      final sameCategoryName =
+          (nextCategoryName ?? '') == (tx.categoryName ?? '');
+      if (samePayeeName &&
+          samePayerName &&
+          sameCategoryId &&
+          sameCategoryName) {
+        continue;
+      }
 
       final updated = tx.copyWith(
         payeeName: nextPayeeName,
@@ -415,9 +484,15 @@ class DatabaseService {
     final bills = getAllBills().where((b) => b.payeeId == payeeId).toList();
     var billsUpdated = 0;
     for (final bill in bills) {
-      final nextBillType = updatedType == 'payer' ? BillType.income : updatedType == 'payee' ? BillType.expense : bill.type;
+      final nextBillType = updatedType == 'payer'
+          ? BillType.income
+          : updatedType == 'payee'
+          ? BillType.expense
+          : bill.type;
       final nextBillCategoryId = updatedCategoryId ?? bill.categoryId;
-      if (nextBillType == bill.type && nextBillCategoryId == bill.categoryId) continue;
+      if (nextBillType == bill.type && nextBillCategoryId == bill.categoryId) {
+        continue;
+      }
       final updated = bill.copyWith(
         type: nextBillType,
         categoryId: nextBillCategoryId,
@@ -431,6 +506,7 @@ class DatabaseService {
       billsVersion.value++;
     }
   }
+
   // ...existing code...
   static const String _transactionBoxName = 'transactions';
   static const String _categoryBoxName = 'categories';
@@ -447,19 +523,30 @@ class DatabaseService {
   static late Box _billOccurrenceBox;
 
   // Notifiers used by UI to refresh when underlying data changes
-  static final foundation.ValueNotifier<int> categoriesVersion = foundation.ValueNotifier<int>(0);
-  static final foundation.ValueNotifier<int> billsVersion = foundation.ValueNotifier<int>(0);
-  static final foundation.ValueNotifier<int> payeesVersion = foundation.ValueNotifier<int>(0);
-  static final foundation.ValueNotifier<int> accountsVersion = foundation.ValueNotifier<int>(0);
-  static final foundation.ValueNotifier<int> transactionsVersion = foundation.ValueNotifier<int>(0);
-  static final foundation.ValueNotifier<String> subscriptionVersion = foundation.ValueNotifier<String>('Free');
+  static final foundation.ValueNotifier<int> categoriesVersion =
+      foundation.ValueNotifier<int>(0);
+  static final foundation.ValueNotifier<int> billsVersion =
+      foundation.ValueNotifier<int>(0);
+  static final foundation.ValueNotifier<int> payeesVersion =
+      foundation.ValueNotifier<int>(0);
+  static final foundation.ValueNotifier<int> accountsVersion =
+      foundation.ValueNotifier<int>(0);
+  static final foundation.ValueNotifier<int> transactionsVersion =
+      foundation.ValueNotifier<int>(0);
+  static final foundation.ValueNotifier<String> subscriptionVersion =
+      foundation.ValueNotifier<String>('Free');
 
-  static Future<void> _safeAwsCall(Future<void> Function() task, String label) async {
-    if (!AwsApiService.isConfigured) return;
+  static Future<bool> _safeAwsCall(
+    Future<void> Function() task,
+    String label,
+  ) async {
+    if (!AwsApiService.isConfigured) return true;
     try {
       await task();
+      return true;
     } catch (e) {
       foundation.debugPrint('AWS sync failed ($label): $e');
+      return false;
     }
   }
 
@@ -486,7 +573,9 @@ class DatabaseService {
       }
     } catch (_) {}
 
-    _transactionBox = await _openTypedBoxWithRecovery<Transaction>(_transactionBoxName);
+    _transactionBox = await _openTypedBoxWithRecovery<Transaction>(
+      _transactionBoxName,
+    );
     _billsBox = await _openTypedBoxWithRecovery<Bill>(_billsBoxName);
   }
 
@@ -504,7 +593,9 @@ class DatabaseService {
     } catch (_) {}
 
     _categoryBox = await _openTypedBoxWithRecovery<Category>(_categoryBoxName);
-    _transactionBox = await _openTypedBoxWithRecovery<Transaction>(_transactionBoxName);
+    _transactionBox = await _openTypedBoxWithRecovery<Transaction>(
+      _transactionBoxName,
+    );
   }
 
   // Bill operations
@@ -527,13 +618,18 @@ class DatabaseService {
     await _removeDeletedBillId(bill.id);
     await clearBillRecurrenceEndOverride(bill.id);
     billsVersion.value++;
-    await _safeAwsCall(
+    final synced = await _safeAwsCall(
       () => AwsApiService.createBill(
         bill,
         reminderOffsets: reminderOffsets ?? _selectedReminderOffsetsForApi(),
       ),
       'create bill',
     );
+    if (synced) {
+      await _removeLocallyModifiedBillId(bill.id);
+    } else {
+      await _addLocallyModifiedBillId(bill.id);
+    }
   }
 
   // Per-occurrence bill status helpers
@@ -545,9 +641,17 @@ class DatabaseService {
   /// Persist a per-occurrence paid flag and payment status.
   /// Stored in a simple box keyed by `${billId}_YYYY-M-D` with value
   /// {'isPaid': bool, 'paymentStatus': int}
-  static Future<void> setBillOccurrenceStatus(String billId, DateTime date, bool isPaid, PaymentStatus status) async {
+  static Future<void> setBillOccurrenceStatus(
+    String billId,
+    DateTime date,
+    bool isPaid,
+    PaymentStatus status,
+  ) async {
     final key = _occurrenceKey(billId, date);
-    await _billOccurrenceBox.put(key, {'isPaid': isPaid, 'paymentStatus': status.index});
+    await _billOccurrenceBox.put(key, {
+      'isPaid': isPaid,
+      'paymentStatus': status.index,
+    });
     await _billOccurrenceBox.flush();
     // Notify UI that bills have changed so calendars refresh
     billsVersion.value++;
@@ -577,7 +681,10 @@ class DatabaseService {
   }
 
   /// Return occurrence-level status if present. Null if no persisted occurrence record exists.
-  static Map<String, dynamic>? getBillOccurrenceStatus(String billId, DateTime date) {
+  static Map<String, dynamic>? getBillOccurrenceStatus(
+    String billId,
+    DateTime date,
+  ) {
     final key = _occurrenceKey(billId, date);
     final v = _billOccurrenceBox.get(key);
     if (v == null) return null;
@@ -590,7 +697,8 @@ class DatabaseService {
       } else if (rawIdx == null) {
         status = PaymentStatus.unpaid;
       } else {
-        status = PaymentStatus.values[rawIdx.clamp(0, PaymentStatus.values.length - 1)];
+        status = PaymentStatus
+            .values[rawIdx.clamp(0, PaymentStatus.values.length - 1)];
       }
       return {'isPaid': isPaid, 'paymentStatus': status};
     } catch (_) {
@@ -615,14 +723,20 @@ class DatabaseService {
       }
     }
     await _removeDeletedBillId(bill.id);
+    if (bill.recurrence == Recurrence.none) {
+      await clearBillRecurrenceEndOverride(bill.id);
+    }
     billsVersion.value++;
-    await _safeAwsCall(
+    final synced = await _safeAwsCall(
       () => AwsApiService.updateBill(
         bill,
         reminderOffsets: reminderOffsets ?? _selectedReminderOffsetsForApi(),
       ),
       'update bill',
     );
+    if (!synced) {
+      await _addLocallyModifiedBillId(bill.id);
+    }
   }
 
   static Future<void> deleteBill(String id) async {
@@ -647,7 +761,9 @@ class DatabaseService {
     // bill is removed. We also attempt to remove them from the hidden
     // transaction list so there are no dangling references.
     try {
-      final related = _transactionBox.values.where((t) => t.billId == id).toList();
+      final related = _transactionBox.values
+          .where((t) => t.billId == id)
+          .toList();
       for (final tx in related) {
         try {
           await removeHiddenTransactionId(tx.id);
@@ -668,7 +784,68 @@ class DatabaseService {
   }
 
   static List<Bill> getAllBills() {
-    return _billsBox.values.toList()..sort((a, b) => a.dueDate.compareTo(b.dueDate));
+    return _billsBox.values.toList()
+      ..sort((a, b) => a.dueDate.compareTo(b.dueDate));
+  }
+
+  static Future<void> syncLocallyModifiedBills() async {
+    if (!AwsApiService.isConfigured) return;
+    final ids = _getLocallyModifiedBillIds();
+    if (ids.isEmpty) return;
+
+    for (final id in List<String>.from(ids)) {
+      final bill = _billsBox.get(id);
+      if (bill == null) {
+        await _removeLocallyModifiedBillId(id);
+        continue;
+      }
+
+      final synced = await _safeAwsCall(
+        () => AwsApiService.updateBill(
+          bill,
+          reminderOffsets: _selectedReminderOffsetsForApi(),
+        ),
+        'retry bill update',
+      );
+      if (synced) {
+        // Keep the local edit marked until the next remote hydrate confirms the
+        // server copy has caught up. Otherwise a stale remote fetch can
+        // overwrite the freshly edited local bill on app restart.
+      }
+    }
+  }
+
+  static bool _billMatches(Bill a, Bill b) {
+    DateTime? normalize(DateTime? value) {
+      if (value == null) return null;
+      return DateTime(value.year, value.month, value.day);
+    }
+
+    bool listEquals(List<int>? left, List<int>? right) {
+      if (left == null || right == null) return left == right;
+      if (left.length != right.length) return false;
+      for (var i = 0; i < left.length; i++) {
+        if (left[i] != right[i]) return false;
+      }
+      return true;
+    }
+
+    return a.amount == b.amount &&
+        a.description == b.description &&
+        normalize(a.dueDate) == normalize(b.dueDate) &&
+        a.recurrence == b.recurrence &&
+        listEquals(a.customDays, b.customDays) &&
+        normalize(a.recurrenceEndDate) == normalize(b.recurrenceEndDate) &&
+        a.recurrenceInterval == b.recurrenceInterval &&
+        listEquals(a.recurrenceWeekdays, b.recurrenceWeekdays) &&
+        a.categoryId == b.categoryId &&
+        a.type == b.type &&
+        a.fromAccountId == b.fromAccountId &&
+        a.toAccountId == b.toAccountId &&
+        a.payeeId == b.payeeId &&
+        a.accountId == b.accountId &&
+        a.isPaid == b.isPaid &&
+        a.paymentStatus == b.paymentStatus;
   }
 
   // Transaction operations
@@ -679,7 +856,10 @@ class DatabaseService {
     await _transactionBox.flush();
     await _removeDeletedTransactionId(transaction.id);
     transactionsVersion.value++;
-    await _safeAwsCall(() => AwsApiService.createTransaction(transaction), 'create transaction');
+    await _safeAwsCall(
+      () => AwsApiService.createTransaction(transaction),
+      'create transaction',
+    );
   }
 
   static Future<void> updateTransaction(Transaction transaction) async {
@@ -694,7 +874,10 @@ class DatabaseService {
     await _transactionBox.flush();
     await _removeDeletedTransactionId(toPersist.id);
     transactionsVersion.value++;
-    await _safeAwsCall(() => AwsApiService.updateTransaction(toPersist), 'update transaction');
+    await _safeAwsCall(
+      () => AwsApiService.updateTransaction(toPersist),
+      'update transaction',
+    );
 
     // Keep bill occurrence paid/partial/unpaid state synchronized whenever a
     // linked payment transaction is edited from any screen.
@@ -718,11 +901,15 @@ class DatabaseService {
           if (text == null || text.trim().isEmpty) return;
           final raw = text.trim();
           final matches = <String>{};
-          final longMatch = RegExp(r'(0[1-9]|1[0-2])/(0[1-9]|[12][0-9]|3[01])/\d{4}').allMatches(raw);
+          final longMatch = RegExp(
+            r'(0[1-9]|1[0-2])/(0[1-9]|[12][0-9]|3[01])/\d{4}',
+          ).allMatches(raw);
           for (final match in longMatch) {
             matches.add(match.group(0)!);
           }
-          final shortMatch = RegExp(r'(0?[1-9]|1[0-2])/(0?[1-9]|[12][0-9]|3[01])/\d{2}').allMatches(raw);
+          final shortMatch = RegExp(
+            r'(0?[1-9]|1[0-2])/(0?[1-9]|[12][0-9]|3[01])/\d{2}',
+          ).allMatches(raw);
           for (final match in shortMatch) {
             matches.add(match.group(0)!);
           }
@@ -739,7 +926,12 @@ class DatabaseService {
           }
         }
 
-        void addOccSeed(DateTime? occDate, DateTime? date, String? description, String? paymentFor) {
+        void addOccSeed(
+          DateTime? occDate,
+          DateTime? date,
+          String? description,
+          String? paymentFor,
+        ) {
           if (occDate != null) {
             occDates.add(DateTime(occDate.year, occDate.month, occDate.day));
             return;
@@ -753,16 +945,32 @@ class DatabaseService {
         }
 
         if (previous?.billId == billId) {
-          addOccSeed(previous!.occurrenceDate, previous.date, previous.description, previous.paymentFor);
+          addOccSeed(
+            previous!.occurrenceDate,
+            previous.date,
+            previous.description,
+            previous.paymentFor,
+          );
         }
         if (toPersist.billId == billId) {
-          addOccSeed(toPersist.occurrenceDate, toPersist.date, toPersist.description, toPersist.paymentFor);
+          addOccSeed(
+            toPersist.occurrenceDate,
+            toPersist.date,
+            toPersist.description,
+            toPersist.paymentFor,
+          );
         }
 
         for (final t in allTx) {
           if (t.billId != billId) continue;
           if (t.occurrenceDate != null) {
-            occDates.add(DateTime(t.occurrenceDate!.year, t.occurrenceDate!.month, t.occurrenceDate!.day));
+            occDates.add(
+              DateTime(
+                t.occurrenceDate!.year,
+                t.occurrenceDate!.month,
+                t.occurrenceDate!.day,
+              ),
+            );
           } else {
             occDates.add(DateTime(t.date.year, t.date.month, t.date.day));
           }
@@ -777,21 +985,25 @@ class DatabaseService {
             if (t.billId != billId) continue;
             final matchesOccurrence = (t.occurrenceDate != null)
                 ? (t.occurrenceDate!.year == occ.year &&
-                    t.occurrenceDate!.month == occ.month &&
-                    t.occurrenceDate!.day == occ.day)
+                      t.occurrenceDate!.month == occ.month &&
+                      t.occurrenceDate!.day == occ.day)
                 : ((t.date.year == occ.year &&
-                        t.date.month == occ.month &&
-                        t.date.day == occ.day) ||
-                    t.description.contains(occDateStr) ||
-                    t.description.contains(occDateShort) ||
-                    (t.paymentFor ?? '').contains(occDateStr) ||
-                    (t.paymentFor ?? '').contains(occDateShort));
+                          t.date.month == occ.month &&
+                          t.date.day == occ.day) ||
+                      t.description.contains(occDateStr) ||
+                      t.description.contains(occDateShort) ||
+                      (t.paymentFor ?? '').contains(occDateStr) ||
+                      (t.paymentFor ?? '').contains(occDateShort));
             if (!matchesOccurrence) continue;
 
             if (bill.type == BillType.expense) {
-              totalPaid += (t.type == TransactionType.expense) ? t.amount : -t.amount;
+              totalPaid += (t.type == TransactionType.expense)
+                  ? t.amount
+                  : -t.amount;
             } else {
-              totalPaid += (t.type == TransactionType.income) ? t.amount : -t.amount;
+              totalPaid += (t.type == TransactionType.income)
+                  ? t.amount
+                  : -t.amount;
             }
           }
 
@@ -804,7 +1016,12 @@ class DatabaseService {
             newStatus = PaymentStatus.partial;
           }
 
-          await setBillOccurrenceStatus(billId, occ, newStatus == PaymentStatus.paid, newStatus);
+          await setBillOccurrenceStatus(
+            billId,
+            occ,
+            newStatus == PaymentStatus.paid,
+            newStatus,
+          );
         }
       }
     } catch (_) {
@@ -818,8 +1035,11 @@ class DatabaseService {
   /// missed the boolean hide flag. This migration backfills both the
   /// `hideFromCalendarDashboard` flag and the note marker so dashboard
   /// filtering is robust.
-  static Future<int> migrateLegacyAccountTransactionsHiddenFromCalendar({bool force = false}) async {
-    final alreadyMigrated = getSetting<bool>(_legacyAccountCalendarMigrationKey, false) ?? false;
+  static Future<int> migrateLegacyAccountTransactionsHiddenFromCalendar({
+    bool force = false,
+  }) async {
+    final alreadyMigrated =
+        getSetting<bool>(_legacyAccountCalendarMigrationKey, false) ?? false;
     if (!force && alreadyMigrated) return 0;
 
     int updatedCount = 0;
@@ -829,12 +1049,16 @@ class DatabaseService {
 
       final note = tx.note ?? '';
       final lowerNote = note.toLowerCase();
-      final looksLikeAccountContext = lowerNote.contains('account:') || note.contains(_hideFromCalendarMarker);
+      final looksLikeAccountContext =
+          lowerNote.contains('account:') ||
+          note.contains(_hideFromCalendarMarker);
       if (!looksLikeAccountContext) continue;
 
       final nextNote = note.contains(_hideFromCalendarMarker)
           ? note
-          : (note.trim().isEmpty ? _hideFromCalendarMarker : '$note $_hideFromCalendarMarker');
+          : (note.trim().isEmpty
+                ? _hideFromCalendarMarker
+                : '$note $_hideFromCalendarMarker');
 
       final updated = tx.copyWith(
         hideFromCalendarDashboard: true,
@@ -861,7 +1085,9 @@ class DatabaseService {
   /// dashboard calendar/list. This is used as a targeted repair for account-
   /// scoped transaction flows where older entries may have been saved before
   /// hide markers were consistently applied.
-  static Future<int> hideTransactionsForAccountFromDashboard(String accountId) async {
+  static Future<int> hideTransactionsForAccountFromDashboard(
+    String accountId,
+  ) async {
     final normalized = accountId.trim();
     if (normalized.isEmpty) return 0;
 
@@ -874,7 +1100,9 @@ class DatabaseService {
       final note = tx.note ?? '';
       final nextNote = note.contains(_hideFromCalendarMarker)
           ? note
-          : (note.trim().isEmpty ? _hideFromCalendarMarker : '$note $_hideFromCalendarMarker');
+          : (note.trim().isEmpty
+                ? _hideFromCalendarMarker
+                : '$note $_hideFromCalendarMarker');
 
       await _transactionBox.put(
         tx.id,
@@ -905,7 +1133,9 @@ class DatabaseService {
     return longToken.hasMatch(v) && !v.contains(' ');
   }
 
-  static String? _extractCounterpartyFromPaymentDescription(String description) {
+  static String? _extractCounterpartyFromPaymentDescription(
+    String description,
+  ) {
     final trimmed = description.trim();
     if (trimmed.isEmpty) return null;
     if (!trimmed.toLowerCase().startsWith('payment for ')) return null;
@@ -914,8 +1144,12 @@ class DatabaseService {
     if (raw.isEmpty) return null;
 
     // Strip trailing date patterns from legacy descriptions.
-    raw = raw.replaceFirst(RegExp(r'\s*\(\d{1,2}/\d{1,2}/\d{2,4}\)\s*$'), '').trim();
-    raw = raw.replaceFirst(RegExp(r'\s+\d{1,2}/\d{1,2}/\d{2,4}\s*$'), '').trim();
+    raw = raw
+        .replaceFirst(RegExp(r'\s*\(\d{1,2}/\d{1,2}/\d{2,4}\)\s*$'), '')
+        .trim();
+    raw = raw
+        .replaceFirst(RegExp(r'\s+\d{1,2}/\d{1,2}/\d{2,4}\s*$'), '')
+        .trim();
     return raw.isEmpty ? null : raw;
   }
 
@@ -952,8 +1186,11 @@ class DatabaseService {
 
   /// One-time backfill for legacy payment transactions so [Transaction.paymentFor]
   /// is available for historical entries.
-  static Future<int> migrateLegacyTransactionPaymentFor({bool force = false}) async {
-    final alreadyMigrated = getSetting<bool>(_legacyPaymentForMigrationKey, false) ?? false;
+  static Future<int> migrateLegacyTransactionPaymentFor({
+    bool force = false,
+  }) async {
+    final alreadyMigrated =
+        getSetting<bool>(_legacyPaymentForMigrationKey, false) ?? false;
     if (!force && alreadyMigrated) return 0;
 
     final contacts = getAllPayees();
@@ -963,12 +1200,17 @@ class DatabaseService {
       final existing = (tx.paymentFor ?? '').trim();
       if (existing.isNotEmpty) continue;
 
-      final hasPaymentDescription = tx.description.trim().toLowerCase().startsWith('payment for ');
+      final hasPaymentDescription = tx.description
+          .trim()
+          .toLowerCase()
+          .startsWith('payment for ');
       final hasBillLink = tx.billId != null && tx.billId!.trim().isNotEmpty;
       if (!hasPaymentDescription && !hasBillLink) continue;
 
       final DateTime baseDate =
-          tx.occurrenceDate ?? _extractDateFromPaymentDescription(tx.description) ?? tx.date;
+          tx.occurrenceDate ??
+          _extractDateFromPaymentDescription(tx.description) ??
+          tx.date;
       final dateText = DateFormat('MM/dd/yy').format(baseDate);
 
       String counterparty = (tx.payeeName ?? '').trim();
@@ -979,7 +1221,9 @@ class DatabaseService {
       if (counterparty.isEmpty) {
         final contactId = (tx.payeeId ?? tx.payerId ?? '').trim();
         if (contactId.isNotEmpty) {
-          final match = contacts.where((c) => (c['id'] ?? '').toString().trim() == contactId);
+          final match = contacts.where(
+            (c) => (c['id'] ?? '').toString().trim() == contactId,
+          );
           if (match.isNotEmpty) {
             counterparty = (match.first['name'] ?? '').toString().trim();
           }
@@ -987,7 +1231,9 @@ class DatabaseService {
       }
 
       if (counterparty.isEmpty) {
-        counterparty = _extractCounterpartyFromPaymentDescription(tx.description) ?? 'Unknown';
+        counterparty =
+            _extractCounterpartyFromPaymentDescription(tx.description) ??
+            'Unknown';
       }
 
       String category = (tx.categoryName ?? '').trim();
@@ -1005,15 +1251,14 @@ class DatabaseService {
         category = 'Uncategorized';
       }
 
-      final paymentFor = '$dateText $counterparty $category'.replaceAll(RegExp(r'\s+'), ' ').trim();
+      final paymentFor = '$dateText $counterparty $category'
+          .replaceAll(RegExp(r'\s+'), ' ')
+          .trim();
       if (paymentFor.isEmpty) continue;
 
       await _transactionBox.put(
         tx.id,
-        tx.copyWith(
-          paymentFor: paymentFor,
-          updatedAt: DateTime.now(),
-        ),
+        tx.copyWith(paymentFor: paymentFor, updatedAt: DateTime.now()),
       );
       updatedCount++;
     }
@@ -1031,14 +1276,18 @@ class DatabaseService {
 
   /// One-time best-effort migration to ensure transactions display category
   /// names (not raw category IDs) in dashboard and account transaction lists.
-  static Future<int> migrateLegacyTransactionCategoryNames({bool force = false}) async {
-    final alreadyMigrated = getSetting<bool>(_legacyCategoryNameMigrationKey, false) ?? false;
+  static Future<int> migrateLegacyTransactionCategoryNames({
+    bool force = false,
+  }) async {
+    final alreadyMigrated =
+        getSetting<bool>(_legacyCategoryNameMigrationKey, false) ?? false;
     if (!force && alreadyMigrated) return 0;
 
     int updatedCount = 0;
     for (final tx in _transactionBox.values) {
       final existingName = (tx.categoryName ?? '').trim();
-      final hasFriendlyName = existingName.isNotEmpty && !_looksLikeOpaqueId(existingName);
+      final hasFriendlyName =
+          existingName.isNotEmpty && !_looksLikeOpaqueId(existingName);
       if (hasFriendlyName) continue;
 
       String? nextCategoryName;
@@ -1051,18 +1300,19 @@ class DatabaseService {
         }
       }
 
-      if (nextCategoryName == null && existingName.isNotEmpty && _looksLikeOpaqueId(existingName)) {
+      if (nextCategoryName == null &&
+          existingName.isNotEmpty &&
+          _looksLikeOpaqueId(existingName)) {
         nextCategoryName = 'Unknown Category';
       }
 
-      if (nextCategoryName == null || nextCategoryName == existingName) continue;
+      if (nextCategoryName == null || nextCategoryName == existingName) {
+        continue;
+      }
 
       await _transactionBox.put(
         tx.id,
-        tx.copyWith(
-          categoryName: nextCategoryName,
-          updatedAt: DateTime.now(),
-        ),
+        tx.copyWith(categoryName: nextCategoryName, updatedAt: DateTime.now()),
       );
       updatedCount++;
     }
@@ -1086,8 +1336,11 @@ class DatabaseService {
   /// - Re-linking by category name when categoryId is missing/invalid
   /// - Resolving cases where categoryName accidentally stored an ID
   /// - Refreshing categoryName from the resolved category record
-  static Future<int> migrateLegacyTransactionCategoryResolution({bool force = false}) async {
-    final alreadyMigrated = getSetting<bool>(_legacyCategoryResolutionMigrationKey, false) ?? false;
+  static Future<int> migrateLegacyTransactionCategoryResolution({
+    bool force = false,
+  }) async {
+    final alreadyMigrated =
+        getSetting<bool>(_legacyCategoryResolutionMigrationKey, false) ?? false;
     if (!force && alreadyMigrated) return 0;
 
     int updatedCount = 0;
@@ -1114,7 +1367,9 @@ class DatabaseService {
       }
 
       // If the saved categoryName is actually an ID, resolve it.
-      if (resolvedCategory == null && resolvedName != null && _looksLikeOpaqueId(resolvedName)) {
+      if (resolvedCategory == null &&
+          resolvedName != null &&
+          _looksLikeOpaqueId(resolvedName)) {
         final byNameAsId = _categoryBox.get(resolvedName);
         if (byNameAsId != null) {
           resolvedCategory = byNameAsId;
@@ -1175,26 +1430,46 @@ class DatabaseService {
     return a.isBefore(b) ? a : b;
   }
 
-  static bool _billOccursOnDate(Bill bill, DateTime date, {DateTime? effectiveEndDate}) {
-    final due = DateTime(bill.dueDate.year, bill.dueDate.month, bill.dueDate.day);
+  static bool _billOccursOnDate(
+    Bill bill,
+    DateTime date, {
+    DateTime? effectiveEndDate,
+  }) {
+    final due = DateTime(
+      bill.dueDate.year,
+      bill.dueDate.month,
+      bill.dueDate.day,
+    );
     final target = DateTime(date.year, date.month, date.day);
     final effectiveEnd = effectiveEndDate == null
         ? null
-        : DateTime(effectiveEndDate.year, effectiveEndDate.month, effectiveEndDate.day);
+        : DateTime(
+            effectiveEndDate.year,
+            effectiveEndDate.month,
+            effectiveEndDate.day,
+          );
 
     if (target.isBefore(due)) return false;
     if (effectiveEnd != null && target.isAfter(effectiveEnd)) return false;
 
     switch (bill.recurrence) {
       case Recurrence.none:
-        return target.year == due.year && target.month == due.month && target.day == due.day;
+        return target.year == due.year &&
+            target.month == due.month &&
+            target.day == due.day;
       case Recurrence.daily:
-        final interval = bill.recurrenceInterval <= 0 ? 1 : bill.recurrenceInterval;
+        final interval = bill.recurrenceInterval <= 0
+            ? 1
+            : bill.recurrenceInterval;
         final days = target.difference(due).inDays;
         return days % interval == 0;
       case Recurrence.weekly:
-        final intervalWeeks = bill.recurrenceInterval <= 0 ? 1 : bill.recurrenceInterval;
-        final weekdays = (bill.recurrenceWeekdays == null || bill.recurrenceWeekdays!.isEmpty)
+        final intervalWeeks = bill.recurrenceInterval <= 0
+            ? 1
+            : bill.recurrenceInterval;
+        final weekdays =
+            (bill.recurrenceWeekdays == null ||
+                bill.recurrenceWeekdays!.isEmpty)
             ? <int>[due.weekday]
             : bill.recurrenceWeekdays!;
         if (!weekdays.contains(target.weekday)) return false;
@@ -1202,16 +1477,19 @@ class DatabaseService {
         final weekIndex = days ~/ 7;
         return weekIndex % intervalWeeks == 0;
       case Recurrence.monthly:
-        final intervalMonths = bill.recurrenceInterval <= 0 ? 1 : bill.recurrenceInterval;
+        final intervalMonths = bill.recurrenceInterval <= 0
+            ? 1
+            : bill.recurrenceInterval;
         final months = _monthDelta(due, target);
         if (months < 0 || months % intervalMonths != 0) return false;
 
-        final days = ((bill.customDays == null || bill.customDays!.isEmpty)
-                ? <int>[due.day]
-                : bill.customDays!)
-            .toSet()
-            .toList()
-          ..sort();
+        final days =
+            ((bill.customDays == null || bill.customDays!.isEmpty)
+                    ? <int>[due.day]
+                    : bill.customDays!)
+                .toSet()
+                .toList()
+              ..sort();
 
         int day = target.day;
         final lastDay = DateTime(target.year, target.month + 1, 0).day;
@@ -1220,17 +1498,23 @@ class DatabaseService {
         }
         if (!days.contains(day)) return false;
 
-        if (target.year == due.year && target.month == due.month && target.day < due.day) {
+        if (target.year == due.year &&
+            target.month == due.month &&
+            target.day < due.day) {
           return false;
         }
         return true;
       case Recurrence.yearly:
-        final intervalYears = bill.recurrenceInterval <= 0 ? 1 : bill.recurrenceInterval;
+        final intervalYears = bill.recurrenceInterval <= 0
+            ? 1
+            : bill.recurrenceInterval;
         final yearDiff = target.year - due.year;
         if (yearDiff < 0 || yearDiff % intervalYears != 0) return false;
         return target.month == due.month && target.day == due.day;
       case Recurrence.custom:
-        return target.year == due.year && target.month == due.month && target.day == due.day;
+        return target.year == due.year &&
+            target.month == due.month &&
+            target.day == due.day;
     }
   }
 
@@ -1254,12 +1538,18 @@ class DatabaseService {
 
   /// One-time migration to repair legacy recurring-series splits where both
   /// the old and new series may still generate the same occurrence date.
-  static Future<int> migrateLegacyRecurringBillSplitOverlaps({bool force = false}) async {
-    final alreadyMigrated = getSetting<bool>(_legacyRecurringSplitOverlapMigrationKey, false) ?? false;
+  static Future<int> migrateLegacyRecurringBillSplitOverlaps({
+    bool force = false,
+  }) async {
+    final alreadyMigrated =
+        getSetting<bool>(_legacyRecurringSplitOverlapMigrationKey, false) ??
+        false;
     if (!force && alreadyMigrated) return 0;
 
     final overrides = _getBillRecurrenceEndOverrides();
-    final recurringBills = _billsBox.values.where((b) => b.recurrence != Recurrence.none).toList();
+    final recurringBills = _billsBox.values
+        .where((b) => b.recurrence != Recurrence.none)
+        .toList();
     final grouped = <String, List<Bill>>{};
     for (final bill in recurringBills) {
       final signature = _recurringBillSignature(bill);
@@ -1276,22 +1566,45 @@ class DatabaseService {
         var older = bills[i];
         final newer = bills[i + 1];
 
-        final newerStart = DateTime(newer.dueDate.year, newer.dueDate.month, newer.dueDate.day);
-        final olderEffectiveEnd = _earliestDate(overrides[older.id], older.recurrenceEndDate);
+        final newerStart = DateTime(
+          newer.dueDate.year,
+          newer.dueDate.month,
+          newer.dueDate.day,
+        );
+        final olderEffectiveEnd = _earliestDate(
+          overrides[older.id],
+          older.recurrenceEndDate,
+        );
 
-        if (!_billOccursOnDate(older, newerStart, effectiveEndDate: olderEffectiveEnd)) continue;
-
-        final cutoff = newerStart.subtract(const Duration(days: 1));
-        final normalizedCutoff = DateTime(cutoff.year, cutoff.month, cutoff.day);
-        final normalizedOlderEnd = olderEffectiveEnd == null
-            ? null
-            : DateTime(olderEffectiveEnd.year, olderEffectiveEnd.month, olderEffectiveEnd.day);
-
-        if (normalizedOlderEnd != null && !normalizedOlderEnd.isAfter(normalizedCutoff)) {
+        if (!_billOccursOnDate(
+          older,
+          newerStart,
+          effectiveEndDate: olderEffectiveEnd,
+        )) {
           continue;
         }
 
-        if (older.recurrenceEndDate == null || older.recurrenceEndDate!.isAfter(normalizedCutoff)) {
+        final cutoff = newerStart.subtract(const Duration(days: 1));
+        final normalizedCutoff = DateTime(
+          cutoff.year,
+          cutoff.month,
+          cutoff.day,
+        );
+        final normalizedOlderEnd = olderEffectiveEnd == null
+            ? null
+            : DateTime(
+                olderEffectiveEnd.year,
+                olderEffectiveEnd.month,
+                olderEffectiveEnd.day,
+              );
+
+        if (normalizedOlderEnd != null &&
+            !normalizedOlderEnd.isAfter(normalizedCutoff)) {
+          continue;
+        }
+
+        if (older.recurrenceEndDate == null ||
+            older.recurrenceEndDate!.isAfter(normalizedCutoff)) {
           older = older.copyWith(recurrenceEndDate: normalizedCutoff);
           await _billsBox.put(older.id, older);
           bills[i] = older;
@@ -1326,7 +1639,8 @@ class DatabaseService {
   }
 
   static Future<void> runPostFixRecurringSplitRepairIfNeeded() async {
-    final alreadyRan = getSetting<bool>(_postFixRecurringSplitRepairKey, false) ?? false;
+    final alreadyRan =
+        getSetting<bool>(_postFixRecurringSplitRepairKey, false) ?? false;
     if (alreadyRan) return;
     try {
       await repairRecurringBillSplitOverlaps();
@@ -1335,9 +1649,12 @@ class DatabaseService {
     }
   }
 
-  static Future<int> migrateLegacyBillPlaceholderText({bool force = false}) async {
+  static Future<int> migrateLegacyBillPlaceholderText({
+    bool force = false,
+  }) async {
     final alreadyMigrated =
-        getSetting<bool>(_legacyBillPlaceholderTextMigrationKey, false) ?? false;
+        getSetting<bool>(_legacyBillPlaceholderTextMigrationKey, false) ??
+        false;
     if (!force && alreadyMigrated) return 0;
 
     int updatedCount = 0;
@@ -1358,15 +1675,21 @@ class DatabaseService {
       if (desc.toLowerCase() == 'bill') {
         updatedDescription = 'Payment';
       } else {
-        final match = RegExp(r'^payment\s+for\s+bill\b\s*(.*)$', caseSensitive: false)
-            .firstMatch(desc);
+        final match = RegExp(
+          r'^payment\s+for\s+bill\b\s*(.*)$',
+          caseSensitive: false,
+        ).firstMatch(desc);
         if (match != null) {
           final suffix = (match.group(1) ?? '').trim();
-          updatedDescription = suffix.isEmpty ? 'Payment' : 'Payment for $suffix';
+          updatedDescription = suffix.isEmpty
+              ? 'Payment'
+              : 'Payment for $suffix';
         }
       }
 
-      if (updatedDescription == null || updatedDescription == tx.description) continue;
+      if (updatedDescription == null || updatedDescription == tx.description) {
+        continue;
+      }
 
       final updatedTx = tx.copyWith(
         description: updatedDescription,
@@ -1410,7 +1733,10 @@ class DatabaseService {
     // listeners only after flush so UI can rebuild with the latest data.
     await _transactionBox.flush();
     transactionsVersion.value++;
-    await _safeAwsCall(() => AwsApiService.deleteTransaction(id), 'delete transaction');
+    await _safeAwsCall(
+      () => AwsApiService.deleteTransaction(id),
+      'delete transaction',
+    );
 
     // If this transaction was linked to a bill, recompute the per-occurrence
     // paid totals for the affected occurrence(s) and persist the new status.
@@ -1421,18 +1747,24 @@ class DatabaseService {
 
       void addAffectedDate(DateTime? sourceDate) {
         if (sourceDate == null) return;
-        affectedDates.add(DateTime(sourceDate.year, sourceDate.month, sourceDate.day));
+        affectedDates.add(
+          DateTime(sourceDate.year, sourceDate.month, sourceDate.day),
+        );
       }
 
       void addDatesFromText(String? text) {
         if (text == null || text.trim().isEmpty) return;
         final raw = text.trim();
         final matches = <String>{};
-        final longMatch = RegExp(r'(0[1-9]|1[0-2])/(0[1-9]|[12][0-9]|3[01])/\d{4}').allMatches(raw);
+        final longMatch = RegExp(
+          r'(0[1-9]|1[0-2])/(0[1-9]|[12][0-9]|3[01])/\d{4}',
+        ).allMatches(raw);
         for (final match in longMatch) {
           matches.add(match.group(0)!);
         }
-        final shortMatch = RegExp(r'(0?[1-9]|1[0-2])/(0?[1-9]|[12][0-9]|3[01])/\d{2}').allMatches(raw);
+        final shortMatch = RegExp(
+          r'(0?[1-9]|1[0-2])/(0?[1-9]|[12][0-9]|3[01])/\d{2}',
+        ).allMatches(raw);
         for (final match in shortMatch) {
           matches.add(match.group(0)!);
         }
@@ -1454,18 +1786,30 @@ class DatabaseService {
       addDatesFromText(txDescription);
       addDatesFromText(tx is Transaction ? tx.paymentFor : null);
 
-      bool matchesBillOccurrence(Transaction candidate, Bill bill, DateTime occ) {
+      bool matchesBillOccurrence(
+        Transaction candidate,
+        Bill bill,
+        DateTime occ,
+      ) {
         final sameOcc = (candidate.occurrenceDate != null)
             ? (candidate.occurrenceDate!.year == occ.year &&
-                candidate.occurrenceDate!.month == occ.month &&
-                candidate.occurrenceDate!.day == occ.day)
+                  candidate.occurrenceDate!.month == occ.month &&
+                  candidate.occurrenceDate!.day == occ.day)
             : ((candidate.date.year == occ.year &&
-                    candidate.date.month == occ.month &&
-                    candidate.date.day == occ.day) ||
-                candidate.description.contains(DateFormat('MM/dd/yyyy').format(occ)) ||
-                candidate.description.contains(DateFormat('MM/dd/yy').format(occ)) ||
-                (candidate.paymentFor ?? '').contains(DateFormat('MM/dd/yyyy').format(occ)) ||
-                (candidate.paymentFor ?? '').contains(DateFormat('MM/dd/yy').format(occ)));
+                      candidate.date.month == occ.month &&
+                      candidate.date.day == occ.day) ||
+                  candidate.description.contains(
+                    DateFormat('MM/dd/yyyy').format(occ),
+                  ) ||
+                  candidate.description.contains(
+                    DateFormat('MM/dd/yy').format(occ),
+                  ) ||
+                  (candidate.paymentFor ?? '').contains(
+                    DateFormat('MM/dd/yyyy').format(occ),
+                  ) ||
+                  (candidate.paymentFor ?? '').contains(
+                    DateFormat('MM/dd/yy').format(occ),
+                  ));
 
         if (!sameOcc) return false;
 
@@ -1482,24 +1826,30 @@ class DatabaseService {
         final billName = (bill.description ?? '').trim().toLowerCase();
         final billPayee = bill.payeeId?.trim().toLowerCase() ?? '';
         final billAccountId = bill.accountId?.trim().toLowerCase() ?? '';
-        final billFromAccountId = bill.fromAccountId?.trim().toLowerCase() ?? '';
+        final billFromAccountId =
+            bill.fromAccountId?.trim().toLowerCase() ?? '';
         final billToAccountId = bill.toAccountId?.trim().toLowerCase() ?? '';
 
         bool textMatchesBill = false;
         if (billName.isNotEmpty && billName != 'bill') {
-          textMatchesBill = paymentFor.contains(billName) || description.contains(billName);
+          textMatchesBill =
+              paymentFor.contains(billName) || description.contains(billName);
         }
         if (!textMatchesBill && billPayee.isNotEmpty) {
-          textMatchesBill = paymentFor.contains(billPayee) || description.contains(billPayee);
+          textMatchesBill =
+              paymentFor.contains(billPayee) || description.contains(billPayee);
         }
         if (!textMatchesBill && billAccountId.isNotEmpty) {
-          textMatchesBill = candidate.accountId?.trim().toLowerCase() == billAccountId;
+          textMatchesBill =
+              candidate.accountId?.trim().toLowerCase() == billAccountId;
         }
         if (!textMatchesBill && billFromAccountId.isNotEmpty) {
-          textMatchesBill = candidate.accountId?.trim().toLowerCase() == billFromAccountId;
+          textMatchesBill =
+              candidate.accountId?.trim().toLowerCase() == billFromAccountId;
         }
         if (!textMatchesBill && billToAccountId.isNotEmpty) {
-          textMatchesBill = candidate.accountId?.trim().toLowerCase() == billToAccountId;
+          textMatchesBill =
+              candidate.accountId?.trim().toLowerCase() == billToAccountId;
         }
 
         return textMatchesBill;
@@ -1515,9 +1865,13 @@ class DatabaseService {
             if (!matchesBillOccurrence(t, bill, occ)) continue;
 
             if (bill.type == BillType.expense) {
-              totalPaid += (t.type == TransactionType.expense) ? t.amount : -t.amount;
+              totalPaid += (t.type == TransactionType.expense)
+                  ? t.amount
+                  : -t.amount;
             } else {
-              totalPaid += (t.type == TransactionType.income) ? t.amount : -t.amount;
+              totalPaid += (t.type == TransactionType.income)
+                  ? t.amount
+                  : -t.amount;
             }
           }
 
@@ -1530,7 +1884,12 @@ class DatabaseService {
             newStatus = PaymentStatus.partial;
           }
 
-          await setBillOccurrenceStatus(bill.id, occ, newStatus == PaymentStatus.paid, newStatus);
+          await setBillOccurrenceStatus(
+            bill.id,
+            occ,
+            newStatus == PaymentStatus.paid,
+            newStatus,
+          );
         }
       }
     } catch (_) {
@@ -1539,7 +1898,8 @@ class DatabaseService {
   }
 
   static List<Transaction> getAllTransactions() {
-    return _transactionBox.values.toList()..sort((a, b) => b.date.compareTo(a.date));
+    return _transactionBox.values.toList()
+      ..sort((a, b) => b.date.compareTo(a.date));
   }
 
   static Future<void> init() async {
@@ -1551,12 +1911,16 @@ class DatabaseService {
     // Migrate from old location if exists
     final docsDir = await getApplicationDocumentsDirectory();
     final oldHiveDir = Directory('${docsDir.path}/CashSense/.hive');
-    if (await oldHiveDir.exists() && !(await hiveDir.exists() || await Directory('${hiveDir.path}/transactions.hive').exists())) {
+    if (await oldHiveDir.exists() &&
+        !(await hiveDir.exists() ||
+            await Directory('${hiveDir.path}/transactions.hive').exists())) {
       // Copy old files to new location
       try {
         await for (final file in oldHiveDir.list()) {
           if (file is File) {
-            final newFile = File('${hiveDir.path}/${file.uri.pathSegments.last}');
+            final newFile = File(
+              '${hiveDir.path}/${file.uri.pathSegments.last}',
+            );
             await file.copy(newFile.path);
           }
         }
@@ -1564,7 +1928,6 @@ class DatabaseService {
         await oldHiveDir.delete(recursive: true);
       } catch (e) {
         foundation.debugPrint('Failed to migrate Hive files: $e');
-
       }
     }
 
@@ -1574,7 +1937,9 @@ class DatabaseService {
     _registerHiveAdapters();
 
     // Open boxes with recovery for corrupted/legacy data.
-    _transactionBox = await _openTypedBoxWithRecovery<Transaction>(_transactionBoxName);
+    _transactionBox = await _openTypedBoxWithRecovery<Transaction>(
+      _transactionBoxName,
+    );
     _categoryBox = await _openTypedBoxWithRecovery<Category>(_categoryBoxName);
     _accountBox = await _openTypedBoxWithRecovery<Account>(_accountBoxName);
     _billsBox = await _openTypedBoxWithRecovery<Bill>(_billsBoxName);
@@ -1647,9 +2012,13 @@ class DatabaseService {
     // ensures callers can pass exact day-start/day-end values and only
     // transactions that fall within that exact range are returned.
     return _transactionBox.values
-        .where((transaction) =>
-            (transaction.date.isAtSameMomentAs(startDate) || transaction.date.isAfter(startDate)) &&
-            (transaction.date.isAtSameMomentAs(endDate) || transaction.date.isBefore(endDate)))
+        .where(
+          (transaction) =>
+              (transaction.date.isAtSameMomentAs(startDate) ||
+                  transaction.date.isAfter(startDate)) &&
+              (transaction.date.isAtSameMomentAs(endDate) ||
+                  transaction.date.isBefore(endDate)),
+        )
         .toList()
       ..sort((a, b) => b.date.compareTo(a.date));
   }
@@ -1684,7 +2053,10 @@ class DatabaseService {
     }
     await _removeDeletedCategoryId(category.id);
     categoriesVersion.value++;
-    await _safeAwsCall(() => AwsApiService.createCategory(category), 'create category');
+    await _safeAwsCall(
+      () => AwsApiService.createCategory(category),
+      'create category',
+    );
     return category.id;
   }
 
@@ -1703,16 +2075,22 @@ class DatabaseService {
     }
     await _removeDeletedCategoryId(category.id);
     await updateCategoryReferences(category);
-  categoriesVersion.value++;
-    await _safeAwsCall(() => AwsApiService.updateCategory(category), 'update category');
+    categoriesVersion.value++;
+    await _safeAwsCall(
+      () => AwsApiService.updateCategory(category),
+      'update category',
+    );
   }
 
   static Future<void> deleteCategory(String id) async {
     await _addDeletedCategoryId(id);
     await _categoryBox.delete(id);
     await _categoryBox.flush();
-  categoriesVersion.value++;
-    await _safeAwsCall(() => AwsApiService.deleteCategory(id), 'delete category');
+    categoriesVersion.value++;
+    await _safeAwsCall(
+      () => AwsApiService.deleteCategory(id),
+      'delete category',
+    );
   }
 
   static List<Category> getAllCategories() {
@@ -1738,7 +2116,10 @@ class DatabaseService {
     // Notify listeners that accounts changed
     accountsVersion.value++;
     await _removeDeletedAccountId(account.id);
-    await _safeAwsCall(() => AwsApiService.createAccount(account), 'create account');
+    await _safeAwsCall(
+      () => AwsApiService.createAccount(account),
+      'create account',
+    );
   }
 
   static Future<void> updateAccount(Account account) async {
@@ -1749,7 +2130,10 @@ class DatabaseService {
     if (account.isActive) {
       await _removeDeletedAccountId(account.id);
     }
-    await _safeAwsCall(() => AwsApiService.updateAccount(account), 'update account');
+    await _safeAwsCall(
+      () => AwsApiService.updateAccount(account),
+      'update account',
+    );
   }
 
   /// Persist or update the stored initial balance for an account.
@@ -1787,10 +2171,12 @@ class DatabaseService {
   }
 
   static List<Account> getAllAccounts() {
-    final list = _accountBox.values.where((account) => account.isActive).toList();
+    final list = _accountBox.values
+        .where((account) => account.isActive)
+        .toList();
     // Apply saved order if present
     try {
-  final saved = getSetting<List<dynamic>>('accountOrder', <dynamic>[]);
+      final saved = getSetting<List<dynamic>>('accountOrder', <dynamic>[]);
       if (saved != null && saved.isNotEmpty) {
         final order = saved.map((e) => e.toString()).toList();
         list.sort((a, b) {
@@ -1809,7 +2195,9 @@ class DatabaseService {
   }
 
   static List<Account> getArchivedAccounts() {
-    return _accountBox.values.where((account) => account.isActive == false).toList();
+    return _accountBox.values
+        .where((account) => account.isActive == false)
+        .toList();
   }
 
   static Account? getAccountById(String id) {
@@ -1826,9 +2214,15 @@ class DatabaseService {
     if (acc.availableBalance != null) return acc.availableBalance!;
 
     // Sum pending (uncleared) transactions for this account
-    final pending = _transactionBox.values.where((t) => t.accountId == accountId && t.cleared != true).toList();
-    final pendingExpenses = pending.where((t) => t.type == TransactionType.expense).fold<double>(0.0, (s, t) => s + t.amount);
-    final pendingIncome = pending.where((t) => t.type == TransactionType.income).fold<double>(0.0, (s, t) => s + t.amount);
+    final pending = _transactionBox.values
+        .where((t) => t.accountId == accountId && t.cleared != true)
+        .toList();
+    final pendingExpenses = pending
+        .where((t) => t.type == TransactionType.expense)
+        .fold<double>(0.0, (s, t) => s + t.amount);
+    final pendingIncome = pending
+        .where((t) => t.type == TransactionType.income)
+        .fold<double>(0.0, (s, t) => s + t.amount);
 
     return acc.balance - pendingExpenses + pendingIncome;
   }
@@ -1840,12 +2234,18 @@ class DatabaseService {
   ///   otherwise compute availability from visible transactions.
   /// - [includeCleared]: whether to include cleared transactions in the
   ///   computation (TransactionsScreen allows toggling this); default false.
-  static double getDisplayBalanceForAccount(String accountId, {bool showAvailable = false, bool includeCleared = false}) {
+  static double getDisplayBalanceForAccount(
+    String accountId, {
+    bool showAvailable = false,
+    bool includeCleared = false,
+  }) {
     final acc = getAccountById(accountId);
     if (acc == null) return 0.0;
 
     // Build visible transactions for this account according to includeCleared
-    final visible = _transactionBox.values.where((t) => t.accountId == accountId).toList();
+    final visible = _transactionBox.values
+        .where((t) => t.accountId == accountId)
+        .toList();
     if (!includeCleared) visible.removeWhere((t) => t.cleared == true);
     // Sort oldest -> newest for running-balance iteration
     visible.sort((a, b) {
@@ -1855,20 +2255,28 @@ class DatabaseService {
 
     double cum;
     if (showAvailable) {
-      final pendingExpenses = visible.where((t) => t.type == TransactionType.expense).fold<double>(0.0, (s, t) => s + t.amount);
-      final pendingIncome = visible.where((t) => t.type == TransactionType.income).fold<double>(0.0, (s, t) => s + t.amount);
+      final pendingExpenses = visible
+          .where((t) => t.type == TransactionType.expense)
+          .fold<double>(0.0, (s, t) => s + t.amount);
+      final pendingIncome = visible
+          .where((t) => t.type == TransactionType.income)
+          .fold<double>(0.0, (s, t) => s + t.amount);
       final computedAvailable = acc.balance - pendingExpenses + pendingIncome;
       final base = acc.availableBalance ?? computedAvailable;
       cum = base;
       for (final tx in visible) {
-        final effect = (tx.type == TransactionType.income ? tx.amount : -tx.amount);
+        final effect = (tx.type == TransactionType.income
+            ? tx.amount
+            : -tx.amount);
         cum += effect;
       }
     } else {
       final initial = getInitialBalance(accountId);
       cum = initial;
       for (final tx in visible) {
-        final effect = (tx.type == TransactionType.income ? tx.amount : -tx.amount);
+        final effect = (tx.type == TransactionType.income
+            ? tx.amount
+            : -tx.amount);
         cum += effect;
       }
     }
@@ -1888,7 +2296,9 @@ class DatabaseService {
   static Future<void> setSetting(String key, dynamic value) async {
     final box = _settingsBoxOrNull();
     if (box == null) {
-      foundation.debugPrint('DatabaseService.setSetting skipped before init for key: $key');
+      foundation.debugPrint(
+        'DatabaseService.setSetting skipped before init for key: $key',
+      );
       return;
     }
     await box.put(key, value);
@@ -1921,7 +2331,9 @@ class DatabaseService {
         return v.map((e) => _sanitizeForJson(e)).toList();
       }
       // Try common JSON helpers
-      if (v is List || v is Set) return (v as Iterable).map((e) => _sanitizeForJson(e)).toList();
+      if (v is List || v is Set) {
+        return (v as Iterable).map((e) => _sanitizeForJson(e)).toList();
+      }
       // If object has toJson method, use it
       try {
         // Use dynamic invocation to call toJson if it exists
@@ -1944,7 +2356,9 @@ class DatabaseService {
 
   static List<String> getHiddenTransactionIds() {
     try {
-      final raw = _settingsBox.get(_hiddenTransactionsKey, defaultValue: <dynamic>[]) as List<dynamic>;
+      final raw =
+          _settingsBox.get(_hiddenTransactionsKey, defaultValue: <dynamic>[])
+              as List<dynamic>;
       return raw.map((e) => e.toString()).toList();
     } catch (e) {
       // ignore: avoid_print
@@ -1985,7 +2399,9 @@ class DatabaseService {
   // Custom account types operations (stored as a list of strings in settings)
   static List<String> getAllCustomAccountTypes() {
     try {
-      final raw = _settingsBox.get('customAccountTypes', defaultValue: <dynamic>[]) as List<dynamic>;
+      final raw =
+          _settingsBox.get('customAccountTypes', defaultValue: <dynamic>[])
+              as List<dynamic>;
       return raw.map((e) => e.toString()).toList();
     } catch (e) {
       // ignore: avoid_print
@@ -2028,7 +2444,9 @@ class DatabaseService {
   // keys: id, name, type ('payee'|'payer'), categoryId (nullable)
   static List<Map<String, dynamic>> getAllPayees() {
     try {
-      final raw = _settingsBox.get('payees', defaultValue: <dynamic>[]) as List<dynamic>;
+      final raw =
+          _settingsBox.get('payees', defaultValue: <dynamic>[])
+              as List<dynamic>;
       final out = <Map<String, dynamic>>[];
       for (final e in raw) {
         if (e is Map) {
@@ -2057,14 +2475,18 @@ class DatabaseService {
     try {
       final list = getAllPayees();
       // Ensure we only write primitive / JSON-encodable maps
-      final normalized = Map<String, dynamic>.from(payee.map((k, v) => MapEntry(k, v?.toString())));
+      final normalized = Map<String, dynamic>.from(
+        payee.map((k, v) => MapEntry(k, v?.toString())),
+      );
       list.add(normalized);
-  await _settingsBox.put('payees', list);
-  await _settingsBox.flush();
-  // Notify listeners
-  payeesVersion.value++;
-  // ignore: avoid_print
-  print('DatabaseService.addPayee stored payees: ${_settingsBox.get('payees')}');
+      await _settingsBox.put('payees', list);
+      await _settingsBox.flush();
+      // Notify listeners
+      payeesVersion.value++;
+      // ignore: avoid_print
+      print(
+        'DatabaseService.addPayee stored payees: ${_settingsBox.get('payees')}',
+      );
     } catch (e) {
       // ignore: avoid_print
       print('DatabaseService.addPayee failed: $e');
@@ -2075,8 +2497,10 @@ class DatabaseService {
     try {
       final list = getAllPayees();
       final idx = list.indexWhere((p) => p['id'] == payee['id']);
-        if (idx >= 0) {
-        final normalized = Map<String, dynamic>.from(payee.map((k, v) => MapEntry(k, v?.toString())));
+      if (idx >= 0) {
+        final normalized = Map<String, dynamic>.from(
+          payee.map((k, v) => MapEntry(k, v?.toString())),
+        );
         list[idx] = normalized;
         await _settingsBox.put('payees', list);
         await _settingsBox.flush();
@@ -2084,7 +2508,9 @@ class DatabaseService {
         // Notify listeners
         payeesVersion.value++;
         // ignore: avoid_print
-        print('DatabaseService.updatePayee stored payees: ${_settingsBox.get('payees')}');
+        print(
+          'DatabaseService.updatePayee stored payees: ${_settingsBox.get('payees')}',
+        );
       }
     } catch (e) {
       // ignore: avoid_print
@@ -2096,12 +2522,14 @@ class DatabaseService {
     try {
       final list = getAllPayees();
       list.removeWhere((p) => p['id'] == id);
-  await _settingsBox.put('payees', list);
-  await _settingsBox.flush();
-  // Notify listeners
-  payeesVersion.value++;
-  // ignore: avoid_print
-  print('DatabaseService.deletePayee stored payees: ${_settingsBox.get('payees')}');
+      await _settingsBox.put('payees', list);
+      await _settingsBox.flush();
+      // Notify listeners
+      payeesVersion.value++;
+      // ignore: avoid_print
+      print(
+        'DatabaseService.deletePayee stored payees: ${_settingsBox.get('payees')}',
+      );
     } catch (e) {
       // ignore: avoid_print
       print('DatabaseService.deletePayee failed: $e');
@@ -2110,7 +2538,10 @@ class DatabaseService {
 
   // Analytics helpers
   static double getTotalBalance() {
-    return _accountBox.values.fold(0.0, (sum, account) => sum + account.balance);
+    return _accountBox.values.fold(
+      0.0,
+      (sum, account) => sum + account.balance,
+    );
   }
 
   static double getTotalIncomeForPeriod(DateTime startDate, DateTime endDate) {
@@ -2129,8 +2560,10 @@ class DatabaseService {
     DateTime startDate,
     DateTime endDate,
   ) {
-    final expenses = getTransactionsByDateRange(startDate, endDate)
-        .where((transaction) => transaction.type == TransactionType.expense);
+    final expenses = getTransactionsByDateRange(
+      startDate,
+      endDate,
+    ).where((transaction) => transaction.type == TransactionType.expense);
 
     final categoryExpenses = <String, double>{};
     for (final transaction in expenses) {
@@ -2146,14 +2579,21 @@ class DatabaseService {
   // Compute bill occurrences between startDate and endDate (inclusive).
   // Returns a list of maps: {'bill': Bill, 'date': DateTime}.
   // This is a non-persistent view used for calendar rendering and quick checks.
-  static List<Map<String, dynamic>> getBillOccurrencesBetween(DateTime startDate, DateTime endDate) {
+  static List<Map<String, dynamic>> getBillOccurrencesBetween(
+    DateTime startDate,
+    DateTime endDate,
+  ) {
     DateTime? earliestDate(DateTime? a, DateTime? b) {
       if (a == null) return b;
       if (b == null) return a;
       return a.isBefore(b) ? a : b;
     }
 
-    final normalizedStart = DateTime(startDate.year, startDate.month, startDate.day);
+    final normalizedStart = DateTime(
+      startDate.year,
+      startDate.month,
+      startDate.day,
+    );
     final normalizedEnd = DateTime(endDate.year, endDate.month, endDate.day);
     final recurrenceEndOverrides = _getBillRecurrenceEndOverrides();
     final out = <Map<String, dynamic>>[];
@@ -2161,17 +2601,25 @@ class DatabaseService {
     final bills = getAllBills();
     for (final bill in bills) {
       final seenForBill = <String>{};
-      final DateTime? effectiveRecurrenceEndDate = earliestDate(
-        recurrenceEndOverrides[bill.id],
-        bill.recurrenceEndDate,
-      );
+      final DateTime? effectiveRecurrenceEndDate =
+          bill.recurrence == Recurrence.none
+          ? null
+          : earliestDate(
+              recurrenceEndOverrides[bill.id],
+              bill.recurrenceEndDate,
+            );
       // Skip bills that end before the requested range
-      if (effectiveRecurrenceEndDate != null && effectiveRecurrenceEndDate.isBefore(normalizedStart)) continue;
+      if (effectiveRecurrenceEndDate != null &&
+          effectiveRecurrenceEndDate.isBefore(normalizedStart)) {
+        continue;
+      }
 
       // Helper to add an occurrence if within bounds
       void addIfInRange(DateTime occ) {
-        if ((occ.isAtSameMomentAs(normalizedStart) || occ.isAfter(normalizedStart)) &&
-            (occ.isAtSameMomentAs(normalizedEnd) || occ.isBefore(normalizedEnd))) {
+        if ((occ.isAtSameMomentAs(normalizedStart) ||
+                occ.isAfter(normalizedStart)) &&
+            (occ.isAtSameMomentAs(normalizedEnd) ||
+                occ.isBefore(normalizedEnd))) {
           final key = '${occ.year}-${occ.month}-${occ.day}';
           if (seenForBill.contains(key)) return;
           final globalKey = '${bill.id}|$key|${bill.type.name}';
@@ -2183,14 +2631,24 @@ class DatabaseService {
 
       switch (bill.recurrence) {
         case Recurrence.none:
-          addIfInRange(DateTime(bill.dueDate.year, bill.dueDate.month, bill.dueDate.day));
+          addIfInRange(
+            DateTime(bill.dueDate.year, bill.dueDate.month, bill.dueDate.day),
+          );
           break;
         case Recurrence.daily:
           {
-            final interval = bill.recurrenceInterval <= 0 ? 1 : bill.recurrenceInterval;
-            DateTime cur = DateTime(bill.dueDate.year, bill.dueDate.month, bill.dueDate.day);
+            final interval = bill.recurrenceInterval <= 0
+                ? 1
+                : bill.recurrenceInterval;
+            DateTime cur = DateTime(
+              bill.dueDate.year,
+              bill.dueDate.month,
+              bill.dueDate.day,
+            );
             // iterate until the earlier of recurrenceEndDate (if any) or endDate
-            while (!(effectiveRecurrenceEndDate != null && cur.isAfter(effectiveRecurrenceEndDate)) && !cur.isAfter(normalizedEnd)) {
+            while (!(effectiveRecurrenceEndDate != null &&
+                    cur.isAfter(effectiveRecurrenceEndDate)) &&
+                !cur.isAfter(normalizedEnd)) {
               if (!cur.isBefore(normalizedStart)) addIfInRange(cur);
               cur = cur.add(Duration(days: interval));
             }
@@ -2198,27 +2656,47 @@ class DatabaseService {
           break;
         case Recurrence.weekly:
           {
-            final intervalWeeks = bill.recurrenceInterval <= 0 ? 1 : bill.recurrenceInterval;
-            final weekdays = (bill.recurrenceWeekdays == null || bill.recurrenceWeekdays!.isEmpty) ? [bill.dueDate.weekday] : bill.recurrenceWeekdays!;
+            final intervalWeeks = bill.recurrenceInterval <= 0
+                ? 1
+                : bill.recurrenceInterval;
+            final weekdays =
+                (bill.recurrenceWeekdays == null ||
+                    bill.recurrenceWeekdays!.isEmpty)
+                ? [bill.dueDate.weekday]
+                : bill.recurrenceWeekdays!;
 
-            final due = DateTime(bill.dueDate.year, bill.dueDate.month, bill.dueDate.day);
+            final due = DateTime(
+              bill.dueDate.year,
+              bill.dueDate.month,
+              bill.dueDate.day,
+            );
             if (due.isAfter(normalizedEnd)) break;
 
             final sortedWeekdays = weekdays.toSet().toList()..sort();
-            final dueWeekStart = due.subtract(Duration(days: due.weekday - 1)); // Monday start
+            final dueWeekStart = due.subtract(
+              Duration(days: due.weekday - 1),
+            ); // Monday start
 
             var cycle = 0;
             while (true) {
-              final weekStart = dueWeekStart.add(Duration(days: 7 * intervalWeeks * cycle));
+              final weekStart = dueWeekStart.add(
+                Duration(days: 7 * intervalWeeks * cycle),
+              );
               if (weekStart.isAfter(normalizedEnd)) break;
-              if (effectiveRecurrenceEndDate != null && weekStart.isAfter(effectiveRecurrenceEndDate)) break;
+              if (effectiveRecurrenceEndDate != null &&
+                  weekStart.isAfter(effectiveRecurrenceEndDate)) {
+                break;
+              }
 
               for (final weekday in sortedWeekdays) {
                 final occ = weekStart.add(Duration(days: weekday - 1));
                 // Never generate before the bill's initial due date.
                 if (occ.isBefore(due)) continue;
                 if (occ.isAfter(normalizedEnd)) continue;
-                if (effectiveRecurrenceEndDate != null && occ.isAfter(effectiveRecurrenceEndDate)) continue;
+                if (effectiveRecurrenceEndDate != null &&
+                    occ.isAfter(effectiveRecurrenceEndDate)) {
+                  continue;
+                }
                 addIfInRange(occ);
               }
 
@@ -2228,19 +2706,25 @@ class DatabaseService {
           break;
         case Recurrence.monthly:
           {
-            final intervalMonths = bill.recurrenceInterval <= 0 ? 1 : bill.recurrenceInterval;
-            final days = ((bill.customDays == null || bill.customDays!.isEmpty)
-                    ? <int>[bill.dueDate.day]
-                    : bill.customDays!)
-                .toSet()
-                .toList()
-              ..sort();
+            final intervalMonths = bill.recurrenceInterval <= 0
+                ? 1
+                : bill.recurrenceInterval;
+            final days =
+                ((bill.customDays == null || bill.customDays!.isEmpty)
+                        ? <int>[bill.dueDate.day]
+                        : bill.customDays!)
+                    .toSet()
+                    .toList()
+                  ..sort();
             int currentYear = bill.dueDate.year;
             int currentMonth = bill.dueDate.month;
             while (true) {
               final monthStart = DateTime(currentYear, currentMonth, 1);
               if (monthStart.isAfter(normalizedEnd)) break;
-              if (effectiveRecurrenceEndDate != null && monthStart.isAfter(effectiveRecurrenceEndDate)) break;
+              if (effectiveRecurrenceEndDate != null &&
+                  monthStart.isAfter(effectiveRecurrenceEndDate)) {
+                break;
+              }
               for (final d in days) {
                 try {
                   int day = d;
@@ -2254,12 +2738,20 @@ class DatabaseService {
                   // month that are before the bill's original due date. Example:
                   // bill.dueDate = 15th, customDays = [1,15] -> do not create
                   // an occurrence for the 1st of the same month as the dueDate.
-                  final billStartDate = DateTime(bill.dueDate.year, bill.dueDate.month, bill.dueDate.day);
-                  if (currentYear == bill.dueDate.year && currentMonth == bill.dueDate.month && occ.isBefore(billStartDate)) {
+                  final billStartDate = DateTime(
+                    bill.dueDate.year,
+                    bill.dueDate.month,
+                    bill.dueDate.day,
+                  );
+                  if (currentYear == bill.dueDate.year &&
+                      currentMonth == bill.dueDate.month &&
+                      occ.isBefore(billStartDate)) {
                     continue; // skip past-day occurrences in the first month
                   }
 
-                  if (!occ.isAfter(normalizedEnd) && (effectiveRecurrenceEndDate == null || !occ.isAfter(effectiveRecurrenceEndDate))) {
+                  if (!occ.isAfter(normalizedEnd) &&
+                      (effectiveRecurrenceEndDate == null ||
+                          !occ.isAfter(effectiveRecurrenceEndDate))) {
                     addIfInRange(occ);
                   }
                 } catch (_) {
@@ -2276,9 +2768,17 @@ class DatabaseService {
           break;
         case Recurrence.yearly:
           {
-            final intervalYears = bill.recurrenceInterval <= 0 ? 1 : bill.recurrenceInterval;
-            DateTime cur = DateTime(bill.dueDate.year, bill.dueDate.month, bill.dueDate.day);
-            while (!(effectiveRecurrenceEndDate != null && cur.isAfter(effectiveRecurrenceEndDate)) && !cur.isAfter(normalizedEnd)) {
+            final intervalYears = bill.recurrenceInterval <= 0
+                ? 1
+                : bill.recurrenceInterval;
+            DateTime cur = DateTime(
+              bill.dueDate.year,
+              bill.dueDate.month,
+              bill.dueDate.day,
+            );
+            while (!(effectiveRecurrenceEndDate != null &&
+                    cur.isAfter(effectiveRecurrenceEndDate)) &&
+                !cur.isAfter(normalizedEnd)) {
               if (!cur.isBefore(normalizedStart)) addIfInRange(cur);
               cur = DateTime(cur.year + intervalYears, cur.month, cur.day);
             }
@@ -2286,7 +2786,9 @@ class DatabaseService {
           break;
         case Recurrence.custom:
           // custom recurrence semantics not implemented — fallback to dueDate
-          addIfInRange(DateTime(bill.dueDate.year, bill.dueDate.month, bill.dueDate.day));
+          addIfInRange(
+            DateTime(bill.dueDate.year, bill.dueDate.month, bill.dueDate.day),
+          );
           break;
       }
     }
@@ -2299,18 +2801,26 @@ class DatabaseService {
   /// stored) have correct persisted statuses so UI filters behave
   /// consistently. If `from` or `to` are omitted, the function will use
   /// the earliest bill due date and `DateTime.now()` respectively.
-  static Future<void> persistBillOccurrenceStatuses({DateTime? from, DateTime? to}) async {
+  static Future<void> persistBillOccurrenceStatuses({
+    DateTime? from,
+    DateTime? to,
+  }) async {
     final bills = getAllBills();
     if (bills.isEmpty) return;
 
-    final earliest = bills.map((b) => b.dueDate).reduce((a, b) => a.isBefore(b) ? a : b);
+    final earliest = bills
+        .map((b) => b.dueDate)
+        .reduce((a, b) => a.isBefore(b) ? a : b);
     final start = from ?? DateTime(earliest.year, earliest.month, earliest.day);
     final end = to ?? DateTime.now();
 
     final allTransactions = getAllTransactions();
 
     for (final bill in bills) {
-      final occurrences = getBillOccurrencesBetween(start, end).where((o) => o['bill'].id == bill.id).toList();
+      final occurrences = getBillOccurrencesBetween(
+        start,
+        end,
+      ).where((o) => o['bill'].id == bill.id).toList();
       for (final occ in occurrences) {
         final occDate = occ['date'] as DateTime;
         final occDateStr = DateFormat('MM/dd/yyyy').format(occDate);
@@ -2320,24 +2830,40 @@ class DatabaseService {
         for (final tx in allTransactions) {
           if (tx.billId != bill.id) continue;
           if (tx.occurrenceDate != null) {
-            if (tx.occurrenceDate!.year == occDate.year && tx.occurrenceDate!.month == occDate.month && tx.occurrenceDate!.day == occDate.day) {
+            if (tx.occurrenceDate!.year == occDate.year &&
+                tx.occurrenceDate!.month == occDate.month &&
+                tx.occurrenceDate!.day == occDate.day) {
               if (bill.type == BillType.expense) {
-                totalPaid += (tx.type == TransactionType.expense) ? tx.amount : -tx.amount;
+                totalPaid += (tx.type == TransactionType.expense)
+                    ? tx.amount
+                    : -tx.amount;
               } else {
-                totalPaid += (tx.type == TransactionType.income) ? tx.amount : -tx.amount;
+                totalPaid += (tx.type == TransactionType.income)
+                    ? tx.amount
+                    : -tx.amount;
               }
             }
-          } else if (tx.date.year == occDate.year && tx.date.month == occDate.month && tx.date.day == occDate.day) {
+          } else if (tx.date.year == occDate.year &&
+              tx.date.month == occDate.month &&
+              tx.date.day == occDate.day) {
             if (bill.type == BillType.expense) {
-              totalPaid += (tx.type == TransactionType.expense) ? tx.amount : -tx.amount;
+              totalPaid += (tx.type == TransactionType.expense)
+                  ? tx.amount
+                  : -tx.amount;
             } else {
-              totalPaid += (tx.type == TransactionType.income) ? tx.amount : -tx.amount;
+              totalPaid += (tx.type == TransactionType.income)
+                  ? tx.amount
+                  : -tx.amount;
             }
           } else if (tx.description.contains(occDateStr)) {
             if (bill.type == BillType.expense) {
-              totalPaid += (tx.type == TransactionType.expense) ? tx.amount : -tx.amount;
+              totalPaid += (tx.type == TransactionType.expense)
+                  ? tx.amount
+                  : -tx.amount;
             } else {
-              totalPaid += (tx.type == TransactionType.income) ? tx.amount : -tx.amount;
+              totalPaid += (tx.type == TransactionType.income)
+                  ? tx.amount
+                  : -tx.amount;
             }
           }
         }
@@ -2352,7 +2878,12 @@ class DatabaseService {
         }
 
         // Persist the occurrence status
-        await setBillOccurrenceStatus(bill.id, occDate, newStatus == PaymentStatus.paid, newStatus);
+        await setBillOccurrenceStatus(
+          bill.id,
+          occDate,
+          newStatus == PaymentStatus.paid,
+          newStatus,
+        );
       }
     }
   }
@@ -2378,6 +2909,7 @@ class DatabaseService {
     final deletedCategoryIds = _getDeletedCategoryIds().toSet();
     final deletedTransactionIds = _getDeletedTransactionIds().toSet();
     final recurrenceEndOverrides = _getBillRecurrenceEndOverrides();
+    final locallyModifiedBillIds = _getLocallyModifiedBillIds().toSet();
 
     if (accounts.isNotEmpty) {
       for (final account in accounts) {
@@ -2396,13 +2928,21 @@ class DatabaseService {
         final existingInstitution = (existing?.institution ?? '').trim();
         final existingDescription = (existing?.description ?? '').trim();
         final shouldKeepArchivedLocal =
-            existing != null && existing.isActive == false && account.isActive == true;
+            existing != null &&
+            existing.isActive == false &&
+            account.isActive == true;
 
         Account toPersist = account;
-        if (existing != null && incomingInstitution.isEmpty && incomingDescription.isEmpty) {
+        if (existing != null &&
+            incomingInstitution.isEmpty &&
+            incomingDescription.isEmpty) {
           toPersist = toPersist.copyWith(
-            institution: existingInstitution.isNotEmpty ? existingInstitution : null,
-            description: existingDescription.isNotEmpty ? existingDescription : null,
+            institution: existingInstitution.isNotEmpty
+                ? existingInstitution
+                : null,
+            description: existingDescription.isNotEmpty
+                ? existingDescription
+                : null,
           );
         }
         if (shouldKeepArchivedLocal) {
@@ -2440,10 +2980,17 @@ class DatabaseService {
         final incomingName = category.name.trim();
         final existingName = (existing?.name ?? '').trim();
 
-        final incomingLooksLikeId = incomingName.isEmpty || incomingName == category.id || looksOpaque(incomingName);
-        final existingIsReadable = existingName.isNotEmpty && existingName != category.id && !looksOpaque(existingName);
+        final incomingLooksLikeId =
+            incomingName.isEmpty ||
+            incomingName == category.id ||
+            looksOpaque(incomingName);
+        final existingIsReadable =
+            existingName.isNotEmpty &&
+            existingName != category.id &&
+            !looksOpaque(existingName);
 
-        final toPersist = (existing != null && incomingLooksLikeId && existingIsReadable)
+        final toPersist =
+            (existing != null && incomingLooksLikeId && existingIsReadable)
             ? category.copyWith(name: existingName)
             : category;
 
@@ -2463,8 +3010,18 @@ class DatabaseService {
           }
           continue;
         }
+        final existing = _billsBox.get(billId);
+        if (existing != null && locallyModifiedBillIds.contains(billId)) {
+          if (_billMatches(existing, bill)) {
+            await _removeLocallyModifiedBillId(billId);
+          } else {
+            continue;
+          }
+        }
         Bill toPersist = bill;
-        final localCutoff = recurrenceEndOverrides[billId];
+        final localCutoff = bill.recurrence == Recurrence.none
+            ? null
+            : recurrenceEndOverrides[billId];
         if (localCutoff != null) {
           final remoteEnd = bill.recurrenceEndDate;
           if (remoteEnd == null || remoteEnd.isAfter(localCutoff)) {
@@ -2488,7 +3045,8 @@ class DatabaseService {
           continue;
         }
         final existing = _transactionBox.get(tx.id);
-        Transaction toPersist = (tx.cleared == null && existing?.cleared != null)
+        Transaction toPersist =
+            (tx.cleared == null && existing?.cleared != null)
             ? tx.copyWith(cleared: existing!.cleared)
             : tx;
 
@@ -2500,7 +3058,8 @@ class DatabaseService {
 
           final remoteCategoryMissingOrOpaque =
               incomingCategoryId.isEmpty ||
-              (incomingCategoryName.isEmpty && _looksLikeOpaqueId(incomingCategoryId));
+              (incomingCategoryName.isEmpty &&
+                  _looksLikeOpaqueId(incomingCategoryId));
 
           final localCategoryIsNewer =
               existing.updatedAt.isAfter(tx.updatedAt) &&
@@ -2510,7 +3069,9 @@ class DatabaseService {
           if (remoteCategoryMissingOrOpaque || localCategoryIsNewer) {
             toPersist = toPersist.copyWith(
               categoryId: existingCategoryId,
-              categoryName: existingCategoryName.isEmpty ? null : existingCategoryName,
+              categoryName: existingCategoryName.isEmpty
+                  ? null
+                  : existingCategoryName,
             );
           }
         }
@@ -2523,12 +3084,15 @@ class DatabaseService {
 
     // Ensure imported transactions have friendly category names after
     // categories and transactions are written.
-    final categoryNamesUpdated = await migrateLegacyTransactionCategoryNames(force: true);
+    final categoryNamesUpdated = await migrateLegacyTransactionCategoryNames(
+      force: true,
+    );
     if (categoryNamesUpdated > 0) {
       transactionsChanged = true;
     }
 
-    final categoryLinksUpdated = await migrateLegacyTransactionCategoryResolution(force: true);
+    final categoryLinksUpdated =
+        await migrateLegacyTransactionCategoryResolution(force: true);
     if (categoryLinksUpdated > 0) {
       transactionsChanged = true;
     }
@@ -2538,13 +3102,18 @@ class DatabaseService {
         try {
           final billId = (raw['billId'] ?? raw['bill_id'] ?? '').toString();
           final dateRaw =
-              raw['occurrenceDate'] ?? raw['paymentDate'] ?? raw['date'] ?? raw['dueDate'];
+              raw['occurrenceDate'] ??
+              raw['paymentDate'] ??
+              raw['date'] ??
+              raw['dueDate'];
           if (billId.isEmpty || dateRaw == null) continue;
 
           final date = DateTime.tryParse(dateRaw.toString());
           if (date == null) continue;
 
-          final statusRaw = (raw['paymentStatus'] ?? raw['status'] ?? '').toString().toLowerCase();
+          final statusRaw = (raw['paymentStatus'] ?? raw['status'] ?? '')
+              .toString()
+              .toLowerCase();
           final isPaidRaw = raw['isPaid'];
           final bool isPaid = isPaidRaw == true || statusRaw == 'paid';
           final PaymentStatus status = statusRaw == 'partial'
@@ -2555,10 +3124,10 @@ class DatabaseService {
             billId,
             DateTime(date.year, date.month, date.day),
           );
-          await _billOccurrenceBox.put(
-            key,
-            {'isPaid': isPaid, 'paymentStatus': status.index},
-          );
+          await _billOccurrenceBox.put(key, {
+            'isPaid': isPaid,
+            'paymentStatus': status.index,
+          });
           billsChanged = true;
         } catch (_) {}
       }
@@ -2579,7 +3148,10 @@ class DatabaseService {
         return longToken.hasMatch(v);
       }
 
-      void mergeContacts(List<Map<String, dynamic>> entries, String defaultType) {
+      void mergeContacts(
+        List<Map<String, dynamic>> entries,
+        String defaultType,
+      ) {
         for (final item in entries) {
           final id = (item['id'] ?? '').toString().trim();
           final name = (item['name'] ?? '').toString().trim();
@@ -2587,10 +3159,14 @@ class DatabaseService {
           final existing = merged[id];
           final rawCategoryId = item['categoryId']?.toString().trim();
           final incomingCategoryId =
-              rawCategoryId == null || rawCategoryId.isEmpty || rawCategoryId.toLowerCase() == 'null'
-                  ? null
-                  : rawCategoryId;
-          final rawExistingCategoryId = existing?['categoryId']?.toString().trim();
+              rawCategoryId == null ||
+                  rawCategoryId.isEmpty ||
+                  rawCategoryId.toLowerCase() == 'null'
+              ? null
+              : rawCategoryId;
+          final rawExistingCategoryId = existing?['categoryId']
+              ?.toString()
+              .trim();
           final existingCategoryId =
               rawExistingCategoryId == null ||
                   rawExistingCategoryId.isEmpty ||
@@ -2600,7 +3176,9 @@ class DatabaseService {
           final incomingLooksLikeId = name == id || looksOpaque(name);
           final existingName = (existing?['name'] ?? '').toString().trim();
           final existingIsGood =
-              existingName.isNotEmpty && existingName != id && !looksOpaque(existingName);
+              existingName.isNotEmpty &&
+              existingName != id &&
+              !looksOpaque(existingName);
 
           // Keep existing readable names; do not replace with opaque/id-like names.
           if (existing != null && incomingLooksLikeId && existingIsGood) {
@@ -2640,10 +3218,10 @@ class DatabaseService {
     await _accountBox.clear();
     await _billsBox.clear();
     await _billOccurrenceBox.clear();
-    
+
     // Clear all settings
     await _settingsBox.clear();
-    
+
     // Reset specific settings to defaults
     await _settingsBox.put('payees', <dynamic>[]);
     await _settingsBox.put('customAccountTypes', <dynamic>[]);
@@ -2652,16 +3230,16 @@ class DatabaseService {
     await _settingsBox.put('appliedPromoCode', null);
     await _settingsBox.put('activeTrialExpiresAt', null);
     await _settingsBox.put('lastPurchase', null);
-    
+
     // Clear auto-backup settings
     await _settingsBox.put('autoBackupEnabled', false);
     await _settingsBox.put('autoBackupFrequency', 'Weekly');
     await _settingsBox.put('lastAutoBackupAt', null);
-    
+
     // Clear other app settings
     await _settingsBox.put('accountOrder', <dynamic>[]);
     await _settingsBox.put(_hiddenTransactionsKey, <dynamic>[]);
-    
+
     // Flush all boxes to ensure data is persisted
     await _transactionBox.flush();
     await _categoryBox.flush();
@@ -2669,14 +3247,14 @@ class DatabaseService {
     await _billsBox.flush();
     await _billOccurrenceBox.flush();
     await _settingsBox.flush();
-    
+
     // Notify all listeners
     transactionsVersion.value++;
     categoriesVersion.value++;
     accountsVersion.value++;
     billsVersion.value++;
     payeesVersion.value++;
-    
+
     // Reinitialize default data
     await _initializeDefaultData();
   }
@@ -2719,7 +3297,9 @@ class DatabaseService {
   }
 
   /// Import bill occurrence statuses from a map into the internal box.
-  static Future<void> importBillOccurrenceStatuses(Map<String, dynamic> data) async {
+  static Future<void> importBillOccurrenceStatuses(
+    Map<String, dynamic> data,
+  ) async {
     if (data.isEmpty) return;
     try {
       for (final entry in data.entries) {

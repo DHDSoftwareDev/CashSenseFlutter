@@ -92,6 +92,9 @@ class BillReminderService {
 
         if (_isOccurrencePaid(bill, occDate)) continue;
 
+        // Skip if notifications are disabled for this specific bill
+        if (!_shouldNotifyForBill(bill.id)) continue;
+
         await scheduleReminderForBill(
           userId: userId,
           bill: bill,
@@ -220,6 +223,14 @@ class BillReminderService {
     }
 
     return totalPaid >= (bill.amount - 0.01);
+  }
+
+  /// Check if a bill should receive notifications.
+  /// Returns true if notifications are enabled (default) or false if explicitly disabled.
+  bool _shouldNotifyForBill(String billId) {
+    final settingKey = 'notif_bill_${billId}_enabled';
+    final setting = DatabaseService.getSetting<bool>(settingKey, true);
+    return setting ?? true; // Default to true if setting not found
   }
 
   Future<void> cancelAllReminders() async {
