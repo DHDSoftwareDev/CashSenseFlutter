@@ -2635,350 +2635,193 @@ class _AddBillScreenState extends State<AddBillScreen> {
     });
   }
 
-  Future<void> _saveBill() async {
-    if (_isSaving) return;
-    FocusScope.of(context).unfocus();
-    if (!_formKey.currentState!.validate()) return;
+Future<void> _saveBill() async {
+  if (_isSaving) return;
+  FocusScope.of(context).unfocus();
+  if (!_formKey.currentState!.validate()) return;
 
-    final cleanedAmountText = _amountController.text.replaceAll(
-      RegExp(r'[^0-9.]'),
-      '',
+  final cleanedAmountText = _amountController.text.replaceAll(
+    RegExp(r'[^0-9.]'),
+    '',
+  );
+  final amount = double.tryParse(cleanedAmountText);
+
+  if (amount == null || amount <= 0) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Please enter a valid amount'),
+        backgroundColor: Colors.blueGrey[400],
+      ),
     );
-    final amount = double.tryParse(cleanedAmountText);
-    if (amount == null || amount <= 0) {
+    return;
+  }
+
+  if ((_billType == BillType.expense || _billType == BillType.income) &&
+      _selectedCategoryId == null) {
+    if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Please enter a valid amount'),
+          content: const Text('Please select a category'),
           backgroundColor: Colors.blueGrey[400],
         ),
       );
-      return;
     }
+    return;
+  }
 
-    // Enforce category selection for expense/income bills
-    if ((_billType == BillType.expense || _billType == BillType.income) &&
-        _selectedCategoryId == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Please select a category'),
-            backgroundColor: Colors.blueGrey[400],
-          ),
-        );
-      }
-      return;
-    }
+  setState(() => _isSaving = true);
 
-    setState(() => _isSaving = true);
-    final normalizedDueDate = DateTime(
-      _dueDate.year,
-      _dueDate.month,
-      _dueDate.day,
-    );
-    final normalizedRecurrence = _recurrence;
-    final normalizedRecurrenceEndDate = normalizedRecurrence == Recurrence.none
-        ? null
-        : (_recurrenceForever
+  final normalizedDueDate = DateTime(
+    _dueDate.year,
+    _dueDate.month,
+    _dueDate.day,
+  );
+
+  final normalizedRecurrence = _recurrence;
+
+  final normalizedRecurrenceEndDate = normalizedRecurrence == Recurrence.none
+      ? null
+      : (_recurrenceForever
+          ? null
+          : (_recurrenceEndDate == null
               ? null
-              : (_recurrenceEndDate == null
-                    ? null
-                    : DateTime(
-                        _recurrenceEndDate!.year,
-                        _recurrenceEndDate!.month,
-                        _recurrenceEndDate!.day,
-                      )));
-    final List<int>? normalizedRecurrenceWeekdays =
-        normalizedRecurrence == Recurrence.weekly
-        ? ((_recurrenceWeekdays == null || _recurrenceWeekdays!.isEmpty)
+              : DateTime(
+                  _recurrenceEndDate!.year,
+                  _recurrenceEndDate!.month,
+                  _recurrenceEndDate!.day,
+                )));
+
+  final List<int>? normalizedRecurrenceWeekdays =
+      normalizedRecurrence == Recurrence.weekly
+          ? ((_recurrenceWeekdays == null || _recurrenceWeekdays!.isEmpty)
               ? null
               : (_recurrenceWeekdays!.toSet().toList()..sort()))
-        : null;
-    final List<int>? normalizedCustomDays =
-        normalizedRecurrence == Recurrence.monthly
-        ? ((_customDays == null || _customDays!.isEmpty)
+          : null;
+
+  final List<int>? normalizedCustomDays =
+      normalizedRecurrence == Recurrence.monthly
+          ? ((_customDays == null || _customDays!.isEmpty)
               ? <int>[normalizedDueDate.day]
               : (_customDays!.toSet().toList()..sort()))
-        : null;
-    // Default: persist a Bill (existing behavior)
-    final Bill bill;
-    final notes = _notesController.text.trim();
-    final isCreateFlow = widget.existingBill == null || widget.isDuplicate;
-    final existingNotes = _initialNotes;
-    String? description;
-    if (isCreateFlow) {
-      if (widget.existingBill != null) {
-        // Recurring occurrence edits are saved as a new bill. Preserve the
-        // existing displayed label unless the user intentionally changes it.
-        description = _didUserEditNotes
-            ? (notes.isEmpty ? null : notes)
-            : (existingNotes.isEmpty ? null : existingNotes);
-      } else {
-        // For brand-new bills, only persist notes explicitly entered in this flow.
-        description = (_didUserEditNotes && notes.isNotEmpty) ? notes : null;
-      }
+          : null;
+
+  final selectedPayee = _selectedPayeeId == null
+      ? null
+      : _payees.firstWhere(
+          (p) => p['id'] == _selectedPayeeId,
+          orElse: () => <String, dynamic>{},
+        );
+
+  final selectedPayeeName =
+      (selectedPayee?['name'] ?? '').toString().trim();
+
+  final notes = _notesController.text.trim();
+  final isCreateFlow = widget.existingBill == null || widget.isDuplicate;
+  final existingNotes = _initialNotes;
+
+  String? description;
+
+  if (isCreateFlow) {
+    if (notes.isNotEmpty && _didUserEditNotes) {
+      description = notes;
+    } else if (selectedPayeeName.isNotEmpty) {
+      description = selectedPayeeName;
     } else {
-      // For edits, preserve current notes unless the user intentionally changed them.
-      if (_didUserEditNotes) {
-        description = notes.isEmpty ? null : notes;
-      } else {
-        description = existingNotes.isEmpty ? null : existingNotes;
-      }
+      description = null;
     }
-    if (widget.existingBill != null) {
-      // Updating existing bill
-      bill = widget.existingBill!.copyWith(
-        amount: amount,
-        description: description,
-        dueDate: normalizedDueDate,
-        recurrence: normalizedRecurrence,
-        customDays: normalizedCustomDays,
-        recurrenceEndDate: normalizedRecurrenceEndDate,
-        recurrenceInterval: _recurrenceInterval,
-        recurrenceWeekdays: normalizedRecurrenceWeekdays,
-        categoryId: _selectedCategoryId,
-        type: _billType,
-        fromAccountId: _billType == BillType.transfer ? _fromAccountId : null,
-        toAccountId: _billType == BillType.transfer ? _toAccountId : null,
-        payeeId: _selectedPayeeId,
-        accountId: _selectedAccountId,
-        // leave reminderEnabled unchanged when editing here
+  } else {
+    if (_didUserEditNotes) {
+      description = notes.isEmpty ? null : notes;
+    } else if (existingNotes.isNotEmpty) {
+      description = existingNotes;
+    } else if (selectedPayeeName.isNotEmpty) {
+      description = selectedPayeeName;
+    } else {
+      description = null;
+    }
+  }
+
+  final Bill bill;
+
+  if (widget.existingBill != null) {
+    bill = widget.existingBill!.copyWith(
+      amount: amount,
+      description: description,
+      dueDate: normalizedDueDate,
+      recurrence: normalizedRecurrence,
+      customDays: normalizedCustomDays,
+      recurrenceEndDate: normalizedRecurrenceEndDate,
+      recurrenceInterval: _recurrenceInterval,
+      recurrenceWeekdays: normalizedRecurrenceWeekdays,
+      categoryId: _selectedCategoryId,
+      type: _billType,
+      fromAccountId: _billType == BillType.transfer ? _fromAccountId : null,
+      toAccountId: _billType == BillType.transfer ? _toAccountId : null,
+      payeeId: _selectedPayeeId,
+      accountId: _selectedAccountId,
+    );
+  } else {
+    bill = Bill(
+      amount: amount,
+      description: description,
+      dueDate: normalizedDueDate,
+      recurrence: normalizedRecurrence,
+      customDays: normalizedCustomDays,
+      recurrenceEndDate: normalizedRecurrenceEndDate,
+      recurrenceInterval: _recurrenceInterval,
+      recurrenceWeekdays: normalizedRecurrenceWeekdays,
+      categoryId: _selectedCategoryId,
+      type: _billType,
+      fromAccountId: _billType == BillType.transfer ? _fromAccountId : null,
+      toAccountId: _billType == BillType.transfer ? _toAccountId : null,
+      payeeId: _selectedPayeeId,
+      accountId: _selectedAccountId,
+      isPaid: false,
+    );
+  }
+
+  try {
+    if (widget.existingBill != null && !widget.isDuplicate) {
+      await DatabaseService.updateBill(
+        bill,
+        reminderOffsets:
+            _remindersEnabled ? _selectedReminders : const <ReminderOffset>[],
       );
     } else {
-      // Creating new bill
-      bill = Bill(
-        amount: amount,
-        description: description,
-        dueDate: normalizedDueDate,
-        recurrence: normalizedRecurrence,
-        customDays: normalizedCustomDays,
-        recurrenceEndDate: normalizedRecurrenceEndDate,
-        recurrenceInterval: _recurrenceInterval,
-        recurrenceWeekdays: normalizedRecurrenceWeekdays,
-        categoryId: _selectedCategoryId,
-        type: _billType,
-        fromAccountId: _billType == BillType.transfer ? _fromAccountId : null,
-        toAccountId: _billType == BillType.transfer ? _toAccountId : null,
-        payeeId: _selectedPayeeId,
-        accountId: _selectedAccountId,
-        isPaid: false,
-        // do not set reminderEnabled here; use Bill default (false)
+      await DatabaseService.addBill(
+        bill,
+        reminderOffsets:
+            _remindersEnabled ? _selectedReminders : const <ReminderOffset>[],
       );
     }
 
     try {
-      if (widget.existingBill != null && !widget.isDuplicate) {
-        await DatabaseService.updateBill(
-          bill,
-          reminderOffsets: _remindersEnabled
-              ? _selectedReminders
-              : const <ReminderOffset>[],
-        );
+      DatabaseService.billsVersion.value++;
+    } catch (_) {}
 
-        final previousBill = widget.existingBill!;
-        final oldDueDate = DateTime(
-          previousBill.dueDate.year,
-          previousBill.dueDate.month,
-          previousBill.dueDate.day,
-        );
-        final newDueDate = DateTime(
-          bill.dueDate.year,
-          bill.dueDate.month,
-          bill.dueDate.day,
-        );
+    final settingKey = 'notif_bill_${bill.id}_enabled';
+    await DatabaseService.setSetting(settingKey, _remindersEnabled);
 
-        // Preserve payment history linkage when editing a one-time bill's due date.
-        if (previousBill.recurrence == Recurrence.none &&
-            bill.recurrence == Recurrence.none &&
-            oldDueDate != newDueDate) {
-          final oldDateToken = DateFormat('MM/dd/yyyy').format(oldDueDate);
-          final relatedTx = DatabaseService.getAllTransactions()
-              .where((t) => t.billId == bill.id)
-              .toList();
+    _refreshBillReminders();
 
-          for (final tx in relatedTx) {
-            final txDateOnly = DateTime(
-              tx.date.year,
-              tx.date.month,
-              tx.date.day,
-            );
-            final txOccurrenceOnly = tx.occurrenceDate == null
-                ? null
-                : DateTime(
-                    tx.occurrenceDate!.year,
-                    tx.occurrenceDate!.month,
-                    tx.occurrenceDate!.day,
-                  );
-            final hasLegacyDateLink =
-                tx.description.contains(oldDateToken) ||
-                (tx.paymentFor ?? '').contains(oldDateToken);
-
-            final shouldRemap =
-                (txOccurrenceOnly != null && txOccurrenceOnly == oldDueDate) ||
-                (txOccurrenceOnly == null &&
-                    (txDateOnly == oldDueDate || hasLegacyDateLink));
-
-            if (!shouldRemap) continue;
-
-            await DatabaseService.updateTransaction(
-              tx.copyWith(
-                occurrenceDate: newDueDate,
-                updatedAt: DateTime.now(),
-              ),
-            );
-          }
-        }
-
-        // Bill amount/recurrence edits can invalidate cached per-occurrence
-        // payment statuses (e.g., previously paid now becomes partial/unpaid).
-        // Clear cached statuses first, then rebuild from related payments below.
-        await DatabaseService.clearBillOccurrenceStatusesForBill(bill.id);
-
-        // If this is an edit of an existing bill, and there are already
-        // recorded payments for this bill (partial or otherwise), keep
-        // those payments visible by removing them from the hidden list.
-        // This ensures users see payments they've already made after
-        // changing the bill amount.
-        final allTx = DatabaseService.getAllTransactions();
-        final related = allTx.where((t) => t.billId == bill.id).toList();
-        if (related.isNotEmpty) {
-          for (final tx in related) {
-            try {
-              await DatabaseService.removeHiddenTransactionId(tx.id);
-            } catch (_) {}
-          }
-        }
-        // Persist per-occurrence statuses for any occurrence dates that have
-        // related payments. This ensures the dashboard/calendar will use the
-        // persisted status (which includes these payments) instead of
-        // recomputing totals that may exclude hidden transaction markers.
-        try {
-          final allTx = DatabaseService.getAllTransactions();
-          // Build a set of occurrence dates present in related transactions
-          final occDates = <DateTime>{};
-          for (final tx in related) {
-            if (tx.occurrenceDate != null) {
-              occDates.add(
-                DateTime(
-                  tx.occurrenceDate!.year,
-                  tx.occurrenceDate!.month,
-                  tx.occurrenceDate!.day,
-                ),
-              );
-            } else {
-              occDates.add(DateTime(tx.date.year, tx.date.month, tx.date.day));
-            }
-          }
-
-          for (final occ in occDates) {
-            final occDateStr = DateFormat('MM/dd/yyyy').format(occ);
-            double totalPaid = 0.0;
-            for (final t in allTx) {
-              if (t.billId != bill.id) continue;
-              if (t.occurrenceDate != null) {
-                if (t.occurrenceDate!.year == occ.year &&
-                    t.occurrenceDate!.month == occ.month &&
-                    t.occurrenceDate!.day == occ.day) {
-                  if (bill.type == BillType.expense) {
-                    totalPaid += (t.type == TransactionType.expense)
-                        ? t.amount
-                        : -t.amount;
-                  } else {
-                    totalPaid += (t.type == TransactionType.income)
-                        ? t.amount
-                        : -t.amount;
-                  }
-                }
-              } else if (t.date.year == occ.year &&
-                  t.date.month == occ.month &&
-                  t.date.day == occ.day) {
-                if (bill.type == BillType.expense) {
-                  totalPaid += (t.type == TransactionType.expense)
-                      ? t.amount
-                      : -t.amount;
-                } else {
-                  totalPaid += (t.type == TransactionType.income)
-                      ? t.amount
-                      : -t.amount;
-                }
-              } else if (t.description.contains(occDateStr)) {
-                if (bill.type == BillType.expense) {
-                  totalPaid += (t.type == TransactionType.expense)
-                      ? t.amount
-                      : -t.amount;
-                } else {
-                  totalPaid += (t.type == TransactionType.income)
-                      ? t.amount
-                      : -t.amount;
-                }
-              }
-            }
-
-            PaymentStatus newStatus;
-            if (totalPaid <= 0) {
-              newStatus = PaymentStatus.unpaid;
-            } else if (totalPaid >= (bill.amount - 0.01)) {
-              newStatus = PaymentStatus.paid;
-            } else {
-              newStatus = PaymentStatus.partial;
-            }
-            await DatabaseService.setBillOccurrenceStatus(
-              bill.id,
-              occ,
-              newStatus == PaymentStatus.paid,
-              newStatus,
-            );
-          }
-        } catch (_) {}
-      } else {
-        await DatabaseService.addBill(
-          bill,
-          reminderOffsets: _remindersEnabled
-              ? _selectedReminders
-              : const <ReminderOffset>[],
-        );
-      }
-      // Ensure listeners get a definitive notification (defensive) so
-      // UI like the dashboard/calendar always refreshes when notes are
-      // removed or other bill fields change.
-      try {
-        DatabaseService.billsVersion.value++;
-      } catch (_) {}
-
-      // Persist per-bill notification setting
-      final settingKey = 'notif_bill_${bill.id}_enabled';
-      await DatabaseService.setSetting(settingKey, _remindersEnabled);
-
-      _refreshBillReminders();
-
-      // Bills are now displayed via the recurring system (getBillOccurrencesBetween)
-      // which handles both one-time and recurring bills, preventing duplicates
-
-      if (mounted) {
-        // When saving a duplicated bill (used for "Only this occurrence" edits)
-        // return the created bill id so callers (e.g. dashboard) can migrate
-        // existing payments to the new occurrence-specific bill. For regular
-        // saves return `true` to preserve existing call sites.
-        if (widget.isDuplicate) {
-          Navigator.pop(context, bill.id);
-        } else {
-          Navigator.pop(context, true);
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error saving bill: $e'),
-            backgroundColor: Colors.blueGrey[400],
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isSaving = false);
-      }
+    if (mounted) {
+      Navigator.pop(context, widget.isDuplicate ? bill.id : true);
+    }
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error saving bill: $e'),
+          backgroundColor: Colors.blueGrey[400],
+        ),
+      );
+    }
+  } finally {
+    if (mounted) {
+      setState(() => _isSaving = false);
     }
   }
+}
 
   @override
   void dispose() {

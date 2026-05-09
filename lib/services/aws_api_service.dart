@@ -605,10 +605,12 @@ class AwsApiService {
     _throwIfNotOk(response);
   }
 
-  static Future<void> scheduleBillReminder(Map<String, dynamic> payload) async {
-    final response = await _request('POST', '/schedule-bill-reminder', body: payload);
-    _throwIfNotOk(response);
-  }
+static Future<void> refreshBillNotificationSchedules(
+  Map<String, dynamic> payload,
+) async {
+  final response = await _request('POST', '/send-notification', body: payload);
+  _throwIfNotOk(response);
+}
 
   static Future<void> cancelReminder(Map<String, dynamic> payload) async {
     final scheduleId = payload['scheduleId']?.toString() ?? '';
