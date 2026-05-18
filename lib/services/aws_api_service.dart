@@ -612,14 +612,19 @@ static Future<void> refreshBillNotificationSchedules(
   _throwIfNotOk(response);
 }
 
-  static Future<void> cancelReminder(Map<String, dynamic> payload) async {
-    final scheduleId = payload['scheduleId']?.toString() ?? '';
-    final response = await _request(
-      'DELETE',
-      scheduleId.isNotEmpty ? '/schedules/$scheduleId' : '/schedules',
-      body: payload,
-    );
-    _throwIfNotOk(response);
+static Future<void> cancelReminder(Map<String, dynamic> payload) async {
+  final scheduleId = payload['scheduleId']?.toString() ?? '';
+
+  if (scheduleId.isEmpty) {
+    throw Exception('scheduleId is required to cancel a reminder');
+  }
+
+  final response = await _request(
+    'DELETE',
+    '/notification-schedules/$scheduleId',
+  );
+
+  _throwIfNotOk(response);
   }
 
   /// Optional backend verification hook for Google Play purchases.

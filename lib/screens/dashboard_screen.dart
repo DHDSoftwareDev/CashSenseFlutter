@@ -406,6 +406,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return text;
   }
 
+  String _billNoteText(Bill bill) {
+    final text = _visibleBillText(bill.description);
+    if (text.isEmpty) return '';
+
+    final lowerText = text.toLowerCase();
+    if (bill.payeeId != null && bill.payeeId!.isNotEmpty) {
+      final payee = _allPayeesCache.firstWhere(
+        (p) => p['id'] == bill.payeeId,
+        orElse: () => <String, dynamic>{},
+      );
+      final payeeName = (payee['name'] ?? '').toString().trim().toLowerCase();
+      if (payeeName.isNotEmpty && lowerText == payeeName) return '';
+    }
+
+    if (bill.type == BillType.transfer) {
+      final fromName =
+          (bill.fromAccountId != null && bill.fromAccountId!.isNotEmpty)
+          ? DatabaseService.getAccountById(bill.fromAccountId!)?.name
+          : null;
+      final toName = (bill.toAccountId != null && bill.toAccountId!.isNotEmpty)
+          ? DatabaseService.getAccountById(bill.toAccountId!)?.name
+          : null;
+      if (fromName != null && toName != null) {
+        final generated = 'transfer from $fromName to $toName'.toLowerCase();
+        if (lowerText == generated) return '';
+      }
+    }
+
+    return text;
+  }
+
   void dispose() {
     _searchDebounceTimer?.cancel();
     _occurrenceStatusSyncDebounce?.cancel();
@@ -1295,7 +1326,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           final desc = cleanBillDescription.isNotEmpty
               ? cleanBillDescription
               : 'Transfer from $fromName to $toName';
-          final billNote = cleanBillDescription;
+          final billNote = _billNoteText(bill);
           final String? debitNote = billNote.isNotEmpty
               ? 'account: $fromName — $billNote'
               : null;
@@ -1335,7 +1366,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           }
           // Only show dashboard note content when the bill notes field has text.
           String? noteWithAccount;
-          final billNote = _visibleBillText(bill.description);
+          final billNote = _billNoteText(bill);
           if (billNote.isNotEmpty && bill.accountId != null) {
             final account = DatabaseService.getAccountById(bill.accountId!);
             if (account != null) {
@@ -1433,8 +1464,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ? cleanBillDescription
               : 'Transfer from $fromName to $toName';
           String? debitNote = 'account: $fromName';
-          if (cleanBillDescription.isNotEmpty) {
-            debitNote = 'account: $fromName — $cleanBillDescription';
+          final billNote = _billNoteText(bill);
+          if (billNote.isNotEmpty) {
+            debitNote = 'account: $fromName — $billNote';
           }
           final debit = Transaction(
             amount: bill.amount,
@@ -1448,8 +1480,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             TransactionDisplayItem(debit, sourceBill: bill),
           );
           String? creditNote = 'account: $toName';
-          if (cleanBillDescription.isNotEmpty) {
-            creditNote = 'account: $toName — $cleanBillDescription';
+          if (billNote.isNotEmpty) {
+            creditNote = 'account: $toName — $billNote';
           }
           final credit = Transaction(
             amount: bill.amount,
@@ -1472,7 +1504,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             if (p.containsKey('name')) desc = p['name'] as String;
           }
           String? noteWithAccount;
-          final billNote = _visibleBillText(bill.description);
+          final billNote = _billNoteText(bill);
           if (bill.accountId != null) {
             final account = DatabaseService.getAccountById(bill.accountId!);
             if (account != null) {

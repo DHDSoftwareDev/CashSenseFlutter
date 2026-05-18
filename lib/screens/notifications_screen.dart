@@ -8,6 +8,7 @@ import '../services/database_service.dart';
 import '../services/bill_reminder_service.dart';
 import '../services/cognito_service.dart';
 import '../services/push_token_service.dart';
+import '../widgets/bill_reminder_picker.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -31,15 +32,20 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   void _loadSettings() {
-    _billReminders = DatabaseService.getSetting<bool>('notif_billReminders', false) ?? false;
-    _billRemindersLeadDays = DatabaseService.getSetting<int>('notif_billReminders_leadDays', 1) ?? 1;
+    _billReminders =
+        DatabaseService.getSetting<bool>('notif_billReminders', false) ?? false;
+    _billRemindersLeadDays =
+        DatabaseService.getSetting<int>('notif_billReminders_leadDays', 1) ?? 1;
     _loadSelectedReminders();
-  // no-op: other notification settings intentionally not loaded
+    // no-op: other notification settings intentionally not loaded
     setState(() {});
   }
 
   void _loadSelectedReminders() {
-    final raw = DatabaseService.getSetting<String>('notif_billReminderOffsets', null);
+    final raw = DatabaseService.getSetting<String>(
+      'notif_billReminderOffsets',
+      null,
+    );
     if (raw != null && raw.trim().isNotEmpty) {
       try {
         final decoded = jsonDecode(raw);
@@ -75,42 +81,22 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       } catch (_) {}
     }
 
-    // Backward compatible default from existing lead-days setting.
-    selectedReminders = [
-      ReminderOffset(daysBefore: _billRemindersLeadDays, hour: 9, minute: 0),
-    ];
+    selectedReminders = [];
   }
 
   Future<void> _persistSelectedReminders() async {
-    final encoded = jsonEncode(selectedReminders.map((r) => r.toJson()).toList());
+    final encoded = jsonEncode(
+      selectedReminders.map((r) => r.toJson()).toList(),
+    );
     await DatabaseService.setSetting('notif_billReminderOffsets', encoded);
     if (selectedReminders.isNotEmpty) {
       _billRemindersLeadDays = selectedReminders
           .map((r) => r.daysBefore)
           .reduce((a, b) => a < b ? a : b);
-      await DatabaseService.setSetting('notif_billReminders_leadDays', _billRemindersLeadDays);
-    }
-  }
-
-  Future<void> _toggleReminderOffset({required int daysBefore, required bool enabled}) async {
-    setState(() {
-      if (enabled) {
-        if (!selectedReminders.any((r) => r.daysBefore == daysBefore)) {
-          selectedReminders.add(
-            ReminderOffset(daysBefore: daysBefore, hour: 9, minute: 0),
-          );
-        }
-      } else {
-        selectedReminders.removeWhere((r) => r.daysBefore == daysBefore);
-      }
-      selectedReminders.sort((a, b) => a.daysBefore.compareTo(b.daysBefore));
-    });
-
-    await _persistSelectedReminders();
-    if (_billReminders) {
-      try {
-        await BillReminderService().refreshAllReminders();
-      } catch (_) {}
+      await DatabaseService.setSetting(
+        'notif_billReminders_leadDays',
+        _billRemindersLeadDays,
+      );
     }
   }
 
@@ -120,62 +106,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   Future<void> _setBillReminders(bool value) async {
-    if (value) {
-      // If enabling, prompt user to choose lead time
-      final choice = await showDialog<int>(
-        context: context,
-        builder: (context) {
-          int selected = _billRemindersLeadDays;
-          return AlertDialog(
-            title: const Text('Bill reminder timing'),
-            content: StatefulBuilder(builder: (context, setState) {
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  RadioListTile<int>(
-                    title: const Text('On due date'),
-                    value: 0,
-                    groupValue: selected,
-                    onChanged: (v) => setState(() => selected = v ?? 0),
-                  ),
-                  RadioListTile<int>(
-                    title: const Text('1 day before'),
-                    value: 1,
-                    groupValue: selected,
-                    onChanged: (v) => setState(() => selected = v ?? 1),
-                  ),
-                  RadioListTile<int>(
-                    title: const Text('3 days before'),
-                    value: 3,
-                    groupValue: selected,
-                    onChanged: (v) => setState(() => selected = v ?? 3),
-                  ),
-                  RadioListTile<int>(
-                    title: const Text('7 days before'),
-                    value: 7,
-                    groupValue: selected,
-                    onChanged: (v) => setState(() => selected = v ?? 7),
-                  ),
-                ],
-              );
-            }),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(context, null), child: const Text('Cancel')),
-              TextButton(onPressed: () => Navigator.pop(context, selected), child: const Text('Save')),
-            ],
-          );
-        },
-      );
-
-      if (choice == null) {
-        // user cancelled, do not enable
-        return;
-      }
-
-      _billRemindersLeadDays = choice;
-      await DatabaseService.setSetting('notif_billReminders_leadDays', _billRemindersLeadDays);
-    }
-
     // Persist toggle
     await DatabaseService.setSetting('notif_billReminders', value);
     setState(() {
@@ -193,16 +123,23 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             PushTokenService.initTokenRefreshListener();
             final info = await PackageInfo.fromPlatform();
             final currentBuild = int.tryParse(info.buildNumber) ?? 0;
-            await DatabaseService.setSetting('lastDeviceRegisterBuild', currentBuild);
+            await DatabaseService.setSetting(
+              'lastDeviceRegisterBuild',
+              currentBuild,
+            );
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Notification device token synced.')),
+                const SnackBar(
+                  content: Text('Notification device token synced.'),
+                ),
               );
             }
           } else {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Sign in to enable push notifications.')),
+                const SnackBar(
+                  content: Text('Sign in to enable push notifications.'),
+                ),
               );
             }
           }
@@ -219,75 +156,28 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     } catch (_) {}
   }
 
-  /// Allow editing the lead-time even when toggle is already enabled.
-  Future<void> _editReminderTiming() async {
-    final choice = await showDialog<int>(
-      context: context,
-      builder: (context) {
-        int selected = _billRemindersLeadDays;
-        return AlertDialog(
-          title: const Text('Bill reminder timing'),
-          content: StatefulBuilder(builder: (context, setState) {
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                RadioListTile<int>(
-                  title: const Text('On due date'),
-                  value: 0,
-                  groupValue: selected,
-                  onChanged: (v) => setState(() => selected = v ?? 0),
-                ),
-                RadioListTile<int>(
-                  title: const Text('1 day before'),
-                  value: 1,
-                  groupValue: selected,
-                  onChanged: (v) => setState(() => selected = v ?? 1),
-                ),
-                RadioListTile<int>(
-                  title: const Text('3 days before'),
-                  value: 3,
-                  groupValue: selected,
-                  onChanged: (v) => setState(() => selected = v ?? 3),
-                ),
-                RadioListTile<int>(
-                  title: const Text('7 days before'),
-                  value: 7,
-                  groupValue: selected,
-                  onChanged: (v) => setState(() => selected = v ?? 7),
-                ),
-              ],
-            );
-          }),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context, null), child: const Text('Cancel')),
-            TextButton(onPressed: () => Navigator.pop(context, selected), child: const Text('Save')),
-          ],
-        );
-      },
-    );
+  Future<void> _updateReminderOffsets(List<ReminderOffset> reminders) async {
+    setState(() {
+      selectedReminders = reminders;
+    });
+    await _persistSelectedReminders();
 
-    if (choice == null) return; // user canceled
-
-    _billRemindersLeadDays = choice;
-    await DatabaseService.setSetting('notif_billReminders_leadDays', _billRemindersLeadDays);
-    setState(() {});
-
-    // If reminders are enabled, re-schedule immediately with the new lead time
     try {
       if (_billReminders) await BillReminderService().refreshAllReminders();
     } catch (_) {}
   }
 
+  String _billReminderSubtitle(bool enabled) {
+    if (!enabled) return 'Disabled';
+    if (selectedReminders.isEmpty) return 'No duration set';
+    if (selectedReminders.length == 1) return selectedReminders.first.daysLabel;
+    return '${selectedReminders.length} reminder durations';
+  }
+
   Widget _buildSwitch(String title, bool value, String key) {
     String subtitle;
     if (key == 'notif_billReminders') {
-      if (!value) {
-        subtitle = 'Disabled';
-      } else {
-    subtitle = _billRemindersLeadDays == 0
-      ? 'On due date'
-      : '$_billRemindersLeadDays day${_billRemindersLeadDays == 1 ? '' : 's'} before';
-      }
+      subtitle = _billReminderSubtitle(value);
     } else {
       subtitle = value ? 'Enabled' : 'Disabled';
     }
@@ -327,7 +217,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       if (!_billReminders) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Enable bill reminders to sync notifications.')),
+          const SnackBar(
+            content: Text('Enable bill reminders to sync notifications.'),
+          ),
         );
         return;
       }
@@ -394,41 +286,18 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Notifications'),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text('Notifications'), centerTitle: true),
       body: ListView(
         children: [
           _buildSwitch('Bill Reminders', _billReminders, 'notif_billReminders'),
-          CheckboxListTile(
-            title: const Text('7 days before'),
-            value: selectedReminders.any((r) => r.daysBefore == 7),
-            onChanged: (val) {
-              _toggleReminderOffset(daysBefore: 7, enabled: val == true);
-            },
-          ),
-          CheckboxListTile(
-            title: const Text('1 day before'),
-            value: selectedReminders.any((r) => r.daysBefore == 1),
-            onChanged: (val) {
-              _toggleReminderOffset(daysBefore: 1, enabled: val == true);
-            },
-          ),
-          ListTile(
-            title: const Text('Reminder timing'),
-            subtitle: Text(
-              _billRemindersLeadDays == 0
-                  ? 'On due date'
-                  : '$_billRemindersLeadDays day${_billRemindersLeadDays == 1 ? '' : 's'} before',
+          if (_billReminders)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+              child: BillReminderPicker(
+                initialValue: selectedReminders,
+                onChanged: _updateReminderOffsets,
+              ),
             ),
-            enabled: true,
-            trailing: IconButton(
-              icon: const Icon(Icons.edit),
-              onPressed: _editReminderTiming,
-            ),
-            onTap: _editReminderTiming,
-          ),
           ListTile(
             title: const Text('Sync push notifications'),
             subtitle: const Text('Re-register this device with the server'),

@@ -1,5 +1,7 @@
 // ignore_for_file: deprecated_member_use, no_leading_underscores_for_local_identifiers, curly_braces_in_flow_control_structures, unused_import
 
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../theme/app_theme.dart';
@@ -724,15 +726,7 @@ class _AddBillScreenState extends State<AddBillScreen> {
   String? _toAccountId;
   bool _remindersEnabled = false;
 
-  List<ReminderOffset> _selectedReminders = [
-    const ReminderOffset(daysBefore: 7, hour: 9, minute: 0),
-    const ReminderOffset(daysBefore: 1, hour: 9, minute: 0),
-  ];
-
-  static const List<ReminderOffset> _defaultReminders = [
-    ReminderOffset(daysBefore: 7, hour: 9, minute: 0),
-    ReminderOffset(daysBefore: 1, hour: 9, minute: 0),
-  ];
+  List<ReminderOffset> _selectedReminders = [];
 
   List<Map<String, dynamic>> _payees = [];
   List accountList = [];
@@ -767,12 +761,38 @@ class _AddBillScreenState extends State<AddBillScreen> {
       _toAccountId = bill.toAccountId;
       _selectedPayeeId = bill.payeeId;
       _selectedAccountId = bill.accountId;
-      _loadBillReminders(bill.toJson());
-      // preserve existing reminder setting but do not expose toggle in UI
+      _loadBillReminders(bill.id, bill.toJson());
     }
   }
 
-  void _loadBillReminders(Map<String, dynamic> billData) {
+  List<ReminderOffset> _storedReminderOffsets() {
+    try {
+      final raw = DatabaseService.getSetting<String>(
+        'notif_billReminderOffsets',
+        null,
+      );
+      if (raw == null || raw.trim().isEmpty) return const <ReminderOffset>[];
+
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return const <ReminderOffset>[];
+
+      final reminders = <ReminderOffset>[];
+      for (final item in decoded) {
+        if (item is Map<String, dynamic>) {
+          reminders.add(ReminderOffset.fromJson(item));
+        } else if (item is Map) {
+          reminders.add(
+            ReminderOffset.fromJson(Map<String, dynamic>.from(item)),
+          );
+        }
+      }
+      return reminders;
+    } catch (_) {
+      return const <ReminderOffset>[];
+    }
+  }
+
+  void _loadBillReminders(String billId, Map<String, dynamic> billData) {
     final rawOffsets = billData['reminderOffsets'] as List?;
 
     final parsed = rawOffsets == null
@@ -782,14 +802,13 @@ class _AddBillScreenState extends State<AddBillScreen> {
               .map((e) => ReminderOffset.fromJson(Map<String, dynamic>.from(e)))
               .toList();
 
-    if (parsed.isEmpty) {
-      _selectedReminders = List<ReminderOffset>.from(_defaultReminders);
-      _remindersEnabled = false;
-      return;
-    }
+    final settingKey = 'notif_bill_${billId}_enabled';
+    final savedEnabled =
+        DatabaseService.getSetting<bool>(settingKey, parsed.isNotEmpty) ??
+        parsed.isNotEmpty;
 
-    _selectedReminders = parsed;
-    _remindersEnabled = true;
+    _selectedReminders = parsed.isNotEmpty ? parsed : _storedReminderOffsets();
+    _remindersEnabled = savedEnabled;
   }
 
   void _loadLookups() {
@@ -911,11 +930,6 @@ class _AddBillScreenState extends State<AddBillScreen> {
                 onChanged: (value) {
                   setState(() {
                     _remindersEnabled = value;
-                    if (_remindersEnabled && _selectedReminders.isEmpty) {
-                      _selectedReminders = List<ReminderOffset>.from(
-                        _defaultReminders,
-                      );
-                    }
                   });
                 },
               ),
@@ -2635,193 +2649,181 @@ class _AddBillScreenState extends State<AddBillScreen> {
     });
   }
 
-Future<void> _saveBill() async {
-  if (_isSaving) return;
-  FocusScope.of(context).unfocus();
-  if (!_formKey.currentState!.validate()) return;
+  Future<void> _saveBill() async {
+    if (_isSaving) return;
+    FocusScope.of(context).unfocus();
+    if (!_formKey.currentState!.validate()) return;
 
-  final cleanedAmountText = _amountController.text.replaceAll(
-    RegExp(r'[^0-9.]'),
-    '',
-  );
-  final amount = double.tryParse(cleanedAmountText);
-
-  if (amount == null || amount <= 0) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Please enter a valid amount'),
-        backgroundColor: Colors.blueGrey[400],
-      ),
+    final cleanedAmountText = _amountController.text.replaceAll(
+      RegExp(r'[^0-9.]'),
+      '',
     );
-    return;
-  }
+    final amount = double.tryParse(cleanedAmountText);
 
-  if ((_billType == BillType.expense || _billType == BillType.income) &&
-      _selectedCategoryId == null) {
-    if (mounted) {
+    if (amount == null || amount <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Please select a category'),
+          content: const Text('Please enter a valid amount'),
           backgroundColor: Colors.blueGrey[400],
         ),
       );
+      return;
     }
-    return;
-  }
 
-  setState(() => _isSaving = true);
+    if ((_billType == BillType.expense || _billType == BillType.income) &&
+        _selectedCategoryId == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Please select a category'),
+            backgroundColor: Colors.blueGrey[400],
+          ),
+        );
+      }
+      return;
+    }
 
-  final normalizedDueDate = DateTime(
-    _dueDate.year,
-    _dueDate.month,
-    _dueDate.day,
-  );
+    setState(() => _isSaving = true);
 
-  final normalizedRecurrence = _recurrence;
+    final normalizedDueDate = DateTime(
+      _dueDate.year,
+      _dueDate.month,
+      _dueDate.day,
+    );
 
-  final normalizedRecurrenceEndDate = normalizedRecurrence == Recurrence.none
-      ? null
-      : (_recurrenceForever
-          ? null
-          : (_recurrenceEndDate == null
+    final normalizedRecurrence = _recurrence;
+
+    final normalizedRecurrenceEndDate = normalizedRecurrence == Recurrence.none
+        ? null
+        : (_recurrenceForever
               ? null
-              : DateTime(
-                  _recurrenceEndDate!.year,
-                  _recurrenceEndDate!.month,
-                  _recurrenceEndDate!.day,
-                )));
+              : (_recurrenceEndDate == null
+                    ? null
+                    : DateTime(
+                        _recurrenceEndDate!.year,
+                        _recurrenceEndDate!.month,
+                        _recurrenceEndDate!.day,
+                      )));
 
-  final List<int>? normalizedRecurrenceWeekdays =
-      normalizedRecurrence == Recurrence.weekly
-          ? ((_recurrenceWeekdays == null || _recurrenceWeekdays!.isEmpty)
+    final List<int>? normalizedRecurrenceWeekdays =
+        normalizedRecurrence == Recurrence.weekly
+        ? ((_recurrenceWeekdays == null || _recurrenceWeekdays!.isEmpty)
               ? null
               : (_recurrenceWeekdays!.toSet().toList()..sort()))
-          : null;
+        : null;
 
-  final List<int>? normalizedCustomDays =
-      normalizedRecurrence == Recurrence.monthly
-          ? ((_customDays == null || _customDays!.isEmpty)
+    final List<int>? normalizedCustomDays =
+        normalizedRecurrence == Recurrence.monthly
+        ? ((_customDays == null || _customDays!.isEmpty)
               ? <int>[normalizedDueDate.day]
               : (_customDays!.toSet().toList()..sort()))
-          : null;
+        : null;
 
-  final selectedPayee = _selectedPayeeId == null
-      ? null
-      : _payees.firstWhere(
-          (p) => p['id'] == _selectedPayeeId,
-          orElse: () => <String, dynamic>{},
-        );
+    final notes = _notesController.text.trim();
+    final isCreateFlow = widget.existingBill == null || widget.isDuplicate;
+    final existingNotes = _initialNotes;
 
-  final selectedPayeeName =
-      (selectedPayee?['name'] ?? '').toString().trim();
+    String? description;
 
-  final notes = _notesController.text.trim();
-  final isCreateFlow = widget.existingBill == null || widget.isDuplicate;
-  final existingNotes = _initialNotes;
-
-  String? description;
-
-  if (isCreateFlow) {
-    if (notes.isNotEmpty && _didUserEditNotes) {
-      description = notes;
-    } else if (selectedPayeeName.isNotEmpty) {
-      description = selectedPayeeName;
+    if (isCreateFlow) {
+      if (notes.isNotEmpty && _didUserEditNotes) {
+        description = notes;
+      } else {
+        description = null;
+      }
     } else {
-      description = null;
+      if (_didUserEditNotes) {
+        description = notes.isEmpty ? null : notes;
+      } else if (existingNotes.isNotEmpty) {
+        description = existingNotes;
+      } else {
+        description = null;
+      }
     }
-  } else {
-    if (_didUserEditNotes) {
-      description = notes.isEmpty ? null : notes;
-    } else if (existingNotes.isNotEmpty) {
-      description = existingNotes;
-    } else if (selectedPayeeName.isNotEmpty) {
-      description = selectedPayeeName;
-    } else {
-      description = null;
-    }
-  }
 
-  final Bill bill;
+    final Bill bill;
 
-  if (widget.existingBill != null) {
-    bill = widget.existingBill!.copyWith(
-      amount: amount,
-      description: description,
-      dueDate: normalizedDueDate,
-      recurrence: normalizedRecurrence,
-      customDays: normalizedCustomDays,
-      recurrenceEndDate: normalizedRecurrenceEndDate,
-      recurrenceInterval: _recurrenceInterval,
-      recurrenceWeekdays: normalizedRecurrenceWeekdays,
-      categoryId: _selectedCategoryId,
-      type: _billType,
-      fromAccountId: _billType == BillType.transfer ? _fromAccountId : null,
-      toAccountId: _billType == BillType.transfer ? _toAccountId : null,
-      payeeId: _selectedPayeeId,
-      accountId: _selectedAccountId,
-    );
-  } else {
-    bill = Bill(
-      amount: amount,
-      description: description,
-      dueDate: normalizedDueDate,
-      recurrence: normalizedRecurrence,
-      customDays: normalizedCustomDays,
-      recurrenceEndDate: normalizedRecurrenceEndDate,
-      recurrenceInterval: _recurrenceInterval,
-      recurrenceWeekdays: normalizedRecurrenceWeekdays,
-      categoryId: _selectedCategoryId,
-      type: _billType,
-      fromAccountId: _billType == BillType.transfer ? _fromAccountId : null,
-      toAccountId: _billType == BillType.transfer ? _toAccountId : null,
-      payeeId: _selectedPayeeId,
-      accountId: _selectedAccountId,
-      isPaid: false,
-    );
-  }
-
-  try {
-    if (widget.existingBill != null && !widget.isDuplicate) {
-      await DatabaseService.updateBill(
-        bill,
-        reminderOffsets:
-            _remindersEnabled ? _selectedReminders : const <ReminderOffset>[],
+    if (widget.existingBill != null) {
+      bill = widget.existingBill!.copyWith(
+        amount: amount,
+        description: description,
+        dueDate: normalizedDueDate,
+        recurrence: normalizedRecurrence,
+        customDays: normalizedCustomDays,
+        recurrenceEndDate: normalizedRecurrenceEndDate,
+        recurrenceInterval: _recurrenceInterval,
+        recurrenceWeekdays: normalizedRecurrenceWeekdays,
+        categoryId: _selectedCategoryId,
+        type: _billType,
+        fromAccountId: _billType == BillType.transfer ? _fromAccountId : null,
+        toAccountId: _billType == BillType.transfer ? _toAccountId : null,
+        payeeId: _selectedPayeeId,
+        accountId: _selectedAccountId,
       );
     } else {
-      await DatabaseService.addBill(
-        bill,
-        reminderOffsets:
-            _remindersEnabled ? _selectedReminders : const <ReminderOffset>[],
+      bill = Bill(
+        amount: amount,
+        description: description,
+        dueDate: normalizedDueDate,
+        recurrence: normalizedRecurrence,
+        customDays: normalizedCustomDays,
+        recurrenceEndDate: normalizedRecurrenceEndDate,
+        recurrenceInterval: _recurrenceInterval,
+        recurrenceWeekdays: normalizedRecurrenceWeekdays,
+        categoryId: _selectedCategoryId,
+        type: _billType,
+        fromAccountId: _billType == BillType.transfer ? _fromAccountId : null,
+        toAccountId: _billType == BillType.transfer ? _toAccountId : null,
+        payeeId: _selectedPayeeId,
+        accountId: _selectedAccountId,
+        isPaid: false,
       );
     }
 
     try {
-      DatabaseService.billsVersion.value++;
-    } catch (_) {}
+      if (widget.existingBill != null && !widget.isDuplicate) {
+        await DatabaseService.updateBill(
+          bill,
+          reminderOffsets: _remindersEnabled
+              ? _selectedReminders
+              : const <ReminderOffset>[],
+        );
+      } else {
+        await DatabaseService.addBill(
+          bill,
+          reminderOffsets: _remindersEnabled
+              ? _selectedReminders
+              : const <ReminderOffset>[],
+        );
+      }
 
-    final settingKey = 'notif_bill_${bill.id}_enabled';
-    await DatabaseService.setSetting(settingKey, _remindersEnabled);
+      try {
+        DatabaseService.billsVersion.value++;
+      } catch (_) {}
 
-    _refreshBillReminders();
+      final settingKey = 'notif_bill_${bill.id}_enabled';
+      await DatabaseService.setSetting(settingKey, _remindersEnabled);
 
-    if (mounted) {
-      Navigator.pop(context, widget.isDuplicate ? bill.id : true);
-    }
-  } catch (e) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error saving bill: $e'),
-          backgroundColor: Colors.blueGrey[400],
-        ),
-      );
-    }
-  } finally {
-    if (mounted) {
-      setState(() => _isSaving = false);
+      _refreshBillReminders();
+
+      if (mounted) {
+        Navigator.pop(context, widget.isDuplicate ? bill.id : true);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error saving bill: $e'),
+            backgroundColor: Colors.blueGrey[400],
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
     }
   }
-}
 
   @override
   void dispose() {

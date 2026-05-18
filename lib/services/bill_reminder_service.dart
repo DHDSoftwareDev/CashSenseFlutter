@@ -1,5 +1,7 @@
 // ignore_for_file: no_leading_underscores_for_local_identifiers, unnecessary_type_check, unnecessary_null_comparison, unnecessary_brace_in_string_interps, unused_local_variable
 
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:workmanager/workmanager.dart' as wm;
 import 'package:intl/intl.dart';
@@ -11,6 +13,7 @@ import 'aws_api_service.dart';
 import 'database_service.dart';
 import 'user_auth_service.dart';
 import '../models/bill.dart';
+import '../models/reminder_offset.dart';
 
 const String _workManagerTaskReminders = 'cashsense_schedule_reminders';
 const String _storedScheduleIdsKey = 'notif_billReminders_scheduleIds';
@@ -22,6 +25,33 @@ class BillReminderService {
   factory BillReminderService() => _instance;
 
   bool _initialized = false;
+
+  List<ReminderOffset> _selectedReminderOffsets() {
+    try {
+      final raw = DatabaseService.getSetting<String>(
+        'notif_billReminderOffsets',
+        null,
+      );
+      if (raw == null || raw.trim().isEmpty) return const <ReminderOffset>[];
+
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return const <ReminderOffset>[];
+
+      final reminders = <ReminderOffset>[];
+      for (final item in decoded) {
+        if (item is Map<String, dynamic>) {
+          reminders.add(ReminderOffset.fromJson(item));
+        } else if (item is Map) {
+          reminders.add(
+            ReminderOffset.fromJson(Map<String, dynamic>.from(item)),
+          );
+        }
+      }
+      return reminders;
+    } catch (_) {
+      return const <ReminderOffset>[];
+    }
+  }
 
   Future<void> init() async {
     if (_initialized) return;
@@ -48,12 +78,11 @@ class BillReminderService {
   /// Cancel any previously scheduled notifications and reschedule all upcoming reminders.
   Future<void> scheduleAllReminders() async {
     try {
-      // read global enable toggle and leadDays preference
-      final bool globalEnabled = DatabaseService.getSetting<bool>('notif_billReminders', false) ?? false;
-      final int leadDays = DatabaseService.getSetting<int>('notif_billReminders_leadDays', 1) ?? 1;
-      // Reminder time is fixed to 9:00 AM local.
-      const int reminderHour = 9;
-      const int reminderMinute = 0;
+      // read global enable toggle and reminder duration preferences
+      final bool globalEnabled =
+          DatabaseService.getSetting<bool>('notif_billReminders', false) ??
+          false;
+      final reminders = _selectedReminderOffsets();
 
       if (!globalEnabled) {
         debugPrint('Bill reminders disabled; skipping server scheduling');
@@ -73,6 +102,13 @@ class BillReminderService {
 
       await _cleanupLegacySchedules();
 
+      if (reminders.isEmpty) {
+        debugPrint(
+          'Bill reminders enabled but no reminder durations are set; skipping scheduling',
+        );
+        return;
+      }
+
       await TimezoneInit.ensureInitialized();
       final timeZone = TimezoneInit.localTimeZoneName();
 
@@ -82,7 +118,9 @@ class BillReminderService {
       final occurrences = DatabaseService.getBillOccurrencesBetween(start, end);
 
       if (occurrences.isEmpty) {
-        debugPrint('No bill occurrences found in reminder scheduling window; nothing to schedule');
+        debugPrint(
+          'No bill occurrences found in reminder scheduling window; nothing to schedule',
+        );
         return;
       }
 
@@ -95,15 +133,17 @@ class BillReminderService {
         // Skip if notifications are disabled for this specific bill
         if (!_shouldNotifyForBill(bill.id)) continue;
 
-        await scheduleReminderForBill(
-          userId: userId,
-          bill: bill,
-          timeZone: timeZone,
-          dueDateForMessage: occDate,
-          leadDays: leadDays,
-          reminderHour: reminderHour,
-          reminderMinute: reminderMinute,
-        );
+        for (final reminder in reminders) {
+          await scheduleReminderForBill(
+            userId: userId,
+            bill: bill,
+            timeZone: timeZone,
+            dueDateForMessage: occDate,
+            leadDays: reminder.daysBefore,
+            reminderHour: reminder.hour,
+            reminderMinute: reminder.minute,
+          );
+        }
       }
     } catch (e) {
       debugPrint('scheduleAllReminders failed: $e');
@@ -144,7 +184,8 @@ class BillReminderService {
       final amountText = NumberFormat.simpleCurrency().format(bill.amount);
       final dueLabel = DateFormat('MM/dd/yyyy').format(dueForMsg);
 
-      final dedupeKey = 'bill:${bill.id}:$dueLabel:lead$leadDays:t${reminderHour.toString().padLeft(2, '0')}${reminderMinute.toString().padLeft(2, '0')}:v3';
+      final dedupeKey =
+          'bill:${bill.id}:$dueLabel:lead$leadDays:t${reminderHour.toString().padLeft(2, '0')}${reminderMinute.toString().padLeft(2, '0')}:v3';
       final data = <String, dynamic>{
         'type': 'bill_reminder',
         'billId': bill.id,
@@ -183,7 +224,9 @@ class BillReminderService {
         final stored = _loadStoredScheduleIds()..[dedupeKey] = scheduleId;
         await _saveStoredScheduleIds(stored);
       } else {
-        debugPrint('Schedule created without scheduleId (dedupeKey=$dedupeKey)');
+        debugPrint(
+          'Schedule created without scheduleId (dedupeKey=$dedupeKey)',
+        );
       }
     } catch (e) {
       debugPrint('scheduleReminderForBill failed: $e');
@@ -277,7 +320,11 @@ class BillReminderService {
       // For overdue unpaid bills, send a catch-up reminder soon.
       final todayLocal = DateTime.now();
       final dueLocalDate = DateTime(dueDate.year, dueDate.month, dueDate.day);
-      final todayDate = DateTime(todayLocal.year, todayLocal.month, todayLocal.day);
+      final todayDate = DateTime(
+        todayLocal.year,
+        todayLocal.month,
+        todayLocal.day,
+      );
       if (dueLocalDate.isBefore(todayDate)) {
         return nowUtc.add(const Duration(minutes: 1)).toIso8601String();
       }
@@ -295,7 +342,9 @@ class BillReminderService {
   Map<String, String> _loadStoredScheduleIds() {
     final raw = DatabaseService.getSetting<Map>(_storedScheduleIdsKey);
     if (raw is Map) {
-      return raw.map((key, value) => MapEntry(key.toString(), value.toString()));
+      return raw.map(
+        (key, value) => MapEntry(key.toString(), value.toString()),
+      );
     }
     return <String, String>{};
   }
@@ -337,7 +386,9 @@ class BillReminderService {
     }
 
     final desc = bill.description?.trim() ?? '';
-    if (desc.isNotEmpty && desc.toLowerCase() != 'bill') return _truncate(desc, 60);
+    if (desc.isNotEmpty && desc.toLowerCase() != 'bill') {
+      return _truncate(desc, 60);
+    }
 
     return '';
   }
@@ -354,9 +405,10 @@ class BillReminderService {
     if (bill.payeeId == null || bill.payeeId!.trim().isEmpty) return null;
     final payees = DatabaseService.getAllPayees();
     final match = payees.cast<Map<String, dynamic>?>().firstWhere(
-          (entry) => (entry?['id']?.toString() ?? '').trim() == bill.payeeId!.trim(),
-          orElse: () => null,
-        );
+      (entry) =>
+          (entry?['id']?.toString() ?? '').trim() == bill.payeeId!.trim(),
+      orElse: () => null,
+    );
     final name = match?['name']?.toString().trim() ?? '';
     return name.isEmpty ? null : name;
   }
