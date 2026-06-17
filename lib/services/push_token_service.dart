@@ -14,6 +14,7 @@ import 'user_auth_service.dart';
 
 class PushTokenService {
   static StreamSubscription<String>? _tokenRefreshSub;
+  static const Duration _registrationThrottle = Duration(hours: 12);
 
   /// Optional native APNS token bridge (if you implemented it).
   static const MethodChannel _apnsChannel =
@@ -113,19 +114,15 @@ class PushTokenService {
   /// - OR if we haven't registered recently (throttle window)
   /// - OR if you explicitly force it (see forceRegisterNow)
   static Future<void> registerDeviceOnLogin() async {
-    // Ensure local user context exists from backend /users/me.
-    try {
-      final currentUserId = await UserAuthService.getCurrentUserId();
-      if (currentUserId.isEmpty) {
-        await UserApiService.fetchCurrentUser();
-      }
-    } catch (_) {
-      // Continue; backend should still authorize via JWT.
-    }
-
-    // Capture token
     final token = await captureDeviceToken();
     if (token == null || token.isEmpty) return;
+
+    if (await _shouldSkipRegistration(token)) {
+      debugPrint('Skipping device registration; token already synced recently');
+      return;
+    }
+
+    await _ensureLocalUserContext();
 
     await _registerDevice(token, reason: 'login');
 
@@ -139,6 +136,7 @@ class PushTokenService {
     final token = await captureDeviceToken();
     if (token == null || token.isEmpty) return;
 
+    await _ensureLocalUserContext();
     await _registerDevice(token, reason: 'manual_force');
 
     // Update markers even for manual force
@@ -150,11 +148,9 @@ class PushTokenService {
     final token = await captureDeviceToken();
     if (token == null || token.isEmpty) return;
 
-    final lastRegisteredToken = await UserAuthService.getLastRegisteredToken();
-    if (lastRegisteredToken == token) {
-      debugPrint('Token refresh did not change token; still forcing one registration to be safe.');
-      // You can choose to return here, but for iOS/TestFlight it can be safer to still register once.
-      // return;
+    if (await _shouldSkipRegistration(token)) {
+      debugPrint('Skipping push token refresh registration; token already synced recently');
+      return;
     }
 
     await _registerDevice(token, reason: 'token_refresh');
@@ -236,5 +232,27 @@ class PushTokenService {
     if (Platform.isIOS) return 'ios';
     if (Platform.isAndroid) return 'android';
     return 'unknown';
+  }
+
+  static Future<bool> _shouldSkipRegistration(String token) async {
+    final lastRegisteredToken = await UserAuthService.getLastRegisteredToken();
+    if (lastRegisteredToken != token) return false;
+
+    final lastRegisteredAt = await UserAuthService.getLastDeviceRegisterAt();
+    if (lastRegisteredAt == null) return false;
+
+    return DateTime.now().difference(lastRegisteredAt) <
+        _registrationThrottle;
+  }
+
+  static Future<void> _ensureLocalUserContext() async {
+    try {
+      final currentUserId = await UserAuthService.getCurrentUserId();
+      if (currentUserId.isEmpty) {
+        await UserApiService.fetchCurrentUser();
+      }
+    } catch (_) {
+      // Continue; backend should still authorize via JWT.
+    }
   }
 }

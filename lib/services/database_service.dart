@@ -10,6 +10,7 @@ import '../models/account.dart';
 import '../models/bill.dart';
 import '../models/reminder_offset.dart';
 import 'aws_api_service.dart';
+import 'cloud_sync_policy.dart';
 
 class DatabaseService {
   static const String _hideFromCalendarMarker = '__hide_from_calendar__';
@@ -540,6 +541,7 @@ class DatabaseService {
     Future<void> Function() task,
     String label,
   ) async {
+    if (!CloudSyncPolicy.syncUserFinanceDataToAws) return true;
     if (!AwsApiService.isConfigured) return true;
     try {
       await task();
@@ -1906,14 +1908,14 @@ class DatabaseService {
     // Use application support directory for Hive files to keep them hidden from users
     final supportDir = await getApplicationSupportDirectory();
     final hiveDir = Directory('${supportDir.path}/.hive');
+    final migratedTransactionsFile = File('${hiveDir.path}/transactions.hive');
     await hiveDir.create(recursive: true);
 
     // Migrate from old location if exists
     final docsDir = await getApplicationDocumentsDirectory();
     final oldHiveDir = Directory('${docsDir.path}/CashSense/.hive');
     if (await oldHiveDir.exists() &&
-        !(await hiveDir.exists() ||
-            await Directory('${hiveDir.path}/transactions.hive').exists())) {
+        !await migratedTransactionsFile.exists()) {
       // Copy old files to new location
       try {
         await for (final file in oldHiveDir.list()) {
@@ -2442,6 +2444,30 @@ class DatabaseService {
   // Payee/Payer operations (stored as simple maps in settings to avoid
   // adding a new Hive adapter). Each payee is a Map<String, dynamic> with
   // keys: id, name, type ('payee'|'payer'), categoryId (nullable)
+  static Map<String, dynamic> _normalizePayeeMap(Map<dynamic, dynamic> raw) {
+    final out = <String, dynamic>{};
+
+    for (final entry in raw.entries) {
+      final key = entry.key.toString();
+      final value = entry.value;
+
+      if (value == null) {
+        out[key] = null;
+        continue;
+      }
+
+      if (value is String) {
+        final trimmed = value.trim();
+        out[key] = trimmed.toLowerCase() == 'null' ? null : trimmed;
+        continue;
+      }
+
+      out[key] = value.toString();
+    }
+
+    return out;
+  }
+
   static List<Map<String, dynamic>> getAllPayees() {
     try {
       final raw =
@@ -2450,11 +2476,11 @@ class DatabaseService {
       final out = <Map<String, dynamic>>[];
       for (final e in raw) {
         if (e is Map) {
-          out.add(Map<String, dynamic>.from(e));
+          out.add(_normalizePayeeMap(e));
         } else if (e is String) {
           try {
             final decoded = json.decode(e) as Map<String, dynamic>;
-            out.add(decoded);
+            out.add(_normalizePayeeMap(decoded));
           } catch (_) {
             // fallback: skip invalid entry
           }
@@ -2474,10 +2500,7 @@ class DatabaseService {
   static Future<void> addPayee(Map<String, dynamic> payee) async {
     try {
       final list = getAllPayees();
-      // Ensure we only write primitive / JSON-encodable maps
-      final normalized = Map<String, dynamic>.from(
-        payee.map((k, v) => MapEntry(k, v?.toString())),
-      );
+      final normalized = _normalizePayeeMap(payee);
       list.add(normalized);
       await _settingsBox.put('payees', list);
       await _settingsBox.flush();
@@ -2498,9 +2521,7 @@ class DatabaseService {
       final list = getAllPayees();
       final idx = list.indexWhere((p) => p['id'] == payee['id']);
       if (idx >= 0) {
-        final normalized = Map<String, dynamic>.from(
-          payee.map((k, v) => MapEntry(k, v?.toString())),
-        );
+        final normalized = _normalizePayeeMap(payee);
         list[idx] = normalized;
         await _settingsBox.put('payees', list);
         await _settingsBox.flush();

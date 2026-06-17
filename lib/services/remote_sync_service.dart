@@ -12,6 +12,7 @@ import 'aws_api_service.dart';
 import 'cognito_service.dart';
 import 'database_service.dart';
 import 'amplify_service.dart';
+import 'cloud_sync_policy.dart';
 import 'session_cleanup_service.dart';
 import 'user_api_service.dart';
 import 'user_auth_service.dart';
@@ -35,72 +36,12 @@ class RemoteSyncService {
         debugPrint('Remote sync skipped: premium subscription required');
         return;
       }
-      debugPrint('Remote sync allowed for premium user ($plan)');
+      debugPrint('Premium user detected ($plan); evaluating cloud backup restore');
 
-      await DatabaseService.syncLocallyModifiedBills();
-
-      var accounts = await safeFetch(AwsApiService.fetchAccounts);
-      var bills = await safeFetch(AwsApiService.fetchBills);
-      var transactions = await safeFetch(AwsApiService.fetchTransactions);
-      var remoteCategories = await safeFetch(AwsApiService.fetchCategories);
-      var remotePayees = await safeFetch(AwsApiService.fetchPayees);
-      var remotePayers = await safeFetch(AwsApiService.fetchPayers);
-      var payments = await safeFetch(AwsApiService.fetchPayments);
-
-      final bool remoteEmpty =
-          accounts.isEmpty &&
-          bills.isEmpty &&
-          transactions.isEmpty &&
-          remoteCategories.isEmpty &&
-          remotePayees.isEmpty &&
-          remotePayers.isEmpty &&
-          payments.isEmpty;
-
-      if (remoteEmpty) {
-        final cloudSnapshot = await _fetchCloudBackupSnapshot();
-        if (cloudSnapshot != null) {
-          debugPrint(
-            'Remote API empty. Restoring latest cloud backup on login.',
-          );
-          accounts = cloudSnapshot.accounts;
-          bills = cloudSnapshot.bills;
-          transactions = cloudSnapshot.transactions;
-          remoteCategories = cloudSnapshot.categories;
-          remotePayees = cloudSnapshot.payees;
-          remotePayers = cloudSnapshot.payers;
-          payments = cloudSnapshot.payments;
-
-          if (cloudSnapshot.billOccurrenceStatuses.isNotEmpty) {
-            await DatabaseService.importBillOccurrenceStatuses(
-              cloudSnapshot.billOccurrenceStatuses,
-            );
-          }
-        }
+      if (!CloudSyncPolicy.syncUserFinanceDataToAws) {
+        await _restoreLatestCloudBackupIfLocalDataEmpty();
+        return;
       }
-
-      final categories = _buildCategoryList(
-        remoteCategories: remoteCategories,
-        transactions: transactions,
-        bills: bills,
-      );
-
-      final inferredContacts = _inferContactsFromTransactions(transactions);
-
-      await DatabaseService.hydrateFromRemoteSnapshot(
-        accounts: accounts,
-        bills: bills,
-        transactions: transactions,
-        categories: categories,
-        payees: [...remotePayees, ...inferredContacts['payees']!],
-        payers: [...remotePayers, ...inferredContacts['payers']!],
-        payments: payments,
-      );
-
-      debugPrint(
-        'Remote sync complete: accounts=${accounts.length}, bills=${bills.length}, '
-        'transactions=${transactions.length}, categories=${categories.length}, '
-        'payees=${remotePayees.length}, payers=${remotePayers.length}, payments=${payments.length}',
-      );
     } on BackendUserInvalidatedException {
       await SessionCleanupService.clearInvalidatedBackendUser();
       rethrow;
@@ -128,13 +69,63 @@ class RemoteSyncService {
     }
   }
 
-  static Future<List<T>> safeFetch<T>(Future<List<T>> Function() fn) async {
-    try {
-      return await fn();
-    } catch (e) {
-      debugPrint('Remote fetch failed: $e');
-      return <T>[];
+  static Future<void> _restoreLatestCloudBackupIfLocalDataEmpty() async {
+    if (!_isLocalSnapshotEmpty()) {
+      debugPrint('Skipping cloud restore; local data already exists on device');
+      return;
     }
+
+    await restoreLatestCloudBackup(forceOverwrite: false);
+  }
+
+  static Future<bool> restoreLatestCloudBackup({
+    required bool forceOverwrite,
+  }) async {
+    if (!forceOverwrite && !_isLocalSnapshotEmpty()) {
+      debugPrint('Skipping cloud restore; local data already exists on device');
+      return false;
+    }
+
+    final cloudSnapshot = await _fetchCloudBackupSnapshot();
+    if (cloudSnapshot == null) {
+      debugPrint('No cloud backup snapshot available for restore');
+      return false;
+    }
+
+    if (forceOverwrite) {
+      await DatabaseService.clearAllData();
+    }
+
+    await DatabaseService.hydrateFromRemoteSnapshot(
+      accounts: cloudSnapshot.accounts,
+      bills: cloudSnapshot.bills,
+      transactions: cloudSnapshot.transactions,
+      categories: cloudSnapshot.categories,
+      payees: cloudSnapshot.payees,
+      payers: cloudSnapshot.payers,
+      payments: cloudSnapshot.payments,
+    );
+
+    if (cloudSnapshot.billOccurrenceStatuses.isNotEmpty) {
+      await DatabaseService.importBillOccurrenceStatuses(
+        cloudSnapshot.billOccurrenceStatuses,
+      );
+    }
+
+    debugPrint(
+      'Restored latest premium cloud backup to empty local device: '
+      'accounts=${cloudSnapshot.accounts.length}, '
+      'bills=${cloudSnapshot.bills.length}, '
+      'transactions=${cloudSnapshot.transactions.length}',
+    );
+    return true;
+  }
+
+  static bool _isLocalSnapshotEmpty() {
+    return DatabaseService.getAllAccounts().isEmpty &&
+        DatabaseService.getAllBills().isEmpty &&
+        DatabaseService.getAllTransactions().isEmpty &&
+        DatabaseService.getAllPayees().isEmpty;
   }
 
   static String _resolvePlanFromUser(CashSenseUser user) {
@@ -256,129 +247,6 @@ class RemoteSyncService {
       }
     }
     return out;
-  }
-
-  static List<Category> _buildCategoryList({
-    required List<Category> remoteCategories,
-    required List<Transaction> transactions,
-    required List<Bill> bills,
-  }) {
-    final byId = <String, Category>{
-      for (final c in DatabaseService.getAllCategories()) c.id: c,
-      for (final c in remoteCategories) c.id: c,
-    };
-
-    void ensureCategoryId(
-      String? id,
-      CategoryType type, {
-      String? preferredName,
-    }) {
-      final value = (id ?? '').trim();
-      if (value.isEmpty || byId.containsKey(value)) return;
-      final name = (preferredName ?? '').trim();
-      // Skip creating synthetic categories when the ID is opaque and no
-      // readable name is available from upstream payloads.
-      if (_looksLikeOpaqueId(value) &&
-          (name.isEmpty || _looksLikeOpaqueId(name))) {
-        return;
-      }
-
-      final fallbackName = _looksLikeOpaqueId(value) ? '' : value;
-      final resolvedName = name.isEmpty ? fallbackName : name;
-      if (resolvedName.trim().isEmpty || _looksLikeOpaqueId(resolvedName)) {
-        return;
-      }
-
-      byId[value] = Category(
-        id: value,
-        name: resolvedName,
-        iconCodePoint: '0xe88a',
-        colorValue: '0xFF607D8B',
-        isDefault: false,
-        type: type,
-      );
-    }
-
-    for (final tx in transactions) {
-      ensureCategoryId(
-        tx.categoryId,
-        tx.type == TransactionType.income
-            ? CategoryType.income
-            : CategoryType.expense,
-        preferredName: tx.categoryName,
-      );
-    }
-
-    for (final bill in bills) {
-      final id = bill.categoryId;
-      final type = bill.type.toString().contains('income')
-          ? CategoryType.income
-          : CategoryType.expense;
-      ensureCategoryId(id, type);
-    }
-
-    return byId.values.toList();
-  }
-
-  static bool _looksLikeOpaqueId(String value) {
-    final v = value.trim();
-    if (v.isEmpty) return false;
-    final uuid = RegExp(
-      r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
-    );
-    if (uuid.hasMatch(v)) return true;
-    final longToken = RegExp(r'^[A-Za-z0-9_-]{16,}$');
-    return longToken.hasMatch(v);
-  }
-
-  static Map<String, List<Map<String, dynamic>>> _inferContactsFromTransactions(
-    List<Transaction> transactions,
-  ) {
-    final payees = <String, Map<String, dynamic>>{};
-    final payers = <String, Map<String, dynamic>>{};
-
-    bool isUsableName(String? value) {
-      final v = (value ?? '').trim();
-      if (v.isEmpty) return false;
-      if (_looksLikeOpaqueId(v)) return false;
-      return true;
-    }
-
-    for (final tx in transactions) {
-      final payeeId = (tx.payeeId ?? '').trim();
-      if (payeeId.isNotEmpty) {
-        final inferredName = isUsableName(tx.payeeName)
-            ? tx.payeeName!.trim()
-            : (isUsableName(tx.description) ? tx.description.trim() : '');
-        if (inferredName.isEmpty) {
-          continue;
-        }
-        payees[payeeId] = {
-          'id': payeeId,
-          'name': inferredName,
-          'type': 'payee',
-          'categoryId': tx.categoryId,
-        };
-      }
-
-      final payerId = (tx.payerId ?? '').trim();
-      if (payerId.isNotEmpty) {
-        final inferredName = isUsableName(tx.payerName)
-            ? tx.payerName!.trim()
-            : (isUsableName(tx.description) ? tx.description.trim() : '');
-        if (inferredName.isEmpty) {
-          continue;
-        }
-        payers[payerId] = {
-          'id': payerId,
-          'name': inferredName,
-          'type': 'payer',
-          'categoryId': tx.categoryId,
-        };
-      }
-    }
-
-    return {'payees': payees.values.toList(), 'payers': payers.values.toList()};
   }
 }
 

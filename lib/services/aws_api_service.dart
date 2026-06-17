@@ -14,6 +14,7 @@ import '../models/category.dart';
 import '../models/reminder_offset.dart';
 import '../models/transaction.dart';
 import 'device_id_service.dart';
+import 'http_service.dart';
 import 'user_auth_service.dart';
 
 class AwsApiService {
@@ -175,13 +176,25 @@ class AwsApiService {
 
     switch (method) {
       case 'GET':
-        return http.get(uri, headers: headers);
+        return HttpService.execute(
+          () => http.get(uri, headers: headers),
+          maxAttempts: 2,
+          retryOnFailure: true,
+        );
       case 'POST':
-        return http.post(uri, headers: headers, body: encodedBody);
+        return HttpService.execute(
+          () => http.post(uri, headers: headers, body: encodedBody),
+        );
       case 'PUT':
-        return http.put(uri, headers: headers, body: encodedBody);
+        return HttpService.execute(
+          () => http.put(uri, headers: headers, body: encodedBody),
+        );
       case 'DELETE':
-        return http.delete(uri, headers: headers, body: encodedBody);
+        return HttpService.execute(
+          () => http.delete(uri, headers: headers, body: encodedBody),
+          maxAttempts: 2,
+          retryOnFailure: true,
+        );
       default:
         throw UnsupportedError('Unsupported HTTP method: $method');
     }

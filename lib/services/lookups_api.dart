@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../models/lookup_item.dart';
+import 'http_service.dart';
 
 class LookupsApi {
   final String baseUrl;
@@ -17,9 +18,13 @@ class LookupsApi {
   Future<List<LookupItem>> fetchByType(String type) async {
     final headers = await authHeadersBuilder();
 
-    final response = await http.get(
-      _uri('/lookups', {'type': type}),
-      headers: headers,
+    final response = await HttpService.execute(
+      () => http.get(
+        _uri('/lookups', {'type': type}),
+        headers: headers,
+      ),
+      maxAttempts: 2,
+      retryOnFailure: true,
     );
 
     if (response.statusCode != 200) {
@@ -47,19 +52,21 @@ class LookupsApi {
   }) async {
     final headers = await authHeadersBuilder();
 
-    final response = await http.post(
-      _uri('/lookups'),
-      headers: {...headers, 'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'type': type,
-        'id': id,
-        'name': name,
-        'color': color,
-        'icon': icon,
-        if (categoryId != null) 'categoryId': categoryId,
-        if (isIncome != null) 'isIncome': isIncome,
-        'sortOrder': sortOrder,
-      }),
+    final response = await HttpService.execute(
+      () => http.post(
+        _uri('/lookups'),
+        headers: {...headers, 'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'type': type,
+          'id': id,
+          'name': name,
+          'color': color,
+          'icon': icon,
+          if (categoryId != null) 'categoryId': categoryId,
+          if (isIncome != null) 'isIncome': isIncome,
+          'sortOrder': sortOrder,
+        }),
+      ),
     );
 
     if (response.statusCode != 200) {
@@ -73,12 +80,20 @@ class LookupsApi {
   Future<void> delete({required String type, required String id}) async {
     final headers = await authHeadersBuilder();
 
-    final request = http.Request('DELETE', _uri('/lookups'));
-    request.headers.addAll({...headers, 'Content-Type': 'application/json'});
-    request.body = jsonEncode({'type': type, 'id': id});
-
-    final streamed = await request.send();
-    final response = await http.Response.fromStream(streamed);
+    final response = await HttpService.execute(
+      () async {
+        final request = http.Request('DELETE', _uri('/lookups'));
+        request.headers.addAll({
+          ...headers,
+          'Content-Type': 'application/json',
+        });
+        request.body = jsonEncode({'type': type, 'id': id});
+        final streamed = await request.send();
+        return http.Response.fromStream(streamed);
+      },
+      maxAttempts: 2,
+      retryOnFailure: true,
+    );
 
     if (response.statusCode != 200) {
       throw Exception('Failed to delete lookup: ${response.body}');

@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../models/lookup_item.dart';
+import 'cloud_sync_policy.dart';
 import 'database_service.dart';
 import 'lookups_repository.dart';
 
@@ -45,6 +46,10 @@ class LookupsState extends ChangeNotifier {
   }
 
   Future<void> syncRemote() async {
+    if (!CloudSyncPolicy.syncUserFinanceDataToAws) {
+      return;
+    }
+
     final plan = DatabaseService.subscriptionVersion.value;
     if (plan == 'Free') {
       return;

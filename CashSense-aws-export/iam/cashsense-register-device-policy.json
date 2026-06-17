@@ -1,0 +1,49 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "UsersTableAccess",
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:GetItem",
+        "dynamodb:PutItem",
+        "dynamodb:UpdateItem"
+      ],
+      "Resource": "arn:aws:dynamodb:us-east-1:781540302423:table/CashSense-Users"
+    },
+    {
+      "Sid": "DeviceRegistryAccess",
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:GetItem",
+        "dynamodb:PutItem",
+        "dynamodb:UpdateItem",
+        "dynamodb:DeleteItem",
+        "dynamodb:Query"
+      ],
+      "Resource": "arn:aws:dynamodb:us-east-1:781540302423:table/CashSense-DeviceRegistry"
+    },
+    {
+      "Sid": "CreateIosPlatformEndpoints",
+      "Effect": "Allow",
+      "Action": "sns:CreatePlatformEndpoint",
+      "Resource": [
+        "arn:aws:sns:us-east-1:781540302423:app/APNS/CashSense-iOS",
+        "arn:aws:sns:us-east-1:781540302423:app/APNS_SANDBOX/CashSense-iOS-Sandbox"
+      ]
+    },
+    {
+      "Sid": "ManageIosEndpoints",
+      "Effect": "Allow",
+      "Action": [
+        "sns:GetEndpointAttributes",
+        "sns:SetEndpointAttributes",
+        "sns:DeleteEndpoint"
+      ],
+      "Resource": [
+        "arn:aws:sns:us-east-1:781540302423:endpoint/APNS/CashSense-iOS/*",
+        "arn:aws:sns:us-east-1:781540302423:endpoint/APNS_SANDBOX/CashSense-iOS-Sandbox/*"
+      ]
+    }
+  ]
+}

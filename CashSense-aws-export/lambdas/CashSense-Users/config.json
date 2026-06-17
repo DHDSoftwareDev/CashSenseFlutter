@@ -1,0 +1,43 @@
+{
+    "FunctionName": "CashSense-Users",
+    "FunctionArn": "arn:aws:lambda:us-east-1:781540302423:function:CashSense-Users",
+    "Runtime": "nodejs22.x",
+    "Role": "arn:aws:iam::781540302423:role/CashSense-LambdaExecutionRole",
+    "Handler": "index.handler",
+    "CodeSize": 2451,
+    "Description": "",
+    "Timeout": 3,
+    "MemorySize": 128,
+    "LastModified": "2026-03-11T00:04:42.000+0000",
+    "CodeSha256": "MuYN7SrZdm5jsEN32rL7XU5KPpzQ1Tj4Ky0UmnYPZDM=",
+    "Version": "$LATEST",
+    "Environment": {
+        "Variables": {
+            "USERS_TABLE": "CashSense-Users"
+        }
+    },
+    "TracingConfig": {
+        "Mode": "PassThrough"
+    },
+    "RevisionId": "875caa77-6aba-4ce5-a3b4-e337d6332f3e",
+    "State": "Active",
+    "LastUpdateStatus": "Successful",
+    "PackageType": "Zip",
+    "Architectures": [
+        "x86_64"
+    ],
+    "EphemeralStorage": {
+        "Size": 512
+    },
+    "SnapStart": {
+        "ApplyOn": "None",
+        "OptimizationStatus": "Off"
+    },
+    "RuntimeVersionConfig": {
+        "RuntimeVersionArn": "arn:aws:lambda:us-east-1::runtime:ab6b11703de54c7e23d588024a17ddfc191cdfd59fda97876f938c3c51e3eaa5"
+    },
+    "LoggingConfig": {
+        "LogFormat": "Text",
+        "LogGroup": "/aws/lambda/CashSense-Users"
+    }
+}

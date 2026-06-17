@@ -2447,9 +2447,47 @@ class _CategorySelectorSheetState extends State<_CategorySelectorSheet> {
   late Set<CategoryType> _allowedTypes;
   VoidCallback? _categoriesListener;
 
+  bool _isDisplayableCategory(Category category) {
+    final name = category.name.trim();
+    if (name.isEmpty) return false;
+
+    final normalized = name.toLowerCase();
+    if (normalized == 'unknown' || normalized == 'unknown category') {
+      return false;
+    }
+
+    final uuid = RegExp(
+      r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+    );
+    if (uuid.hasMatch(name)) return false;
+
+    final longToken = RegExp(r'^[A-Za-z0-9_-]{16,}$');
+    if (longToken.hasMatch(name)) return false;
+
+    return true;
+  }
+
+  List<Category> _dedupeCategoriesByName(Iterable<Category> categories) {
+    final seen = <String>{};
+    final out = <Category>[];
+
+    for (final category in categories) {
+      final key = category.name.trim().toLowerCase();
+      if (key.isEmpty || seen.contains(key)) continue;
+      seen.add(key);
+      out.add(category);
+    }
+
+    return out;
+  }
+
   List<Category> _filteredByAllowedTypes(List<Category> source) {
     if (_allowedTypes.isEmpty) return source;
-    return source.where((c) => _allowedTypes.contains(c.type)).toList();
+    return _dedupeCategoriesByName(
+      source
+          .where((c) => _allowedTypes.contains(c.type))
+          .where(_isDisplayableCategory),
+    );
   }
 
   CategoryType _defaultCategoryTypeForAdd() {

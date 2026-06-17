@@ -1505,14 +1505,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
           }
           String? noteWithAccount;
           final billNote = _billNoteText(bill);
-          if (bill.accountId != null) {
+          if (billNote.isNotEmpty && bill.accountId != null) {
             final account = DatabaseService.getAccountById(bill.accountId!);
             if (account != null) {
-              if (billNote.isNotEmpty) {
-                noteWithAccount = 'account: ${account.name} — $billNote';
-              } else {
-                noteWithAccount = 'account: ${account.name}';
-              }
+              noteWithAccount = 'account: ${account.name} — $billNote';
             }
           } else if (billNote.isNotEmpty) {
             noteWithAccount = billNote;

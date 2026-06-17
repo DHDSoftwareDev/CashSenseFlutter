@@ -171,14 +171,7 @@ Future<void> _startDeferredInits(
   UserSessionController userSession,
   LookupsState lookupsState,
 ) async {
-  // Notifications feature is disabled in-app; keep setting off and clear schedules.
-  await DatabaseService.setSetting('notif_billReminders', false);
-
   await Future.wait([
-    BillReminderService().cancelAllReminders().catchError((e) {
-      debugPrint('BillReminderService.cancelAllReminders failed: $e');
-      return null;
-    }),
     // Initialize Google Mobile Ads
     MobileAds.instance.initialize(),
     // Initialize automatic backup/background tasks

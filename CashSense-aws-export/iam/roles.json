@@ -1,0 +1,44 @@
+[
+    {
+        "Path": "/",
+        "RoleName": "CashSense-EventBridgeScheduler",
+        "RoleId": "AROA3L53OTZLZ6C3ZEZTY",
+        "Arn": "arn:aws:iam::781540302423:role/CashSense-EventBridgeScheduler",
+        "CreateDate": "2026-01-17T22:53:48+00:00",
+        "AssumeRolePolicyDocument": {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Effect": "Allow",
+                    "Principal": {
+                        "Service": "scheduler.amazonaws.com"
+                    },
+                    "Action": "sts:AssumeRole"
+                }
+            ]
+        },
+        "Description": "Allows Lambda functions to call AWS services on your behalf.",
+        "MaxSessionDuration": 3600
+    },
+    {
+        "Path": "/",
+        "RoleName": "CashSense-LambdaExecutionRole",
+        "RoleId": "AROA3L53OTZL6NLZDJAWP",
+        "Arn": "arn:aws:iam::781540302423:role/CashSense-LambdaExecutionRole",
+        "CreateDate": "2026-01-12T01:42:51+00:00",
+        "AssumeRolePolicyDocument": {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Effect": "Allow",
+                    "Principal": {
+                        "Service": "lambda.amazonaws.com"
+                    },
+                    "Action": "sts:AssumeRole"
+                }
+            ]
+        },
+        "Description": "Allows Lambda functions to call AWS services on your behalf.",
+        "MaxSessionDuration": 3600
+    }
+]

@@ -5,6 +5,8 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_web_auth/flutter_web_auth.dart';
 
+import 'http_service.dart';
+
 /// Helper to perform Cognito OAuth flows (e.g. Sign in with Apple)
 class CognitoAuthService {
   // Host (no scheme) used with `Uri.https`.
@@ -26,15 +28,17 @@ class CognitoAuthService {
   Future<void> _exchangeCodeForTokens(String code) async {
     final tokenUrl = Uri.https(domainHost, '/oauth2/token');
 
-    final resp = await http.post(
-      tokenUrl,
-      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-      body: {
-        'grant_type': 'authorization_code',
-        'client_id': clientId,
-        'code': code,
-        'redirect_uri': redirectUri,
-      },
+    final resp = await HttpService.execute(
+      () => http.post(
+        tokenUrl,
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: {
+          'grant_type': 'authorization_code',
+          'client_id': clientId,
+          'code': code,
+          'redirect_uri': redirectUri,
+        },
+      ),
     );
 
     if (resp.statusCode != 200) {

@@ -18,6 +18,7 @@ import '../models/transaction.dart';
 import '../providers/user_session_controller.dart';
 import '../services/auto_backup_service.dart';
 import '../services/database_service.dart';
+import '../services/remote_sync_service.dart';
 
 class BackupRestoreScreen extends StatefulWidget {
   const BackupRestoreScreen({super.key});
@@ -348,6 +349,62 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
     }
   }
 
+  Future<void> _restoreFromCloudBackup() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Restore Cloud Backup'),
+        content: const Text(
+          'This will replace current local data with your latest premium cloud backup. Continue?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text(
+              'Restore',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _isRunning = true);
+    try {
+      final restored = await RemoteSyncService.restoreLatestCloudBackup(
+        forceOverwrite: true,
+      );
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            restored
+                ? 'Cloud backup restored successfully'
+                : 'No cloud backup found for this account',
+          ),
+          backgroundColor: restored ? Colors.blueGrey : Colors.orange,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Cloud restore failed: $e'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isRunning = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final userSessionController = context.watch<UserSessionController>();
@@ -388,6 +445,12 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
             onTap: _restoreFromFile,
           ),
           if (isPremium) ...[
+            ListTile(
+              leading: const Icon(Icons.cloud_download),
+              title: const Text('Restore From Cloud Backup'),
+              subtitle: const Text('Replace this device with your latest premium backup'),
+              onTap: _isRunning ? null : _restoreFromCloudBackup,
+            ),
             ListTile(
               leading: const Icon(Icons.history),
               title: const Text('Automatic Backup History'),

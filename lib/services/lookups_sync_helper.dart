@@ -1,5 +1,6 @@
 import '../models/category.dart';
 import 'aws_api_service.dart';
+import 'cloud_sync_policy.dart';
 import 'lookups_api.dart';
 import 'lookups_local_store.dart';
 import 'lookups_repository.dart';
@@ -32,6 +33,7 @@ class LookupsSyncHelper {
   }
 
   static Future<void> syncCategory(Category category) async {
+    if (!CloudSyncPolicy.syncUserFinanceDataToAws) return;
     await _repository().createOrUpdate(
       type: 'category',
       id: category.id,
@@ -43,6 +45,7 @@ class LookupsSyncHelper {
   }
 
   static Future<void> syncPayeeOrPayer(Map<String, dynamic> item) async {
+    if (!CloudSyncPolicy.syncUserFinanceDataToAws) return;
     final type = (item['type'] ?? '').toString().toLowerCase();
     if (type != 'payee' && type != 'payer') return;
     final rawCategoryId = item['categoryId']?.toString().trim();

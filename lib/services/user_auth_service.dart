@@ -150,6 +150,8 @@ class UserAuthService {
     await prefs.remove(_userDisplayNameKey);
     await prefs.remove(_endpointArnKey);
     await prefs.remove(_deviceTokenKey);
+    await prefs.remove(_lastRegisteredTokenKey);
+    await prefs.remove(_lastDeviceRegisterAtKey);
   }
 
   /// Optional convenience: clears everything this service owns

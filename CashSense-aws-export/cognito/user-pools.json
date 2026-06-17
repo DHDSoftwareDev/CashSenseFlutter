@@ -1,0 +1,43 @@
+{
+    "UserPools": [
+        {
+            "Id": "us-east-1_Cl5R6czRt",
+            "Name": "Fareshare",
+            "LambdaConfig": {
+                "CustomMessage": "arn:aws:lambda:us-east-1:781540302423:function:Fareshare-CustomMessage"
+            },
+            "LastModifiedDate": "2026-04-08T02:30:21.575000+00:00",
+            "CreationDate": "2026-04-08T01:51:36.964000+00:00",
+            "ReplicaRegions": [
+                "us-east-1"
+            ]
+        },
+        {
+            "Id": "us-east-1_E1yKvvAFE",
+            "Name": "LeafLounge",
+            "LambdaConfig": {
+                "CustomMessage": "arn:aws:lambda:us-east-1:781540302423:function:LeafLounge-CognitoCustomMessage"
+            },
+            "LastModifiedDate": "2026-04-30T00:21:22.692000+00:00",
+            "CreationDate": "2026-04-13T00:49:51.937000+00:00",
+            "ReplicaRegions": [
+                "us-east-1"
+            ]
+        },
+        {
+            "Id": "us-east-1_i8OdXtL1u",
+            "Name": "CashSenseUserPool",
+            "LambdaConfig": {
+                "CustomMessage": "arn:aws:lambda:us-east-1:781540302423:function:CashSense-CognitoCustomMessage",
+                "DefineAuthChallenge": "arn:aws:lambda:us-east-1:781540302423:function:CashSense-DefineAuthChallenge",
+                "CreateAuthChallenge": "arn:aws:lambda:us-east-1:781540302423:function:CashSense-CreateAuthChallenge",
+                "VerifyAuthChallengeResponse": "arn:aws:lambda:us-east-1:781540302423:function:CashSense-VerifyAuthChallengeResponse"
+            },
+            "LastModifiedDate": "2025-12-21T02:26:56.074000+00:00",
+            "CreationDate": "2025-12-19T01:02:55.481000+00:00",
+            "ReplicaRegions": [
+                "us-east-1"
+            ]
+        }
+    ]
+}

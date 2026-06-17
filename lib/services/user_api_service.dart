@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 
 import '../models/cashsense_user.dart';
 import 'aws_api_service.dart';
+import 'http_service.dart';
 import 'user_auth_service.dart';
 
 class BackendUserInvalidatedException implements Exception {
@@ -29,12 +30,16 @@ class CashSenseUserApi {
         : baseUrl;
     final uri = Uri.parse('$normalizedBase/users/me');
 
-    final res = await http.get(
-      uri,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $idToken',
-      },
+    final res = await HttpService.execute(
+      () => http.get(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $idToken',
+        },
+      ),
+      maxAttempts: 2,
+      retryOnFailure: true,
     );
 
     if (res.statusCode == 401 ||

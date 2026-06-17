@@ -1,5 +1,8 @@
 import 'dart:convert';
+
 import 'package:http/http.dart' as http;
+
+import 'services/http_service.dart';
 
 class NotificationSchedulesApi {
   NotificationSchedulesApi({
@@ -21,20 +24,24 @@ class NotificationSchedulesApi {
     final token = await getIdToken();
     final uri = Uri.parse('$baseUrl/notification-schedules');
 
-    final res = await http.post(
-      uri,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-      body: jsonEncode({
-        'runAt': runAtUtcIso,
-        'timeZone': timeZone,
-        'title': title,
-        'body': body,
-        'data': data,
-        'dedupeKey': dedupeKey,
-      }),
+    final res = await HttpService.execute(
+      () => http.post(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'runAt': runAtUtcIso,
+          'timeZone': timeZone,
+          'title': title,
+          'body': body,
+          'data': data,
+          'dedupeKey': dedupeKey,
+        }),
+      ),
+      maxAttempts: 2,
+      retryOnFailure: true,
     );
 
     final decoded = jsonDecode(res.body) as Map<String, dynamic>;
@@ -48,12 +55,16 @@ class NotificationSchedulesApi {
     final token = await getIdToken();
     final uri = Uri.parse('$baseUrl/notification-schedules/$scheduleId');
 
-    final res = await http.delete(
-      uri,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
+    final res = await HttpService.execute(
+      () => http.delete(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      ),
+      maxAttempts: 2,
+      retryOnFailure: true,
     );
 
     if (res.statusCode != 200) {

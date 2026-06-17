@@ -1,0 +1,49 @@
+{
+    "Table": {
+        "AttributeDefinitions": [
+            {
+                "AttributeName": "billId",
+                "AttributeType": "S"
+            },
+            {
+                "AttributeName": "userId",
+                "AttributeType": "S"
+            }
+        ],
+        "TableName": "CashSense-Bills",
+        "KeySchema": [
+            {
+                "AttributeName": "userId",
+                "KeyType": "HASH"
+            },
+            {
+                "AttributeName": "billId",
+                "KeyType": "RANGE"
+            }
+        ],
+        "TableStatus": "ACTIVE",
+        "CreationDateTime": "2026-01-12T01:24:41.059000+00:00",
+        "ProvisionedThroughput": {
+            "NumberOfDecreasesToday": 0,
+            "ReadCapacityUnits": 0,
+            "WriteCapacityUnits": 0
+        },
+        "TableSizeBytes": 395820,
+        "ItemCount": 671,
+        "TableArn": "arn:aws:dynamodb:us-east-1:781540302423:table/CashSense-Bills",
+        "TableId": "e34a8aad-7dcc-4e2b-9f59-f9954bcac931",
+        "BillingModeSummary": {
+            "BillingMode": "PAY_PER_REQUEST",
+            "LastUpdateToPayPerRequestDateTime": "2026-01-12T01:24:41.059000+00:00"
+        },
+        "TableClassSummary": {
+            "TableClass": "STANDARD"
+        },
+        "DeletionProtectionEnabled": false,
+        "WarmThroughput": {
+            "ReadUnitsPerSecond": 12000,
+            "WriteUnitsPerSecond": 4000,
+            "Status": "ACTIVE"
+        }
+    }
+}

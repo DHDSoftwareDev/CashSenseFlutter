@@ -1,0 +1,48 @@
+{
+    "FunctionName": "CashSense-EntitlementsRefresh",
+    "FunctionArn": "arn:aws:lambda:us-east-1:781540302423:function:CashSense-EntitlementsRefresh",
+    "Runtime": "nodejs24.x",
+    "Role": "arn:aws:iam::781540302423:role/CashSense-LambdaExecutionRole",
+    "Handler": "index.handler",
+    "CodeSize": 1835838,
+    "Description": "",
+    "Timeout": 3,
+    "MemorySize": 128,
+    "LastModified": "2026-01-17T20:03:03.000+0000",
+    "CodeSha256": "uvoMwZM9ZQLmWzhlVidqaeQyhBob2RMDGrjBq3FUA5Q=",
+    "Version": "$LATEST",
+    "Environment": {
+        "Variables": {
+            "APPLE_BUNDLE_ID": "name.dhdsoftware.cashsense.CashSenseMM",
+            "USERS_TABLE": "CashSense-Users",
+            "APPLE_PRIVATE_KEY_B64": "LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCk1JR1RBZ0VBTUJNR0J5cUdTTTQ5QWdFR0NDcUdTTTQ5QXdFSEJIa3dkd0lCQVFRZ3h0Z0dHQjUyM20zYVhrZy8KYjgvc29WL0lJRitOU0lNRUgwRXU0VGw0VVhTZ0NnWUlLb1pJemowREFRZWhSQU5DQUFUOFZ2SFBDQ1VndmdBVwpDd2MzZ3dPajBZREx4SGJ6amRTd256WVpQV3AvTUg3RzRtenE5TkN2ZHhWbnJpR1lVaFJlK2VWZ2lmb1BLdkdpCnhTNlVFWll0Ci0tLS0tRU5EIFBSSVZBVEUgS0VZLS0tLS0",
+            "APPLE_KEY_ID": "3WFGTCVN9C",
+            "APPLE_ISSUER_ID": "0ee9155a-8661-4295-abb8-da112140bd8e",
+            "APPLE_ENVIRONMENT": "Production"
+        }
+    },
+    "TracingConfig": {
+        "Mode": "PassThrough"
+    },
+    "RevisionId": "ba6a6d3d-72a5-44ae-ad9c-1b84ea422672",
+    "State": "Active",
+    "LastUpdateStatus": "Successful",
+    "PackageType": "Zip",
+    "Architectures": [
+        "x86_64"
+    ],
+    "EphemeralStorage": {
+        "Size": 512
+    },
+    "SnapStart": {
+        "ApplyOn": "None",
+        "OptimizationStatus": "Off"
+    },
+    "RuntimeVersionConfig": {
+        "RuntimeVersionArn": "arn:aws:lambda:us-east-1::runtime:c2302199ed31b0efd546d792325846c2846e78ac566d3f1f711dfae134309d24"
+    },
+    "LoggingConfig": {
+        "LogFormat": "Text",
+        "LogGroup": "/aws/lambda/CashSense-EntitlementsRefresh"
+    }
+}

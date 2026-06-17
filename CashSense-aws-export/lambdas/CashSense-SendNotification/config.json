@@ -1,0 +1,50 @@
+{
+    "FunctionName": "CashSense-SendNotification",
+    "FunctionArn": "arn:aws:lambda:us-east-1:781540302423:function:CashSense-SendNotification",
+    "Runtime": "nodejs24.x",
+    "Role": "arn:aws:iam::781540302423:role/CashSense-LambdaExecutionRole",
+    "Handler": "index.handler",
+    "CodeSize": 3457,
+    "Description": "",
+    "Timeout": 60,
+    "MemorySize": 128,
+    "LastModified": "2026-05-18T01:51:33.000+0000",
+    "CodeSha256": "2dRTdG2mn09SomVk5lmy+qqToTOvbZUuqc7BxYJbR0c=",
+    "Version": "$LATEST",
+    "Environment": {
+        "Variables": {
+            "REGISTER_DEVICE_LAMBDA_ARN": "arn:aws:lambda:us-east-1:781540302423:function:CashSense-RegisterDevice",
+            "NOTIFICATION_SCHEDULES_LAMBDA_ARN": "arn:aws:lambda:us-east-1:781540302423:function:CashSense-NotificationSchedules",
+            "TRANSACTIONS_TABLE": "CashSense-Transactions",
+            "BILLS_TABLE": "CashSense-Bills",
+            "PAYMENTS_TABLE": "CashSense-BillPayments",
+            "DEVICE_REGISTRY_TABLE": "CashSense-DeviceRegistry",
+            "ACCOUNTS_TABLE": "CashSense-Accounts",
+            "NOTIFICATION_SCHEDULES_TABLE": "CashSense-NotificationSchedules"
+        }
+    },
+    "TracingConfig": {
+        "Mode": "PassThrough"
+    },
+    "RevisionId": "78aecc49-2541-4ca4-913e-580b86b28dc4",
+    "State": "Active",
+    "LastUpdateStatus": "Successful",
+    "PackageType": "Zip",
+    "Architectures": [
+        "x86_64"
+    ],
+    "EphemeralStorage": {
+        "Size": 512
+    },
+    "SnapStart": {
+        "ApplyOn": "None",
+        "OptimizationStatus": "Off"
+    },
+    "RuntimeVersionConfig": {
+        "RuntimeVersionArn": "arn:aws:lambda:us-east-1::runtime:c2302199ed31b0efd546d792325846c2846e78ac566d3f1f711dfae134309d24"
+    },
+    "LoggingConfig": {
+        "LogFormat": "Text",
+        "LogGroup": "/aws/lambda/CashSense-SendNotification"
+    }
+}
