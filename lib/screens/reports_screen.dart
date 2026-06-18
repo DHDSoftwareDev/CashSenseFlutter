@@ -35,12 +35,35 @@ class ReportsScreen extends StatefulWidget {
 }
 
 class _ReportsScreenState extends State<ReportsScreen> {
+  bool _isDisplayableCategory(Category category) {
+    final name = category.name.trim();
+    if (name.isEmpty) return false;
+
+    final normalized = name.toLowerCase();
+    if (normalized == 'unknown' || normalized == 'unknown category') {
+      return false;
+    }
+
+    final uuid = RegExp(
+      r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+    );
+    if (uuid.hasMatch(name)) return false;
+
+    final longToken = RegExp(r'^[A-Za-z0-9_-]{16,}$');
+    if (longToken.hasMatch(name)) return false;
+
+    return true;
+  }
+
+  List<Category> get _filterableCategories =>
+      _categories.where(_isDisplayableCategory).toList();
+
   Future<void> _refreshReports() async {
     _loadCategories();
     _loadPayees();
     setState(() {});
   }
-  
+
   // Extract a normalized payee/payer name from a transaction description.
   // This was previously a local helper inside a single build method but is
   // needed across multiple report builders, so keep it as a private
@@ -57,8 +80,15 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
   String _formatPeriodLabel(DateTime start, DateTime end) {
     // Month of
-    final lastDayOfStartMonth = DateTime(start.year, start.month + 1, 1).subtract(const Duration(days: 1));
-    if (start.day == 1 && end.year == lastDayOfStartMonth.year && end.month == lastDayOfStartMonth.month && end.day == lastDayOfStartMonth.day) {
+    final lastDayOfStartMonth = DateTime(
+      start.year,
+      start.month + 1,
+      1,
+    ).subtract(const Duration(days: 1));
+    if (start.day == 1 &&
+        end.year == lastDayOfStartMonth.year &&
+        end.month == lastDayOfStartMonth.month &&
+        end.day == lastDayOfStartMonth.day) {
       return 'Month of ${DateFormat.yMMMM().format(start)}';
     }
 
@@ -68,7 +98,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
     }
 
     // Year
-    if (start.month == 1 && start.day == 1 && end.month == 12 && end.day == 31 && start.year == end.year) {
+    if (start.month == 1 &&
+        start.day == 1 &&
+        end.month == 12 &&
+        end.day == 31 &&
+        start.year == end.year) {
       return 'Year ${start.year}';
     }
 
@@ -76,19 +110,40 @@ class _ReportsScreenState extends State<ReportsScreen> {
     return '${DateFormat.yMMMd().format(start)} — ${DateFormat.yMMMd().format(end)}';
   }
 
-  void _openTransactionsForLabel(String title, String label, DateTime start, DateTime end, {TransactionType? type, String? filterOverride}) {
+  void _openTransactionsForLabel(
+    String title,
+    String label,
+    DateTime start,
+    DateTime end, {
+    TransactionType? type,
+    String? filterOverride,
+  }) {
     String filterType = 'category';
     if (filterOverride != null && filterOverride.isNotEmpty) {
       filterType = filterOverride;
     } else {
       final t = title.toLowerCase();
-      if (t.contains('payee')) filterType = 'payee';
-      else if (t.contains('payer')) filterType = 'payer';
-      else filterType = 'category';
+      if (t.contains('payee'))
+        filterType = 'payee';
+      else if (t.contains('payer'))
+        filterType = 'payer';
+      else
+        filterType = 'category';
     }
 
-    Navigator.of(context).push(MaterialPageRoute(builder: (ctx) => ReportTransactionsScreen(filterType: filterType, label: label, start: start, end: end, type: type)));
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (ctx) => ReportTransactionsScreen(
+          filterType: filterType,
+          label: label,
+          start: start,
+          end: end,
+          type: type,
+        ),
+      ),
+    );
   }
+
   Widget _buildCategoryPieChartCard({
     required BuildContext context,
     required String title,
@@ -96,9 +151,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
     required DateTime start,
     required DateTime end,
   }) {
-  List<Transaction> txs = _transactionsExcludingTransfersRange(start, end)
-    .where((t) => t.type == type)
-    .toList();
+    List<Transaction> txs = _transactionsExcludingTransfersRange(
+      start,
+      end,
+    ).where((t) => t.type == type).toList();
     final transferCategory = _categories.firstWhere(
       (c) => c.name.trim().toLowerCase() == 'transfer',
       orElse: () => Category(
@@ -107,7 +163,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
         iconCodePoint: '',
         colorValue: '0xFF888888',
         isDefault: false,
-        type: type == TransactionType.income ? CategoryType.income : CategoryType.expense,
+        type: type == TransactionType.income
+            ? CategoryType.income
+            : CategoryType.expense,
       ),
     );
     if (transferCategory.id != '__no_transfer__') {
@@ -115,27 +173,41 @@ class _ReportsScreenState extends State<ReportsScreen> {
     }
     // Only filter if a filter is selected
     if (_selectedCategoryIds.isNotEmpty) {
-      txs = txs.where((t) => _selectedCategoryIds.contains(t.categoryId)).toList();
+      txs = txs
+          .where((t) => _selectedCategoryIds.contains(t.categoryId))
+          .toList();
     }
     if (_selectedPayeeIds.isNotEmpty) {
       if (_showPayers && type == TransactionType.income) {
         txs = txs.where((t) {
-          if (t.payerId != null && _selectedPayeeIds.contains(t.payerId)) return true;
+          if (t.payerId != null && _selectedPayeeIds.contains(t.payerId))
+            return true;
           for (final id in _selectedPayeeIds) {
-            final payer = _payees.firstWhere((p) => p['id'] == id, orElse: () => <String, dynamic>{});
+            final payer = _payees.firstWhere(
+              (p) => p['id'] == id,
+              orElse: () => <String, dynamic>{},
+            );
             final name = (payer['name'] ?? '').toString().trim();
-            if (name.isNotEmpty && (t.payerName ?? '').trim().toLowerCase() == name.toLowerCase()) return true;
+            if (name.isNotEmpty &&
+                (t.payerName ?? '').trim().toLowerCase() == name.toLowerCase())
+              return true;
             if (name.isNotEmpty && t.description.contains(name)) return true;
           }
           return false;
         }).toList();
       } else if (!_showPayers && type == TransactionType.expense) {
         txs = txs.where((t) {
-          if (t.payeeId != null && _selectedPayeeIds.contains(t.payeeId)) return true;
+          if (t.payeeId != null && _selectedPayeeIds.contains(t.payeeId))
+            return true;
           for (final id in _selectedPayeeIds) {
-            final payee = _payees.firstWhere((p) => p['id'] == id, orElse: () => <String, dynamic>{});
+            final payee = _payees.firstWhere(
+              (p) => p['id'] == id,
+              orElse: () => <String, dynamic>{},
+            );
             final name = (payee['name'] ?? '').toString().trim();
-            if (name.isNotEmpty && (t.payeeName ?? '').trim().toLowerCase() == name.toLowerCase()) return true;
+            if (name.isNotEmpty &&
+                (t.payeeName ?? '').trim().toLowerCase() == name.toLowerCase())
+              return true;
             if (name.isNotEmpty && t.description.contains(name)) return true;
           }
           return false;
@@ -145,7 +217,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
     }
     final Map<String, double> categoryTotals = {};
     for (final t in txs) {
-      categoryTotals[t.categoryId] = (categoryTotals[t.categoryId] ?? 0) + t.amount;
+      categoryTotals[t.categoryId] =
+          (categoryTotals[t.categoryId] ?? 0) + t.amount;
     }
     final total = categoryTotals.values.fold(0.0, (a, b) => a + b);
     // Group by the final display label so categories that resolve to the same
@@ -157,7 +230,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
       Category cat = _categories.firstWhere(
         (c) => c.id == e.key,
         orElse: () {
-          final match = _categories.where((c) => c.name.trim().toLowerCase() == e.key.toString().trim().toLowerCase());
+          final match = _categories.where(
+            (c) =>
+                c.name.trim().toLowerCase() ==
+                e.key.toString().trim().toLowerCase(),
+          );
           return match.isNotEmpty
               ? match.first
               : Category(
@@ -166,18 +243,22 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   iconCodePoint: '',
                   colorValue: '0xFF888888',
                   isDefault: false,
-                  type: type == TransactionType.income ? CategoryType.income : CategoryType.expense,
+                  type: type == TransactionType.income
+                      ? CategoryType.income
+                      : CategoryType.expense,
                 );
         },
       );
-  String label = cat.name;
-  // Omit any categories that are named 'transfer' to avoid showing
-  // transfers as 'Unknown' or otherwise in report cards.
-  if (label.trim().toLowerCase().contains('transfer')) continue;
+      String label = cat.name;
+      // Omit any categories that are named 'transfer' to avoid showing
+      // transfers as 'Unknown' or otherwise in report cards.
+      if (label.trim().toLowerCase().contains('transfer')) continue;
       if (label == 'Unknown') {
         // Only match categories by categoryId or description (do not use notes)
-        final txMatch = txs.where((t) => (t.categoryId == e.key) || (t.description.trim() == e.key));
-              if (txMatch.isNotEmpty) {
+        final txMatch = txs.where(
+          (t) => (t.categoryId == e.key) || (t.description.trim() == e.key),
+        );
+        if (txMatch.isNotEmpty) {
           final tx = txMatch.first;
           if (tx.billId != null && tx.billId!.isNotEmpty) {
             final bill = DatabaseService.getAllBills().firstWhere(
@@ -198,12 +279,16 @@ class _ReportsScreenState extends State<ReportsScreen> {
               // Prefer category references first, then description fallback.
               label = (tx.categoryName ?? '').trim().isNotEmpty
                   ? tx.categoryName!.trim()
-                  : (tx.description.isNotEmpty ? extractPayeeName(tx.description) : 'Unknown');
+                  : (tx.description.isNotEmpty
+                        ? extractPayeeName(tx.description)
+                        : 'Unknown');
             }
           } else {
             label = (tx.categoryName ?? '').trim().isNotEmpty
                 ? tx.categoryName!.trim()
-                : (tx.description.isNotEmpty ? extractPayeeName(tx.description) : 'Unknown');
+                : (tx.description.isNotEmpty
+                      ? extractPayeeName(tx.description)
+                      : 'Unknown');
           }
         }
       }
@@ -211,7 +296,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
       grouped[label] = (grouped[label] ?? 0) + e.value;
       groupedColor.putIfAbsent(label, () => color);
     }
-    final List<_PieSlice> slices = grouped.entries.map((g) => _PieSlice(g.key, g.value, groupedColor[g.key] ?? Colors.grey)).toList();
+    final List<_PieSlice> slices = grouped.entries
+        .map(
+          (g) => _PieSlice(g.key, g.value, groupedColor[g.key] ?? Colors.grey),
+        )
+        .toList();
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -232,7 +321,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 const SizedBox(width: 8),
                 Text(
                   _currencyFormat.format(
-                    _computeTotalForPeriodByCategoryFilter(start, end, type)
+                    _computeTotalForPeriodByCategoryFilter(start, end, type),
                   ),
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: type == TransactionType.expense
@@ -245,7 +334,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
             const SizedBox(height: 6),
             Text(
               _formatPeriodLabel(start, end),
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
             ),
             const SizedBox(height: 16),
             // Removed horizontal bar chart per UI request — show only the
@@ -258,7 +349,13 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   : ReportDetailsList(
                       slices: slices,
                       total: total,
-                      onRowTap: (s) => _openTransactionsForLabel(title, s.label, start, end, type: type),
+                      onRowTap: (s) => _openTransactionsForLabel(
+                        title,
+                        s.label,
+                        start,
+                        end,
+                        type: type,
+                      ),
                     ),
             ),
             const SizedBox(height: 8),
@@ -279,13 +376,23 @@ class _ReportsScreenState extends State<ReportsScreen> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(title, style: Theme.of(ctx).textTheme.titleLarge),
+                                  Text(
+                                    title,
+                                    style: Theme.of(ctx).textTheme.titleLarge,
+                                  ),
                                   const SizedBox(height: 12),
                                   Expanded(
                                     child: ReportDetailsList(
                                       slices: slices,
                                       total: total,
-                                      onRowTap: (s) => _openTransactionsForLabel(title, s.label, start, end, type: type),
+                                      onRowTap: (s) =>
+                                          _openTransactionsForLabel(
+                                            title,
+                                            s.label,
+                                            start,
+                                            end,
+                                            type: type,
+                                          ),
                                     ),
                                   ),
                                 ],
@@ -305,6 +412,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
       ),
     );
   }
+
   // Pie chart for payees (expenses)
   Widget _buildPayeePieChartCard({
     required BuildContext context,
@@ -314,12 +422,18 @@ class _ReportsScreenState extends State<ReportsScreen> {
     required DateTime start,
     required DateTime end,
   }) {
-  // Exclude any payee records whose name is 'transfer' from report cards
-  final visiblePayees = payees.where((p) => ((p['name'] ?? '').toString().trim().toLowerCase() != 'transfer')).toList();
+    // Exclude any payee records whose name is 'transfer' from report cards
+    final visiblePayees = payees
+        .where(
+          (p) =>
+              ((p['name'] ?? '').toString().trim().toLowerCase() != 'transfer'),
+        )
+        .toList();
 
-  List<Transaction> txs = _transactionsExcludingTransfersRange(start, end)
-    .where((t) => t.type == TransactionType.expense)
-    .toList();
+    List<Transaction> txs = _transactionsExcludingTransfersRange(
+      start,
+      end,
+    ).where((t) => t.type == TransactionType.expense).toList();
     // Using class-level helper extractPayeeName() for name extraction.
     if (selectedPayeeIds.isNotEmpty) {
       txs = txs.where((t) {
@@ -327,7 +441,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
         // Match by payeeId or exact extracted name only (do not use notes)
         if (selectedPayeeIds.contains(t.payeeId)) return true;
         for (final id in selectedPayeeIds) {
-          final payee = visiblePayees.firstWhere((p) => p['id'] == id, orElse: () => <String, dynamic>{});
+          final payee = visiblePayees.firstWhere(
+            (p) => p['id'] == id,
+            orElse: () => <String, dynamic>{},
+          );
           final name = (payee['name'] ?? '').toString().trim();
           if (name.isNotEmpty && (extractedName == name)) {
             return true;
@@ -338,7 +455,14 @@ class _ReportsScreenState extends State<ReportsScreen> {
     }
     final transferCategory = categories.firstWhere(
       (c) => c.name.trim().toLowerCase() == 'transfer',
-      orElse: () => Category(id: '__no_transfer__', name: '', iconCodePoint: '', colorValue: '0xFF888888', isDefault: false, type: CategoryType.expense),
+      orElse: () => Category(
+        id: '__no_transfer__',
+        name: '',
+        iconCodePoint: '',
+        colorValue: '0xFF888888',
+        isDefault: false,
+        type: CategoryType.expense,
+      ),
     );
     if (transferCategory.id != '__no_transfer__') {
       txs = txs.where((t) => t.categoryId != transferCategory.id).toList();
@@ -354,7 +478,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
         if (txPayeeName.isNotEmpty) {
           for (final p in visiblePayees) {
             final name = (p['name'] ?? '').toString().trim();
-            if (name.isNotEmpty && txPayeeName.toLowerCase() == name.toLowerCase()) {
+            if (name.isNotEmpty &&
+                txPayeeName.toLowerCase() == name.toLowerCase()) {
               payeeId = p['id'];
               break;
             }
@@ -371,7 +496,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
         }
       }
       // If transaction is linked to a bill, check if bill description matches payee name
-      if ((payeeId == null || payeeId.isEmpty) && t.billId != null && t.billId!.isNotEmpty) {
+      if ((payeeId == null || payeeId.isEmpty) &&
+          t.billId != null &&
+          t.billId!.isNotEmpty) {
         final bill = DatabaseService.getAllBills().firstWhere(
           (b) => b.id == t.billId,
           orElse: () => Bill(
@@ -408,11 +535,16 @@ class _ReportsScreenState extends State<ReportsScreen> {
         }
         if (matches.isNotEmpty) {
           // Prefer longest name (most specific)
-          matches.sort((a, b) => b['name'].toString().length.compareTo(a['name'].toString().length));
+          matches.sort(
+            (a, b) => b['name'].toString().length.compareTo(
+              a['name'].toString().length,
+            ),
+          );
           payeeId = matches.first['id'];
         }
       }
-      payeeTotals[payeeId ?? extractedName] = (payeeTotals[payeeId ?? extractedName] ?? 0) + t.amount;
+      payeeTotals[payeeId ?? extractedName] =
+          (payeeTotals[payeeId ?? extractedName] ?? 0) + t.amount;
     }
     final total = payeeTotals.values.fold(0.0, (a, b) => a + b);
     // Group payee entries by display name so multiple payee records with the
@@ -420,68 +552,103 @@ class _ReportsScreenState extends State<ReportsScreen> {
     final Map<String, double> grouped = {};
     final Map<String, Color> groupedColor = {};
     for (final e in payeeTotals.entries) {
-        Map<String, dynamic>? payee = visiblePayees.where((p) => p['id'] == e.key).cast<Map<String, dynamic>>().firstWhere(
-          (p) => true,
-          orElse: () {
-            final match = visiblePayees.where((p) => (p['name'] ?? '').toString().trim().toLowerCase() == e.key.toString().trim().toLowerCase());
-            return match.isNotEmpty ? match.first : <String, dynamic>{};
-          },
-        );
-  String label = payee['name'] ?? 'Unknown';
-  // Omit any payee entries containing 'transfer' which may otherwise
-  // appear due to fallback matching from descriptions/bills.
-  if (label.trim().toLowerCase().contains('transfer')) continue;
-        if (payee['payerName'] != null && payee['payerName'].toString().isNotEmpty) {
-          label = '${payee['name']} - ${payee['payerName']}';
-        }
-        if (label == 'Unknown') {
-          final txMatchList = txs.where((t) => (t.payeeId == e.key) || ((t.payeeId == null || (t.payeeId?.isEmpty ?? true)) && (t.description.trim() == e.key))).toList();
-          if (txMatchList.isNotEmpty) {
-            // If all matching transactions are transfers, skip this entry.
-            if (txMatchList.every((t) => _isTransferLike(t))) continue;
-            // Prefer a non-transfer transaction when choosing a label.
-            final tx = txMatchList.firstWhere((t) => !_isTransferLike(t));
-            if (tx.billId != null && tx.billId!.isNotEmpty) {
-              final bill = DatabaseService.getAllBills().firstWhere(
-                (b) => b.id == tx.billId,
-                orElse: () => Bill(
-                  id: '',
-                  amount: 0.0,
-                  description: '',
-                  dueDate: DateTime.now(),
-                  recurrence: Recurrence.none,
-                  recurrenceInterval: 1,
-                  type: BillType.expense,
-                ),
+      Map<String, dynamic>? payee = visiblePayees
+          .where((p) => p['id'] == e.key)
+          .cast<Map<String, dynamic>>()
+          .firstWhere(
+            (p) => true,
+            orElse: () {
+              final match = visiblePayees.where(
+                (p) =>
+                    (p['name'] ?? '').toString().trim().toLowerCase() ==
+                    e.key.toString().trim().toLowerCase(),
               );
-              if (bill.description != null && bill.description!.isNotEmpty) {
-                label = bill.description!;
-              } else {
-                label = (tx.payeeName ?? '').trim().isNotEmpty
-                    ? tx.payeeName!.trim()
-                    : (tx.description.isNotEmpty ? extractPayeeName(tx.description) : 'Unknown');
-              }
+              return match.isNotEmpty ? match.first : <String, dynamic>{};
+            },
+          );
+      String label = payee['name'] ?? 'Unknown';
+      // Omit any payee entries containing 'transfer' which may otherwise
+      // appear due to fallback matching from descriptions/bills.
+      if (label.trim().toLowerCase().contains('transfer')) continue;
+      if (payee['payerName'] != null &&
+          payee['payerName'].toString().isNotEmpty) {
+        label = '${payee['name']} - ${payee['payerName']}';
+      }
+      if (label == 'Unknown') {
+        final txMatchList = txs
+            .where(
+              (t) =>
+                  (t.payeeId == e.key) ||
+                  ((t.payeeId == null || (t.payeeId?.isEmpty ?? true)) &&
+                      (t.description.trim() == e.key)),
+            )
+            .toList();
+        if (txMatchList.isNotEmpty) {
+          // If all matching transactions are transfers, skip this entry.
+          if (txMatchList.every((t) => _isTransferLike(t))) continue;
+          // Prefer a non-transfer transaction when choosing a label.
+          final tx = txMatchList.firstWhere((t) => !_isTransferLike(t));
+          if (tx.billId != null && tx.billId!.isNotEmpty) {
+            final bill = DatabaseService.getAllBills().firstWhere(
+              (b) => b.id == tx.billId,
+              orElse: () => Bill(
+                id: '',
+                amount: 0.0,
+                description: '',
+                dueDate: DateTime.now(),
+                recurrence: Recurrence.none,
+                recurrenceInterval: 1,
+                type: BillType.expense,
+              ),
+            );
+            if (bill.description != null && bill.description!.isNotEmpty) {
+              label = bill.description!;
             } else {
               label = (tx.payeeName ?? '').trim().isNotEmpty
                   ? tx.payeeName!.trim()
-                  : (tx.description.isNotEmpty ? extractPayeeName(tx.description) : 'Unknown');
+                  : (tx.description.isNotEmpty
+                        ? extractPayeeName(tx.description)
+                        : 'Unknown');
             }
+          } else {
+            label = (tx.payeeName ?? '').trim().isNotEmpty
+                ? tx.payeeName!.trim()
+                : (tx.description.isNotEmpty
+                      ? extractPayeeName(tx.description)
+                      : 'Unknown');
           }
         }
-        Color color = AppTheme.expenseRed;
-        if (payee['color'] != null) {
-          try {
-            color = Color(int.parse(payee['color']));
-          } catch (_) {
-            color = AppTheme.expenseRed;
-          }
+      }
+      Color color = AppTheme.expenseRed;
+      if (payee['color'] != null) {
+        try {
+          color = Color(int.parse(payee['color']));
+        } catch (_) {
+          color = AppTheme.expenseRed;
         }
-        grouped[label] = (grouped[label] ?? 0) + e.value;
-        groupedColor.putIfAbsent(label, () => color);
+      }
+      grouped[label] = (grouped[label] ?? 0) + e.value;
+      groupedColor.putIfAbsent(label, () => color);
     }
-    final List<_PieSlice> slices = grouped.entries.map((g) => _PieSlice(g.key, g.value, groupedColor[g.key] ?? AppTheme.expenseRed)).toList();
-  return _buildPieChartCardGeneric(context: context, title: 'Payee', slices: slices, total: total, start: start, end: end);
+    final List<_PieSlice> slices = grouped.entries
+        .map(
+          (g) => _PieSlice(
+            g.key,
+            g.value,
+            groupedColor[g.key] ?? AppTheme.expenseRed,
+          ),
+        )
+        .toList();
+    return _buildPieChartCardGeneric(
+      context: context,
+      title: 'Payee',
+      slices: slices,
+      total: total,
+      start: start,
+      end: end,
+    );
   }
+
   // Returns the color for a given category, using its color property or a fallback
   Color _parseCategoryColor(Category category) {
     try {
@@ -497,13 +664,26 @@ class _ReportsScreenState extends State<ReportsScreen> {
     final note = (t.note ?? '').toLowerCase();
     if (desc.contains('transfer')) return true;
     if (note.contains('transfer')) return true;
-    if (desc.startsWith('__transfer_manual__') || desc.startsWith('__transfer_bill__')) return true;
+    if (desc.startsWith('__transfer_manual__') ||
+        desc.startsWith('__transfer_bill__'))
+      return true;
     try {
-      final cat = _categories.firstWhere((c) => c.id == t.categoryId, orElse: () => Category(id: '', name: '', iconCodePoint: '', colorValue: '0xFF888888', isDefault: false, type: CategoryType.expense));
+      final cat = _categories.firstWhere(
+        (c) => c.id == t.categoryId,
+        orElse: () => Category(
+          id: '',
+          name: '',
+          iconCodePoint: '',
+          colorValue: '0xFF888888',
+          isDefault: false,
+          type: CategoryType.expense,
+        ),
+      );
       if (cat.name.trim().toLowerCase() == 'transfer') return true;
     } catch (_) {}
     return false;
   }
+
   // Track whether payee or payer filter is active in the UI
   bool _showPayers = false;
   bool _showPayees = false;
@@ -552,6 +732,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
     final cats = DatabaseService.getAllCategories();
     setState(() {
       _categories = cats;
+      final visibleIds = _filterableCategories.map((c) => c.id).toSet();
+      _selectedCategoryIds.removeWhere((id) => !visibleIds.contains(id));
     });
   }
 
@@ -563,8 +745,14 @@ class _ReportsScreenState extends State<ReportsScreen> {
   }
 
   // Helper: get transactions in range but exclude any that are categorized as 'Transfer'
-  List<Transaction> _transactionsExcludingTransfersRange(DateTime start, DateTime end) {
-    final allTxs = DatabaseService.getTransactionsByDateRange(start, end).toList();
+  List<Transaction> _transactionsExcludingTransfersRange(
+    DateTime start,
+    DateTime end,
+  ) {
+    final allTxs = DatabaseService.getTransactionsByDateRange(
+      start,
+      end,
+    ).toList();
     final transferCategory = _categories.firstWhere(
       (c) => c.name.trim().toLowerCase() == 'transfer',
       orElse: () => Category(
@@ -578,7 +766,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
     );
     List<Transaction> filtered = allTxs;
     if (transferCategory.id != '__no_transfer__') {
-      filtered = filtered.where((t) => t.categoryId != transferCategory.id).toList();
+      filtered = filtered
+          .where((t) => t.categoryId != transferCategory.id)
+          .toList();
     }
     // Additionally exclude transactions whose description or note contain
     // the word 'transfer' (case-insensitive) or legacy transfer markers.
@@ -588,7 +778,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
       final note = (t.note ?? '').toLowerCase();
       if (desc.contains('transfer')) return false;
       if (note.contains('transfer')) return false;
-      if (desc.startsWith('__transfer_manual__') || desc.startsWith('__transfer_bill__')) return false;
+      if (desc.startsWith('__transfer_manual__') ||
+          desc.startsWith('__transfer_bill__'))
+        return false;
       return true;
     }).toList();
     return filtered;
@@ -639,9 +831,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
         actions: [
           PopupMenuButton<String>(
             onSelected: (value) async {
-                if (value == 'ManageCards') {
+              if (value == 'ManageCards') {
                 // Navigate to the Manage Cards screen and refresh on return
-                await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ManageCardsScreen()));
+                await Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const ManageCardsScreen()),
+                );
                 // Rebuild to pick up any visibility changes
                 if (mounted) setState(() {});
                 return;
@@ -658,10 +852,13 @@ class _ReportsScreenState extends State<ReportsScreen> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           ListTile(
-                            title: const Text('Custom Date Range for Income and Expenses'),
+                            title: const Text(
+                              'Custom Date Range for Income and Expenses',
+                            ),
                             subtitle: Text(
                               'Pick a start and end date to show the details for the custom dates.',
-                              style: Theme.of(ctx).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+                              style: Theme.of(ctx).textTheme.bodySmall
+                                  ?.copyWith(color: Colors.grey[600]),
                             ),
                             onTap: () => Navigator.of(ctx).pop('range'),
                           ),
@@ -669,7 +866,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
                             title: const Text('6-month Trend Date Range'),
                             subtitle: Text(
                               'Select a month to show that month and the next 5 months.',
-                              style: Theme.of(ctx).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+                              style: Theme.of(ctx).textTheme.bodySmall
+                                  ?.copyWith(color: Colors.grey[600]),
                             ),
                             onTap: () => Navigator.of(ctx).pop('sixmonth'),
                           ),
@@ -687,9 +885,16 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     context: context,
                     firstDate: first,
                     lastDate: last,
-                    initialDateRange: _customStartDate != null && _customEndDate != null
-                        ? DateTimeRange(start: _customStartDate!, end: _customEndDate!)
-                        : DateTimeRange(start: DateTime(now.year, now.month, 1), end: now),
+                    initialDateRange:
+                        _customStartDate != null && _customEndDate != null
+                        ? DateTimeRange(
+                            start: _customStartDate!,
+                            end: _customEndDate!,
+                          )
+                        : DateTimeRange(
+                            start: DateTime(now.year, now.month, 1),
+                            end: now,
+                          ),
                   );
                   if (!mounted) return;
                   if (picked != null) {
@@ -735,13 +940,22 @@ class _ReportsScreenState extends State<ReportsScreen> {
               }
             },
             itemBuilder: (context) => [
-              const PopupMenuItem(value: 'ManageCards', child: Text('Manage Cards')),
+              const PopupMenuItem(
+                value: 'ManageCards',
+                child: Text('Manage Cards'),
+              ),
               const PopupMenuDivider(),
               const PopupMenuItem(value: 'This Week', child: Text('This Week')),
-              const PopupMenuItem(value: 'This Month', child: Text('This Month')),
+              const PopupMenuItem(
+                value: 'This Month',
+                child: Text('This Month'),
+              ),
               const PopupMenuItem(value: 'This Year', child: Text('This Year')),
               if (isSubscriber)
-                const PopupMenuItem(value: 'Custom', child: Text('Custom Date')),
+                const PopupMenuItem(
+                  value: 'Custom',
+                  child: Text('Custom Date'),
+                ),
             ],
           ),
         ],
@@ -770,675 +984,973 @@ class _ReportsScreenState extends State<ReportsScreen> {
     );
   }
 
-// Pie chart for payers (income)
-Widget _buildPayerPieChartCard({
-  required BuildContext context,
-  required List<Map<String, dynamic>> payees,
-  required Set<String> selectedPayeeIds,
-  required List<Category> categories,
-  required DateTime start,
-  required DateTime end,
-}) {
-  // Exclude any payee/payer records whose name is 'transfer' from report cards
-  final visiblePayees = payees.where((p) => ((p['name'] ?? '').toString().trim().toLowerCase() != 'transfer')).toList();
+  // Pie chart for payers (income)
+  Widget _buildPayerPieChartCard({
+    required BuildContext context,
+    required List<Map<String, dynamic>> payees,
+    required Set<String> selectedPayeeIds,
+    required List<Category> categories,
+    required DateTime start,
+    required DateTime end,
+  }) {
+    // Exclude any payee/payer records whose name is 'transfer' from report cards
+    final visiblePayees = payees
+        .where(
+          (p) =>
+              ((p['name'] ?? '').toString().trim().toLowerCase() != 'transfer'),
+        )
+        .toList();
 
-  List<Transaction> txs = _transactionsExcludingTransfersRange(start, end)
-    .where((t) => t.type == TransactionType.income)
-    .toList();
-        if (_selectedPayeeIds.isNotEmpty) {
-          txs = txs.where((t) {
-            final extractedName = extractPayeeName(t.description);
-            // Match by payeeId or exact extracted name only (do not use notes)
-            if (_selectedPayeeIds.contains(t.payerId)) return true;
-            for (final id in _selectedPayeeIds) {
-              final payee = visiblePayees.firstWhere((p) => p['id'] == id, orElse: () => <String, dynamic>{});
-              final name = (payee['name'] ?? '').toString().trim();
-              if (name.isNotEmpty && (t.payerName ?? '').trim().toLowerCase() == name.toLowerCase()) {
-                return true;
-              }
-              if (name.isNotEmpty && (extractedName == name)) {
-                return true;
-              }
-            }
-            return false;
-          }).toList();
-    }
-  final transferCategory = categories.firstWhere(
-    (c) => c.name.trim().toLowerCase() == 'transfer',
-    orElse: () => Category(id: '__no_transfer__', name: '', iconCodePoint: '', colorValue: '0xFF888888', isDefault: false, type: CategoryType.income),
-  );
-  if (transferCategory.id != '__no_transfer__') {
-    txs = txs.where((t) => t.categoryId != transferCategory.id).toList();
-  }
-  final Map<String, double> payerTotals = {};
-    for (final t in txs) {
-    String? payerId = t.payerId;
-    // If transaction is linked to a bill, check if bill description matches a payer name
-    if ((payerId == null || payerId.isEmpty) && t.billId != null && t.billId!.isNotEmpty) {
-      final bill = DatabaseService.getAllBills().firstWhere(
-        (b) => b.id == t.billId,
-        orElse: () => Bill(
-          id: '',
-          amount: 0.0,
-          description: '',
-          dueDate: DateTime.now(),
-          recurrence: Recurrence.none,
-          recurrenceInterval: 1,
-          type: BillType.expense,
-        ),
-      );
-      if (bill.description != null && bill.description!.isNotEmpty) {
-        for (final p in visiblePayees) {
-          final name = (p['name'] ?? '').toString().trim();
-          if (name.isNotEmpty && bill.description!.trim() == name) {
-            payerId = p['id'];
-            break;
-          }
-        }
-      }
-    }
-    // If still no payerId, prefer stored payerName before description parsing.
-    if (payerId == null || payerId.isEmpty) {
-      final txPayerName = (t.payerName ?? '').trim();
-      if (txPayerName.isNotEmpty) {
-        for (final p in visiblePayees) {
-          final name = (p['name'] ?? '').toString().trim();
-          if (name.isNotEmpty && txPayerName.toLowerCase() == name.toLowerCase()) {
-            payerId = p['id'];
-            break;
-          }
-        }
-      }
-    }
-    // If still no payerId, try to match by name in description only (not notes)
-    if (payerId == null || payerId.isEmpty) {
-      for (final p in visiblePayees) {
-        final name = (p['name'] ?? '').toString().trim();
-        if (name.isNotEmpty && t.description.contains(name)) {
-          payerId = p['id'];
-          break;
-        }
-      }
-    }
-    payerTotals[payerId ?? ''] = (payerTotals[payerId ?? ''] ?? 0) + t.amount;
-  }
-  final total = payerTotals.values.fold(0.0, (a, b) => a + b);
-  // Group entries by display name so multiple payer records with the same
-  // name are combined onto the same row.
-  final Map<String, double> grouped = {};
-  final Map<String, Color> groupedColor = {};
-  for (final e in payerTotals.entries) {
-    Map<String, dynamic>? payer = visiblePayees.where((p) => p['id'] == e.key).cast<Map<String, dynamic>>().firstWhere(
-      (p) => true,
-      orElse: () {
-        final match = visiblePayees.where((p) => (p['name'] ?? '').toString().trim().toLowerCase() == e.key.toString().trim().toLowerCase());
-        return match.isNotEmpty ? match.first : <String, dynamic>{};
-      },
-    );
-  String label = payer['name'] ?? 'Unknown';
-  // Omit any payer entries containing 'transfer' to keep reports clean.
-  if (label.trim().toLowerCase().contains('transfer')) continue;
-    if (payer['payeeName'] != null && payer['payeeName'].toString().isNotEmpty) {
-      label = '${payer['payeeName']} - ${payer['name']}';
-    }
-    if (label == 'Unknown') {
-        final txMatchList = txs.where((t) =>
-          (t.payerId == e.key) ||
-          ((t.payerId == null || (t.payerId?.isEmpty ?? true)) &&
-            (((t.payerName ?? '').trim() == e.key) || (t.description.trim() == e.key)))).toList();
-      if (txMatchList.isNotEmpty) {
-        // If all matching transactions are transfers, skip this entry.
-        if (txMatchList.every((t) => _isTransferLike(t))) continue;
-        final tx = txMatchList.firstWhere((t) => !_isTransferLike(t));
-        if (tx.billId != null && tx.billId!.isNotEmpty) {
-          final bill = DatabaseService.getAllBills().firstWhere(
-            (b) => b.id == tx.billId,
-            orElse: () => Bill(
-              id: '',
-              amount: 0.0,
-              description: '',
-              dueDate: DateTime.now(),
-              recurrence: Recurrence.none,
-              recurrenceInterval: 1,
-              type: BillType.expense,
-            ),
+    List<Transaction> txs = _transactionsExcludingTransfersRange(
+      start,
+      end,
+    ).where((t) => t.type == TransactionType.income).toList();
+    if (_selectedPayeeIds.isNotEmpty) {
+      txs = txs.where((t) {
+        final extractedName = extractPayeeName(t.description);
+        // Match by payeeId or exact extracted name only (do not use notes)
+        if (_selectedPayeeIds.contains(t.payerId)) return true;
+        for (final id in _selectedPayeeIds) {
+          final payee = visiblePayees.firstWhere(
+            (p) => p['id'] == id,
+            orElse: () => <String, dynamic>{},
           );
-          if (bill.description != null && bill.description!.isNotEmpty) {
-            label = bill.description!;
+          final name = (payee['name'] ?? '').toString().trim();
+          if (name.isNotEmpty &&
+              (t.payerName ?? '').trim().toLowerCase() == name.toLowerCase()) {
+            return true;
+          }
+          if (name.isNotEmpty && (extractedName == name)) {
+            return true;
+          }
+        }
+        return false;
+      }).toList();
+    }
+    final transferCategory = categories.firstWhere(
+      (c) => c.name.trim().toLowerCase() == 'transfer',
+      orElse: () => Category(
+        id: '__no_transfer__',
+        name: '',
+        iconCodePoint: '',
+        colorValue: '0xFF888888',
+        isDefault: false,
+        type: CategoryType.income,
+      ),
+    );
+    if (transferCategory.id != '__no_transfer__') {
+      txs = txs.where((t) => t.categoryId != transferCategory.id).toList();
+    }
+    final Map<String, double> payerTotals = {};
+    for (final t in txs) {
+      String? payerId = t.payerId;
+      // If transaction is linked to a bill, check if bill description matches a payer name
+      if ((payerId == null || payerId.isEmpty) &&
+          t.billId != null &&
+          t.billId!.isNotEmpty) {
+        final bill = DatabaseService.getAllBills().firstWhere(
+          (b) => b.id == t.billId,
+          orElse: () => Bill(
+            id: '',
+            amount: 0.0,
+            description: '',
+            dueDate: DateTime.now(),
+            recurrence: Recurrence.none,
+            recurrenceInterval: 1,
+            type: BillType.expense,
+          ),
+        );
+        if (bill.description != null && bill.description!.isNotEmpty) {
+          for (final p in visiblePayees) {
+            final name = (p['name'] ?? '').toString().trim();
+            if (name.isNotEmpty && bill.description!.trim() == name) {
+              payerId = p['id'];
+              break;
+            }
+          }
+        }
+      }
+      // If still no payerId, prefer stored payerName before description parsing.
+      if (payerId == null || payerId.isEmpty) {
+        final txPayerName = (t.payerName ?? '').trim();
+        if (txPayerName.isNotEmpty) {
+          for (final p in visiblePayees) {
+            final name = (p['name'] ?? '').toString().trim();
+            if (name.isNotEmpty &&
+                txPayerName.toLowerCase() == name.toLowerCase()) {
+              payerId = p['id'];
+              break;
+            }
+          }
+        }
+      }
+      // If still no payerId, try to match by name in description only (not notes)
+      if (payerId == null || payerId.isEmpty) {
+        for (final p in visiblePayees) {
+          final name = (p['name'] ?? '').toString().trim();
+          if (name.isNotEmpty && t.description.contains(name)) {
+            payerId = p['id'];
+            break;
+          }
+        }
+      }
+      payerTotals[payerId ?? ''] = (payerTotals[payerId ?? ''] ?? 0) + t.amount;
+    }
+    final total = payerTotals.values.fold(0.0, (a, b) => a + b);
+    // Group entries by display name so multiple payer records with the same
+    // name are combined onto the same row.
+    final Map<String, double> grouped = {};
+    final Map<String, Color> groupedColor = {};
+    for (final e in payerTotals.entries) {
+      Map<String, dynamic>? payer = visiblePayees
+          .where((p) => p['id'] == e.key)
+          .cast<Map<String, dynamic>>()
+          .firstWhere(
+            (p) => true,
+            orElse: () {
+              final match = visiblePayees.where(
+                (p) =>
+                    (p['name'] ?? '').toString().trim().toLowerCase() ==
+                    e.key.toString().trim().toLowerCase(),
+              );
+              return match.isNotEmpty ? match.first : <String, dynamic>{};
+            },
+          );
+      String label = payer['name'] ?? 'Unknown';
+      // Omit any payer entries containing 'transfer' to keep reports clean.
+      if (label.trim().toLowerCase().contains('transfer')) continue;
+      if (payer['payeeName'] != null &&
+          payer['payeeName'].toString().isNotEmpty) {
+        label = '${payer['payeeName']} - ${payer['name']}';
+      }
+      if (label == 'Unknown') {
+        final txMatchList = txs
+            .where(
+              (t) =>
+                  (t.payerId == e.key) ||
+                  ((t.payerId == null || (t.payerId?.isEmpty ?? true)) &&
+                      (((t.payerName ?? '').trim() == e.key) ||
+                          (t.description.trim() == e.key))),
+            )
+            .toList();
+        if (txMatchList.isNotEmpty) {
+          // If all matching transactions are transfers, skip this entry.
+          if (txMatchList.every((t) => _isTransferLike(t))) continue;
+          final tx = txMatchList.firstWhere((t) => !_isTransferLike(t));
+          if (tx.billId != null && tx.billId!.isNotEmpty) {
+            final bill = DatabaseService.getAllBills().firstWhere(
+              (b) => b.id == tx.billId,
+              orElse: () => Bill(
+                id: '',
+                amount: 0.0,
+                description: '',
+                dueDate: DateTime.now(),
+                recurrence: Recurrence.none,
+                recurrenceInterval: 1,
+                type: BillType.expense,
+              ),
+            );
+            if (bill.description != null && bill.description!.isNotEmpty) {
+              label = bill.description!;
+            } else {
+              label = (tx.payerName ?? '').trim().isNotEmpty
+                  ? tx.payerName!.trim()
+                  : (tx.description.isNotEmpty
+                        ? extractPayeeName(tx.description)
+                        : 'Unknown');
+            }
           } else {
             label = (tx.payerName ?? '').trim().isNotEmpty
                 ? tx.payerName!.trim()
-                : (tx.description.isNotEmpty ? extractPayeeName(tx.description) : 'Unknown');
+                : (tx.description.isNotEmpty
+                      ? extractPayeeName(tx.description)
+                      : 'Unknown');
           }
-        } else {
-          label = (tx.payerName ?? '').trim().isNotEmpty
-              ? tx.payerName!.trim()
-              : (tx.description.isNotEmpty ? extractPayeeName(tx.description) : 'Unknown');
         }
       }
-    }
-    Color color = AppTheme.incomeGreen;
-    if (payer['color'] != null) {
-      try {
-        color = Color(int.parse(payer['color']));
-      } catch (_) {
-        color = AppTheme.incomeGreen;
+      Color color = AppTheme.incomeGreen;
+      if (payer['color'] != null) {
+        try {
+          color = Color(int.parse(payer['color']));
+        } catch (_) {
+          color = AppTheme.incomeGreen;
+        }
       }
+      grouped[label] = (grouped[label] ?? 0) + e.value;
+      groupedColor.putIfAbsent(label, () => color);
     }
-    grouped[label] = (grouped[label] ?? 0) + e.value;
-    groupedColor.putIfAbsent(label, () => color);
-  }
-  final List<_PieSlice> slices = grouped.entries.map((g) => _PieSlice(g.key, g.value, groupedColor[g.key] ?? AppTheme.incomeGreen)).toList();
-  return _buildPieChartCardGeneric(context: context, title: 'Payer', slices: slices, total: total, start: start, end: end);
-}
-
-// Card that shows net amount for names that exist both as a payee and a payer
-Widget _buildPayeePayerNetCard({
-  required BuildContext context,
-  required DateTime start,
-  required DateTime end,
-}) {
-  // Get transactions in range excluding transfers
-  final txs = _transactionsExcludingTransfersRange(start, end);
-
-  // Build map of name -> list of payee/payer entries, excluding any named 'transfer'
-  // Determine names that appear as BOTH a payee and a payer (explicit lists only).
-  final payeeNames = <String>{};
-  final payerNames = <String>{};
-  for (final p in _payees) {
-    final name = ((p['name'] ?? '') as String).toString().trim();
-    if (name.isEmpty) continue;
-    final lname = name.toLowerCase();
-    if (lname == 'transfer') continue;
-    final type = (p['type'] as String?)?.toLowerCase() ?? '';
-    if (type == 'payee') payeeNames.add(name);
-    if (type == 'payer') payerNames.add(name);
+    final List<_PieSlice> slices = grouped.entries
+        .map(
+          (g) => _PieSlice(
+            g.key,
+            g.value,
+            groupedColor[g.key] ?? AppTheme.incomeGreen,
+          ),
+        )
+        .toList();
+    return _buildPieChartCardGeneric(
+      context: context,
+      title: 'Payer',
+      slices: slices,
+      total: total,
+      start: start,
+      end: end,
+    );
   }
 
-  // Only consider names that are present in both lists
-  final commonNames = payeeNames.intersection(payerNames);
+  // Card that shows net amount for names that exist both as a payee and a payer
+  Widget _buildPayeePayerNetCard({
+    required BuildContext context,
+    required DateTime start,
+    required DateTime end,
+  }) {
+    // Get transactions in range excluding transfers
+    final txs = _transactionsExcludingTransfersRange(start, end);
 
-  final List<Map<String, dynamic>> results = [];
-
-  for (final name in commonNames) {
-    final items = _payees.where((p) => ((p['name'] ?? '').toString().trim() == name)).toList();
-
-  // Collect ids for matching (from the explicit payee/payer records)
-  final payeeIds = items.where((p) => (p['type'] as String?)?.toLowerCase() == 'payee').map((p) => p['id'] as String?).whereType<String>().toSet();
-  final payerIds = items.where((p) => (p['type'] as String?)?.toLowerCase() == 'payer').map((p) => p['id'] as String?).whereType<String>().toSet();
-
-    double totalIncome = 0.0;
-    double totalExpense = 0.0;
-
-    for (final t in txs) {
-      // Loose substring fallback: count the transaction when either the
-      // explicit ID matches OR the transaction description/note contains
-      // the normalized name. This allows legacy transactions like
-      // "Payment for Bill Name" to be associated with the name.
-      final desc = t.description.toLowerCase();
+    // Build map of name -> list of payee/payer entries, excluding any named 'transfer'
+    // Determine names that appear as BOTH a payee and a payer (explicit lists only).
+    final payeeNames = <String>{};
+    final payerNames = <String>{};
+    for (final p in _payees) {
+      final name = ((p['name'] ?? '') as String).toString().trim();
+      if (name.isEmpty) continue;
       final lname = name.toLowerCase();
+      if (lname == 'transfer') continue;
+      final type = (p['type'] as String?)?.toLowerCase() ?? '';
+      if (type == 'payee') payeeNames.add(name);
+      if (type == 'payer') payerNames.add(name);
+    }
 
-      if (t.type == TransactionType.income) {
-        // Match by explicit payerId OR description only (do not use note)
-        if ((t.payerId != null && payerIds.contains(t.payerId)) || desc.contains(lname)) {
-          totalIncome += t.amount;
+    // Only consider names that are present in both lists
+    final commonNames = payeeNames.intersection(payerNames);
+
+    final List<Map<String, dynamic>> results = [];
+
+    for (final name in commonNames) {
+      final items = _payees
+          .where((p) => ((p['name'] ?? '').toString().trim() == name))
+          .toList();
+
+      // Collect ids for matching (from the explicit payee/payer records)
+      final payeeIds = items
+          .where((p) => (p['type'] as String?)?.toLowerCase() == 'payee')
+          .map((p) => p['id'] as String?)
+          .whereType<String>()
+          .toSet();
+      final payerIds = items
+          .where((p) => (p['type'] as String?)?.toLowerCase() == 'payer')
+          .map((p) => p['id'] as String?)
+          .whereType<String>()
+          .toSet();
+
+      double totalIncome = 0.0;
+      double totalExpense = 0.0;
+
+      for (final t in txs) {
+        // Loose substring fallback: count the transaction when either the
+        // explicit ID matches OR the transaction description/note contains
+        // the normalized name. This allows legacy transactions like
+        // "Payment for Bill Name" to be associated with the name.
+        final desc = t.description.toLowerCase();
+        final lname = name.toLowerCase();
+
+        if (t.type == TransactionType.income) {
+          // Match by explicit payerId OR description only (do not use note)
+          if ((t.payerId != null && payerIds.contains(t.payerId)) ||
+              desc.contains(lname)) {
+            totalIncome += t.amount;
+          }
+        } else if (t.type == TransactionType.expense) {
+          // Match by explicit payeeId OR description only (do not use note)
+          if ((t.payeeId != null && payeeIds.contains(t.payeeId)) ||
+              desc.contains(lname)) {
+            totalExpense += t.amount;
+          }
         }
-      } else if (t.type == TransactionType.expense) {
-        // Match by explicit payeeId OR description only (do not use note)
-        if ((t.payeeId != null && payeeIds.contains(t.payeeId)) || desc.contains(lname)) {
-          totalExpense += t.amount;
-        }
+      }
+
+      final net = totalIncome - totalExpense;
+      // Only include names that had activity on BOTH sides (income and expense)
+      // for the selected period — this ensures the Payee vs Payer card only
+      // shows entries that actually act as both a payee and a payer during
+      // the timeframe the user selected.
+      if ((totalIncome - 0.0).abs() > 0.0 && (totalExpense - 0.0).abs() > 0.0) {
+        results.add({
+          'name': name,
+          'income': totalIncome,
+          'expense': totalExpense,
+          'net': net,
+        });
       }
     }
 
-    final net = totalIncome - totalExpense;
-    // Only include names that had activity on BOTH sides (income and expense)
-    // for the selected period — this ensures the Payee vs Payer card only
-    // shows entries that actually act as both a payee and a payer during
-    // the timeframe the user selected.
-    if ((totalIncome - 0.0).abs() > 0.0 && (totalExpense - 0.0).abs() > 0.0) {
-      results.add({'name': name, 'income': totalIncome, 'expense': totalExpense, 'net': net});
-    }
-  }
+    // Sort by absolute net descending
+    results.sort((a, b) => b['net'].abs().compareTo(a['net'].abs()));
 
-  // Sort by absolute net descending
-  results.sort((a, b) => b['net'].abs().compareTo(a['net'].abs()));
+    final overallNet = results.fold<double>(
+      0,
+      (s, r) => s + (r['net'] as double),
+    );
 
-  final overallNet = results.fold<double>(0, (s, r) => s + (r['net'] as double));
-
-  return Card(
-    child: Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Text('Payee vs Payer Net Totals', style: Theme.of(context).textTheme.titleMedium, maxLines: 1, overflow: TextOverflow.ellipsis),
-              ),
-              const SizedBox(width: 8),
-              Text(_currencyFormat.format(overallNet), style: Theme.of(context).textTheme.titleMedium),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(_formatPeriodLabel(start, end), style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey[600])),
-          const SizedBox(height: 12),
-          SizedBox(
-            // keep a reasonable fixed inline height and let the inner list scroll
-            height: results.isEmpty ? 60 : 200,
-            child: results.isEmpty
-                ? const Center(child: Text('No matching payee/payer names'))
-                : ListView.separated(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    itemCount: results.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1),
-                    itemBuilder: (ctx2, i) {
-                      final r = results[i];
-                      final net = r['net'] as double;
-                      final color = net >= 0 ? AppTheme.incomeGreen : AppTheme.expenseRed;
-                      final sumAbsAll = results.fold<double>(0, (s, it) => s + ((it['net'] as double).abs()));
-                      final percentAll = sumAbsAll > 0 ? ((net.abs() / sumAbsAll) * 100) : 0.0;
-                      return InkWell(
-                        onTap: () => _openTransactionsForLabel('Payee vs Payer', r['name'] as String, start, end, filterOverride: 'both'),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 0),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-                              const SizedBox(width: 6),
-                              Expanded(child: Text(r['name'] as String, style: Theme.of(context).textTheme.bodySmall, maxLines: 2, overflow: TextOverflow.ellipsis)),
-                              const SizedBox(width: 10),
-                              Text(_currencyFormat.format(net), style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w400, color: color)),
-                              const SizedBox(width: 10),
-                              Text('${percentAll.toStringAsFixed(1)}%', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey[600])),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    'Payee vs Payer Net Totals',
+                    style: Theme.of(context).textTheme.titleMedium,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-          ),
-          if (results.length > 6)
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: () {
-                  showModalBottomSheet<void>(
-                    context: context,
-                    isScrollControlled: true,
-                    builder: (ctx) {
-                      return SafeArea(
-                        child: SizedBox(
-                          height: MediaQuery.of(ctx).size.height * 0.75,
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('Payee vs Payer Net Totals (All)', style: Theme.of(ctx).textTheme.titleLarge),
-                                const SizedBox(height: 12),
-                                Expanded(
-                                  child: ListView.separated(
-                                    itemCount: results.length,
-                                    separatorBuilder: (_, __) => const Divider(height: 1),
-                                    itemBuilder: (ctx2, i) {
-                                      final r = results[i];
-                                      final net = r['net'] as double;
-                                      final color = net >= 0 ? AppTheme.incomeGreen : AppTheme.expenseRed;
-                                      final sumAbsAll = results.fold<double>(0, (s, it) => s + ((it['net'] as double).abs()));
-                                      final percentAll = sumAbsAll > 0 ? ((net.abs() / sumAbsAll) * 100) : 0.0;
-                                      return InkWell(
-                                        onTap: () => _openTransactionsForLabel('Payee vs Payer', r['name'] as String, start, end, filterOverride: 'both'),
-                                        child: Padding(
-                                          padding: const EdgeInsets.symmetric(vertical: 8.0),
-                                          child: Row(
-                                            crossAxisAlignment: CrossAxisAlignment.center,
-                                            children: [
-                                              Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-                                              const SizedBox(width: 6),
-                                              Expanded(child: Text(r['name'] as String, style: Theme.of(ctx2).textTheme.bodySmall)),
-                                              const SizedBox(width: 10),
-                                              Text(_currencyFormat.format(net), style: Theme.of(ctx2).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w400, color: color)),
-                                              const SizedBox(width: 10),
-                                              Text('${percentAll.toStringAsFixed(1)}%', style: Theme.of(ctx2).textTheme.bodySmall?.copyWith(color: Colors.grey[600])),
-                                            ],
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  );
-                },
-                child: const Text('See more'),
-              ),
-            ),
-          const SizedBox(height: 24),
-        ],
-      ),
-    ),
-  );
-}
-
-// Card that shows net totals broken down by category (expense vs income)
-Widget _buildExpenseIncomeNetCard({
-  required BuildContext context,
-  required DateTime start,
-  required DateTime end,
-}) {
-  // Get transactions in range and exclude transfers
-  final allTxs = _transactionsExcludingTransfersRange(start, end).toList();
-  final transferCategory = _categories.firstWhere(
-    (c) => c.name.trim().toLowerCase() == 'transfer',
-    orElse: () => Category(
-      id: '__no_transfer__',
-      name: '',
-      iconCodePoint: '',
-      colorValue: '0xFF888888',
-      isDefault: false,
-      type: CategoryType.expense,
-    ),
-  );
-  final txs = (transferCategory.id != '__no_transfer__')
-      ? allTxs.where((t) => t.categoryId != transferCategory.id).toList()
-      : allTxs;
-
-  // Map category name -> totals
-  final Map<String, double> incomeTotals = {};
-  final Map<String, double> expenseTotals = {};
-
-  for (final t in txs) {
-    String catName = 'Unknown';
-    try {
-      final cat = _categories.firstWhere((c) => c.id == t.categoryId);
-      catName = cat.name;
-    } catch (_) {
-      catName = 'Unknown';
-    }
-
-    if (t.type == TransactionType.income) {
-      incomeTotals[catName] = (incomeTotals[catName] ?? 0) + t.amount;
-    } else if (t.type == TransactionType.expense) {
-      expenseTotals[catName] = (expenseTotals[catName] ?? 0) + t.amount;
-    }
-  }
-
-  // Build results list — only include category names that appear in BOTH
-  // income and expense (behaves like Payee vs Payer net totals card).
-  final Set<String> categoryNames = incomeTotals.keys.toSet().intersection(expenseTotals.keys.toSet());
-  final List<Map<String, dynamic>> results = [];
-  for (final name in categoryNames) {
-    final inc = incomeTotals[name] ?? 0.0;
-    final exp = expenseTotals[name] ?? 0.0;
-    final net = inc - exp;
-    // Omit categories containing 'transfer'
-    if (name.trim().toLowerCase().contains('transfer')) continue;
-    // Only include categories that have activity on BOTH sides (income
-    // and expense). Previously we included a category if either side had
-    // activity; the user requested to show items only when they appear in
-    // both lists.
-    if ((inc - 0.0).abs() > 0.0 && (exp - 0.0).abs() > 0.0) {
-      results.add({'name': name, 'income': inc, 'expense': exp, 'net': net});
-    }
-  }
-
-  // Sort by absolute net descending
-  results.sort((a, b) => b['net'].abs().compareTo(a['net'].abs()));
-
-  final overallNet = results.fold<double>(0, (s, r) => s + (r['net'] as double));
-
-  return Card(
-    child: Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(child: Text('Expense vs Income Net Totals', style: Theme.of(context).textTheme.titleMedium, maxLines: 1, overflow: TextOverflow.ellipsis)),
-              const SizedBox(width: 8),
-              Text(_currencyFormat.format(overallNet), style: Theme.of(context).textTheme.titleMedium),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(_formatPeriodLabel(start, end), style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey[600])),
-          const SizedBox(height: 12),
-          SizedBox(
-            // keep a reasonable fixed inline height and let the inner list scroll
-            height: results.isEmpty ? 60 : 200,
-            child: results.isEmpty
-                ? const Center(child: Text('No category activity'))
-        : ListView.separated(
-          physics: const AlwaysScrollableScrollPhysics(),
-                    itemCount: results.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1),
-                    itemBuilder: (ctx, idx) {
-                      final r = results[idx];
-                      final net = (r['net'] as double);
-                      final color = net >= 0 ? AppTheme.incomeGreen : AppTheme.expenseRed;
-
-                      final sumAbs = results.fold<double>(0, (s, it) => s + ((it['net'] as double).abs()));
-                      final percent = sumAbs > 0 ? ((net.abs() / sumAbs) * 100) : 0.0;
-
-                      return InkWell(
-                        onTap: () => _openTransactionsForLabel('Category', r['name'] as String, start, end, filterOverride: 'category_both'),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 0),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-                              const SizedBox(width: 6),
-                              Expanded(child: Text(r['name'] as String, style: Theme.of(context).textTheme.bodySmall, maxLines: 2, overflow: TextOverflow.ellipsis)),
-                              const SizedBox(width: 10),
-                              Text(_currencyFormat.format(net), style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w400, color: color)),
-                              const SizedBox(width: 10),
-                              Text('${percent.toStringAsFixed(1)}%', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey[600])),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-          ),
-          if (results.length > 6)
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: () {
-                  showModalBottomSheet<void>(
-                    context: context,
-                    isScrollControlled: true,
-                    builder: (ctx) {
-                      return SafeArea(
-                        child: SizedBox(
-                          height: MediaQuery.of(ctx).size.height * 0.75,
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('Expense vs Income Net Totals (All)', style: Theme.of(ctx).textTheme.titleLarge),
-                                const SizedBox(height: 12),
-                                Expanded(
-                                  child: ListView.separated(
-                                    itemCount: results.length,
-                                    separatorBuilder: (_, __) => const Divider(height: 1),
-                                    itemBuilder: (ctx2, i) {
-                                      final r = results[i];
-                                      final net = r['net'] as double;
-                                      final color = net >= 0 ? AppTheme.incomeGreen : AppTheme.expenseRed;
-                                      final sumAbsAll = results.fold<double>(0, (s, it) => s + ((it['net'] as double).abs()));
-                                      final percentAll = sumAbsAll > 0 ? ((net.abs() / sumAbsAll) * 100) : 0.0;
-                                      return Padding(
-                                        padding: const EdgeInsets.symmetric(vertical: 8.0),
-                                        child: Row(
-                                          crossAxisAlignment: CrossAxisAlignment.center,
-                                          children: [
-                                            Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-                                            const SizedBox(width: 6),
-                                            Expanded(child: Text(r['name'] as String, style: Theme.of(ctx2).textTheme.bodySmall)),
-                                            const SizedBox(width: 10),
-                                            Text(_currencyFormat.format(net), style: Theme.of(ctx2).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w400, color: color)),
-                                            const SizedBox(width: 10),
-                                            Text('${percentAll.toStringAsFixed(1)}%', style: Theme.of(ctx2).textTheme.bodySmall?.copyWith(color: Colors.grey[600])),
-                                          ],
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  );
-                },
-                child: const Text('See more'),
-              ),
-            ),
-          const SizedBox(height: 24),
-        ],
-      ),
-    ),
-  );
-}
-
-// Generic pie chart card for payee/payer
-Widget _buildPieChartCardGeneric({
-  required BuildContext context,
-  required String title,
-  required List<_PieSlice> slices,
-  required double total,
-  required DateTime start,
-  required DateTime end,
-}) {
-  return Card(
-    child: Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Text(
-                  title,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  _currencyFormat.format(overallNet),
                   style: Theme.of(context).textTheme.titleMedium,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                _currencyFormat.format(total),
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: title == 'Payee'
-                      ? AppTheme.expenseRed
-                      : title == 'Payer'
-                          ? AppTheme.incomeGreen
-                          : null,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            // show period label under the title so users know what period the card covers
-            // Call the local helper directly to ensure custom ranges that match
-            // an entire month are rendered as "Month of <Month Year>".
-            _formatPeriodLabel(start, end),
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: 200,
-            child: slices.isEmpty
-                ? const Center(child: Text('No data'))
-                : ReportDetailsList(
-                    slices: slices,
-                    total: total,
-                    onRowTap: (s) => _openTransactionsForLabel(
-                      title,
-                      s.label,
-                      start,
-                      end,
-                      type: title == 'Payee'
-                          ? TransactionType.expense
-                          : title == 'Payer'
-                              ? TransactionType.income
-                              : null,
-                    ),
-                  ),
-          ),
-          const SizedBox(height: 16),
-          if (slices.length > 6)
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: () {
-                  showModalBottomSheet<void>(
-                    context: context,
-                    isScrollControlled: true,
-                    builder: (ctx) {
-                      return SafeArea(
-                        child: SizedBox(
-                          height: MediaQuery.of(ctx).size.height * 0.75,
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              _formatPeriodLabel(start, end),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              // keep a reasonable fixed inline height and let the inner list scroll
+              height: results.isEmpty ? 60 : 200,
+              child: results.isEmpty
+                  ? const Center(child: Text('No matching payee/payer names'))
+                  : ListView.separated(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      itemCount: results.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (ctx2, i) {
+                        final r = results[i];
+                        final net = r['net'] as double;
+                        final color = net >= 0
+                            ? AppTheme.incomeGreen
+                            : AppTheme.expenseRed;
+                        final sumAbsAll = results.fold<double>(
+                          0,
+                          (s, it) => s + ((it['net'] as double).abs()),
+                        );
+                        final percentAll = sumAbsAll > 0
+                            ? ((net.abs() / sumAbsAll) * 100)
+                            : 0.0;
+                        return InkWell(
+                          onTap: () => _openTransactionsForLabel(
+                            'Payee vs Payer',
+                            r['name'] as String,
+                            start,
+                            end,
+                            filterOverride: 'both',
+                          ),
                           child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 6.0,
+                              horizontal: 0,
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
-                                Text(title, style: Theme.of(ctx).textTheme.titleLarge),
-                                const SizedBox(height: 12),
+                                Container(
+                                  width: 10,
+                                  height: 10,
+                                  decoration: BoxDecoration(
+                                    color: color,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
                                 Expanded(
-                                    child: ReportDetailsList(
-                                    slices: slices,
-                                    total: total,
-                                    onRowTap: (s) => _openTransactionsForLabel(
-                                      title,
-                                      s.label,
-                                      start,
-                                      end,
-                                      type: title == 'Payee'
-                                          ? TransactionType.expense
-                                          : title == 'Payer'
-                                              ? TransactionType.income
-                                              : null,
+                                  child: Text(
+                                    r['name'] as String,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodySmall,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Text(
+                                  _currencyFormat.format(net),
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(
+                                        fontWeight: FontWeight.w400,
+                                        color: color,
+                                      ),
+                                ),
+                                const SizedBox(width: 10),
+                                Text(
+                                  '${percentAll.toStringAsFixed(1)}%',
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(color: Colors.grey[600]),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+            if (results.length > 6)
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () {
+                    showModalBottomSheet<void>(
+                      context: context,
+                      isScrollControlled: true,
+                      builder: (ctx) {
+                        return SafeArea(
+                          child: SizedBox(
+                            height: MediaQuery.of(ctx).size.height * 0.75,
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Payee vs Payer Net Totals (All)',
+                                    style: Theme.of(ctx).textTheme.titleLarge,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Expanded(
+                                    child: ListView.separated(
+                                      itemCount: results.length,
+                                      separatorBuilder: (_, __) =>
+                                          const Divider(height: 1),
+                                      itemBuilder: (ctx2, i) {
+                                        final r = results[i];
+                                        final net = r['net'] as double;
+                                        final color = net >= 0
+                                            ? AppTheme.incomeGreen
+                                            : AppTheme.expenseRed;
+                                        final sumAbsAll = results.fold<double>(
+                                          0,
+                                          (s, it) =>
+                                              s + ((it['net'] as double).abs()),
+                                        );
+                                        final percentAll = sumAbsAll > 0
+                                            ? ((net.abs() / sumAbsAll) * 100)
+                                            : 0.0;
+                                        return InkWell(
+                                          onTap: () =>
+                                              _openTransactionsForLabel(
+                                                'Payee vs Payer',
+                                                r['name'] as String,
+                                                start,
+                                                end,
+                                                filterOverride: 'both',
+                                              ),
+                                          child: Padding(
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 8.0,
+                                            ),
+                                            child: Row(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.center,
+                                              children: [
+                                                Container(
+                                                  width: 10,
+                                                  height: 10,
+                                                  decoration: BoxDecoration(
+                                                    color: color,
+                                                    shape: BoxShape.circle,
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 6),
+                                                Expanded(
+                                                  child: Text(
+                                                    r['name'] as String,
+                                                    style: Theme.of(
+                                                      ctx2,
+                                                    ).textTheme.bodySmall,
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 10),
+                                                Text(
+                                                  _currencyFormat.format(net),
+                                                  style: Theme.of(ctx2)
+                                                      .textTheme
+                                                      .bodySmall
+                                                      ?.copyWith(
+                                                        fontWeight:
+                                                            FontWeight.w400,
+                                                        color: color,
+                                                      ),
+                                                ),
+                                                const SizedBox(width: 10),
+                                                Text(
+                                                  '${percentAll.toStringAsFixed(1)}%',
+                                                  style: Theme.of(ctx2)
+                                                      .textTheme
+                                                      .bodySmall
+                                                      ?.copyWith(
+                                                        color: Colors.grey[600],
+                                                      ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        );
+                                      },
                                     ),
                                   ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                  child: const Text('See more'),
+                ),
+              ),
+            const SizedBox(height: 24),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Card that shows net totals broken down by category (expense vs income)
+  Widget _buildExpenseIncomeNetCard({
+    required BuildContext context,
+    required DateTime start,
+    required DateTime end,
+  }) {
+    // Get transactions in range and exclude transfers
+    final allTxs = _transactionsExcludingTransfersRange(start, end).toList();
+    final transferCategory = _categories.firstWhere(
+      (c) => c.name.trim().toLowerCase() == 'transfer',
+      orElse: () => Category(
+        id: '__no_transfer__',
+        name: '',
+        iconCodePoint: '',
+        colorValue: '0xFF888888',
+        isDefault: false,
+        type: CategoryType.expense,
+      ),
+    );
+    final txs = (transferCategory.id != '__no_transfer__')
+        ? allTxs.where((t) => t.categoryId != transferCategory.id).toList()
+        : allTxs;
+
+    // Map category name -> totals
+    final Map<String, double> incomeTotals = {};
+    final Map<String, double> expenseTotals = {};
+
+    for (final t in txs) {
+      String catName = 'Unknown';
+      try {
+        final cat = _categories.firstWhere((c) => c.id == t.categoryId);
+        catName = cat.name;
+      } catch (_) {
+        catName = 'Unknown';
+      }
+
+      if (t.type == TransactionType.income) {
+        incomeTotals[catName] = (incomeTotals[catName] ?? 0) + t.amount;
+      } else if (t.type == TransactionType.expense) {
+        expenseTotals[catName] = (expenseTotals[catName] ?? 0) + t.amount;
+      }
+    }
+
+    // Build results list — only include category names that appear in BOTH
+    // income and expense (behaves like Payee vs Payer net totals card).
+    final Set<String> categoryNames = incomeTotals.keys.toSet().intersection(
+      expenseTotals.keys.toSet(),
+    );
+    final List<Map<String, dynamic>> results = [];
+    for (final name in categoryNames) {
+      final inc = incomeTotals[name] ?? 0.0;
+      final exp = expenseTotals[name] ?? 0.0;
+      final net = inc - exp;
+      // Omit categories containing 'transfer'
+      if (name.trim().toLowerCase().contains('transfer')) continue;
+      // Only include categories that have activity on BOTH sides (income
+      // and expense). Previously we included a category if either side had
+      // activity; the user requested to show items only when they appear in
+      // both lists.
+      if ((inc - 0.0).abs() > 0.0 && (exp - 0.0).abs() > 0.0) {
+        results.add({'name': name, 'income': inc, 'expense': exp, 'net': net});
+      }
+    }
+
+    // Sort by absolute net descending
+    results.sort((a, b) => b['net'].abs().compareTo(a['net'].abs()));
+
+    final overallNet = results.fold<double>(
+      0,
+      (s, r) => s + (r['net'] as double),
+    );
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    'Expense vs Income Net Totals',
+                    style: Theme.of(context).textTheme.titleMedium,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  _currencyFormat.format(overallNet),
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              _formatPeriodLabel(start, end),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              // keep a reasonable fixed inline height and let the inner list scroll
+              height: results.isEmpty ? 60 : 200,
+              child: results.isEmpty
+                  ? const Center(child: Text('No category activity'))
+                  : ListView.separated(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      itemCount: results.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (ctx, idx) {
+                        final r = results[idx];
+                        final net = (r['net'] as double);
+                        final color = net >= 0
+                            ? AppTheme.incomeGreen
+                            : AppTheme.expenseRed;
+
+                        final sumAbs = results.fold<double>(
+                          0,
+                          (s, it) => s + ((it['net'] as double).abs()),
+                        );
+                        final percent = sumAbs > 0
+                            ? ((net.abs() / sumAbs) * 100)
+                            : 0.0;
+
+                        return InkWell(
+                          onTap: () => _openTransactionsForLabel(
+                            'Category',
+                            r['name'] as String,
+                            start,
+                            end,
+                            filterOverride: 'category_both',
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 6.0,
+                              horizontal: 0,
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Container(
+                                  width: 10,
+                                  height: 10,
+                                  decoration: BoxDecoration(
+                                    color: color,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    r['name'] as String,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodySmall,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Text(
+                                  _currencyFormat.format(net),
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(
+                                        fontWeight: FontWeight.w400,
+                                        color: color,
+                                      ),
+                                ),
+                                const SizedBox(width: 10),
+                                Text(
+                                  '${percent.toStringAsFixed(1)}%',
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(color: Colors.grey[600]),
                                 ),
                               ],
                             ),
                           ),
-                        ),
-                      );
-                    },
-                  );
-                },
-                child: const Text('See more'),
-              ),
+                        );
+                      },
+                    ),
             ),
-          const SizedBox(height: 24),
-          // Total line removed for payee/payer cards
-        ],
+            if (results.length > 6)
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () {
+                    showModalBottomSheet<void>(
+                      context: context,
+                      isScrollControlled: true,
+                      builder: (ctx) {
+                        return SafeArea(
+                          child: SizedBox(
+                            height: MediaQuery.of(ctx).size.height * 0.75,
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Expense vs Income Net Totals (All)',
+                                    style: Theme.of(ctx).textTheme.titleLarge,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Expanded(
+                                    child: ListView.separated(
+                                      itemCount: results.length,
+                                      separatorBuilder: (_, __) =>
+                                          const Divider(height: 1),
+                                      itemBuilder: (ctx2, i) {
+                                        final r = results[i];
+                                        final net = r['net'] as double;
+                                        final color = net >= 0
+                                            ? AppTheme.incomeGreen
+                                            : AppTheme.expenseRed;
+                                        final sumAbsAll = results.fold<double>(
+                                          0,
+                                          (s, it) =>
+                                              s + ((it['net'] as double).abs()),
+                                        );
+                                        final percentAll = sumAbsAll > 0
+                                            ? ((net.abs() / sumAbsAll) * 100)
+                                            : 0.0;
+                                        return Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 8.0,
+                                          ),
+                                          child: Row(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.center,
+                                            children: [
+                                              Container(
+                                                width: 10,
+                                                height: 10,
+                                                decoration: BoxDecoration(
+                                                  color: color,
+                                                  shape: BoxShape.circle,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 6),
+                                              Expanded(
+                                                child: Text(
+                                                  r['name'] as String,
+                                                  style: Theme.of(
+                                                    ctx2,
+                                                  ).textTheme.bodySmall,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 10),
+                                              Text(
+                                                _currencyFormat.format(net),
+                                                style: Theme.of(ctx2)
+                                                    .textTheme
+                                                    .bodySmall
+                                                    ?.copyWith(
+                                                      fontWeight:
+                                                          FontWeight.w400,
+                                                      color: color,
+                                                    ),
+                                              ),
+                                              const SizedBox(width: 10),
+                                              Text(
+                                                '${percentAll.toStringAsFixed(1)}%',
+                                                style: Theme.of(ctx2)
+                                                    .textTheme
+                                                    .bodySmall
+                                                    ?.copyWith(
+                                                      color: Colors.grey[600],
+                                                    ),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                  child: const Text('See more'),
+                ),
+              ),
+            const SizedBox(height: 24),
+          ],
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
+
+  // Generic pie chart card for payee/payer
+  Widget _buildPieChartCardGeneric({
+    required BuildContext context,
+    required String title,
+    required List<_PieSlice> slices,
+    required double total,
+    required DateTime start,
+    required DateTime end,
+  }) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    style: Theme.of(context).textTheme.titleMedium,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  _currencyFormat.format(total),
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: title == 'Payee'
+                        ? AppTheme.expenseRed
+                        : title == 'Payer'
+                        ? AppTheme.incomeGreen
+                        : null,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              // show period label under the title so users know what period the card covers
+              // Call the local helper directly to ensure custom ranges that match
+              // an entire month are rendered as "Month of <Month Year>".
+              _formatPeriodLabel(start, end),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 200,
+              child: slices.isEmpty
+                  ? const Center(child: Text('No data'))
+                  : ReportDetailsList(
+                      slices: slices,
+                      total: total,
+                      onRowTap: (s) => _openTransactionsForLabel(
+                        title,
+                        s.label,
+                        start,
+                        end,
+                        type: title == 'Payee'
+                            ? TransactionType.expense
+                            : title == 'Payer'
+                            ? TransactionType.income
+                            : null,
+                      ),
+                    ),
+            ),
+            const SizedBox(height: 16),
+            if (slices.length > 6)
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () {
+                    showModalBottomSheet<void>(
+                      context: context,
+                      isScrollControlled: true,
+                      builder: (ctx) {
+                        return SafeArea(
+                          child: SizedBox(
+                            height: MediaQuery.of(ctx).size.height * 0.75,
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    title,
+                                    style: Theme.of(ctx).textTheme.titleLarge,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Expanded(
+                                    child: ReportDetailsList(
+                                      slices: slices,
+                                      total: total,
+                                      onRowTap: (s) =>
+                                          _openTransactionsForLabel(
+                                            title,
+                                            s.label,
+                                            start,
+                                            end,
+                                            type: title == 'Payee'
+                                                ? TransactionType.expense
+                                                : title == 'Payer'
+                                                ? TransactionType.income
+                                                : null,
+                                          ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                  child: const Text('See more'),
+                ),
+              ),
+            const SizedBox(height: 24),
+            // Total line removed for payee/payer cards
+          ],
+        ),
+      ),
+    );
+  }
 
   Widget _buildSummaryCards() {
     // Determine period start/end based on the selected period
@@ -1448,45 +1960,58 @@ Widget _buildPieChartCardGeneric({
 
     if (_selectedPeriod == 'This Week') {
       final weekday = now.weekday;
-      start = DateTime(now.year, now.month, now.day).subtract(Duration(days: weekday - 1));
+      start = DateTime(
+        now.year,
+        now.month,
+        now.day,
+      ).subtract(Duration(days: weekday - 1));
       end = start.add(const Duration(days: 6));
     } else if (_selectedPeriod == 'This Year') {
       start = DateTime(now.year, 1, 1);
       end = DateTime(now.year, 12, 31);
-    } else if (_selectedPeriod == 'Custom' && _customStartDate != null && _customEndDate != null) {
+    } else if (_selectedPeriod == 'Custom' &&
+        _customStartDate != null &&
+        _customEndDate != null) {
       start = _customStartDate!;
       end = _customEndDate!;
     } else {
       // Default to this month
       start = DateTime(now.year, now.month, 1);
-      end = DateTime(now.year, now.month + 1, 1).subtract(const Duration(days: 1));
+      end = DateTime(
+        now.year,
+        now.month + 1,
+        1,
+      ).subtract(const Duration(days: 1));
     }
 
-  // Determine visible cards
-  final savedVisible = DatabaseService.getSetting<List<dynamic>>('reportsVisibleCards', null);
-  final visibleSet = (savedVisible == null)
-      ? <String>{
-          'summary_totals',
-          'expenses_pie',
-          'income_pie',
-          'payee_pie',
-          'payer_pie',
-          'payee_payer_net',
-          'expense_income_net',
-          'monthly_trend',
-        }
-      : savedVisible.map((e) => e.toString()).toSet();
+    // Determine visible cards
+    final savedVisible = DatabaseService.getSetting<List<dynamic>>(
+      'reportsVisibleCards',
+      null,
+    );
+    final visibleSet = (savedVisible == null)
+        ? <String>{
+            'summary_totals',
+            'expenses_pie',
+            'income_pie',
+            'payee_pie',
+            'payer_pie',
+            'payee_payer_net',
+            'expense_income_net',
+            'monthly_trend',
+          }
+        : savedVisible.map((e) => e.toString()).toSet();
 
-  // Always show full totals for summary cards, ignoring filters, but exclude transfers
-  final filteredTxs = _transactionsExcludingTransfersRange(start, end);
-  final totalIncome = filteredTxs
-    .where((t) => t.type == TransactionType.income)
-    .fold<double>(0, (sum, t) => sum + t.amount);
-  final totalExpense = filteredTxs
-    .where((t) => t.type == TransactionType.expense)
-    .fold<double>(0, (sum, t) => sum + t.amount);
-  final net = totalIncome - totalExpense;
-  final children = <Widget>[];
+    // Always show full totals for summary cards, ignoring filters, but exclude transfers
+    final filteredTxs = _transactionsExcludingTransfersRange(start, end);
+    final totalIncome = filteredTxs
+        .where((t) => t.type == TransactionType.income)
+        .fold<double>(0, (sum, t) => sum + t.amount);
+    final totalExpense = filteredTxs
+        .where((t) => t.type == TransactionType.expense)
+        .fold<double>(0, (sum, t) => sum + t.amount);
+    final net = totalIncome - totalExpense;
+    final children = <Widget>[];
 
     if (visibleSet.contains('summary_totals')) {
       children.add(
@@ -1496,50 +2021,54 @@ Widget _buildPieChartCardGeneric({
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Text('Income', style: Theme.of(context).textTheme.bodySmall),
-                        const SizedBox(height: 4),
-                        Text(
-                          _currencyFormat.format(totalIncome),
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
-                              ?.copyWith(color: AppTheme.incomeGreen),
-                        ),
-                      ],
-                    ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Text(
+                        'Income',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _currencyFormat.format(totalIncome),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(color: AppTheme.incomeGreen),
+                      ),
+                    ],
                   ),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Text('Expenses', style: Theme.of(context).textTheme.bodySmall),
-                        const SizedBox(height: 4),
-                        Text(
-                          _currencyFormat.format(totalExpense),
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
-                              ?.copyWith(color: AppTheme.expenseRed),
-                        ),
-                      ],
-                    ),
+                ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Text(
+                        'Expenses',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _currencyFormat.format(totalExpense),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(color: AppTheme.expenseRed),
+                      ),
+                    ],
                   ),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Text('Net', style: Theme.of(context).textTheme.bodySmall),
-                        const SizedBox(height: 4),
-                        Text(_currencyFormat.format(net),
-                            style: Theme.of(context).textTheme.titleMedium),
-                      ],
-                    ),
+                ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Text('Net', style: Theme.of(context).textTheme.bodySmall),
+                      const SizedBox(height: 4),
+                      Text(
+                        _currencyFormat.format(net),
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ],
                   ),
-                ],
+                ),
+              ],
             ),
           ),
         ),
@@ -1549,55 +2078,67 @@ Widget _buildPieChartCardGeneric({
     // Build the PageView children dynamically based on visibility
     final pageChildren = <Widget>[];
     if (visibleSet.contains('expenses_pie')) {
-      pageChildren.add(_buildCategoryPieChartCard(
-        context: context,
-        title: 'Expenses',
-        type: TransactionType.expense,
-        start: start,
-        end: end,
-      ));
+      pageChildren.add(
+        _buildCategoryPieChartCard(
+          context: context,
+          title: 'Expenses',
+          type: TransactionType.expense,
+          start: start,
+          end: end,
+        ),
+      );
     }
     if (visibleSet.contains('income_pie')) {
-      pageChildren.add(_buildCategoryPieChartCard(
-        context: context,
-        title: 'Income',
-        type: TransactionType.income,
-        start: start,
-        end: end,
-      ));
+      pageChildren.add(
+        _buildCategoryPieChartCard(
+          context: context,
+          title: 'Income',
+          type: TransactionType.income,
+          start: start,
+          end: end,
+        ),
+      );
     }
     if (visibleSet.contains('payee_pie')) {
-      pageChildren.add(_buildPayeePieChartCard(
-        context: context,
-        payees: _payees,
-        selectedPayeeIds: _selectedPayeeIds,
-        categories: _categories,
-        start: start,
-        end: end,
-      ));
+      pageChildren.add(
+        _buildPayeePieChartCard(
+          context: context,
+          payees: _payees,
+          selectedPayeeIds: _selectedPayeeIds,
+          categories: _categories,
+          start: start,
+          end: end,
+        ),
+      );
     }
     if (visibleSet.contains('payer_pie')) {
-      pageChildren.add(_buildPayerPieChartCard(
-        context: context,
-        payees: _payees,
-        selectedPayeeIds: _selectedPayeeIds,
-        categories: _categories,
-        start: start,
-        end: end,
-      ));
+      pageChildren.add(
+        _buildPayerPieChartCard(
+          context: context,
+          payees: _payees,
+          selectedPayeeIds: _selectedPayeeIds,
+          categories: _categories,
+          start: start,
+          end: end,
+        ),
+      );
     }
     if (visibleSet.contains('payee_payer_net')) {
-      pageChildren.add(_buildPayeePayerNetCard(context: context, start: start, end: end));
+      pageChildren.add(
+        _buildPayeePayerNetCard(context: context, start: start, end: end),
+      );
     }
     if (visibleSet.contains('expense_income_net')) {
-      pageChildren.add(_buildExpenseIncomeNetCard(context: context, start: start, end: end));
+      pageChildren.add(
+        _buildExpenseIncomeNetCard(context: context, start: start, end: end),
+      );
     }
 
     if (pageChildren.isNotEmpty) {
       final screenHeight = MediaQuery.of(context).size.height;
       children.add(
         SizedBox(
-           height: screenHeight * 0.45, // ~45% of screen height
+          height: screenHeight * 0.45, // ~45% of screen height
           child: PageView(children: pageChildren),
         ),
       );
@@ -1608,8 +2149,10 @@ Widget _buildPieChartCardGeneric({
       children.add(_buildMonthlyTrendChart());
     }
 
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children);
-
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: children,
+    );
   }
 
   Widget _buildMonthlyTrendChart() {
@@ -1632,59 +2175,87 @@ Widget _buildPieChartCardGeneric({
       ),
     );
 
-  // If the user selected a custom 6-month window, use that anchor. Otherwise
-  // default to current month + previous 5 months (current month ends at 'now').
-  if (_selectedPeriod == 'Custom' && _useCustomSixMonth && _customSixMonthStart != null) {
-    final anchor = _customSixMonthStart!; // first day of selected month
-    for (int i = 0; i < 6; i++) {
-    final month = DateTime(anchor.year, anchor.month + i, 1);
-    final endOfMonth = DateTime(month.year, month.month + 1, 1).subtract(const Duration(days: 1));
+    // If the user selected a custom 6-month window, use that anchor. Otherwise
+    // default to current month + previous 5 months (current month ends at 'now').
+    if (_selectedPeriod == 'Custom' &&
+        _useCustomSixMonth &&
+        _customSixMonthStart != null) {
+      final anchor = _customSixMonthStart!; // first day of selected month
+      for (int i = 0; i < 6; i++) {
+        final month = DateTime(anchor.year, anchor.month + i, 1);
+        final endOfMonth = DateTime(
+          month.year,
+          month.month + 1,
+          1,
+        ).subtract(const Duration(days: 1));
 
-    months.add(DateFormat.MMM().format(month));
+        months.add(DateFormat.MMM().format(month));
 
-    // Get transactions for the month (start..endOfMonth)
-    final monthTxs = DatabaseService.getTransactionsByDateRange(month, endOfMonth);
-    // Exclude transfers
-    final filteredTxs = (transferCategory.id != '__no_transfer__')
-      ? monthTxs.where((t) => t.categoryId != transferCategory.id).toList()
-      : monthTxs;
-    final monthIncome =
-      filteredTxs.where((t) => t.type == TransactionType.income).fold<double>(0, (s, t) => s + t.amount);
-    final monthExpense =
-      filteredTxs.where((t) => t.type == TransactionType.expense).fold<double>(0, (s, t) => s + t.amount);
-    incomeData.add(monthIncome);
-    expenseData.add(monthExpense);
+        // Get transactions for the month (start..endOfMonth)
+        final monthTxs = DatabaseService.getTransactionsByDateRange(
+          month,
+          endOfMonth,
+        );
+        // Exclude transfers
+        final filteredTxs = (transferCategory.id != '__no_transfer__')
+            ? monthTxs
+                  .where((t) => t.categoryId != transferCategory.id)
+                  .toList()
+            : monthTxs;
+        final monthIncome = filteredTxs
+            .where((t) => t.type == TransactionType.income)
+            .fold<double>(0, (s, t) => s + t.amount);
+        final monthExpense = filteredTxs
+            .where((t) => t.type == TransactionType.expense)
+            .fold<double>(0, (s, t) => s + t.amount);
+        incomeData.add(monthIncome);
+        expenseData.add(monthExpense);
+      }
+    } else {
+      // Ensure the chart always shows the current month plus the previous 5 months.
+      // Use the first day of the current month as the anchor so the set is stable
+      // immediately when the 1st of the month arrives. For the current month we
+      // only include data up to 'now' so the chart reflects up-to-date values.
+      final currentMonthStart = DateTime(now.year, now.month, 1);
+      for (int i = 5; i >= 0; i--) {
+        final month = DateTime(
+          currentMonthStart.year,
+          currentMonthStart.month - i,
+          1,
+        );
+        // For past months use the month end; for the current month use today so
+        // the chart updates as soon as the new month begins.
+        final endOfMonth = (i == 0)
+            ? now
+            : DateTime(
+                month.year,
+                month.month + 1,
+                1,
+              ).subtract(const Duration(days: 1));
+
+        months.add(DateFormat.MMM().format(month));
+
+        // Get transactions for the month (start..endOfMonth)
+        final monthTxs = DatabaseService.getTransactionsByDateRange(
+          month,
+          endOfMonth,
+        );
+        // Exclude transfers
+        final filteredTxs = (transferCategory.id != '__no_transfer__')
+            ? monthTxs
+                  .where((t) => t.categoryId != transferCategory.id)
+                  .toList()
+            : monthTxs;
+        final monthIncome = filteredTxs
+            .where((t) => t.type == TransactionType.income)
+            .fold<double>(0, (s, t) => s + t.amount);
+        final monthExpense = filteredTxs
+            .where((t) => t.type == TransactionType.expense)
+            .fold<double>(0, (s, t) => s + t.amount);
+        incomeData.add(monthIncome);
+        expenseData.add(monthExpense);
+      }
     }
-  } else {
-    // Ensure the chart always shows the current month plus the previous 5 months.
-    // Use the first day of the current month as the anchor so the set is stable
-    // immediately when the 1st of the month arrives. For the current month we
-    // only include data up to 'now' so the chart reflects up-to-date values.
-    final currentMonthStart = DateTime(now.year, now.month, 1);
-    for (int i = 5; i >= 0; i--) {
-    final month = DateTime(currentMonthStart.year, currentMonthStart.month - i, 1);
-    // For past months use the month end; for the current month use today so
-    // the chart updates as soon as the new month begins.
-    final endOfMonth = (i == 0)
-      ? now
-      : DateTime(month.year, month.month + 1, 1).subtract(const Duration(days: 1));
-
-    months.add(DateFormat.MMM().format(month));
-
-    // Get transactions for the month (start..endOfMonth)
-    final monthTxs = DatabaseService.getTransactionsByDateRange(month, endOfMonth);
-      // Exclude transfers
-    final filteredTxs = (transferCategory.id != '__no_transfer__')
-      ? monthTxs.where((t) => t.categoryId != transferCategory.id).toList()
-      : monthTxs;
-    final monthIncome =
-      filteredTxs.where((t) => t.type == TransactionType.income).fold<double>(0, (s, t) => s + t.amount);
-    final monthExpense =
-      filteredTxs.where((t) => t.type == TransactionType.expense).fold<double>(0, (s, t) => s + t.amount);
-    incomeData.add(monthIncome);
-    expenseData.add(monthExpense);
-    }
-  }
 
     return Card(
       child: Padding(
@@ -1692,7 +2263,10 @@ Widget _buildPieChartCardGeneric({
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('6-Month Trend', style: Theme.of(context).textTheme.titleLarge),
+            Text(
+              '6-Month Trend',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
             const SizedBox(height: 16),
             SizedBox(
               height: 200,
@@ -1727,16 +2301,25 @@ Widget _buildPieChartCardGeneric({
                   gridData: const FlGridData(show: false),
                   borderData: FlBorderData(show: false),
                   titlesData: FlTitlesData(
-                    leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    leftTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    rightTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    topTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
                     bottomTitles: AxisTitles(
                       sideTitles: SideTitles(
                         showTitles: true,
                         getTitlesWidget: (value, meta) {
                           final i = value.toInt();
                           if (i >= 0 && i < months.length) {
-                            return Text(months[i], style: Theme.of(context).textTheme.bodySmall);
+                            return Text(
+                              months[i],
+                              style: Theme.of(context).textTheme.bodySmall,
+                            );
                           }
                           return const Text('');
                         },
@@ -1748,20 +2331,31 @@ Widget _buildPieChartCardGeneric({
               ),
             ),
             const SizedBox(height: 16),
-            Builder(builder: (context) {
-              final totalIncome = incomeData.fold<double>(0, (s, v) => s + v);
-              final totalExpense = expenseData.fold<double>(0, (s, v) => s + v);
-              return Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _buildLegendItem('Income', AppTheme.incomeGreen,
-                      subtitle: _currencyFormat.format(totalIncome)),
-                  const SizedBox(width: 24),
-                  _buildLegendItem('Expenses', AppTheme.expenseRed,
-                      subtitle: _currencyFormat.format(totalExpense)),
-                ],
-              );
-            }),
+            Builder(
+              builder: (context) {
+                final totalIncome = incomeData.fold<double>(0, (s, v) => s + v);
+                final totalExpense = expenseData.fold<double>(
+                  0,
+                  (s, v) => s + v,
+                );
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _buildLegendItem(
+                      'Income',
+                      AppTheme.incomeGreen,
+                      subtitle: _currencyFormat.format(totalIncome),
+                    ),
+                    const SizedBox(width: 24),
+                    _buildLegendItem(
+                      'Expenses',
+                      AppTheme.expenseRed,
+                      subtitle: _currencyFormat.format(totalExpense),
+                    ),
+                  ],
+                );
+              },
+            ),
           ],
         ),
       ),
@@ -1786,7 +2380,12 @@ Widget _buildPieChartCardGeneric({
           children: [
             Text(label, style: Theme.of(context).textTheme.bodySmall),
             if (subtitle != null)
-              Text(subtitle, style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 12)),
+              Text(
+                subtitle,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(fontSize: 12),
+              ),
           ],
         ),
       ],
@@ -1821,33 +2420,49 @@ Widget _buildPieChartCardGeneric({
 
   /// Build a dropdown-like ListTile that opens a modal to multi-select categories.
   Widget _buildCategoryFilterSection() {
-  final isSubscriber = DatabaseService.subscriptionVersion.value != 'Free';
+    final isSubscriber = DatabaseService.subscriptionVersion.value != 'Free';
+    final filterableCategories = _filterableCategories;
     if (!isSubscriber) {
       return Card(
         color: Colors.blueGrey[50],
         child: ListTile(
-          title: Text('Filter by Categories', style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Colors.blueGrey[900])),
-          subtitle: const Text('Subscribe to use category filters', style: TextStyle(color: Colors.blueGrey)),
+          title: Text(
+            'Filter by Categories',
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(color: Colors.blueGrey[900]),
+          ),
+          subtitle: const Text(
+            'Subscribe to use category filters',
+            style: TextStyle(color: Colors.blueGrey),
+          ),
           trailing: const Icon(Icons.lock, color: Colors.blueGrey),
         ),
       );
     }
-    if (_categories.isEmpty) return const SizedBox.shrink();
+    if (filterableCategories.isEmpty) return const SizedBox.shrink();
 
     String subtitle;
     if (_selectedCategoryIds.isEmpty) {
       subtitle = 'All categories';
     } else if (_selectedCategoryIds.length == 1) {
       final id = _selectedCategoryIds.first;
-      subtitle =
-          _categories.firstWhere((c) => c.id == id, orElse: () => _categories.first).name;
+      subtitle = filterableCategories
+          .firstWhere(
+            (c) => c.id == id,
+            orElse: () => filterableCategories.first,
+          )
+          .name;
     } else {
       subtitle = '${_selectedCategoryIds.length} selected';
     }
 
     return Card(
       child: ListTile(
-        title: Text('Filter by Categories', style: Theme.of(context).textTheme.titleMedium),
+        title: Text(
+          'Filter by Categories',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
         subtitle: Text(subtitle),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
@@ -1884,6 +2499,7 @@ Widget _buildPieChartCardGeneric({
                     changed = true;
                     Navigator.of(ctx).pop();
                   }
+
                   void clearAndClose() {
                     setState(() {
                       _selectedCategoryIds.clear();
@@ -1891,6 +2507,7 @@ Widget _buildPieChartCardGeneric({
                     changed = true;
                     Navigator.of(ctx).pop();
                   }
+
                   return FractionallySizedBox(
                     heightFactor: 0.75,
                     child: Column(
@@ -1898,7 +2515,9 @@ Widget _buildPieChartCardGeneric({
                         AppBar(
                           automaticallyImplyLeading: false,
                           title: const Text('Select categories'),
-                          backgroundColor: Theme.of(context).colorScheme.primary,
+                          backgroundColor: Theme.of(
+                            context,
+                          ).colorScheme.primary,
                           foregroundColor: Colors.white,
                           actions: [
                             IconButton(
@@ -1909,8 +2528,10 @@ Widget _buildPieChartCardGeneric({
                           ],
                         ),
                         Padding(
-                          padding:
-                              const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
                           child: Column(
                             children: [
                               Row(
@@ -1951,16 +2572,20 @@ Widget _buildPieChartCardGeneric({
                         ),
                         Expanded(
                           child: ListView.builder(
-                            itemCount: _categories
-                                .where((c) => showIncome
-                                    ? c.type == CategoryType.income
-                                    : c.type == CategoryType.expense)
+                            itemCount: filterableCategories
+                                .where(
+                                  (c) => showIncome
+                                      ? c.type == CategoryType.income
+                                      : c.type == CategoryType.expense,
+                                )
                                 .length,
                             itemBuilder: (context, index) {
-                              final filtered = _categories
-                                  .where((c) => showIncome
-                                      ? c.type == CategoryType.income
-                                      : c.type == CategoryType.expense)
+                              final filtered = filterableCategories
+                                  .where(
+                                    (c) => showIncome
+                                        ? c.type == CategoryType.income
+                                        : c.type == CategoryType.expense,
+                                  )
                                   .toList();
                               final c = filtered[index];
                               final selected = tempSelected.contains(c.id);
@@ -2017,13 +2642,21 @@ Widget _buildPieChartCardGeneric({
 
   /// Payee/Payer selector below categories. Multi-select to mirror categories.
   Widget _buildPayeeFilterSection() {
-  final isSubscriber = DatabaseService.subscriptionVersion.value != 'Free';
+    final isSubscriber = DatabaseService.subscriptionVersion.value != 'Free';
     if (!isSubscriber) {
       return Card(
         color: Colors.blueGrey[50],
         child: ListTile(
-          title: Text('Filter by Payee/Payer', style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Colors.blueGrey[900])),
-          subtitle: const Text('Subscribe to use payee filters', style: TextStyle(color: Colors.blueGrey)),
+          title: Text(
+            'Filter by Payee/Payer',
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(color: Colors.blueGrey[900]),
+          ),
+          subtitle: const Text(
+            'Subscribe to use payee filters',
+            style: TextStyle(color: Colors.blueGrey),
+          ),
           trailing: const Icon(Icons.lock, color: Colors.blueGrey),
         ),
       );
@@ -2047,7 +2680,10 @@ Widget _buildPieChartCardGeneric({
 
     return Card(
       child: ListTile(
-        title: Text('Filter by Payee/Payer', style: Theme.of(context).textTheme.titleMedium),
+        title: Text(
+          'Filter by Payee/Payer',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
         subtitle: Text(subtitle),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
@@ -2085,6 +2721,7 @@ Widget _buildPieChartCardGeneric({
                     changed = true;
                     Navigator.of(ctx).pop();
                   }
+
                   void clearAndClose() {
                     setState(() {
                       _selectedPayeeIds.clear();
@@ -2092,6 +2729,7 @@ Widget _buildPieChartCardGeneric({
                     changed = true;
                     Navigator.of(ctx).pop();
                   }
+
                   return FractionallySizedBox(
                     heightFactor: 0.75,
                     child: Column(
@@ -2099,7 +2737,9 @@ Widget _buildPieChartCardGeneric({
                         AppBar(
                           automaticallyImplyLeading: false,
                           title: const Text('Select payees/payers'),
-                          backgroundColor: Theme.of(context).colorScheme.primary,
+                          backgroundColor: Theme.of(
+                            context,
+                          ).colorScheme.primary,
                           foregroundColor: Colors.white,
                           actions: [
                             IconButton(
@@ -2110,7 +2750,10 @@ Widget _buildPieChartCardGeneric({
                           ],
                         ),
                         Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
                           child: Column(
                             children: [
                               Row(
@@ -2152,16 +2795,25 @@ Widget _buildPieChartCardGeneric({
                         Expanded(
                           child: ListView.builder(
                             itemCount: _payees
-                                .where((p) => (p['type'] as String?) == (showPayers ? 'payer' : 'payee'))
+                                .where(
+                                  (p) =>
+                                      (p['type'] as String?) ==
+                                      (showPayers ? 'payer' : 'payee'),
+                                )
                                 .length,
                             itemBuilder: (context, index) {
                               final filtered = _payees
-                                  .where((p) => (p['type'] as String?) == (showPayers ? 'payer' : 'payee'))
+                                  .where(
+                                    (p) =>
+                                        (p['type'] as String?) ==
+                                        (showPayers ? 'payer' : 'payee'),
+                                  )
                                   .toList();
                               final p = filtered[index];
                               final id = p['id'] as String?;
                               final name = p['name'] as String? ?? 'Unknown';
-                              final selected = id != null && tempSelected.contains(id);
+                              final selected =
+                                  id != null && tempSelected.contains(id);
                               return CheckboxListTile(
                                 title: Text(name),
                                 value: selected,
@@ -2175,7 +2827,7 @@ Widget _buildPieChartCardGeneric({
                                             tempSelected.remove(id);
                                           }
                                         });
-                                    },
+                                      },
                               );
                             },
                           ),
@@ -2216,8 +2868,14 @@ Widget _buildPieChartCardGeneric({
   }
 
   double _computeTotalForPeriodByCategoryFilter(
-      DateTime start, DateTime end, TransactionType type) {
-  final txs = _transactionsExcludingTransfersRange(start, end).where((t) => t.type == type);
+    DateTime start,
+    DateTime end,
+    TransactionType type,
+  ) {
+    final txs = _transactionsExcludingTransfersRange(
+      start,
+      end,
+    ).where((t) => t.type == type);
 
     // Exclude transfers (category name 'Transfer', case-insensitive)
     final transferCategory = _categories.firstWhere(
@@ -2228,7 +2886,9 @@ Widget _buildPieChartCardGeneric({
         iconCodePoint: '',
         colorValue: '0xFF888888',
         isDefault: false,
-        type: type == TransactionType.income ? CategoryType.income : CategoryType.expense,
+        type: type == TransactionType.income
+            ? CategoryType.income
+            : CategoryType.expense,
       ),
     );
     var filtered = txs;
@@ -2238,7 +2898,9 @@ Widget _buildPieChartCardGeneric({
 
     // Apply category filter if any
     if (_selectedCategoryIds.isNotEmpty) {
-      filtered = filtered.where((t) => _selectedCategoryIds.contains(t.categoryId));
+      filtered = filtered.where(
+        (t) => _selectedCategoryIds.contains(t.categoryId),
+      );
     }
 
     // Apply payee/payer filter if any
@@ -2246,11 +2908,17 @@ Widget _buildPieChartCardGeneric({
       if (_showPayers && type == TransactionType.income) {
         filtered = filtered.where((t) {
           // Match by payerId or by description containing selected payer name
-          if (t.payerId != null && _selectedPayeeIds.contains(t.payerId)) return true;
+          if (t.payerId != null && _selectedPayeeIds.contains(t.payerId))
+            return true;
           for (final id in _selectedPayeeIds) {
-            final payer = _payees.firstWhere((p) => p['id'] == id, orElse: () => <String, dynamic>{});
+            final payer = _payees.firstWhere(
+              (p) => p['id'] == id,
+              orElse: () => <String, dynamic>{},
+            );
             final name = (payer['name'] ?? '').toString().trim();
-            if (name.isNotEmpty && (t.payerName ?? '').trim().toLowerCase() == name.toLowerCase()) return true;
+            if (name.isNotEmpty &&
+                (t.payerName ?? '').trim().toLowerCase() == name.toLowerCase())
+              return true;
             if (name.isNotEmpty && t.description.contains(name)) return true;
           }
           return false;
@@ -2258,11 +2926,17 @@ Widget _buildPieChartCardGeneric({
       } else if (!_showPayers && type == TransactionType.expense) {
         filtered = filtered.where((t) {
           // Match by payeeId or by description containing selected payee name
-          if (t.payeeId != null && _selectedPayeeIds.contains(t.payeeId)) return true;
+          if (t.payeeId != null && _selectedPayeeIds.contains(t.payeeId))
+            return true;
           for (final id in _selectedPayeeIds) {
-            final payee = _payees.firstWhere((p) => p['id'] == id, orElse: () => <String, dynamic>{});
+            final payee = _payees.firstWhere(
+              (p) => p['id'] == id,
+              orElse: () => <String, dynamic>{},
+            );
             final name = (payee['name'] ?? '').toString().trim();
-            if (name.isNotEmpty && (t.payeeName ?? '').trim().toLowerCase() == name.toLowerCase()) return true;
+            if (name.isNotEmpty &&
+                (t.payeeName ?? '').trim().toLowerCase() == name.toLowerCase())
+              return true;
             if (name.isNotEmpty && t.description.contains(name)) return true;
           }
           return false;

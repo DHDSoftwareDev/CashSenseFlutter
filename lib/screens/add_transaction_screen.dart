@@ -1,4 +1,4 @@
-// ignore_for_file: deprecated_member_use, unused_element, unused_local_variable, unnecessary_null_comparison, unused_field, use_build_context_synchronously, prefer_conditional_assignment, unrelated_type_equality_checks, prefer_null_aware_operators, prefer_interpolation_to_compose_strings, dead_code, unnecessary_null_in_if_null_operators
+// ignore_for_file: curly_braces_in_flow_control_structures, deprecated_member_use, unused_element, unused_local_variable, unnecessary_null_comparison, unused_field, use_build_context_synchronously, prefer_conditional_assignment, unrelated_type_equality_checks, prefer_null_aware_operators, prefer_interpolation_to_compose_strings, dead_code, unnecessary_null_in_if_null_operators
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -94,13 +94,23 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   VoidCallback? _categoriesListener;
   bool _cleared = false;
   bool _showInReports = true;
-  String? _originalCategoryId; // Track the category from the transaction being edited/duplicated
+  String?
+  _originalCategoryId; // Track the category from the transaction being edited/duplicated
 
   String _sanitizeInternalNoteTokens(String text) {
     var cleaned = text;
-    cleaned = cleaned.replaceAll(RegExp(r'__transfer_(manual|bill)__', caseSensitive: false), '');
-    cleaned = cleaned.replaceAll(RegExp(r'__hide_from_calendar__', caseSensitive: false), '');
-    cleaned = cleaned.replaceAll(RegExp(r'pair:[A-Za-z0-9\-]+', caseSensitive: false), '');
+    cleaned = cleaned.replaceAll(
+      RegExp(r'__transfer_(manual|bill)__', caseSensitive: false),
+      '',
+    );
+    cleaned = cleaned.replaceAll(
+      RegExp(r'__hide_from_calendar__', caseSensitive: false),
+      '',
+    );
+    cleaned = cleaned.replaceAll(
+      RegExp(r'pair:[A-Za-z0-9\-]+', caseSensitive: false),
+      '',
+    );
     return cleaned.trim();
   }
 
@@ -128,8 +138,12 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     return Scaffold(
       appBar: AppBar(
         leading: const BackButton(),
-  title: Text(widget.existingTransaction != null ? 'Edit Transaction' : (widget.isDuplicate ? 'Add Transaction' : 'Add Transaction')),
-  centerTitle: true,
+        title: Text(
+          widget.existingTransaction != null
+              ? 'Edit Transaction'
+              : (widget.isDuplicate ? 'Add Transaction' : 'Add Transaction'),
+        ),
+        centerTitle: true,
         backgroundColor: Theme.of(context).colorScheme.primary,
         foregroundColor: Colors.white,
       ),
@@ -154,9 +168,13 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               if (_useSplits)
                 SplitsEditor(
                   initialSplits: _splits,
-                  transactionAmount: double.tryParse(_amountController.text) ?? null,
+                  transactionAmount:
+                      double.tryParse(_amountController.text) ?? null,
                   onChanged: (s) => _splits = s,
-                  categoryTypeFilter: _transactionType == TransactionScreenType.income ? CategoryType.income : CategoryType.expense,
+                  categoryTypeFilter:
+                      _transactionType == TransactionScreenType.income
+                      ? CategoryType.income
+                      : CategoryType.expense,
                 ),
               const SizedBox(height: 12),
               _buildAccountSelector(),
@@ -180,7 +198,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
   @override
   void dispose() {
-    if (_categoriesListener != null) DatabaseService.categoriesVersion.removeListener(_categoriesListener!);
+    if (_categoriesListener != null)
+      DatabaseService.categoriesVersion.removeListener(_categoriesListener!);
     _amountController.dispose();
     _notesController.dispose();
     super.dispose();
@@ -212,9 +231,18 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               });
             },
             children: const [
-              Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: Text('Expense')),
-              Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: Text('Income')),
-              Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: Text('Transfer')),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                child: Text('Expense'),
+              ),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                child: Text('Income'),
+              ),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                child: Text('Transfer'),
+              ),
             ],
           ),
         ),
@@ -236,7 +264,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         prefixStyle: TextStyle(
           color: _transactionType == TransactionScreenType.income
               ? AppTheme.incomeGreen
-              : (_transactionType == TransactionScreenType.expense ? AppTheme.expenseRed : null),
+              : (_transactionType == TransactionScreenType.expense
+                    ? AppTheme.expenseRed
+                    : null),
         ),
         suffixIcon: IconButton(
           icon: const Icon(Icons.calculate),
@@ -267,18 +297,26 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   }
 
   Widget _buildPayeeSelector() {
-  // Always refresh payees before showing selector
-  List<Map<String, dynamic>> payees = DatabaseService.getAllPayees();
-  final payeeName = _selectedPayeeId != null
-    ? payees.firstWhere((p) => p['id'].toString() == _selectedPayeeId, orElse: () => {'name': 'Unknown'})['name']
-    : null;
+    // Always refresh payees before showing selector
+    List<Map<String, dynamic>> payees = DatabaseService.getAllPayees();
+    final payeeName = _selectedPayeeId != null
+        ? payees.firstWhere(
+            (p) => p['id'].toString() == _selectedPayeeId,
+            orElse: () => {'name': 'Unknown'},
+          )['name']
+        : null;
 
     return Card(
       child: ListTile(
         leading: const Icon(Icons.person),
-        title: Text(_transactionType == TransactionScreenType.expense ? 'Payee' : 'Payer'),
+        title: Text(
+          _transactionType == TransactionScreenType.expense ? 'Payee' : 'Payer',
+        ),
         subtitle: Text(
-          payeeName ?? (_transactionType == TransactionScreenType.expense ? 'Select payee' : 'Select payer'),
+          payeeName ??
+              (_transactionType == TransactionScreenType.expense
+                  ? 'Select payee'
+                  : 'Select payer'),
         ),
         trailing: const Icon(Icons.arrow_forward_ios, size: 16),
         onTap: () async {
@@ -295,7 +333,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     icon: const Icon(Icons.arrow_back),
                     onPressed: () => Navigator.pop(context),
                   ),
-                  title: Text('Select ${_transactionType == TransactionScreenType.expense ? 'Payee' : 'Payer'}'),
+                  title: Text(
+                    'Select ${_transactionType == TransactionScreenType.expense ? 'Payee' : 'Payer'}',
+                  ),
                   backgroundColor: Theme.of(context).colorScheme.primary,
                   foregroundColor: Colors.white,
                   elevation: 0,
@@ -306,31 +346,60 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                       onPressed: () async {
                         final nameController = TextEditingController();
                         String? selectedCatId;
-                        final categories = _transactionType == TransactionScreenType.expense
-                            ? DatabaseService.getAllCategories().where((cat) => cat.type == CategoryType.expense).toList()
-                            : DatabaseService.getAllCategories().where((cat) => cat.type == CategoryType.income).toList();
+                        final categories =
+                            _transactionType == TransactionScreenType.expense
+                            ? DatabaseService.getAllCategories()
+                                  .where(
+                                    (cat) => cat.type == CategoryType.expense,
+                                  )
+                                  .toList()
+                            : DatabaseService.getAllCategories()
+                                  .where(
+                                    (cat) => cat.type == CategoryType.income,
+                                  )
+                                  .toList();
                         final result = await showDialog<Map<String, dynamic>?>(
                           context: context,
                           builder: (ctx) {
                             String? dialogCatId = selectedCatId;
                             return StatefulBuilder(
                               builder: (ctx, setState) => AlertDialog(
-                                title: Text('Add ${_transactionType == TransactionScreenType.expense ? 'Payee' : 'Payer'}'),
+                                title: Text(
+                                  'Add ${_transactionType == TransactionScreenType.expense ? 'Payee' : 'Payer'}',
+                                ),
                                 content: Column(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     TextField(
                                       controller: nameController,
-                                      textCapitalization: TextCapitalization.sentences,
-                                      decoration: const InputDecoration(labelText: 'Name'),
+                                      textCapitalization:
+                                          TextCapitalization.sentences,
+                                      decoration: const InputDecoration(
+                                        labelText: 'Name',
+                                      ),
                                     ),
                                     const SizedBox(height: 12),
                                     InkWell(
                                       onTap: () async {
-                                        final allCategories = DatabaseService.getAllCategories();
-                                        final filteredCats = _transactionType == TransactionScreenType.expense
-                                            ? allCategories.where((c) => c.type == CategoryType.expense).toList()
-                                            : allCategories.where((c) => c.type == CategoryType.income).toList();
+                                        final allCategories =
+                                            DatabaseService.getAllCategories();
+                                        final filteredCats =
+                                            _transactionType ==
+                                                TransactionScreenType.expense
+                                            ? allCategories
+                                                  .where(
+                                                    (c) =>
+                                                        c.type ==
+                                                        CategoryType.expense,
+                                                  )
+                                                  .toList()
+                                            : allCategories
+                                                  .where(
+                                                    (c) =>
+                                                        c.type ==
+                                                        CategoryType.income,
+                                                  )
+                                                  .toList();
                                         final picked = await showModalBottomSheet<String?>(
                                           context: ctx,
                                           isScrollControlled: true,
@@ -339,11 +408,18 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                             child: Scaffold(
                                               appBar: AppBar(
                                                 leading: IconButton(
-                                                  icon: const Icon(Icons.arrow_back),
-                                                  onPressed: () => Navigator.pop(ctx),
+                                                  icon: const Icon(
+                                                    Icons.arrow_back,
+                                                  ),
+                                                  onPressed: () =>
+                                                      Navigator.pop(ctx),
                                                 ),
-                                                title: const Text('Select Category'),
-                                                backgroundColor: Theme.of(ctx).colorScheme.primary,
+                                                title: const Text(
+                                                  'Select Category',
+                                                ),
+                                                backgroundColor: Theme.of(
+                                                  ctx,
+                                                ).colorScheme.primary,
                                                 foregroundColor: Colors.white,
                                                 elevation: 0,
                                                 actions: [
@@ -351,46 +427,90 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                                     icon: const Icon(Icons.add),
                                                     tooltip: 'Add',
                                                     onPressed: () async {
-                                                      final nameController = TextEditingController();
-                                                      Color selectedColor = const Color(0xFF607D8B);
+                                                      final nameController =
+                                                          TextEditingController();
+                                                      Color selectedColor =
+                                                          const Color(
+                                                            0xFF607D8B,
+                                                          );
                                                       final result = await showDialog<Category?>(
                                                         context: ctx,
                                                         builder: (dctx) => StatefulBuilder(
                                                           builder: (dctx, setState) => AlertDialog(
-                                                            title: const Text('Add Category'),
+                                                            title: const Text(
+                                                              'Add Category',
+                                                            ),
                                                             content: Column(
-                                                              mainAxisSize: MainAxisSize.min,
+                                                              mainAxisSize:
+                                                                  MainAxisSize
+                                                                      .min,
                                                               children: [
                                                                 TextField(
-                                                                  controller: nameController,
-                                                                  textCapitalization: TextCapitalization.sentences,
-                                                                  decoration: const InputDecoration(labelText: 'Name'),
+                                                                  controller:
+                                                                      nameController,
+                                                                  textCapitalization:
+                                                                      TextCapitalization
+                                                                          .sentences,
+                                                                  decoration:
+                                                                      const InputDecoration(
+                                                                        labelText:
+                                                                            'Name',
+                                                                      ),
                                                                 ),
-                                                                const SizedBox(height: 8),
+                                                                const SizedBox(
+                                                                  height: 8,
+                                                                ),
                                                                 GestureDetector(
                                                                   onTap: () async {
                                                                     final picked = await showAppColorPicker(
-                                                                      context: dctx,
-                                                                      initialColor: selectedColor,
-                                                                      title: 'Pick Category Color',
+                                                                      context:
+                                                                          dctx,
+                                                                      initialColor:
+                                                                          selectedColor,
+                                                                      title:
+                                                                          'Pick Category Color',
                                                                     );
-                                                                    if (picked != null) setState(() => selectedColor = picked);
+                                                                    if (picked !=
+                                                                        null)
+                                                                      setState(
+                                                                        () => selectedColor =
+                                                                            picked,
+                                                                      );
                                                                   },
                                                                   child: Row(
                                                                     children: [
                                                                       Container(
-                                                                        width: 20,
-                                                                        height: 20,
+                                                                        width:
+                                                                            20,
+                                                                        height:
+                                                                            20,
                                                                         decoration: BoxDecoration(
-                                                                          color: selectedColor,
-                                                                          borderRadius: BorderRadius.circular(4),
-                                                                          border: Border.all(color: Colors.black26),
+                                                                          color:
+                                                                              selectedColor,
+                                                                          borderRadius:
+                                                                              BorderRadius.circular(
+                                                                                4,
+                                                                              ),
+                                                                          border: Border.all(
+                                                                            color:
+                                                                                Colors.black26,
+                                                                          ),
                                                                         ),
                                                                       ),
-                                                                      const SizedBox(width: 12),
-                                                                      const Text('Color'),
+                                                                      const SizedBox(
+                                                                        width:
+                                                                            12,
+                                                                      ),
+                                                                      const Text(
+                                                                        'Color',
+                                                                      ),
                                                                       const Spacer(),
-                                                                      const Icon(Icons.color_lens_outlined, size: 20),
+                                                                      const Icon(
+                                                                        Icons
+                                                                            .color_lens_outlined,
+                                                                        size:
+                                                                            20,
+                                                                      ),
                                                                     ],
                                                                   ),
                                                                 ),
@@ -398,31 +518,62 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                                             ),
                                                             actions: [
                                                               TextButton(
-                                                                onPressed: () => Navigator.pop(dctx),
-                                                                child: const Text('Cancel'),
+                                                                onPressed: () =>
+                                                                    Navigator.pop(
+                                                                      dctx,
+                                                                    ),
+                                                                child:
+                                                                    const Text(
+                                                                      'Cancel',
+                                                                    ),
                                                               ),
                                                               TextButton(
                                                                 onPressed: () {
-                                                                  final name = nameController.text.trim();
-                                                                  if (name.isEmpty) return;
+                                                                  final name =
+                                                                      nameController
+                                                                          .text
+                                                                          .trim();
+                                                                  if (name
+                                                                      .isEmpty)
+                                                                    return;
                                                                   final newCat = Category(
                                                                     name: name,
-                                                                    iconCodePoint: '0xe85d',
-                                                                    colorValue: selectedColor.value.toString(),
-                                                                    type: _transactionType == TransactionScreenType.expense ? CategoryType.expense : CategoryType.income,
+                                                                    iconCodePoint:
+                                                                        '0xe85d',
+                                                                    colorValue:
+                                                                        selectedColor
+                                                                            .value
+                                                                            .toString(),
+                                                                    type:
+                                                                        _transactionType ==
+                                                                            TransactionScreenType.expense
+                                                                        ? CategoryType
+                                                                              .expense
+                                                                        : CategoryType
+                                                                              .income,
                                                                   );
-                                                                  Navigator.pop(dctx, newCat);
+                                                                  Navigator.pop(
+                                                                    dctx,
+                                                                    newCat,
+                                                                  );
                                                                 },
-                                                                child: const Text('Add'),
+                                                                child:
+                                                                    const Text(
+                                                                      'Add',
+                                                                    ),
                                                               ),
                                                             ],
                                                           ),
                                                         ),
                                                       );
                                                       if (result != null) {
-                                                        await DatabaseService.addCategory(result);
+                                                        await DatabaseService.addCategory(
+                                                          result,
+                                                        );
                                                         try {
-                                                          await LookupsSyncHelper.syncCategory(result);
+                                                          await LookupsSyncHelper.syncCategory(
+                                                            result,
+                                                          );
                                                         } catch (_) {}
                                                         setState(() {});
                                                       }
@@ -434,7 +585,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                                 categories: filteredCats,
                                                 hideAddButton: true,
                                                 allowedTypes: {
-                                                  _transactionType == TransactionScreenType.expense
+                                                  _transactionType ==
+                                                          TransactionScreenType
+                                                              .expense
                                                       ? CategoryType.expense
                                                       : CategoryType.income,
                                                 },
@@ -442,14 +595,27 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                             ),
                                           ),
                                         );
-                                        if (picked != null) setState(() => dialogCatId = picked);
+                                        if (picked != null)
+                                          setState(() => dialogCatId = picked);
                                       },
                                       child: InputDecorator(
-                                        decoration: const InputDecoration(labelText: 'Category'),
+                                        decoration: const InputDecoration(
+                                          labelText: 'Category',
+                                        ),
                                         child: Row(
-                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
                                           children: [
-                                            Expanded(child: Text(dialogCatId == null ? 'Select Category' : (DatabaseService.getCategoryById(dialogCatId ?? '')?.name ?? ''))),
+                                            Expanded(
+                                              child: Text(
+                                                dialogCatId == null
+                                                    ? 'Select Category'
+                                                    : (DatabaseService.getCategoryById(
+                                                            dialogCatId ?? '',
+                                                          )?.name ??
+                                                          ''),
+                                              ),
+                                            ),
                                             const Icon(Icons.arrow_drop_down),
                                           ],
                                         ),
@@ -466,11 +632,17 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                     onPressed: () {
                                       final name = nameController.text.trim();
                                       if (name.isEmpty) return;
-                                      final newId = DateTime.now().millisecondsSinceEpoch.toString();
+                                      final newId = DateTime.now()
+                                          .millisecondsSinceEpoch
+                                          .toString();
                                       Navigator.pop(ctx, {
                                         'id': newId,
                                         'name': nameController.text.trim(),
-                                        'type': _transactionType == TransactionScreenType.expense ? 'payee' : 'payer',
+                                        'type':
+                                            _transactionType ==
+                                                TransactionScreenType.expense
+                                            ? 'payee'
+                                            : 'payer',
                                         'categoryId': dialogCatId,
                                       });
                                     },
@@ -482,12 +654,12 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                           },
                         );
                         if (result != null) {
-                          final payeeToAdd = {
-                            ...result,
-                          };
+                          final payeeToAdd = {...result};
                           await DatabaseService.addPayee(payeeToAdd);
                           try {
-                            await LookupsSyncHelper.syncPayeeOrPayer(payeeToAdd);
+                            await LookupsSyncHelper.syncPayeeOrPayer(
+                              payeeToAdd,
+                            );
                           } catch (_) {}
                           // Refresh payees after adding
                           payees = DatabaseService.getAllPayees();
@@ -499,9 +671,15 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 ),
                 body: _PayeeSelectorSheet(
                   payees: _transactionType == TransactionScreenType.expense
-                      ? payees.where((p) => (p['type'] as String?) == 'payee').toList()
-                      : payees.where((p) => (p['type'] as String?) == 'payer').toList(),
-                  type: _transactionType == TransactionScreenType.expense ? 'payee' : 'payer',
+                      ? payees
+                            .where((p) => (p['type'] as String?) == 'payee')
+                            .toList()
+                      : payees
+                            .where((p) => (p['type'] as String?) == 'payer')
+                            .toList(),
+                  type: _transactionType == TransactionScreenType.expense
+                      ? 'payee'
+                      : 'payer',
                 ),
               ),
             ),
@@ -515,21 +693,27 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           }
           if (selected != null) {
             // selected may be the id of a newly added payee or an existing id returned from the sheet
-            final payee = payees.firstWhere((p) => p['id'].toString() == selected, orElse: () => <String, dynamic>{});
+            final payee = payees.firstWhere(
+              (p) => p['id'].toString() == selected,
+              orElse: () => <String, dynamic>{},
+            );
             String? rawCatId;
-            if (payee.isNotEmpty && payee.containsKey('categoryId')) rawCatId = payee['categoryId'] as String?;
+            if (payee.isNotEmpty && payee.containsKey('categoryId'))
+              rawCatId = payee['categoryId'] as String?;
             String? catId;
             if (rawCatId != null) {
               final lower = rawCatId.toLowerCase();
               if (lower != 'null' && rawCatId.isNotEmpty) catId = rawCatId;
             }
-            final hasValidCategory = catId != null && DatabaseService.getAllCategories().any((c) => c.id == catId);
+            final hasValidCategory =
+                catId != null &&
+                DatabaseService.getAllCategories().any((c) => c.id == catId);
             setState(() {
               _selectedPayeeId = selected.isEmpty ? null : selected;
-               // If we're editing/duplicating a transaction that already has a category,
-               // preserve the transaction's category instead of using the payee's default category
-               if (_originalCategoryId == null && hasValidCategory) {
-                 // Only auto-select payee's category when creating a new transaction
+              // If we're editing/duplicating a transaction that already has a category,
+              // preserve the transaction's category instead of using the payee's default category
+              if (_originalCategoryId == null && hasValidCategory) {
+                // Only auto-select payee's category when creating a new transaction
                 _selectedCategoryId = catId;
               }
             });
@@ -540,68 +724,75 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   }
 
   Widget _buildCategorySelector() {
-  Category? selectedCategory = _findCategoryById(_categories, _selectedCategoryId);
-  String? categoryName = _transactionType == TransactionScreenType.transfer
-      ? 'Transfer'
-      : selectedCategory?.name;
+    Category? selectedCategory = _findCategoryById(
+      _categories,
+      _selectedCategoryId,
+    );
+    String? categoryName = _transactionType == TransactionScreenType.transfer
+        ? 'Transfer'
+        : selectedCategory?.name;
 
-  Widget leadingWidget;
-  if (selectedCategory != null) {
-    leadingWidget = SizedBox(
-      width: 24,
-      height: 24,
-      child: Center(
-        child: Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(
-            color: selectedCategory.color,
-            shape: BoxShape.circle,
+    Widget leadingWidget;
+    if (selectedCategory != null) {
+      leadingWidget = SizedBox(
+        width: 24,
+        height: 24,
+        child: Center(
+          child: Container(
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(
+              color: selectedCategory.color,
+              shape: BoxShape.circle,
+            ),
           ),
         ),
-      ),
-    );
-  } else {
-    leadingWidget = const Icon(Icons.label);
-  }
+      );
+    } else {
+      leadingWidget = const Icon(Icons.label);
+    }
 
-  return Card(
-    child: ListTile(
-      leading: leadingWidget,
-      title: const Text('Category'),
-      subtitle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(categoryName ?? 'Select'),
-          const SizedBox(height: 6),
-          Align(
-            alignment: Alignment.centerRight,
-            child: InkWell(
-              onTap: () {
-                setState(() {
-                  _useSplits = !_useSplits;
-                  if (!_useSplits) _splits = [];
-                });
-              },
-              child: Text(
-                _useSplits ? 'Disable splits' : 'Use splits',
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.primary,
-                  fontWeight: FontWeight.w600,
+    return Card(
+      child: ListTile(
+        leading: leadingWidget,
+        title: const Text('Category'),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(categoryName ?? 'Select'),
+            const SizedBox(height: 6),
+            Align(
+              alignment: Alignment.centerRight,
+              child: InkWell(
+                onTap: () {
+                  setState(() {
+                    _useSplits = !_useSplits;
+                    if (!_useSplits) _splits = [];
+                  });
+                },
+                child: Text(
+                  _useSplits ? 'Disable splits' : 'Use splits',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ),
-          ),
-        ],
-      ),
-      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+          ],
+        ),
+        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
         onTap: () async {
           final allCategories = DatabaseService.getAllCategories();
           final filteredCats = _transactionType == TransactionScreenType.expense
-              ? allCategories.where((c) => c.type == CategoryType.expense).toList()
+              ? allCategories
+                    .where((c) => c.type == CategoryType.expense)
+                    .toList()
               : _transactionType == TransactionScreenType.income
-                  ? allCategories.where((c) => c.type == CategoryType.income).toList()
-                  : allCategories;
+              ? allCategories
+                    .where((c) => c.type == CategoryType.income)
+                    .toList()
+              : allCategories;
           final selected = await showModalBottomSheet<String?>(
             context: context,
             isScrollControlled: true,
@@ -634,8 +825,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                 children: [
                                   TextField(
                                     controller: nameController,
-                                    textCapitalization: TextCapitalization.sentences,
-                                    decoration: const InputDecoration(labelText: 'Name'),
+                                    textCapitalization:
+                                        TextCapitalization.sentences,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Name',
+                                    ),
                                   ),
                                   const SizedBox(height: 8),
                                   GestureDetector(
@@ -645,7 +839,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                         initialColor: selectedColor,
                                         title: 'Pick Category Color',
                                       );
-                                      if (picked != null) setState(() => selectedColor = picked);
+                                      if (picked != null)
+                                        setState(() => selectedColor = picked);
                                     },
                                     child: Row(
                                       children: [
@@ -654,14 +849,21 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                           height: 20,
                                           decoration: BoxDecoration(
                                             color: selectedColor,
-                                            borderRadius: BorderRadius.circular(4),
-                                            border: Border.all(color: Colors.black26),
+                                            borderRadius: BorderRadius.circular(
+                                              4,
+                                            ),
+                                            border: Border.all(
+                                              color: Colors.black26,
+                                            ),
                                           ),
                                         ),
                                         const SizedBox(width: 12),
                                         const Text('Category Color'),
                                         const Spacer(),
-                                        const Icon(Icons.color_lens_outlined, size: 20),
+                                        const Icon(
+                                          Icons.color_lens_outlined,
+                                          size: 20,
+                                        ),
                                       ],
                                     ),
                                   ),
@@ -679,8 +881,13 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                       final newCat = Category(
                                         name: nameController.text.trim(),
                                         iconCodePoint: '0xe85d',
-                                        colorValue: selectedColor.value.toString(),
-                                        type: (_transactionType == TransactionScreenType.expense) ? CategoryType.expense : CategoryType.income,
+                                        colorValue: selectedColor.value
+                                            .toString(),
+                                        type:
+                                            (_transactionType ==
+                                                TransactionScreenType.expense)
+                                            ? CategoryType.expense
+                                            : CategoryType.income,
                                       );
                                       Navigator.pop(ctx, newCat);
                                     }
@@ -692,11 +899,18 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                           ),
                         );
                         if (result != null) {
-                          final newCatId = await DatabaseService.addCategory(result);
+                          final newCatId = await DatabaseService.addCategory(
+                            result,
+                          );
                           try {
-                            await LookupsSyncHelper.syncCategory(result.copyWith(id: newCatId));
+                            await LookupsSyncHelper.syncCategory(
+                              result.copyWith(id: newCatId),
+                            );
                           } catch (_) {}
-                          Navigator.pop(context, newCatId); // Return new category id so it can be auto-selected
+                          Navigator.pop(
+                            context,
+                            newCatId,
+                          ); // Return new category id so it can be auto-selected
                         }
                       },
                     ),
@@ -726,7 +940,16 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
   Widget _buildAccountSelector() {
     final accountName = _selectedAccountId != null
-        ? accountList.firstWhere((a) => a.id == _selectedAccountId, orElse: () => Account(name: 'Unknown', type: AccountType.bank, balance: 0)).name
+        ? accountList
+              .firstWhere(
+                (a) => a.id == _selectedAccountId,
+                orElse: () => Account(
+                  name: 'Unknown',
+                  type: AccountType.bank,
+                  balance: 0,
+                ),
+              )
+              .name
         : null;
     return Card(
       elevation: 1,
@@ -741,164 +964,352 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             isScrollControlled: true,
             builder: (ctx) => FractionallySizedBox(
               heightFactor: 0.85,
-              child: StatefulBuilder(builder: (ctx2, setState2) {
-                List<Account> liveAccounts = DatabaseService.getAllAccounts();
-                return Scaffold(
-                  appBar: AppBar(
-                    title: const Text('Select Account'),
-                    backgroundColor: Theme.of(ctx2).colorScheme.primary,
-                    foregroundColor: Colors.white,
-                    actions: [
-                      IconButton(
-                        icon: Icon(Icons.add),
-                        onPressed: () async {
-                          final plan = DatabaseService.getSetting<String>('subscriptionPlan', 'Free') ?? 'Free';
-                          final accounts = DatabaseService.getAllAccounts();
-                          if (plan == 'Free' && accounts.length >= 3) {
-                            await showDialog(
+              child: StatefulBuilder(
+                builder: (ctx2, setState2) {
+                  List<Account> liveAccounts = DatabaseService.getAllAccounts();
+                  return Scaffold(
+                    appBar: AppBar(
+                      title: const Text('Select Account'),
+                      backgroundColor: Theme.of(ctx2).colorScheme.primary,
+                      foregroundColor: Colors.white,
+                      actions: [
+                        IconButton(
+                          icon: Icon(Icons.add),
+                          onPressed: () async {
+                            final plan =
+                                DatabaseService.getSetting<String>(
+                                  'subscriptionPlan',
+                                  'Free',
+                                ) ??
+                                'Free';
+                            final accounts = DatabaseService.getAllAccounts();
+                            if (plan == 'Free' && accounts.length >= 3) {
+                              await showDialog(
+                                context: ctx2,
+                                builder: (dialogContext) => AlertDialog(
+                                  title: const Text('Account Limit Reached'),
+                                  content: const Text(
+                                    'Free users can create up to 3 accounts. Subscribe for unlimited accounts.',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(dialogContext),
+                                      child: const Text('OK'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              return;
+                            }
+                            // Show add account dialog
+                            final nameCtrl = TextEditingController();
+                            final institutionCtrl = TextEditingController();
+                            final accNumCtrl = TextEditingController();
+                            final cardNumCtrl = TextEditingController();
+                            AccountType selectedType = AccountType.cash;
+                            final balCtrl = TextEditingController(text: '0.0');
+                            final availCtrl = TextEditingController(
+                              text: '0.0',
+                            );
+                            String? customType;
+                            final res = await showDialog<Account?>(
                               context: ctx2,
-                              builder: (dialogContext) => AlertDialog(
-                                title: const Text('Account Limit Reached'),
-                                content: const Text('Free users can create up to 3 accounts. Subscribe for unlimited accounts.'),
-                                actions: [
-                                  TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('OK')),
-                                ],
+                              builder: (dctx) => StatefulBuilder(
+                                builder: (dctx, dset) {
+                                  return AlertDialog(
+                                    title: const Center(
+                                      child: Text('Add Account'),
+                                    ),
+                                    content: SingleChildScrollView(
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              const Text('Type:'),
+                                              const SizedBox(width: 12),
+                                              DropdownButton<String>(
+                                                value:
+                                                    customType ??
+                                                    selectedType.name,
+                                                onChanged: (v) {
+                                                  if (v == null) return;
+                                                  final match = AccountType
+                                                      .values
+                                                      .firstWhere(
+                                                        (t) =>
+                                                            t.name
+                                                                .toLowerCase() ==
+                                                            v.toLowerCase(),
+                                                        orElse: () =>
+                                                            AccountType.cash,
+                                                      );
+                                                  if (AccountType.values
+                                                      .map(
+                                                        (t) => t.name
+                                                            .toLowerCase(),
+                                                      )
+                                                      .contains(
+                                                        v.toLowerCase(),
+                                                      )) {
+                                                    dset(() {
+                                                      selectedType = match;
+                                                      customType = null;
+                                                    });
+                                                  } else {
+                                                    dset(() => customType = v);
+                                                  }
+                                                },
+                                                items:
+                                                    ([
+                                                          ...AccountType.values
+                                                              .map(
+                                                                (t) => t.name,
+                                                              ),
+                                                          ...DatabaseService.getAllCustomAccountTypes(),
+                                                        ])
+                                                        .toSet()
+                                                        .map(
+                                                          (
+                                                            type,
+                                                          ) => DropdownMenuItem(
+                                                            value: type,
+                                                            child: Text(
+                                                              type.isNotEmpty
+                                                                  ? type[0]
+                                                                            .toUpperCase() +
+                                                                        type.substring(
+                                                                          1,
+                                                                        )
+                                                                  : type,
+                                                            ),
+                                                          ),
+                                                        )
+                                                        .toList(),
+                                              ),
+                                              IconButton(
+                                                icon: const Icon(
+                                                  Icons.add_circle_outline,
+                                                ),
+                                                tooltip: 'Add custom type',
+                                                onPressed: () async {
+                                                  final textCtrl =
+                                                      TextEditingController();
+                                                  final res = await showDialog<String?>(
+                                                    context: dctx,
+                                                    builder: (tctx) => AlertDialog(
+                                                      title: const Text(
+                                                        'Add account type',
+                                                      ),
+                                                      content: TextField(
+                                                        controller: textCtrl,
+                                                        textCapitalization:
+                                                            TextCapitalization
+                                                                .sentences,
+                                                        decoration:
+                                                            const InputDecoration(
+                                                              labelText:
+                                                                  'Type name',
+                                                            ),
+                                                      ),
+                                                      actions: [
+                                                        TextButton(
+                                                          onPressed: () =>
+                                                              Navigator.pop(
+                                                                tctx,
+                                                              ),
+                                                          child: const Text(
+                                                            'Cancel',
+                                                          ),
+                                                        ),
+                                                        TextButton(
+                                                          onPressed: () {
+                                                            final v = textCtrl
+                                                                .text
+                                                                .trim();
+                                                            if (v.isEmpty)
+                                                              return;
+                                                            Navigator.pop(
+                                                              tctx,
+                                                              v,
+                                                            );
+                                                          },
+                                                          child: const Text(
+                                                            'Add',
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  );
+                                                  if (res != null)
+                                                    dset(
+                                                      () => customType = res,
+                                                    );
+                                                },
+                                              ),
+                                              if (customType != null)
+                                                Padding(
+                                                  padding:
+                                                      const EdgeInsets.only(
+                                                        left: 8.0,
+                                                      ),
+                                                  child: Text(
+                                                    '($customType)',
+                                                    style: const TextStyle(
+                                                      fontStyle:
+                                                          FontStyle.italic,
+                                                    ),
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 8),
+                                          TextField(
+                                            controller: nameCtrl,
+                                            textCapitalization:
+                                                TextCapitalization.words,
+                                            autofillHints: const [
+                                              AutofillHints.organizationName,
+                                            ],
+                                            decoration: const InputDecoration(
+                                              labelText: 'Account',
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          TextField(
+                                            controller: institutionCtrl,
+                                            textCapitalization:
+                                                TextCapitalization.words,
+                                            autofillHints: const [
+                                              AutofillHints.organizationName,
+                                            ],
+                                            decoration: const InputDecoration(
+                                              labelText: 'Institution',
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          TextField(
+                                            controller: accNumCtrl,
+                                            autofillHints: const [
+                                              AutofillHints.username,
+                                            ],
+                                            decoration: const InputDecoration(
+                                              labelText: 'Account number',
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          TextField(
+                                            controller: cardNumCtrl,
+                                            decoration: const InputDecoration(
+                                              labelText: 'Card number',
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          const SizedBox(height: 8),
+                                          TextField(
+                                            controller: balCtrl,
+                                            keyboardType:
+                                                const TextInputType.numberWithOptions(
+                                                  decimal: true,
+                                                ),
+                                            decoration: const InputDecoration(
+                                              labelText: 'Initial balance',
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          TextField(
+                                            controller: availCtrl,
+                                            keyboardType:
+                                                const TextInputType.numberWithOptions(
+                                                  decimal: true,
+                                                ),
+                                            decoration: const InputDecoration(
+                                              labelText: 'Available balance',
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(dctx),
+                                        child: const Text('Cancel'),
+                                      ),
+                                      TextButton(
+                                        onPressed: () {
+                                          final name = nameCtrl.text.trim();
+                                          if (name.isEmpty) return;
+                                          final institution = institutionCtrl
+                                              .text
+                                              .trim();
+                                          final accNum =
+                                              accNumCtrl.text.trim().isEmpty
+                                              ? null
+                                              : accNumCtrl.text.trim();
+                                          final cardNum =
+                                              cardNumCtrl.text.trim().isEmpty
+                                              ? null
+                                              : cardNumCtrl.text.trim();
+                                          final bal =
+                                              double.tryParse(balCtrl.text) ??
+                                              0.0;
+                                          final avail = double.tryParse(
+                                            availCtrl.text,
+                                          );
+                                          if (customType != null &&
+                                              customType!.isNotEmpty) {
+                                            DatabaseService.addCustomAccountType(
+                                              customType!,
+                                            );
+                                          }
+                                          final acc = Account(
+                                            name: name,
+                                            type: selectedType,
+                                            institution: institution.isEmpty
+                                                ? null
+                                                : institution,
+                                            accountNumber: accNum,
+                                            cardNumber: cardNum,
+                                            balance: bal,
+                                            availableBalance: avail,
+                                            customType: customType,
+                                          );
+                                          Navigator.pop(dctx, acc);
+                                        },
+                                        child: const Text('Add'),
+                                      ),
+                                    ],
+                                  );
+                                },
                               ),
                             );
-                            return;
-                          }
-                          // Show add account dialog
-                          final nameCtrl = TextEditingController();
-                          final institutionCtrl = TextEditingController();
-                          final accNumCtrl = TextEditingController();
-                          final cardNumCtrl = TextEditingController();
-                          AccountType selectedType = AccountType.cash;
-                          final balCtrl = TextEditingController(text: '0.0');
-                          final availCtrl = TextEditingController(text: '0.0');
-                          String? customType;
-                          final res = await showDialog<Account?>(
-                            context: ctx2,
-                            builder: (dctx) => StatefulBuilder(builder: (dctx, dset) {
-                              return AlertDialog(
-                                title: const Center(child: Text('Add Account')),
-                                content: SingleChildScrollView(
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Row(children: [
-                                        const Text('Type:'),
-                                        const SizedBox(width: 12),
-                                        DropdownButton<String>(
-                                          value: customType ?? selectedType.name,
-                                          onChanged: (v) {
-                                            if (v == null) return;
-                                            final match = AccountType.values.firstWhere(
-                                              (t) => t.name.toLowerCase() == v.toLowerCase(),
-                                              orElse: () => AccountType.cash,
-                                            );
-                                            if (AccountType.values.map((t) => t.name.toLowerCase()).contains(v.toLowerCase())) {
-                                              dset(() {
-                                                selectedType = match;
-                                                customType = null;
-                                              });
-                                            } else {
-                                              dset(() => customType = v);
-                                            }
-                                          },
-                                          items: ([...AccountType.values.map((t) => t.name), ...DatabaseService.getAllCustomAccountTypes()])
-                                            .toSet()
-                                            .map((type) => DropdownMenuItem(
-                                              value: type,
-                                              child: Text(type.isNotEmpty ? type[0].toUpperCase() + type.substring(1) : type),
-                                            ))
-                                            .toList(),
-                                        ),
-                                        IconButton(
-                                          icon: const Icon(Icons.add_circle_outline),
-                                          tooltip: 'Add custom type',
-                                          onPressed: () async {
-                                            final textCtrl = TextEditingController();
-                                            final res = await showDialog<String?>(
-                                              context: dctx,
-                                              builder: (tctx) => AlertDialog(
-                                                title: const Text('Add account type'),
-                                                content: TextField(controller: textCtrl, textCapitalization: TextCapitalization.sentences, decoration: const InputDecoration(labelText: 'Type name')),
-                                                actions: [
-                                                  TextButton(onPressed: () => Navigator.pop(tctx), child: const Text('Cancel')),
-                                                  TextButton(onPressed: () {
-                                                    final v = textCtrl.text.trim();
-                                                    if (v.isEmpty) return;
-                                                    Navigator.pop(tctx, v);
-                                                  }, child: const Text('Add')),
-                                                ],
-                                              ),
-                                            );
-                                            if (res != null) dset(() => customType = res);
-                                          },
-                                        ),
-                                        if (customType != null) Padding(padding: const EdgeInsets.only(left:8.0), child: Text('($customType)', style: const TextStyle(fontStyle: FontStyle.italic))),
-                                      ]),
-                                      const SizedBox(height: 8),
-                                      TextField(controller: nameCtrl, textCapitalization: TextCapitalization.words, autofillHints: const [AutofillHints.organizationName], decoration: const InputDecoration(labelText: 'Account')),
-                                      const SizedBox(height: 8),
-                                      TextField(controller: institutionCtrl, textCapitalization: TextCapitalization.words, autofillHints: const [AutofillHints.organizationName], decoration: const InputDecoration(labelText: 'Institution')),
-                                      const SizedBox(height: 8),
-                                      TextField(controller: accNumCtrl, autofillHints: const [AutofillHints.username], decoration: const InputDecoration(labelText: 'Account number')),
-                                      const SizedBox(height: 8),
-                                      TextField(controller: cardNumCtrl, decoration: const InputDecoration(labelText: 'Card number')),
-                                      const SizedBox(height: 8),
-                                      const SizedBox(height: 8),
-                                      TextField(controller: balCtrl, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Initial balance')),
-                                      const SizedBox(height: 8),
-                                      TextField(controller: availCtrl, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Available balance')),
-                                    ],
-                                  ),
-                                ),
-                                actions: [
-                                  TextButton(onPressed: () => Navigator.pop(dctx), child: const Text('Cancel')),
-                                  TextButton(onPressed: () {
-                                    final name = nameCtrl.text.trim();
-                                    if (name.isEmpty) return;
-                                    final institution = institutionCtrl.text.trim();
-                                    final accNum = accNumCtrl.text.trim().isEmpty ? null : accNumCtrl.text.trim();
-                                    final cardNum = cardNumCtrl.text.trim().isEmpty ? null : cardNumCtrl.text.trim();
-                                    final bal = double.tryParse(balCtrl.text) ?? 0.0;
-                                    final avail = double.tryParse(availCtrl.text);
-                                    if (customType != null && customType!.isNotEmpty) {
-                                      DatabaseService.addCustomAccountType(customType!);
-                                    }
-                                    final acc = Account(name: name, type: selectedType, institution: institution.isEmpty ? null : institution, accountNumber: accNum, cardNumber: cardNum, balance: bal, availableBalance: avail, customType: customType);
-                                    Navigator.pop(dctx, acc);
-                                  }, child: const Text('Add')),
-                                ],
-                              );
-                            }),
-                          );
-                          if (res != null) {
-                            await DatabaseService.addAccount(res);
-                            final updated = DatabaseService.getAllAccounts();
-                            setState2(() {});
-                            setState(() {
-                              _selectedAccountId = res.id;
-                            });
-                          }
-                        },
-                      ),
-                    ],
-                  ),
-                  body: ListView.builder(
-                    itemCount: liveAccounts.length,
-                    itemBuilder: (context, idx) {
-                      final a = liveAccounts[idx];
-                      return ListTile(
-                        title: Text(a.name),
-                        selected: _selectedAccountId == a.id,
-                        onTap: () => Navigator.pop(context, a.id),
-                      );
-                    },
-                  ),
-                );
-              }),
+                            if (res != null) {
+                              await DatabaseService.addAccount(res);
+                              final updated = DatabaseService.getAllAccounts();
+                              setState2(() {});
+                              setState(() {
+                                _selectedAccountId = res.id;
+                              });
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                    body: ListView.builder(
+                      itemCount: liveAccounts.length,
+                      itemBuilder: (context, idx) {
+                        final a = liveAccounts[idx];
+                        return ListTile(
+                          title: Text(a.name),
+                          selected: _selectedAccountId == a.id,
+                          onTap: () => Navigator.pop(context, a.id),
+                        );
+                      },
+                    ),
+                  );
+                },
+              ),
             ),
           );
           if (selected != null) {
@@ -911,7 +1322,16 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
   Widget _buildFromAccountSelector() {
     final accountName = _fromAccountId != null
-        ? accountList.firstWhere((a) => a.id == _fromAccountId, orElse: () => Account(name: 'Unknown', type: AccountType.bank, balance: 0)).name
+        ? accountList
+              .firstWhere(
+                (a) => a.id == _fromAccountId,
+                orElse: () => Account(
+                  name: 'Unknown',
+                  type: AccountType.bank,
+                  balance: 0,
+                ),
+              )
+              .name
         : null;
     return Card(
       elevation: 1,
@@ -926,164 +1346,352 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             isScrollControlled: true,
             builder: (ctx) => FractionallySizedBox(
               heightFactor: 0.85,
-              child: StatefulBuilder(builder: (ctx2, setState2) {
-                List<Account> liveAccounts = DatabaseService.getAllAccounts();
-                return Scaffold(
-                  appBar: AppBar(
-                    title: const Text('Select Account'),
-                    backgroundColor: Theme.of(ctx2).colorScheme.primary,
-                    foregroundColor: Colors.white,
-                    actions: [
-                      IconButton(
-                        icon: Icon(Icons.add),
-                        onPressed: () async {
-                          final plan = DatabaseService.getSetting<String>('subscriptionPlan', 'Free') ?? 'Free';
-                          final accounts = DatabaseService.getAllAccounts();
-                          if (plan == 'Free' && accounts.length >= 3) {
-                            await showDialog(
+              child: StatefulBuilder(
+                builder: (ctx2, setState2) {
+                  List<Account> liveAccounts = DatabaseService.getAllAccounts();
+                  return Scaffold(
+                    appBar: AppBar(
+                      title: const Text('Select Account'),
+                      backgroundColor: Theme.of(ctx2).colorScheme.primary,
+                      foregroundColor: Colors.white,
+                      actions: [
+                        IconButton(
+                          icon: Icon(Icons.add),
+                          onPressed: () async {
+                            final plan =
+                                DatabaseService.getSetting<String>(
+                                  'subscriptionPlan',
+                                  'Free',
+                                ) ??
+                                'Free';
+                            final accounts = DatabaseService.getAllAccounts();
+                            if (plan == 'Free' && accounts.length >= 3) {
+                              await showDialog(
+                                context: ctx2,
+                                builder: (dialogContext) => AlertDialog(
+                                  title: const Text('Account Limit Reached'),
+                                  content: const Text(
+                                    'Free users can create up to 3 accounts. Subscribe for unlimited accounts.',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(dialogContext),
+                                      child: const Text('OK'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              return;
+                            }
+                            // Show add account dialog
+                            final nameCtrl = TextEditingController();
+                            final institutionCtrl = TextEditingController();
+                            final accNumCtrl = TextEditingController();
+                            final cardNumCtrl = TextEditingController();
+                            AccountType selectedType = AccountType.cash;
+                            final balCtrl = TextEditingController(text: '0.0');
+                            final availCtrl = TextEditingController(
+                              text: '0.0',
+                            );
+                            String? customType;
+                            final res = await showDialog<Account?>(
                               context: ctx2,
-                              builder: (dialogContext) => AlertDialog(
-                                title: const Text('Account Limit Reached'),
-                                content: const Text('Free users can create up to 3 accounts. Subscribe for unlimited accounts.'),
-                                actions: [
-                                  TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('OK')),
-                                ],
+                              builder: (dctx) => StatefulBuilder(
+                                builder: (dctx, dset) {
+                                  return AlertDialog(
+                                    title: const Center(
+                                      child: Text('Add Account'),
+                                    ),
+                                    content: SingleChildScrollView(
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              const Text('Type:'),
+                                              const SizedBox(width: 12),
+                                              DropdownButton<String>(
+                                                value:
+                                                    customType ??
+                                                    selectedType.name,
+                                                onChanged: (v) {
+                                                  if (v == null) return;
+                                                  final match = AccountType
+                                                      .values
+                                                      .firstWhere(
+                                                        (t) =>
+                                                            t.name
+                                                                .toLowerCase() ==
+                                                            v.toLowerCase(),
+                                                        orElse: () =>
+                                                            AccountType.cash,
+                                                      );
+                                                  if (AccountType.values
+                                                      .map(
+                                                        (t) => t.name
+                                                            .toLowerCase(),
+                                                      )
+                                                      .contains(
+                                                        v.toLowerCase(),
+                                                      )) {
+                                                    dset(() {
+                                                      selectedType = match;
+                                                      customType = null;
+                                                    });
+                                                  } else {
+                                                    dset(() => customType = v);
+                                                  }
+                                                },
+                                                items:
+                                                    ([
+                                                          ...AccountType.values
+                                                              .map(
+                                                                (t) => t.name,
+                                                              ),
+                                                          ...DatabaseService.getAllCustomAccountTypes(),
+                                                        ])
+                                                        .toSet()
+                                                        .map(
+                                                          (
+                                                            type,
+                                                          ) => DropdownMenuItem(
+                                                            value: type,
+                                                            child: Text(
+                                                              type.isNotEmpty
+                                                                  ? type[0]
+                                                                            .toUpperCase() +
+                                                                        type.substring(
+                                                                          1,
+                                                                        )
+                                                                  : type,
+                                                            ),
+                                                          ),
+                                                        )
+                                                        .toList(),
+                                              ),
+                                              IconButton(
+                                                icon: const Icon(
+                                                  Icons.add_circle_outline,
+                                                ),
+                                                tooltip: 'Add custom type',
+                                                onPressed: () async {
+                                                  final textCtrl =
+                                                      TextEditingController();
+                                                  final res = await showDialog<String?>(
+                                                    context: dctx,
+                                                    builder: (tctx) => AlertDialog(
+                                                      title: const Text(
+                                                        'Add account type',
+                                                      ),
+                                                      content: TextField(
+                                                        controller: textCtrl,
+                                                        textCapitalization:
+                                                            TextCapitalization
+                                                                .sentences,
+                                                        decoration:
+                                                            const InputDecoration(
+                                                              labelText:
+                                                                  'Type name',
+                                                            ),
+                                                      ),
+                                                      actions: [
+                                                        TextButton(
+                                                          onPressed: () =>
+                                                              Navigator.pop(
+                                                                tctx,
+                                                              ),
+                                                          child: const Text(
+                                                            'Cancel',
+                                                          ),
+                                                        ),
+                                                        TextButton(
+                                                          onPressed: () {
+                                                            final v = textCtrl
+                                                                .text
+                                                                .trim();
+                                                            if (v.isEmpty)
+                                                              return;
+                                                            Navigator.pop(
+                                                              tctx,
+                                                              v,
+                                                            );
+                                                          },
+                                                          child: const Text(
+                                                            'Add',
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  );
+                                                  if (res != null)
+                                                    dset(
+                                                      () => customType = res,
+                                                    );
+                                                },
+                                              ),
+                                              if (customType != null)
+                                                Padding(
+                                                  padding:
+                                                      const EdgeInsets.only(
+                                                        left: 8.0,
+                                                      ),
+                                                  child: Text(
+                                                    '($customType)',
+                                                    style: const TextStyle(
+                                                      fontStyle:
+                                                          FontStyle.italic,
+                                                    ),
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 8),
+                                          TextField(
+                                            controller: nameCtrl,
+                                            textCapitalization:
+                                                TextCapitalization.words,
+                                            autofillHints: const [
+                                              AutofillHints.organizationName,
+                                            ],
+                                            decoration: const InputDecoration(
+                                              labelText: 'Account',
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          TextField(
+                                            controller: institutionCtrl,
+                                            textCapitalization:
+                                                TextCapitalization.words,
+                                            autofillHints: const [
+                                              AutofillHints.organizationName,
+                                            ],
+                                            decoration: const InputDecoration(
+                                              labelText: 'Institution',
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          TextField(
+                                            controller: accNumCtrl,
+                                            autofillHints: const [
+                                              AutofillHints.username,
+                                            ],
+                                            decoration: const InputDecoration(
+                                              labelText: 'Account number',
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          TextField(
+                                            controller: cardNumCtrl,
+                                            decoration: const InputDecoration(
+                                              labelText: 'Card number',
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          const SizedBox(height: 8),
+                                          TextField(
+                                            controller: balCtrl,
+                                            keyboardType:
+                                                const TextInputType.numberWithOptions(
+                                                  decimal: true,
+                                                ),
+                                            decoration: const InputDecoration(
+                                              labelText: 'Initial balance',
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          TextField(
+                                            controller: availCtrl,
+                                            keyboardType:
+                                                const TextInputType.numberWithOptions(
+                                                  decimal: true,
+                                                ),
+                                            decoration: const InputDecoration(
+                                              labelText: 'Available balance',
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(dctx),
+                                        child: const Text('Cancel'),
+                                      ),
+                                      TextButton(
+                                        onPressed: () {
+                                          final name = nameCtrl.text.trim();
+                                          if (name.isEmpty) return;
+                                          final institution = institutionCtrl
+                                              .text
+                                              .trim();
+                                          final accNum =
+                                              accNumCtrl.text.trim().isEmpty
+                                              ? null
+                                              : accNumCtrl.text.trim();
+                                          final cardNum =
+                                              cardNumCtrl.text.trim().isEmpty
+                                              ? null
+                                              : cardNumCtrl.text.trim();
+                                          final bal =
+                                              double.tryParse(balCtrl.text) ??
+                                              0.0;
+                                          final avail = double.tryParse(
+                                            availCtrl.text,
+                                          );
+                                          if (customType != null &&
+                                              customType!.isNotEmpty) {
+                                            DatabaseService.addCustomAccountType(
+                                              customType!,
+                                            );
+                                          }
+                                          final acc = Account(
+                                            name: name,
+                                            type: selectedType,
+                                            institution: institution.isEmpty
+                                                ? null
+                                                : institution,
+                                            accountNumber: accNum,
+                                            cardNumber: cardNum,
+                                            balance: bal,
+                                            availableBalance: avail,
+                                            customType: customType,
+                                          );
+                                          Navigator.pop(dctx, acc);
+                                        },
+                                        child: const Text('Add'),
+                                      ),
+                                    ],
+                                  );
+                                },
                               ),
                             );
-                            return;
-                          }
-                          // Show add account dialog
-                          final nameCtrl = TextEditingController();
-                          final institutionCtrl = TextEditingController();
-                          final accNumCtrl = TextEditingController();
-                          final cardNumCtrl = TextEditingController();
-                          AccountType selectedType = AccountType.cash;
-                          final balCtrl = TextEditingController(text: '0.0');
-                          final availCtrl = TextEditingController(text: '0.0');
-                          String? customType;
-                          final res = await showDialog<Account?>(
-                            context: ctx2,
-                            builder: (dctx) => StatefulBuilder(builder: (dctx, dset) {
-                              return AlertDialog(
-                                title: const Center(child: Text('Add Account')),
-                                content: SingleChildScrollView(
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Row(children: [
-                                        const Text('Type:'),
-                                        const SizedBox(width: 12),
-                                        DropdownButton<String>(
-                                          value: customType ?? selectedType.name,
-                                          onChanged: (v) {
-                                            if (v == null) return;
-                                            final match = AccountType.values.firstWhere(
-                                              (t) => t.name.toLowerCase() == v.toLowerCase(),
-                                              orElse: () => AccountType.cash,
-                                            );
-                                            if (AccountType.values.map((t) => t.name.toLowerCase()).contains(v.toLowerCase())) {
-                                              dset(() {
-                                                selectedType = match;
-                                                customType = null;
-                                              });
-                                            } else {
-                                              dset(() => customType = v);
-                                            }
-                                          },
-                                          items: ([...AccountType.values.map((t) => t.name), ...DatabaseService.getAllCustomAccountTypes()])
-                                            .toSet()
-                                            .map((type) => DropdownMenuItem(
-                                              value: type,
-                                              child: Text(type.isNotEmpty ? type[0].toUpperCase() + type.substring(1) : type),
-                                            ))
-                                            .toList(),
-                                        ),
-                                        IconButton(
-                                          icon: const Icon(Icons.add_circle_outline),
-                                          tooltip: 'Add custom type',
-                                          onPressed: () async {
-                                            final textCtrl = TextEditingController();
-                                            final res = await showDialog<String?>(
-                                              context: dctx,
-                                              builder: (tctx) => AlertDialog(
-                                                title: const Text('Add account type'),
-                                                content: TextField(controller: textCtrl, textCapitalization: TextCapitalization.sentences, decoration: const InputDecoration(labelText: 'Type name')),
-                                                actions: [
-                                                  TextButton(onPressed: () => Navigator.pop(tctx), child: const Text('Cancel')),
-                                                  TextButton(onPressed: () {
-                                                    final v = textCtrl.text.trim();
-                                                    if (v.isEmpty) return;
-                                                    Navigator.pop(tctx, v);
-                                                  }, child: const Text('Add')),
-                                                ],
-                                              ),
-                                            );
-                                            if (res != null) dset(() => customType = res);
-                                          },
-                                        ),
-                                        if (customType != null) Padding(padding: const EdgeInsets.only(left:8.0), child: Text('($customType)', style: const TextStyle(fontStyle: FontStyle.italic))),
-                                      ]),
-                                      const SizedBox(height: 8),
-                                      TextField(controller: nameCtrl, textCapitalization: TextCapitalization.words, autofillHints: const [AutofillHints.organizationName], decoration: const InputDecoration(labelText: 'Account')),
-                                      const SizedBox(height: 8),
-                                      TextField(controller: institutionCtrl, textCapitalization: TextCapitalization.words, autofillHints: const [AutofillHints.organizationName], decoration: const InputDecoration(labelText: 'Institution')),
-                                      const SizedBox(height: 8),
-                                      TextField(controller: accNumCtrl, autofillHints: const [AutofillHints.username], decoration: const InputDecoration(labelText: 'Account number')),
-                                      const SizedBox(height: 8),
-                                      TextField(controller: cardNumCtrl, decoration: const InputDecoration(labelText: 'Card number')),
-                                      const SizedBox(height: 8),
-                                      const SizedBox(height: 8),
-                                      TextField(controller: balCtrl, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Initial balance')),
-                                      const SizedBox(height: 8),
-                                      TextField(controller: availCtrl, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Available balance')),
-                                    ],
-                                  ),
-                                ),
-                                actions: [
-                                  TextButton(onPressed: () => Navigator.pop(dctx), child: const Text('Cancel')),
-                                  TextButton(onPressed: () {
-                                    final name = nameCtrl.text.trim();
-                                    if (name.isEmpty) return;
-                                    final institution = institutionCtrl.text.trim();
-                                    final accNum = accNumCtrl.text.trim().isEmpty ? null : accNumCtrl.text.trim();
-                                    final cardNum = cardNumCtrl.text.trim().isEmpty ? null : cardNumCtrl.text.trim();
-                                    final bal = double.tryParse(balCtrl.text) ?? 0.0;
-                                    final avail = double.tryParse(availCtrl.text);
-                                    if (customType != null && customType!.isNotEmpty) {
-                                      DatabaseService.addCustomAccountType(customType!);
-                                    }
-                                    final acc = Account(name: name, type: selectedType, institution: institution.isEmpty ? null : institution, accountNumber: accNum, cardNumber: cardNum, balance: bal, availableBalance: avail, customType: customType);
-                                    Navigator.pop(dctx, acc);
-                                  }, child: const Text('Add')),
-                                ],
-                              );
-                            }),
-                          );
-                          if (res != null) {
-                            await DatabaseService.addAccount(res);
-                            final updated = DatabaseService.getAllAccounts();
-                            setState2(() {});
-                            setState(() {
-                              _fromAccountId = res.id;
-                            });
-                          }
-                        },
-                      ),
-                    ],
-                  ),
-                  body: ListView.builder(
-                    itemCount: liveAccounts.length,
-                    itemBuilder: (context, idx) {
-                      final a = liveAccounts[idx];
-                      return ListTile(
-                        title: Text(a.name),
-                        selected: _fromAccountId == a.id,
-                        onTap: () => Navigator.pop(context, a.id),
-                      );
-                    },
-                  ),
-                );
-              }),
+                            if (res != null) {
+                              await DatabaseService.addAccount(res);
+                              final updated = DatabaseService.getAllAccounts();
+                              setState2(() {});
+                              setState(() {
+                                _fromAccountId = res.id;
+                              });
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                    body: ListView.builder(
+                      itemCount: liveAccounts.length,
+                      itemBuilder: (context, idx) {
+                        final a = liveAccounts[idx];
+                        return ListTile(
+                          title: Text(a.name),
+                          selected: _fromAccountId == a.id,
+                          onTap: () => Navigator.pop(context, a.id),
+                        );
+                      },
+                    ),
+                  );
+                },
+              ),
             ),
           );
           if (selected != null) {
@@ -1096,7 +1704,16 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
   Widget _buildToAccountSelector() {
     final accountName = _toAccountId != null
-        ? accountList.firstWhere((a) => a.id == _toAccountId, orElse: () => Account(name: 'Unknown', type: AccountType.bank, balance: 0)).name
+        ? accountList
+              .firstWhere(
+                (a) => a.id == _toAccountId,
+                orElse: () => Account(
+                  name: 'Unknown',
+                  type: AccountType.bank,
+                  balance: 0,
+                ),
+              )
+              .name
         : null;
 
     return Card(
@@ -1112,164 +1729,352 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             isScrollControlled: true,
             builder: (ctx) => FractionallySizedBox(
               heightFactor: 0.85,
-              child: StatefulBuilder(builder: (ctx2, setState2) {
-                List<Account> liveAccounts = DatabaseService.getAllAccounts();
-                return Scaffold(
-                  appBar: AppBar(
-                    title: const Text('Select Account'),
-                    backgroundColor: Theme.of(ctx2).colorScheme.primary,
-                    foregroundColor: Colors.white,
-                    actions: [
-                      IconButton(
-                        icon: Icon(Icons.add),
-                        onPressed: () async {
-                          final plan = DatabaseService.getSetting<String>('subscriptionPlan', 'Free') ?? 'Free';
-                          final accounts = DatabaseService.getAllAccounts();
-                          if (plan == 'Free' && accounts.length >= 3) {
-                            await showDialog(
+              child: StatefulBuilder(
+                builder: (ctx2, setState2) {
+                  List<Account> liveAccounts = DatabaseService.getAllAccounts();
+                  return Scaffold(
+                    appBar: AppBar(
+                      title: const Text('Select Account'),
+                      backgroundColor: Theme.of(ctx2).colorScheme.primary,
+                      foregroundColor: Colors.white,
+                      actions: [
+                        IconButton(
+                          icon: Icon(Icons.add),
+                          onPressed: () async {
+                            final plan =
+                                DatabaseService.getSetting<String>(
+                                  'subscriptionPlan',
+                                  'Free',
+                                ) ??
+                                'Free';
+                            final accounts = DatabaseService.getAllAccounts();
+                            if (plan == 'Free' && accounts.length >= 3) {
+                              await showDialog(
+                                context: ctx2,
+                                builder: (dialogContext) => AlertDialog(
+                                  title: const Text('Account Limit Reached'),
+                                  content: const Text(
+                                    'Free users can create up to 3 accounts. Subscribe for unlimited accounts.',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(dialogContext),
+                                      child: const Text('OK'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              return;
+                            }
+                            // Show add account dialog
+                            final nameCtrl = TextEditingController();
+                            final institutionCtrl = TextEditingController();
+                            final accNumCtrl = TextEditingController();
+                            final cardNumCtrl = TextEditingController();
+                            AccountType selectedType = AccountType.cash;
+                            final balCtrl = TextEditingController(text: '0.0');
+                            final availCtrl = TextEditingController(
+                              text: '0.0',
+                            );
+                            String? customType;
+                            final res = await showDialog<Account?>(
                               context: ctx2,
-                              builder: (dialogContext) => AlertDialog(
-                                title: const Text('Account Limit Reached'),
-                                content: const Text('Free users can create up to 3 accounts. Subscribe for unlimited accounts.'),
-                                actions: [
-                                  TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('OK')),
-                                ],
+                              builder: (dctx) => StatefulBuilder(
+                                builder: (dctx, dset) {
+                                  return AlertDialog(
+                                    title: const Center(
+                                      child: Text('Add Account'),
+                                    ),
+                                    content: SingleChildScrollView(
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              const Text('Type:'),
+                                              const SizedBox(width: 12),
+                                              DropdownButton<String>(
+                                                value:
+                                                    customType ??
+                                                    selectedType.name,
+                                                onChanged: (v) {
+                                                  if (v == null) return;
+                                                  final match = AccountType
+                                                      .values
+                                                      .firstWhere(
+                                                        (t) =>
+                                                            t.name
+                                                                .toLowerCase() ==
+                                                            v.toLowerCase(),
+                                                        orElse: () =>
+                                                            AccountType.cash,
+                                                      );
+                                                  if (AccountType.values
+                                                      .map(
+                                                        (t) => t.name
+                                                            .toLowerCase(),
+                                                      )
+                                                      .contains(
+                                                        v.toLowerCase(),
+                                                      )) {
+                                                    dset(() {
+                                                      selectedType = match;
+                                                      customType = null;
+                                                    });
+                                                  } else {
+                                                    dset(() => customType = v);
+                                                  }
+                                                },
+                                                items:
+                                                    ([
+                                                          ...AccountType.values
+                                                              .map(
+                                                                (t) => t.name,
+                                                              ),
+                                                          ...DatabaseService.getAllCustomAccountTypes(),
+                                                        ])
+                                                        .toSet()
+                                                        .map(
+                                                          (
+                                                            type,
+                                                          ) => DropdownMenuItem(
+                                                            value: type,
+                                                            child: Text(
+                                                              type.isNotEmpty
+                                                                  ? type[0]
+                                                                            .toUpperCase() +
+                                                                        type.substring(
+                                                                          1,
+                                                                        )
+                                                                  : type,
+                                                            ),
+                                                          ),
+                                                        )
+                                                        .toList(),
+                                              ),
+                                              IconButton(
+                                                icon: const Icon(
+                                                  Icons.add_circle_outline,
+                                                ),
+                                                tooltip: 'Add custom type',
+                                                onPressed: () async {
+                                                  final textCtrl =
+                                                      TextEditingController();
+                                                  final res = await showDialog<String?>(
+                                                    context: dctx,
+                                                    builder: (tctx) => AlertDialog(
+                                                      title: const Text(
+                                                        'Add account type',
+                                                      ),
+                                                      content: TextField(
+                                                        controller: textCtrl,
+                                                        textCapitalization:
+                                                            TextCapitalization
+                                                                .sentences,
+                                                        decoration:
+                                                            const InputDecoration(
+                                                              labelText:
+                                                                  'Type name',
+                                                            ),
+                                                      ),
+                                                      actions: [
+                                                        TextButton(
+                                                          onPressed: () =>
+                                                              Navigator.pop(
+                                                                tctx,
+                                                              ),
+                                                          child: const Text(
+                                                            'Cancel',
+                                                          ),
+                                                        ),
+                                                        TextButton(
+                                                          onPressed: () {
+                                                            final v = textCtrl
+                                                                .text
+                                                                .trim();
+                                                            if (v.isEmpty)
+                                                              return;
+                                                            Navigator.pop(
+                                                              tctx,
+                                                              v,
+                                                            );
+                                                          },
+                                                          child: const Text(
+                                                            'Add',
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  );
+                                                  if (res != null)
+                                                    dset(
+                                                      () => customType = res,
+                                                    );
+                                                },
+                                              ),
+                                              if (customType != null)
+                                                Padding(
+                                                  padding:
+                                                      const EdgeInsets.only(
+                                                        left: 8.0,
+                                                      ),
+                                                  child: Text(
+                                                    '($customType)',
+                                                    style: const TextStyle(
+                                                      fontStyle:
+                                                          FontStyle.italic,
+                                                    ),
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 8),
+                                          TextField(
+                                            controller: nameCtrl,
+                                            textCapitalization:
+                                                TextCapitalization.words,
+                                            autofillHints: const [
+                                              AutofillHints.organizationName,
+                                            ],
+                                            decoration: const InputDecoration(
+                                              labelText: 'Account',
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          TextField(
+                                            controller: institutionCtrl,
+                                            textCapitalization:
+                                                TextCapitalization.words,
+                                            autofillHints: const [
+                                              AutofillHints.organizationName,
+                                            ],
+                                            decoration: const InputDecoration(
+                                              labelText: 'Institution',
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          TextField(
+                                            controller: accNumCtrl,
+                                            autofillHints: const [
+                                              AutofillHints.username,
+                                            ],
+                                            decoration: const InputDecoration(
+                                              labelText: 'Account number',
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          TextField(
+                                            controller: cardNumCtrl,
+                                            decoration: const InputDecoration(
+                                              labelText: 'Card number',
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          const SizedBox(height: 8),
+                                          TextField(
+                                            controller: balCtrl,
+                                            keyboardType:
+                                                const TextInputType.numberWithOptions(
+                                                  decimal: true,
+                                                ),
+                                            decoration: const InputDecoration(
+                                              labelText: 'Initial balance',
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          TextField(
+                                            controller: availCtrl,
+                                            keyboardType:
+                                                const TextInputType.numberWithOptions(
+                                                  decimal: true,
+                                                ),
+                                            decoration: const InputDecoration(
+                                              labelText: 'Available balance',
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(dctx),
+                                        child: const Text('Cancel'),
+                                      ),
+                                      TextButton(
+                                        onPressed: () {
+                                          final name = nameCtrl.text.trim();
+                                          if (name.isEmpty) return;
+                                          final institution = institutionCtrl
+                                              .text
+                                              .trim();
+                                          final accNum =
+                                              accNumCtrl.text.trim().isEmpty
+                                              ? null
+                                              : accNumCtrl.text.trim();
+                                          final cardNum =
+                                              cardNumCtrl.text.trim().isEmpty
+                                              ? null
+                                              : cardNumCtrl.text.trim();
+                                          final bal =
+                                              double.tryParse(balCtrl.text) ??
+                                              0.0;
+                                          final avail = double.tryParse(
+                                            availCtrl.text,
+                                          );
+                                          if (customType != null &&
+                                              customType!.isNotEmpty) {
+                                            DatabaseService.addCustomAccountType(
+                                              customType!,
+                                            );
+                                          }
+                                          final acc = Account(
+                                            name: name,
+                                            type: selectedType,
+                                            institution: institution.isEmpty
+                                                ? null
+                                                : institution,
+                                            accountNumber: accNum,
+                                            cardNumber: cardNum,
+                                            balance: bal,
+                                            availableBalance: avail,
+                                            customType: customType,
+                                          );
+                                          Navigator.pop(dctx, acc);
+                                        },
+                                        child: const Text('Add'),
+                                      ),
+                                    ],
+                                  );
+                                },
                               ),
                             );
-                            return;
-                          }
-                          // Show add account dialog
-                          final nameCtrl = TextEditingController();
-                          final institutionCtrl = TextEditingController();
-                          final accNumCtrl = TextEditingController();
-                          final cardNumCtrl = TextEditingController();
-                          AccountType selectedType = AccountType.cash;
-                          final balCtrl = TextEditingController(text: '0.0');
-                          final availCtrl = TextEditingController(text: '0.0');
-                          String? customType;
-                          final res = await showDialog<Account?>(
-                            context: ctx2,
-                            builder: (dctx) => StatefulBuilder(builder: (dctx, dset) {
-                              return AlertDialog(
-                                title: const Center(child: Text('Add Account')),
-                                content: SingleChildScrollView(
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Row(children: [
-                                        const Text('Type:'),
-                                        const SizedBox(width: 12),
-                                        DropdownButton<String>(
-                                          value: customType ?? selectedType.name,
-                                          onChanged: (v) {
-                                            if (v == null) return;
-                                            final match = AccountType.values.firstWhere(
-                                              (t) => t.name.toLowerCase() == v.toLowerCase(),
-                                              orElse: () => AccountType.cash,
-                                            );
-                                            if (AccountType.values.map((t) => t.name.toLowerCase()).contains(v.toLowerCase())) {
-                                              dset(() {
-                                                selectedType = match;
-                                                customType = null;
-                                              });
-                                            } else {
-                                              dset(() => customType = v);
-                                            }
-                                          },
-                                          items: ([...AccountType.values.map((t) => t.name), ...DatabaseService.getAllCustomAccountTypes()])
-                                            .toSet()
-                                            .map((type) => DropdownMenuItem(
-                                              value: type,
-                                              child: Text(type.isNotEmpty ? type[0].toUpperCase() + type.substring(1) : type),
-                                            ))
-                                            .toList(),
-                                        ),
-                                        IconButton(
-                                          icon: const Icon(Icons.add_circle_outline),
-                                          tooltip: 'Add custom type',
-                                          onPressed: () async {
-                                            final textCtrl = TextEditingController();
-                                            final res = await showDialog<String?>(
-                                              context: dctx,
-                                              builder: (tctx) => AlertDialog(
-                                                title: const Text('Add account type'),
-                                                content: TextField(controller: textCtrl, textCapitalization: TextCapitalization.sentences, decoration: const InputDecoration(labelText: 'Type name')),
-                                                actions: [
-                                                  TextButton(onPressed: () => Navigator.pop(tctx), child: const Text('Cancel')),
-                                                  TextButton(onPressed: () {
-                                                    final v = textCtrl.text.trim();
-                                                    if (v.isEmpty) return;
-                                                    Navigator.pop(tctx, v);
-                                                  }, child: const Text('Add')),
-                                                ],
-                                              ),
-                                            );
-                                            if (res != null) dset(() => customType = res);
-                                          },
-                                        ),
-                                        if (customType != null) Padding(padding: const EdgeInsets.only(left:8.0), child: Text('($customType)', style: const TextStyle(fontStyle: FontStyle.italic))),
-                                      ]),
-                                      const SizedBox(height: 8),
-                                      TextField(controller: nameCtrl, textCapitalization: TextCapitalization.words, autofillHints: const [AutofillHints.organizationName], decoration: const InputDecoration(labelText: 'Account')),
-                                      const SizedBox(height: 8),
-                                      TextField(controller: institutionCtrl, textCapitalization: TextCapitalization.words, autofillHints: const [AutofillHints.organizationName], decoration: const InputDecoration(labelText: 'Institution')),
-                                      const SizedBox(height: 8),
-                                      TextField(controller: accNumCtrl, autofillHints: const [AutofillHints.username], decoration: const InputDecoration(labelText: 'Account number')),
-                                      const SizedBox(height: 8),
-                                      TextField(controller: cardNumCtrl, decoration: const InputDecoration(labelText: 'Card number')),
-                                      const SizedBox(height: 8),
-                                      const SizedBox(height: 8),
-                                      TextField(controller: balCtrl, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Initial balance')),
-                                      const SizedBox(height: 8),
-                                      TextField(controller: availCtrl, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Available balance')),
-                                    ],
-                                  ),
-                                ),
-                                actions: [
-                                  TextButton(onPressed: () => Navigator.pop(dctx), child: const Text('Cancel')),
-                                  TextButton(onPressed: () {
-                                    final name = nameCtrl.text.trim();
-                                    if (name.isEmpty) return;
-                                    final institution = institutionCtrl.text.trim();
-                                    final accNum = accNumCtrl.text.trim().isEmpty ? null : accNumCtrl.text.trim();
-                                    final cardNum = cardNumCtrl.text.trim().isEmpty ? null : cardNumCtrl.text.trim();
-                                    final bal = double.tryParse(balCtrl.text) ?? 0.0;
-                                    final avail = double.tryParse(availCtrl.text);
-                                    if (customType != null && customType!.isNotEmpty) {
-                                      DatabaseService.addCustomAccountType(customType!);
-                                    }
-                                    final acc = Account(name: name, type: selectedType, institution: institution.isEmpty ? null : institution, accountNumber: accNum, cardNumber: cardNum, balance: bal, availableBalance: avail, customType: customType);
-                                    Navigator.pop(dctx, acc);
-                                  }, child: const Text('Add')),
-                                ],
-                              );
-                            }),
-                          );
-                          if (res != null) {
-                            await DatabaseService.addAccount(res);
-                            final updated = DatabaseService.getAllAccounts();
-                            setState2(() {});
-                            setState(() {
-                              _toAccountId = res.id;
-                            });
-                          }
-                        },
-                      ),
-                    ],
-                  ),
-                  body: ListView.builder(
-                    itemCount: liveAccounts.length,
-                    itemBuilder: (context, idx) {
-                      final a = liveAccounts[idx];
-                      return ListTile(
-                        title: Text(a.name),
-                        selected: _toAccountId == a.id,
-                        onTap: () => Navigator.pop(context, a.id),
-                      );
-                    },
-                  ),
-                );
-              }),
+                            if (res != null) {
+                              await DatabaseService.addAccount(res);
+                              final updated = DatabaseService.getAllAccounts();
+                              setState2(() {});
+                              setState(() {
+                                _toAccountId = res.id;
+                              });
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                    body: ListView.builder(
+                      itemCount: liveAccounts.length,
+                      itemBuilder: (context, idx) {
+                        final a = liveAccounts[idx];
+                        return ListTile(
+                          title: Text(a.name),
+                          selected: _toAccountId == a.id,
+                          onTap: () => Navigator.pop(context, a.id),
+                        );
+                      },
+                    ),
+                  );
+                },
+              ),
             ),
           );
           if (selected != null) {
@@ -1339,7 +2144,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               : 'Include this transaction in report totals and charts',
         ),
         value: isTransfer ? false : _showInReports,
-        onChanged: isTransfer ? null : (v) => setState(() => _showInReports = v),
+        onChanged: isTransfer
+            ? null
+            : (v) => setState(() => _showInReports = v),
         secondary: const Icon(Icons.insights_outlined),
       ),
     );
@@ -1377,23 +2184,32 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     if (_isSaving) return;
     FocusScope.of(context).unfocus();
     // Subscription gating: limit free users to 50 transactions per account
-      final isSubscriber = DatabaseService.subscriptionVersion.value != 'Free';
+    final isSubscriber = DatabaseService.subscriptionVersion.value != 'Free';
     String? accountId;
     if (_transactionType == TransactionScreenType.transfer) {
       accountId = _fromAccountId;
     } else {
       accountId = _selectedAccountId;
     }
-    if (accountId != null && !isSubscriber && widget.existingTransaction == null) {
-      final txCount = DatabaseService.getAllTransactions().where((tx) => tx.accountId == accountId).length;
+    if (accountId != null &&
+        !isSubscriber &&
+        widget.existingTransaction == null) {
+      final txCount = DatabaseService.getAllTransactions()
+          .where((tx) => tx.accountId == accountId)
+          .length;
       if (txCount >= 50) {
         await showDialog(
           context: context,
           builder: (dialogContext) => AlertDialog(
             title: const Text('Transaction Limit Reached'),
-            content: const Text('Free users can add up to 50 transactions per account. Subscribe for unlimited transactions.'),
+            content: const Text(
+              'Free users can add up to 50 transactions per account. Subscribe for unlimited transactions.',
+            ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('OK')),
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('OK'),
+              ),
             ],
           ),
         );
@@ -1405,16 +2221,24 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     final amount = double.tryParse(_amountController.text);
     if (amount == null || amount <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-  SnackBar(content: Text('Please enter a valid amount'), backgroundColor: Colors.blueGrey[400]),
+        SnackBar(
+          content: Text('Please enter a valid amount'),
+          backgroundColor: Colors.blueGrey[400],
+        ),
       );
       return;
     }
 
     // Enforce category selection for expense/income transactions
-    if ((_transactionType == TransactionScreenType.expense || _transactionType == TransactionScreenType.income) && _selectedCategoryId == null) {
+    if ((_transactionType == TransactionScreenType.expense ||
+            _transactionType == TransactionScreenType.income) &&
+        _selectedCategoryId == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Please select a category'), backgroundColor: Colors.blueGrey[400]),
+          SnackBar(
+            content: Text('Please select a category'),
+            backgroundColor: Colors.blueGrey[400],
+          ),
         );
       }
       return;
@@ -1425,7 +2249,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       if (!validateSplitsEqualAmount(_splits, amount)) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Split amounts must sum to the transaction amount'), backgroundColor: Colors.red[700]),
+            SnackBar(
+              content: Text('Split amounts must sum to the transaction amount'),
+              backgroundColor: Colors.red[700],
+            ),
           );
         }
         return;
@@ -1434,19 +2261,25 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
     setState(() => _isSaving = true);
     try {
-      final sanitizedInputNote = _sanitizeInternalNoteTokens(_notesController.text);
+      final sanitizedInputNote = _sanitizeInternalNoteTokens(
+        _notesController.text,
+      );
       final notes = sanitizedInputNote.isEmpty ? null : sanitizedInputNote;
       final isEditing = widget.existingTransaction != null;
       bool transferEditPrompted = false;
 
-  if (_transactionType == TransactionScreenType.expense || _transactionType == TransactionScreenType.income) {
+      if (_transactionType == TransactionScreenType.expense ||
+          _transactionType == TransactionScreenType.income) {
         // Always use the selected payee/payer ID for saving, regardless of extra info in the title/description
         String desc = 'Transaction';
         String? payeeId;
         String? payerId;
         if (_selectedPayeeId != null) {
           // Find the payee/payer name for display, but keep the ID for saving
-          final p = _payees.firstWhere((p) => p['id'] == _selectedPayeeId, orElse: () => <String, dynamic>{});
+          final p = _payees.firstWhere(
+            (p) => p['id'] == _selectedPayeeId,
+            orElse: () => <String, dynamic>{},
+          );
           if (p.containsKey('name')) desc = p['name'] as String;
         } else if (_selectedCategoryId != null) {
           final cat = DatabaseService.getCategoryById(_selectedCategoryId!);
@@ -1471,42 +2304,57 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
         final lookupsState = context.read<LookupsState>();
         final selectedCategory = _selectedCategoryId == null
-          ? null
-          : lookupsState.categoriesById[_selectedCategoryId!];
-        final selectedPayee = payeeId == null
-          ? null
-          : lookupsState.payeesById[payeeId];
-        final selectedPayer = payerId == null
-          ? null
-          : lookupsState.payersById[payerId];
-
-        final selectedCategoryName = selectedCategory?.name ??
-          (_selectedCategoryId == null
             ? null
-            : DatabaseService.getCategoryById(_selectedCategoryId!)?.name);
-        final selectedPayeeName = selectedPayee?.name ?? ((payeeId != null && desc.isNotEmpty) ? desc : null);
-        final selectedPayerName = selectedPayer?.name ?? ((payerId != null && desc.isNotEmpty) ? desc : null);
+            : lookupsState.categoriesById[_selectedCategoryId!];
+        final selectedPayee = payeeId == null
+            ? null
+            : lookupsState.payeesById[payeeId];
+        final selectedPayer = payerId == null
+            ? null
+            : lookupsState.payersById[payerId];
+
+        final selectedCategoryName =
+            selectedCategory?.name ??
+            (_selectedCategoryId == null
+                ? null
+                : DatabaseService.getCategoryById(_selectedCategoryId!)?.name);
+        final selectedPayeeName =
+            selectedPayee?.name ??
+            ((payeeId != null && desc.isNotEmpty) ? desc : null);
+        final selectedPayerName =
+            selectedPayer?.name ??
+            ((payerId != null && desc.isNotEmpty) ? desc : null);
 
         if (isEditing) {
-      final orig = widget.existingTransaction!;
-        final shouldHideFromCalendar = _shouldHideFromDashboard(existing: orig);
-        finalNote = _applyHideFromCalendarMarker(finalNote, shouldHideFromCalendar);
-        // If this transaction is linked to a bill (billId set), it was created
-        // by the pay-bill flow and its description contains the human-readable
-        // "Payment for {bill name} (MM/dd/yyyy)" text. Keep that description
-        // stable when editing amount/category/account so payment names are not
-        // rewritten to generic values.
-        final preserveBillPaymentDescription =
-          orig.billId != null && orig.billId!.isNotEmpty;
-        final newDescription =
-          (widget.preserveDescriptionAndDate || preserveBillPaymentDescription)
-            ? orig.description
-            : desc;
-      final newDate = widget.preserveDescriptionAndDate ? orig.date : _transactionDate;
+          final orig = widget.existingTransaction!;
+          final shouldHideFromCalendar = _shouldHideFromDashboard(
+            existing: orig,
+          );
+          finalNote = _applyHideFromCalendarMarker(
+            finalNote,
+            shouldHideFromCalendar,
+          );
+          // If this transaction is linked to a bill (billId set), it was created
+          // by the pay-bill flow and its description contains the human-readable
+          // "Payment for {bill name} (MM/dd/yyyy)" text. Keep that description
+          // stable when editing amount/category/account so payment names are not
+          // rewritten to generic values.
+          final preserveBillPaymentDescription =
+              orig.billId != null && orig.billId!.isNotEmpty;
+          final newDescription =
+              (widget.preserveDescriptionAndDate ||
+                  preserveBillPaymentDescription)
+              ? orig.description
+              : desc;
+          final newDate = widget.preserveDescriptionAndDate
+              ? orig.date
+              : _transactionDate;
           final updated = orig.copyWith(
             amount: amount,
             categoryId: _selectedCategoryId ?? '',
-            type: _transactionType == TransactionScreenType.expense ? TransactionType.expense : TransactionType.income,
+            type: _transactionType == TransactionScreenType.expense
+                ? TransactionType.expense
+                : TransactionType.income,
             description: newDescription,
             date: newDate,
             updatedAt: DateTime.now(),
@@ -1522,7 +2370,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             // transaction associated with the original bill occurrence.
             billId: orig.billId,
             occurrenceDate: orig.occurrenceDate,
-            splitsJson: (_useSplits && _splits.isNotEmpty) ? jsonEncode(_splits) : null,
+            splitsJson: (_useSplits && _splits.isNotEmpty)
+                ? jsonEncode(_splits)
+                : null,
             showInReports: _showInReports,
             hideFromCalendarDashboard: shouldHideFromCalendar,
           );
@@ -1535,28 +2385,38 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             } catch (_) {}
           }
 
-          final oldEffect = (orig.type == TransactionType.income) ? orig.amount : -orig.amount;
-          final newEffect = (updated.type == TransactionType.income) ? updated.amount : -updated.amount;
+          final oldEffect = (orig.type == TransactionType.income)
+              ? orig.amount
+              : -orig.amount;
+          final newEffect = (updated.type == TransactionType.income)
+              ? updated.amount
+              : -updated.amount;
           final oldAccountId = orig.accountId;
           final newAccountId = updated.accountId;
           if (oldAccountId != null && oldAccountId == newAccountId) {
             final acc = DatabaseService.getAccountById(oldAccountId);
             if (acc != null) {
-              final updatedAcc = acc.copyWith(balance: acc.balance + (newEffect - oldEffect));
+              final updatedAcc = acc.copyWith(
+                balance: acc.balance + (newEffect - oldEffect),
+              );
               await DatabaseService.updateAccount(updatedAcc);
             }
           } else {
             if (oldAccountId != null) {
               final oldAcc = DatabaseService.getAccountById(oldAccountId);
               if (oldAcc != null) {
-                final updatedOldAcc = oldAcc.copyWith(balance: oldAcc.balance - oldEffect);
+                final updatedOldAcc = oldAcc.copyWith(
+                  balance: oldAcc.balance - oldEffect,
+                );
                 await DatabaseService.updateAccount(updatedOldAcc);
               }
             }
             if (newAccountId != null) {
               final newAcc = DatabaseService.getAccountById(newAccountId);
               if (newAcc != null) {
-                final updatedNewAcc = newAcc.copyWith(balance: newAcc.balance + newEffect);
+                final updatedNewAcc = newAcc.copyWith(
+                  balance: newAcc.balance + newEffect,
+                );
                 await DatabaseService.updateAccount(updatedNewAcc);
               }
             }
@@ -1565,37 +2425,47 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           DatabaseService.accountsVersion.value++;
         } else {
           final shouldHideFromCalendar = _shouldHideFromDashboard();
-          finalNote = _applyHideFromCalendarMarker(finalNote, shouldHideFromCalendar);
+          finalNote = _applyHideFromCalendarMarker(
+            finalNote,
+            shouldHideFromCalendar,
+          );
           final tx = Transaction(
-      amount: amount,
-      categoryId: _selectedCategoryId ?? '',
-      type: _transactionType == TransactionScreenType.expense ? TransactionType.expense : TransactionType.income,
-      description: desc,
-      date: _transactionDate,
-      updatedAt: DateTime.now(),
-      note: _transactionType == TransactionScreenType.transfer
-        ? ((finalNote == null || finalNote.isEmpty)
-          ? '__transfer_manual__'
-          : '__transfer_manual__ $finalNote')
-        : finalNote,
-      accountId: _selectedAccountId,
-      cleared: _cleared,
-      payeeId: payeeId, // Always set from selected
-      payeeName: selectedPayeeName,
-      payerId: payerId, // Always set from selected
-      payerName: selectedPayerName,
-      categoryName: selectedCategoryName,
-      billId: widget.prefillTransaction?.billId ?? widget.existingTransaction?.billId,
-  splitsJson: (_useSplits && _splits.isNotEmpty) ? jsonEncode(_splits) : null,
-        showInReports: _showInReports,
-    hideFromCalendarDashboard: shouldHideFromCalendar,
-      );
+            amount: amount,
+            categoryId: _selectedCategoryId ?? '',
+            type: _transactionType == TransactionScreenType.expense
+                ? TransactionType.expense
+                : TransactionType.income,
+            description: desc,
+            date: _transactionDate,
+            updatedAt: DateTime.now(),
+            note: _transactionType == TransactionScreenType.transfer
+                ? ((finalNote == null || finalNote.isEmpty)
+                      ? '__transfer_manual__'
+                      : '__transfer_manual__ $finalNote')
+                : finalNote,
+            accountId: _selectedAccountId,
+            cleared: _cleared,
+            payeeId: payeeId, // Always set from selected
+            payeeName: selectedPayeeName,
+            payerId: payerId, // Always set from selected
+            payerName: selectedPayerName,
+            categoryName: selectedCategoryName,
+            billId:
+                widget.prefillTransaction?.billId ??
+                widget.existingTransaction?.billId,
+            splitsJson: (_useSplits && _splits.isNotEmpty)
+                ? jsonEncode(_splits)
+                : null,
+            showInReports: _showInReports,
+            hideFromCalendarDashboard: shouldHideFromCalendar,
+          );
           await DatabaseService.addTransaction(tx);
 
           if (_selectedAccountId != null) {
             final account = DatabaseService.getAccountById(_selectedAccountId!);
             if (account != null) {
-              final newBalance = _transactionType == TransactionScreenType.income
+              final newBalance =
+                  _transactionType == TransactionScreenType.income
                   ? account.balance + amount
                   : account.balance - amount;
               final updatedAccount = account.copyWith(balance: newBalance);
@@ -1607,7 +2477,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         if (_fromAccountId == null || _toAccountId == null) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Please select both accounts for transfer'), backgroundColor: Colors.blueGrey[400]),
+              SnackBar(
+                content: Text('Please select both accounts for transfer'),
+                backgroundColor: Colors.blueGrey[400],
+              ),
             );
           }
           return;
@@ -1618,7 +2491,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         final fromName = fromAcc?.name ?? 'From account';
         final toName = toAcc?.name ?? 'To account';
         final desc = 'Transfer from $fromName to $toName';
-        final transferCategory = await DatabaseService.getOrCreateTransferCategory();
+        final transferCategory =
+            await DatabaseService.getOrCreateTransferCategory();
         String userNote = notes ?? '';
         String debitInternalNote = '__transfer_bill__';
         String creditInternalNote = '__transfer_bill__';
@@ -1660,13 +2534,19 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           final orig = widget.existingTransaction!;
           String? extractPairId(String? note) {
             if (note == null || note.isEmpty) return null;
-            final m = RegExp(r'pair:([A-Za-z0-9\-]+)', caseSensitive: false).firstMatch(note);
+            final m = RegExp(
+              r'pair:([A-Za-z0-9\-]+)',
+              caseSensitive: false,
+            ).firstMatch(note);
             final id = m?.group(1);
             if (id == null || id.isEmpty) return null;
             return id;
           }
 
-          String buildTransferNote({required String? linkedId, required String userText}) {
+          String buildTransferNote({
+            required String? linkedId,
+            required String userText,
+          }) {
             var result = '__transfer_bill__';
             if (linkedId != null && linkedId.isNotEmpty) {
               result += ' pair:$linkedId';
@@ -1686,8 +2566,13 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           final clearedChanged = (orig.cleared ?? false) != _cleared;
           String origNote = orig.note ?? '';
           // Remove internal transfer marker and any pair tokens when comparing notes
-          String cleanedOrigNote = origNote.replaceAll('__transfer_bill__', '').replaceAll(RegExp(r'pair:[A-Za-z0-9\-]+'), '').trim();
-          String cleanedNewNote = userNote.replaceAll(RegExp(r'pair:[A-Za-z0-9\-]+'), '').trim();
+          String cleanedOrigNote = origNote
+              .replaceAll('__transfer_bill__', '')
+              .replaceAll(RegExp(r'pair:[A-Za-z0-9\-]+'), '')
+              .trim();
+          String cleanedNewNote = userNote
+              .replaceAll(RegExp(r'pair:[A-Za-z0-9\-]+'), '')
+              .trim();
           final noteChanged = cleanedOrigNote != cleanedNewNote;
 
           // Find the paired transaction (other side of the transfer)
@@ -1729,14 +2614,21 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             pair = candidates.isNotEmpty ? candidates.first : null;
           }
 
-          final currentFromId =
-              orig.type == TransactionType.expense ? orig.accountId : pair?.accountId;
-          final currentToId =
-              orig.type == TransactionType.income ? orig.accountId : pair?.accountId;
-          final accountChanged = currentFromId != _fromAccountId || currentToId != _toAccountId;
+          final currentFromId = orig.type == TransactionType.expense
+              ? orig.accountId
+              : pair?.accountId;
+          final currentToId = orig.type == TransactionType.income
+              ? orig.accountId
+              : pair?.accountId;
+          final accountChanged =
+              currentFromId != _fromAccountId || currentToId != _toAccountId;
 
           bool updateBoth = false;
-          if (dateChanged || noteChanged || amountChanged || clearedChanged || accountChanged) {
+          if (dateChanged ||
+              noteChanged ||
+              amountChanged ||
+              clearedChanged ||
+              accountChanged) {
             transferEditPrompted = true;
             String changeText = '';
             final changedParts = <String>[];
@@ -1750,32 +2642,39 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             } else if (changedParts.length == 2) {
               changeText = '${changedParts[0]} and ${changedParts[1]}';
             } else {
-              changeText = '${changedParts.sublist(0, changedParts.length - 1).join(', ')}, and ${changedParts.last}';
+              changeText =
+                  '${changedParts.sublist(0, changedParts.length - 1).join(', ')}, and ${changedParts.last}';
             }
-            updateBoth = await showDialog<bool>(
-              context: context,
-              builder: (ctx) => AlertDialog(
-                title: const Text('Edit Both Sides of Transfer?'),
-                content: Text('You changed the $changeText for this transfer.\nDo you want to update both sides of the transfer or just this side?'),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(ctx, false),
-                    child: const Text('Just this side'),
+            updateBoth =
+                await showDialog<bool>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('Edit Both Sides of Transfer?'),
+                    content: Text(
+                      'You changed the $changeText for this transfer.\nDo you want to update both sides of the transfer or just this side?',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        child: const Text('Just this side'),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        child: const Text('Both sides'),
+                      ),
+                    ],
                   ),
-                  TextButton(
-                    onPressed: () => Navigator.pop(ctx, true),
-                    child: const Text('Both sides'),
-                  ),
-                ],
-              ),
-            ) ?? false;
+                ) ??
+                false;
           }
 
           if (updateBoth && pair == null) {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('Could not find the linked transfer side. Please edit both entries manually once to relink.'),
+                  content: Text(
+                    'Could not find the linked transfer side. Please edit both entries manually once to relink.',
+                  ),
                   backgroundColor: Colors.blueGrey[400],
                 ),
               );
@@ -1784,36 +2683,53 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           }
 
           // Determine old and new account IDs for both sides
-          final oldFromId = orig.type == TransactionType.expense ? orig.accountId : (pair != null ? pair.accountId : null);
-          final oldToId = orig.type == TransactionType.income ? orig.accountId : (pair != null ? pair.accountId : null);
+          final oldFromId = orig.type == TransactionType.expense
+              ? orig.accountId
+              : (pair != null ? pair.accountId : null);
+          final oldToId = orig.type == TransactionType.income
+              ? orig.accountId
+              : (pair != null ? pair.accountId : null);
           final newFromId = _fromAccountId;
           final newToId = _toAccountId;
           // Update both transactions' accountId if changed
           Transaction updatedOrig = orig;
           Transaction? updatedPair = pair;
-          if (orig.type == TransactionType.expense && newFromId != null && orig.accountId != newFromId) {
+          if (orig.type == TransactionType.expense &&
+              newFromId != null &&
+              orig.accountId != newFromId) {
             updatedOrig = orig.copyWith(accountId: newFromId);
-          } else if (orig.type == TransactionType.income && newToId != null && orig.accountId != newToId) {
+          } else if (orig.type == TransactionType.income &&
+              newToId != null &&
+              orig.accountId != newToId) {
             updatedOrig = orig.copyWith(accountId: newToId);
           }
           if (pair != null) {
-            if (pair.type == TransactionType.expense && newFromId != null && pair.accountId != newFromId) {
+            if (pair.type == TransactionType.expense &&
+                newFromId != null &&
+                pair.accountId != newFromId) {
               updatedPair = pair.copyWith(accountId: newFromId);
-            } else if (pair.type == TransactionType.income && newToId != null && pair.accountId != newToId) {
+            } else if (pair.type == TransactionType.income &&
+                newToId != null &&
+                pair.accountId != newToId) {
               updatedPair = pair.copyWith(accountId: newToId);
             }
           }
           // Update other fields (amount, description, date, note)
-            final preserveBillPaymentDescription =
+          final preserveBillPaymentDescription =
               orig.billId != null && orig.billId!.isNotEmpty;
-            final newDescription =
-              (widget.preserveDescriptionAndDate || preserveBillPaymentDescription)
-                ? orig.description
-                : desc;
-          final newDate = widget.preserveDescriptionAndDate ? orig.date : _transactionDate;
+          final newDescription =
+              (widget.preserveDescriptionAndDate ||
+                  preserveBillPaymentDescription)
+              ? orig.description
+              : desc;
+          final newDate = widget.preserveDescriptionAndDate
+              ? orig.date
+              : _transactionDate;
           String cleanedNotes = userNote;
           if (cleanedNotes.contains('__transfer_bill__')) {
-            cleanedNotes = cleanedNotes.replaceAll('__transfer_bill__', '').trim();
+            cleanedNotes = cleanedNotes
+                .replaceAll('__transfer_bill__', '')
+                .trim();
           }
 
           final linkedIdForOrig = pair?.id;
@@ -1822,7 +2738,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             description: newDescription,
             date: newDate,
             updatedAt: DateTime.now(),
-            note: buildTransferNote(linkedId: linkedIdForOrig, userText: cleanedNotes),
+            note: buildTransferNote(
+              linkedId: linkedIdForOrig,
+              userText: cleanedNotes,
+            ),
             cleared: _cleared,
             showInReports: false,
             hideFromCalendarDashboard: true,
@@ -1833,7 +2752,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               description: newDescription,
               date: newDate,
               updatedAt: DateTime.now(),
-              note: buildTransferNote(linkedId: updatedOrig.id, userText: cleanedNotes),
+              note: buildTransferNote(
+                linkedId: updatedOrig.id,
+                userText: cleanedNotes,
+              ),
               cleared: _cleared,
               showInReports: false,
               hideFromCalendarDashboard: true,
@@ -1847,14 +2769,20 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
           final accountDeltaById = <String, double>{};
           void applyDeltaForUpdate(Transaction before, Transaction after) {
-            final beforeEffect = before.type == TransactionType.income ? before.amount : -before.amount;
-            final afterEffect = after.type == TransactionType.income ? after.amount : -after.amount;
+            final beforeEffect = before.type == TransactionType.income
+                ? before.amount
+                : -before.amount;
+            final afterEffect = after.type == TransactionType.income
+                ? after.amount
+                : -after.amount;
 
             if (before.accountId != null) {
-              accountDeltaById[before.accountId!] = (accountDeltaById[before.accountId!] ?? 0.0) - beforeEffect;
+              accountDeltaById[before.accountId!] =
+                  (accountDeltaById[before.accountId!] ?? 0.0) - beforeEffect;
             }
             if (after.accountId != null) {
-              accountDeltaById[after.accountId!] = (accountDeltaById[after.accountId!] ?? 0.0) + afterEffect;
+              accountDeltaById[after.accountId!] =
+                  (accountDeltaById[after.accountId!] ?? 0.0) + afterEffect;
             }
           }
 
@@ -1867,7 +2795,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             if (entry.value == 0.0) continue;
             final acc = DatabaseService.getAccountById(entry.key);
             if (acc == null) continue;
-            await DatabaseService.updateAccount(acc.copyWith(balance: acc.balance + entry.value));
+            await DatabaseService.updateAccount(
+              acc.copyWith(balance: acc.balance + entry.value),
+            );
           }
           DatabaseService.transactionsVersion.value++;
           DatabaseService.accountsVersion.value++;
@@ -1899,14 +2829,18 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           if (_fromAccountId != null) {
             final fromAccount = DatabaseService.getAccountById(_fromAccountId!);
             if (fromAccount != null) {
-              final updatedFromAccount = fromAccount.copyWith(balance: fromAccount.balance - amount);
+              final updatedFromAccount = fromAccount.copyWith(
+                balance: fromAccount.balance - amount,
+              );
               await DatabaseService.updateAccount(updatedFromAccount);
             }
           }
           if (_toAccountId != null) {
             final toAccount = DatabaseService.getAccountById(_toAccountId!);
             if (toAccount != null) {
-              final updatedToAccount = toAccount.copyWith(balance: toAccount.balance + amount);
+              final updatedToAccount = toAccount.copyWith(
+                balance: toAccount.balance + amount,
+              );
               await DatabaseService.updateAccount(updatedToAccount);
             }
           }
@@ -1919,7 +2853,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error saving transaction: $e'), backgroundColor: Colors.blueGrey[400]),
+          SnackBar(
+            content: Text('Error saving transaction: $e'),
+            backgroundColor: Colors.blueGrey[400],
+          ),
         );
       }
     } finally {
@@ -1943,7 +2880,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     });
 
     // Autofill account if provided from parent screen
-    if (widget.initialAccountId != null && widget.initialAccountId!.isNotEmpty) {
+    if (widget.initialAccountId != null &&
+        widget.initialAccountId!.isNotEmpty) {
       _selectedAccountId = widget.initialAccountId;
     }
     final source = widget.existingTransaction ?? widget.prefillTransaction;
@@ -2005,7 +2943,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         } catch (_) {
           linkedBill = null;
         }
-        if (linkedBill != null && linkedBill.categoryId != null && linkedBill.categoryId!.isNotEmpty) {
+        if (linkedBill != null &&
+            linkedBill.categoryId != null &&
+            linkedBill.categoryId!.isNotEmpty) {
           _selectedCategoryId = linkedBill.categoryId;
           _originalCategoryId = linkedBill.categoryId;
         } else {
@@ -2040,12 +2980,16 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           noteLower.contains('__transfer_manual__') ||
           noteLower.contains('__transfer_bill__') ||
           RegExp(r'pair:[a-z0-9\-]+').hasMatch(noteLower);
-      final hasCanonicalTransferDescription =
-          RegExp(r'^transfer\s+from\s+.+\s+to\s+.+$', caseSensitive: false)
-              .hasMatch(desc);
+      final hasCanonicalTransferDescription = RegExp(
+        r'^transfer\s+from\s+.+\s+to\s+.+$',
+        caseSensitive: false,
+      ).hasMatch(desc);
 
       if (hasTransferMarker || hasCanonicalTransferDescription) {
-        final reg = RegExp(r'Transfer\s+from\s+(.+)\s+to\s+(.+)', caseSensitive: false);
+        final reg = RegExp(
+          r'Transfer\s+from\s+(.+)\s+to\s+(.+)',
+          caseSensitive: false,
+        );
         final m = reg.firstMatch(desc);
         if (m != null) {
           final fromName = m.group(1)!.trim();
@@ -2071,7 +3015,12 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           final all = DatabaseService.getAllTransactions();
           Transaction? pair;
           try {
-            pair = all.firstWhere((t) => t.id != source.id && t.description == desc && t.amount == source.amount);
+            pair = all.firstWhere(
+              (t) =>
+                  t.id != source.id &&
+                  t.description == desc &&
+                  t.amount == source.amount,
+            );
           } catch (_) {
             pair = null;
           }
@@ -2146,11 +3095,13 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           // transaction is NOT a payment linked to a bill. For bill
           // payments we prefer the category that the payment was made for
           // (e.g. the bill's category) so do not overwrite that.
-          if (catId != null && DatabaseService.getAllCategories().any((c) => c.id == catId)) {
-            final isBillPayment = source.billId != null && source.billId!.isNotEmpty;
-             // Don't override the transaction's category if it's already set (i.e., when editing/duplicating)
-             final hasTransactionCategory = source.categoryId.isNotEmpty;
-             if (!isBillPayment && !hasTransactionCategory) {
+          if (catId != null &&
+              DatabaseService.getAllCategories().any((c) => c.id == catId)) {
+            final isBillPayment =
+                source.billId != null && source.billId!.isNotEmpty;
+            // Don't override the transaction's category if it's already set (i.e., when editing/duplicating)
+            final hasTransactionCategory = source.categoryId.isNotEmpty;
+            if (!isBillPayment && !hasTransactionCategory) {
               _selectedCategoryId = catId;
             }
           }
@@ -2161,7 +3112,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     }
 
     // Finally, set transaction type from stored transaction (income/expense)
-    _transactionType = source.type == TransactionType.income ? TransactionScreenType.income : TransactionScreenType.expense;
+    _transactionType = source.type == TransactionType.income
+        ? TransactionScreenType.income
+        : TransactionScreenType.expense;
     // Initialize cleared state from source (default false)
     _cleared = source.cleared ?? false;
     _showInReports = source.showInReports;
@@ -2193,7 +3146,10 @@ class _CalculatorSheetState extends State<_CalculatorSheet> {
   }
 
   void _backspace() {
-    if (_expression.isNotEmpty) setState(() => _expression = _expression.substring(0, _expression.length - 1));
+    if (_expression.isNotEmpty)
+      setState(
+        () => _expression = _expression.substring(0, _expression.length - 1),
+      );
   }
 
   void _clear() {
@@ -2261,8 +3217,16 @@ class _CalculatorSheetState extends State<_CalculatorSheet> {
             padding: const EdgeInsets.all(12.0),
             child: Row(
               children: [
-                Expanded(child: Text(_expression, style: const TextStyle(fontSize: 24))),
-                IconButton(onPressed: _backspace, icon: const Icon(Icons.backspace))
+                Expanded(
+                  child: Text(
+                    _expression,
+                    style: const TextStyle(fontSize: 24),
+                  ),
+                ),
+                IconButton(
+                  onPressed: _backspace,
+                  icon: const Icon(Icons.backspace),
+                ),
               ],
             ),
           ),
@@ -2271,9 +3235,15 @@ class _CalculatorSheetState extends State<_CalculatorSheet> {
               padding: const EdgeInsets.symmetric(horizontal: 12.0),
               child: Row(
                 children: [
-                  const Text('Result:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text(
+                    'Result:',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                   const SizedBox(width: 8),
-                  Text(eval.toStringAsFixed(2), style: const TextStyle(fontSize: 20)),
+                  Text(
+                    eval.toStringAsFixed(2),
+                    style: const TextStyle(fontSize: 20),
+                  ),
                 ],
               ),
             ),
@@ -2283,27 +3253,43 @@ class _CalculatorSheetState extends State<_CalculatorSheet> {
               crossAxisCount: 4,
               childAspectRatio: 1.6,
               padding: const EdgeInsets.all(12),
-              children: [
-                '7','8','9','/',
-                '4','5','6','*',
-                '1','2','3','-',
-                '.','0','=','+',
-              ].map((label) {
-                return Padding(
-                  padding: const EdgeInsets.all(6.0),
-                  child: ElevatedButton(
-                    onPressed: () {
-                      if (label == '=') {
-                        final value = _evaluate();
-                        if (value != null) Navigator.of(context).pop(value);
-                        return;
-                      }
-                      _append(label);
-                    },
-                    child: Text(label, style: const TextStyle(fontSize: 18)),
-                  ),
-                );
-              }).toList(),
+              children:
+                  [
+                    '7',
+                    '8',
+                    '9',
+                    '/',
+                    '4',
+                    '5',
+                    '6',
+                    '*',
+                    '1',
+                    '2',
+                    '3',
+                    '-',
+                    '.',
+                    '0',
+                    '=',
+                    '+',
+                  ].map((label) {
+                    return Padding(
+                      padding: const EdgeInsets.all(6.0),
+                      child: ElevatedButton(
+                        onPressed: () {
+                          if (label == '=') {
+                            final value = _evaluate();
+                            if (value != null) Navigator.of(context).pop(value);
+                            return;
+                          }
+                          _append(label);
+                        },
+                        child: Text(
+                          label,
+                          style: const TextStyle(fontSize: 18),
+                        ),
+                      ),
+                    );
+                  }).toList(),
             ),
           ),
           Padding(
@@ -2339,19 +3325,23 @@ class _PayeeSelectorSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     return _PayeeSelectorSheetWithSearch(payees: payees, type: type);
   }
-
 }
 
 class _PayeeSelectorSheetWithSearch extends StatefulWidget {
   final List<Map<String, dynamic>> payees;
   final String type;
-  const _PayeeSelectorSheetWithSearch({required this.payees, required this.type});
+  const _PayeeSelectorSheetWithSearch({
+    required this.payees,
+    required this.type,
+  });
 
   @override
-  State<_PayeeSelectorSheetWithSearch> createState() => _PayeeSelectorSheetWithSearchState();
+  State<_PayeeSelectorSheetWithSearch> createState() =>
+      _PayeeSelectorSheetWithSearchState();
 }
 
-class _PayeeSelectorSheetWithSearchState extends State<_PayeeSelectorSheetWithSearch> {
+class _PayeeSelectorSheetWithSearchState
+    extends State<_PayeeSelectorSheetWithSearch> {
   String _query = '';
   String? _selectedCategoryId;
   List<Category> _categories = [];
@@ -2363,9 +3353,13 @@ class _PayeeSelectorSheetWithSearchState extends State<_PayeeSelectorSheetWithSe
     super.initState();
     // Show expense categories for payee, income categories for payer
     if (widget.type == 'payee') {
-      _categories = DatabaseService.getAllCategories().where((cat) => cat.type == CategoryType.expense).toList();
+      _categories = DatabaseService.getAllCategories()
+          .where((cat) => cat.type == CategoryType.expense)
+          .toList();
     } else if (widget.type == 'payer') {
-      _categories = DatabaseService.getAllCategories().where((cat) => cat.type == CategoryType.income).toList();
+      _categories = DatabaseService.getAllCategories()
+          .where((cat) => cat.type == CategoryType.income)
+          .toList();
     } else {
       _categories = DatabaseService.getAllCategories();
     }
@@ -2386,16 +3380,21 @@ class _PayeeSelectorSheetWithSearchState extends State<_PayeeSelectorSheetWithSe
 
   @override
   Widget build(BuildContext context) {
-    final filtered = (_query.isEmpty
-            ? List<Map<String, dynamic>>.from(widget.payees)
-            : widget.payees
-                .where((p) => (p['name'] as String).toLowerCase().contains(_query.toLowerCase()))
-                .toList())
-      ..sort((a, b) {
-        final an = (a['name'] ?? '').toString().toLowerCase();
-        final bn = (b['name'] ?? '').toString().toLowerCase();
-        return an.compareTo(bn);
-      });
+    final filtered =
+        (_query.isEmpty
+              ? List<Map<String, dynamic>>.from(widget.payees)
+              : widget.payees
+                    .where(
+                      (p) => (p['name'] as String).toLowerCase().contains(
+                        _query.toLowerCase(),
+                      ),
+                    )
+                    .toList())
+          ..sort((a, b) {
+            final an = (a['name'] ?? '').toString().toLowerCase();
+            final bn = (b['name'] ?? '').toString().toLowerCase();
+            return an.compareTo(bn);
+          });
     return Container(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -2416,10 +3415,12 @@ class _PayeeSelectorSheetWithSearchState extends State<_PayeeSelectorSheetWithSe
             child: ListView(
               shrinkWrap: true,
               children: [
-                ...filtered.map((payee) => ListTile(
-                  title: Text(payee['name'] as String),
-                  onTap: () => Navigator.pop(context, payee['id'] as String),
-                )),
+                ...filtered.map(
+                  (payee) => ListTile(
+                    title: Text(payee['name'] as String),
+                    onTap: () => Navigator.pop(context, payee['id'] as String),
+                  ),
+                ),
               ],
             ),
           ),
@@ -2435,7 +3436,11 @@ class _CategorySelectorSheet extends StatefulWidget {
   final bool hideAddButton;
   final Set<CategoryType>? allowedTypes;
 
-  const _CategorySelectorSheet({required this.categories, this.hideAddButton = false, this.allowedTypes});
+  const _CategorySelectorSheet({
+    required this.categories,
+    this.hideAddButton = false,
+    this.allowedTypes,
+  });
 
   @override
   State<_CategorySelectorSheet> createState() => _CategorySelectorSheetState();
@@ -2467,27 +3472,12 @@ class _CategorySelectorSheetState extends State<_CategorySelectorSheet> {
     return true;
   }
 
-  List<Category> _dedupeCategoriesByName(Iterable<Category> categories) {
-    final seen = <String>{};
-    final out = <Category>[];
-
-    for (final category in categories) {
-      final key = category.name.trim().toLowerCase();
-      if (key.isEmpty || seen.contains(key)) continue;
-      seen.add(key);
-      out.add(category);
-    }
-
-    return out;
-  }
-
   List<Category> _filteredByAllowedTypes(List<Category> source) {
     if (_allowedTypes.isEmpty) return source;
-    return _dedupeCategoriesByName(
-      source
-          .where((c) => _allowedTypes.contains(c.type))
-          .where(_isDisplayableCategory),
-    );
+    return source
+        .where((c) => _allowedTypes.contains(c.type))
+        .where(_isDisplayableCategory)
+        .toList();
   }
 
   CategoryType _defaultCategoryTypeForAdd() {
@@ -2498,13 +3488,15 @@ class _CategorySelectorSheetState extends State<_CategorySelectorSheet> {
   @override
   void initState() {
     super.initState();
-    _allowedTypes = widget.allowedTypes ?? widget.categories.map((c) => c.type).toSet();
+    _allowedTypes =
+        widget.allowedTypes ?? widget.categories.map((c) => c.type).toSet();
     _allCategories = _filteredByAllowedTypes(widget.categories)
       ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
     _categoriesListener = () {
       setState(() {
-        _allCategories = _filteredByAllowedTypes(DatabaseService.getAllCategories())
-          ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+        _allCategories = _filteredByAllowedTypes(
+          DatabaseService.getAllCategories(),
+        )..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
       });
     };
     DatabaseService.categoriesVersion.addListener(_categoriesListener!);
@@ -2520,9 +3512,14 @@ class _CategorySelectorSheetState extends State<_CategorySelectorSheet> {
 
   @override
   Widget build(BuildContext context) {
-  List<Category> filteredCategories = _searchText.isEmpty
-    ? _allCategories
-    : _allCategories.where((cat) => cat.name.toLowerCase().contains(_searchText.toLowerCase())).toList();
+    List<Category> filteredCategories = _searchText.isEmpty
+        ? _allCategories
+        : _allCategories
+              .where(
+                (cat) =>
+                    cat.name.toLowerCase().contains(_searchText.toLowerCase()),
+              )
+              .toList();
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -2533,7 +3530,10 @@ class _CategorySelectorSheetState extends State<_CategorySelectorSheet> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Select Category', style: Theme.of(context).textTheme.titleLarge),
+                Text(
+                  'Select Category',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
                 TextButton(
                   onPressed: () async {
                     final nameController = TextEditingController();
@@ -2573,7 +3573,10 @@ class _CategorySelectorSheetState extends State<_CategorySelectorSheet> {
                       try {
                         await LookupsSyncHelper.syncCategory(result);
                       } catch (_) {}
-                      Navigator.pop(context, null); // Close sheet so parent can refresh
+                      Navigator.pop(
+                        context,
+                        null,
+                      ); // Close sheet so parent can refresh
                     }
                   },
                   child: const Text('Add'),

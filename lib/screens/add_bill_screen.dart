@@ -45,20 +45,6 @@ bool _isDisplayableCategory(Category category) {
   return true;
 }
 
-List<Category> _dedupeCategoriesByName(Iterable<Category> categories) {
-  final seen = <String>{};
-  final out = <Category>[];
-
-  for (final category in categories) {
-    final key = category.name.trim().toLowerCase();
-    if (key.isEmpty || seen.contains(key)) continue;
-    seen.add(key);
-    out.add(category);
-  }
-
-  return out;
-}
-
 class AddBillScreen extends StatefulWidget {
   final Bill? existingBill;
   final bool isDuplicate;
@@ -95,15 +81,13 @@ class _CategorySelectorSheetState extends State<_CategorySelectorSheet> {
   @override
   void initState() {
     super.initState();
-    _all = _dedupeCategoriesByName(
-      widget.categories.where(_isDisplayableCategory),
-    )
+    _all = widget.categories.where(_isDisplayableCategory).toList()
       ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
     _filtered = _all;
     _selectedId = widget.initialSelectedId;
     _categoriesListener = () {
       setState(() {
-        _all = _dedupeCategoriesByName(
+        _all =
             DatabaseService.getAllCategories()
                 .where(
                   (c) =>
@@ -112,10 +96,11 @@ class _CategorySelectorSheetState extends State<_CategorySelectorSheet> {
                               ? CategoryType.income
                               : CategoryType.expense) &&
                       _isDisplayableCategory(c),
-                ))
-          ..sort(
-            (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
-          );
+                )
+                .toList()
+              ..sort(
+                (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+              );
         _filtered = _all
             .where((c) => c.name.toLowerCase().contains(_query))
             .toList();
@@ -224,10 +209,11 @@ class _CategorySelectorSheetState extends State<_CategorySelectorSheet> {
           await LookupsSyncHelper.syncCategory(result.copyWith(id: newCatId));
         } catch (_) {}
         if (!mounted) return;
-        _all = _dedupeCategoriesByName(
+        _all =
             DatabaseService.getAllCategories()
                 .where((c) => c.type == result.type)
-                .where(_isDisplayableCategory))
+                .where(_isDisplayableCategory)
+                .toList()
               ..sort(
                 (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
               );
@@ -370,13 +356,19 @@ class _PayeeSelectorSheetState extends State<_PayeeSelectorSheet> {
           builder: (ctx, setState) {
             // Fetch categories here so the list is fresh after adding a new one
             final categories = DatabaseService.getAllCategories();
-            final filteredCats = _dedupeCategoriesByName(categories
-                .where(
-                  (c) => widget.billType == BillType.income
-                      ? c.type == CategoryType.income
-                      : c.type == CategoryType.expense,
-                )
-                .where(_isDisplayableCategory));
+            final filteredCats =
+                categories
+                    .where(
+                      (c) => widget.billType == BillType.income
+                          ? c.type == CategoryType.income
+                          : c.type == CategoryType.expense,
+                    )
+                    .where(_isDisplayableCategory)
+                    .toList()
+                  ..sort(
+                    (a, b) =>
+                        a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+                  );
             return AlertDialog(
               title: Center(
                 child: Text(
@@ -850,9 +842,13 @@ class _AddBillScreenState extends State<AddBillScreen> {
   void _loadLookups() {
     _payees = DatabaseService.getAllPayees();
     accountList = DatabaseService.getAllAccounts();
-    _categories = _dedupeCategoriesByName(
-      DatabaseService.getAllCategories().where(_isDisplayableCategory),
-    );
+    _categories =
+        DatabaseService.getAllCategories()
+            .where(_isDisplayableCategory)
+            .toList()
+          ..sort(
+            (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+          );
   }
 
   String _extractEditableNotes(Bill bill) {

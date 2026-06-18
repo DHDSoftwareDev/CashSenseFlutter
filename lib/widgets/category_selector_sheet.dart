@@ -4,12 +4,37 @@ import 'package:flutter/material.dart';
 import '../models/category.dart';
 import '../services/database_service.dart';
 
+bool _isDisplayableCategory(Category category) {
+  final name = category.name.trim();
+  if (name.isEmpty) return false;
+
+  final normalized = name.toLowerCase();
+  if (normalized == 'unknown' || normalized == 'unknown category') {
+    return false;
+  }
+
+  final uuid = RegExp(
+    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+  );
+  if (uuid.hasMatch(name)) return false;
+
+  final longToken = RegExp(r'^[A-Za-z0-9_-]{16,}$');
+  if (longToken.hasMatch(name)) return false;
+
+  return true;
+}
+
 class CategorySelectorSheet extends StatefulWidget {
   final List<Category> categories;
   final bool hideAddButton;
   final Set<CategoryType>? allowedTypes;
 
-  const CategorySelectorSheet({required this.categories, this.hideAddButton = false, this.allowedTypes, Key? key}) : super(key: key);
+  const CategorySelectorSheet({
+    required this.categories,
+    this.hideAddButton = false,
+    this.allowedTypes,
+    Key? key,
+  }) : super(key: key);
 
   @override
   State<CategorySelectorSheet> createState() => _CategorySelectorSheetState();
@@ -23,14 +48,23 @@ class _CategorySelectorSheetState extends State<CategorySelectorSheet> {
 
   List<Category> _filteredByAllowedTypes(List<Category> source) {
     if (_allowedTypes.isEmpty) return source;
-    return source.where((c) => _allowedTypes.contains(c.type)).toList();
+    return source
+        .where(
+          (c) => _allowedTypes.contains(c.type) && _isDisplayableCategory(c),
+        )
+        .toList();
   }
 
   @override
   Widget build(BuildContext context) {
-  List<Category> filteredCategories = _searchText.isEmpty
-    ? _allCategories
-    : _allCategories.where((cat) => cat.name.toLowerCase().contains(_searchText.toLowerCase())).toList();
+    List<Category> filteredCategories = _searchText.isEmpty
+        ? _allCategories
+        : _allCategories
+              .where(
+                (cat) =>
+                    cat.name.toLowerCase().contains(_searchText.toLowerCase()),
+              )
+              .toList();
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -82,14 +116,17 @@ class _CategorySelectorSheetState extends State<CategorySelectorSheet> {
   @override
   void initState() {
     super.initState();
-    _allowedTypes = widget.allowedTypes ?? widget.categories.map((c) => c.type).toSet();
+    _allowedTypes =
+        widget.allowedTypes ?? widget.categories.map((c) => c.type).toSet();
     final initial = widget.categories.isNotEmpty
         ? widget.categories
         : DatabaseService.getAllCategories();
     _allCategories = _filteredByAllowedTypes(initial);
     _categoriesListener = () {
       setState(() {
-        _allCategories = _filteredByAllowedTypes(DatabaseService.getAllCategories());
+        _allCategories = _filteredByAllowedTypes(
+          DatabaseService.getAllCategories(),
+        );
       });
     };
     DatabaseService.categoriesVersion.addListener(_categoriesListener!);
@@ -97,7 +134,9 @@ class _CategorySelectorSheetState extends State<CategorySelectorSheet> {
 
   @override
   void dispose() {
-    if (_categoriesListener != null) DatabaseService.categoriesVersion.removeListener(_categoriesListener!);
+    if (_categoriesListener != null) {
+      DatabaseService.categoriesVersion.removeListener(_categoriesListener!);
+    }
     super.dispose();
   }
 }

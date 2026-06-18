@@ -10,6 +10,26 @@ import '../widgets/app_color_picker.dart';
 import '../widgets/category_selector_sheet.dart';
 import '../utils/root_scaffold.dart';
 
+bool _isDisplayableCategory(Category category) {
+  final name = category.name.trim();
+  if (name.isEmpty) return false;
+
+  final normalized = name.toLowerCase();
+  if (normalized == 'unknown' || normalized == 'unknown category') {
+    return false;
+  }
+
+  final uuid = RegExp(
+    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+  );
+  if (uuid.hasMatch(name)) return false;
+
+  final longToken = RegExp(r'^[A-Za-z0-9_-]{16,}$');
+  if (longToken.hasMatch(name)) return false;
+
+  return true;
+}
+
 class PayeesScreen extends StatefulWidget {
   const PayeesScreen({super.key});
 
@@ -162,10 +182,18 @@ class _PayeesScreenState extends State<PayeesScreen> {
             categories: (() {
               final categories = isPayeeChoice
                   ? DatabaseService.getAllCategories()
-                        .where((c) => c.type == CategoryType.expense)
+                        .where(
+                          (c) =>
+                              c.type == CategoryType.expense &&
+                              _isDisplayableCategory(c),
+                        )
                         .toList()
                   : DatabaseService.getAllCategories()
-                        .where((c) => c.type == CategoryType.income)
+                        .where(
+                          (c) =>
+                              c.type == CategoryType.income &&
+                              _isDisplayableCategory(c),
+                        )
                         .toList();
               categories.sort(
                 (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
@@ -290,8 +318,8 @@ class _PayeesScreenState extends State<PayeesScreen> {
           final allCats = DatabaseService.getAllCategories();
           final availableCategories = allCats.where((c) {
             return _showPayee
-                ? c.type == CategoryType.expense
-                : c.type == CategoryType.income;
+                ? c.type == CategoryType.expense && _isDisplayableCategory(c)
+                : c.type == CategoryType.income && _isDisplayableCategory(c);
           }).toList();
 
           if (availableCategories.isEmpty) {
@@ -703,8 +731,8 @@ class _PayeesScreenState extends State<PayeesScreen> {
           final allCats = DatabaseService.getAllCategories();
           final availableCategories = allCats.where((c) {
             return isPayeeChoice
-                ? c.type == CategoryType.expense
-                : c.type == CategoryType.income;
+                ? c.type == CategoryType.expense && _isDisplayableCategory(c)
+                : c.type == CategoryType.income && _isDisplayableCategory(c);
           }).toList();
 
           if (availableCategories.isEmpty) {

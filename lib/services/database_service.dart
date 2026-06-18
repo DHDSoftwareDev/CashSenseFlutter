@@ -1914,8 +1914,7 @@ class DatabaseService {
     // Migrate from old location if exists
     final docsDir = await getApplicationDocumentsDirectory();
     final oldHiveDir = Directory('${docsDir.path}/CashSense/.hive');
-    if (await oldHiveDir.exists() &&
-        !await migratedTransactionsFile.exists()) {
+    if (await oldHiveDir.exists() && !await migratedTransactionsFile.exists()) {
       // Copy old files to new location
       try {
         await for (final file in oldHiveDir.list()) {
@@ -3229,6 +3228,153 @@ class DatabaseService {
     if (billsChanged) billsVersion.value++;
     if (transactionsChanged) transactionsVersion.value++;
     if (payeesChanged) payeesVersion.value++;
+  }
+
+  static Future<void> clearAccountsOnly() async {
+    final bills = _billsBox.values.toList();
+    var billsChanged = 0;
+    for (final bill in bills) {
+      final hasAccountLink =
+          (bill.accountId ?? '').trim().isNotEmpty ||
+          (bill.fromAccountId ?? '').trim().isNotEmpty ||
+          (bill.toAccountId ?? '').trim().isNotEmpty;
+      if (!hasAccountLink) continue;
+
+      await _billsBox.put(
+        bill.id,
+        bill.copyWith(accountId: null, fromAccountId: null, toAccountId: null),
+      );
+      billsChanged++;
+    }
+
+    final hadTransactions = _transactionBox.isNotEmpty;
+    await _transactionBox.clear();
+    await _transactionBox.flush();
+    await _billOccurrenceBox.clear();
+    await _billOccurrenceBox.flush();
+    await _settingsBox.put(_hiddenTransactionsKey, <dynamic>[]);
+
+    await _accountBox.clear();
+    await _accountBox.flush();
+
+    if (billsChanged > 0) {
+      await _billsBox.flush();
+      billsVersion.value++;
+    }
+    if (hadTransactions) {
+      transactionsVersion.value++;
+    }
+
+    final keysToDelete = _settingsBox.keys
+        .where((key) => key.toString().startsWith('initialBalance:'))
+        .toList();
+    for (final key in keysToDelete) {
+      await _settingsBox.delete(key);
+    }
+    await _settingsBox.put('accountOrder', <dynamic>[]);
+    await _settingsBox.flush();
+
+    accountsVersion.value++;
+  }
+
+  static Future<void> clearTransactionsOnly() async {
+    await _transactionBox.clear();
+    await _transactionBox.flush();
+    await _billOccurrenceBox.clear();
+    await _billOccurrenceBox.flush();
+    await _settingsBox.put(_hiddenTransactionsKey, <dynamic>[]);
+    await _settingsBox.flush();
+
+    transactionsVersion.value++;
+  }
+
+  static Future<void> clearBillsOnly({required bool includePayments}) async {
+    var transactionsChanged = 0;
+
+    if (includePayments) {
+      final idsToDelete = _transactionBox.values
+          .where((tx) => (tx.billId ?? '').trim().isNotEmpty)
+          .map((tx) => tx.id)
+          .toSet();
+      for (final id in idsToDelete) {
+        await _transactionBox.delete(id);
+      }
+      if (idsToDelete.isNotEmpty) {
+        final hidden = getHiddenTransactionIds()
+            .where((id) => !idsToDelete.contains(id))
+            .toList();
+        await _settingsBox.put(_hiddenTransactionsKey, hidden);
+        transactionsChanged = idsToDelete.length;
+      }
+    } else {
+      for (final tx in _transactionBox.values) {
+        if ((tx.billId ?? '').trim().isEmpty) continue;
+        await _transactionBox.put(
+          tx.id,
+          tx.copyWith(
+            billId: null,
+            occurrenceDate: null,
+            paymentFor: null,
+            updatedAt: DateTime.now(),
+          ),
+        );
+        transactionsChanged++;
+      }
+    }
+
+    await _billsBox.clear();
+    await _billsBox.flush();
+    await _billOccurrenceBox.clear();
+    await _billOccurrenceBox.flush();
+    await _settingsBox.put(_billRecurrenceEndOverridesKey, <String, String>{});
+    await _settingsBox.put(_locallyModifiedBillsKey, <dynamic>[]);
+    await _settingsBox.flush();
+
+    if (transactionsChanged > 0) {
+      await _transactionBox.flush();
+      transactionsVersion.value++;
+    }
+    billsVersion.value++;
+  }
+
+  static Future<void> clearPayeesAndPayersOnly() async {
+    var transactionsChanged = 0;
+    for (final tx in _transactionBox.values) {
+      final hasPayee = (tx.payeeId ?? '').trim().isNotEmpty;
+      final hasPayer = (tx.payerId ?? '').trim().isNotEmpty;
+      if (!hasPayee && !hasPayer) continue;
+      await _transactionBox.put(
+        tx.id,
+        tx.copyWith(payeeId: null, payerId: null, updatedAt: DateTime.now()),
+      );
+      transactionsChanged++;
+    }
+
+    var billsChanged = 0;
+    for (final bill in _billsBox.values) {
+      if ((bill.payeeId ?? '').trim().isEmpty) continue;
+      await _billsBox.put(bill.id, bill.copyWith(payeeId: null));
+      billsChanged++;
+    }
+
+    await _settingsBox.put('payees', <dynamic>[]);
+    await _settingsBox.flush();
+
+    if (transactionsChanged > 0) {
+      await _transactionBox.flush();
+      transactionsVersion.value++;
+    }
+    if (billsChanged > 0) {
+      await _billsBox.flush();
+      billsVersion.value++;
+    }
+    payeesVersion.value++;
+  }
+
+  static Future<void> clearCategoriesOnly() async {
+    await _categoryBox.clear();
+    await _categoryBox.flush();
+    categoriesVersion.value++;
   }
 
   // Clear all data (useful for testing or reset)

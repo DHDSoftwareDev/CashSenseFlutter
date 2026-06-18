@@ -59,17 +59,15 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
 
     List<File> files = [];
     if (await dir.exists()) {
-      files = dir
-          .listSync()
-          .whereType<File>()
-          .where((f) {
-            final name = f.path.split('/').last;
-            return name.startsWith('cashsense_auto_backup_') &&
-                name.endsWith('.json');
-          })
-          .toList();
+      files = dir.listSync().whereType<File>().where((f) {
+        final name = f.path.split('/').last;
+        return name.startsWith('cashsense_auto_backup_') &&
+            name.endsWith('.json');
+      }).toList();
 
-      files.sort((a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()));
+      files.sort(
+        (a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()),
+      );
     }
 
     if (!mounted) return;
@@ -90,9 +88,9 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
                     String titleText;
                     try {
                       final modified = file.lastModifiedSync();
-                      final formatted = DateFormat('M/d/yy, h:mm a')
-                          .format(modified)
-                          .toLowerCase();
+                      final formatted = DateFormat(
+                        'M/d/yy, h:mm a',
+                      ).format(modified).toLowerCase();
                       titleText = 'Backup $formatted';
                     } catch (_) {
                       titleText = 'Backup ${file.path.split('/').last}';
@@ -102,10 +100,9 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
                       title: Text(titleText),
                       subtitle: Text(
                         file.path,
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodySmall
-                            ?.copyWith(color: Colors.grey[600]),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Colors.grey[600],
+                        ),
                         overflow: TextOverflow.ellipsis,
                       ),
                       trailing: TextButton(
@@ -151,8 +148,10 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
 
       final bytes = utf8.encode(jsonString);
       final bytesData = Uint8List.fromList(bytes);
-      final timestamp =
-          DateTime.now().toIso8601String().replaceAll(':', '-').split('.')[0];
+      final timestamp = DateTime.now()
+          .toIso8601String()
+          .replaceAll(':', '-')
+          .split('.')[0];
       final name = 'cashsense_backup_$timestamp.json';
 
       String filePath;
@@ -252,10 +251,7 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
             ),
             TextButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text(
-                'Restore',
-                style: TextStyle(color: Colors.red),
-              ),
+              child: const Text('Restore', style: TextStyle(color: Colors.red)),
             ),
           ],
         ),
@@ -269,8 +265,9 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
           (backupData['categories'] as List?) ?? const <dynamic>[];
       for (final catData in categoriesRaw) {
         try {
-          final category =
-              Category.fromJson(Map<String, dynamic>.from(catData as Map));
+          final category = Category.fromJson(
+            Map<String, dynamic>.from(catData as Map),
+          );
           await DatabaseService.addCategory(category);
         } catch (_) {}
       }
@@ -279,8 +276,9 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
           (backupData['accounts'] as List?) ?? const <dynamic>[];
       for (final accData in accountsRaw) {
         try {
-          final account =
-              Account.fromJson(Map<String, dynamic>.from(accData as Map));
+          final account = Account.fromJson(
+            Map<String, dynamic>.from(accData as Map),
+          );
           await DatabaseService.addAccount(account);
         } catch (_) {}
       }
@@ -289,8 +287,9 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
           (backupData['transactions'] as List?) ?? const <dynamic>[];
       for (final txData in transactionsRaw) {
         try {
-          final transaction =
-              Transaction.fromJson(Map<String, dynamic>.from(txData as Map));
+          final transaction = Transaction.fromJson(
+            Map<String, dynamic>.from(txData as Map),
+          );
           await DatabaseService.addTransaction(transaction);
         } catch (_) {}
       }
@@ -298,8 +297,9 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
       final billsRaw = (backupData['bills'] as List?) ?? const <dynamic>[];
       for (final billData in billsRaw) {
         try {
-          final bill =
-              Bill.fromJson(Map<String, dynamic>.from(billData as Map));
+          final bill = Bill.fromJson(
+            Map<String, dynamic>.from(billData as Map),
+          );
           await DatabaseService.addBill(bill);
         } catch (_) {}
       }
@@ -309,9 +309,7 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
         for (final entry in payeesRaw) {
           try {
             if (entry is Map) {
-              await DatabaseService.addPayee(
-                Map<String, dynamic>.from(entry),
-              );
+              await DatabaseService.addPayee(Map<String, dynamic>.from(entry));
             }
           } catch (_) {}
         }
@@ -364,10 +362,7 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text(
-              'Restore',
-              style: TextStyle(color: Colors.red),
-            ),
+            child: const Text('Restore', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -405,14 +400,45 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
     }
   }
 
+  Future<void> _backupToCloud() async {
+    setState(() => _isRunning = true);
+    try {
+      final uploaded = await AutoBackupService.backupToCloud();
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            uploaded
+                ? 'Cloud backup completed successfully'
+                : 'Cloud backup failed',
+          ),
+          backgroundColor: uploaded ? Colors.blueGrey : Colors.redAccent,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Cloud backup failed: $e'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isRunning = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final userSessionController = context.watch<UserSessionController>();
     final isPremium = userSessionController.isPremium;
     final autoBackupEnabled =
         DatabaseService.getSetting<bool>('autoBackupEnabled', false) ?? false;
-    final lastBackupRaw =
-        DatabaseService.getSetting<String>('lastAutoBackupAt', null);
+    final lastBackupRaw = DatabaseService.getSetting<String>(
+      'lastAutoBackupAt',
+      null,
+    );
 
     DateTime? lastBackup;
     if (lastBackupRaw != null) {
@@ -446,9 +472,26 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
           ),
           if (isPremium) ...[
             ListTile(
+              leading: const Icon(Icons.cloud_upload),
+              title: const Text('Backup to Cloud'),
+              subtitle: const Text(
+                'Upload your current data to your premium cloud backup',
+              ),
+              trailing: _isRunning
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(),
+                    )
+                  : null,
+              onTap: _isRunning ? null : _backupToCloud,
+            ),
+            ListTile(
               leading: const Icon(Icons.cloud_download),
               title: const Text('Restore From Cloud Backup'),
-              subtitle: const Text('Replace this device with your latest premium backup'),
+              subtitle: const Text(
+                'Replace this device with your latest premium backup',
+              ),
               onTap: _isRunning ? null : _restoreFromCloudBackup,
             ),
             ListTile(
@@ -463,8 +506,8 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
               subtitle: Text(
                 autoBackupEnabled
                     ? lastBackup != null
-                        ? 'Enabled • Last backup ${DateFormat('M/d/yy h:mm a').format(lastBackup)}'
-                        : 'Enabled'
+                          ? 'Enabled • Last backup ${DateFormat('M/d/yy h:mm a').format(lastBackup)}'
+                          : 'Enabled'
                     : 'Disabled',
               ),
               value: autoBackupEnabled,

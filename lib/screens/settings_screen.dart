@@ -32,15 +32,21 @@ import 'package:amplify_flutter/amplify_flutter.dart' hide Category;
 import '../services/bill_reminder_service.dart';
 import '../utils/root_scaffold.dart';
 
-
-
-
-
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+enum _ClearDataOption {
+  accounts,
+  transactions,
+  billsKeepPayments,
+  billsAndPayments,
+  payeesAndPayers,
+  categories,
+  allData,
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
@@ -69,11 +75,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _loadBiometricSettings();
     _loadAutoLogoutEnabledSetting();
     _loadAutoLogoutTimeoutSetting();
-    _autoBackupEnabled = DatabaseService.getSetting<bool>('autoBackupEnabled', false) ?? false;
+    _autoBackupEnabled =
+        DatabaseService.getSetting<bool>('autoBackupEnabled', false) ?? false;
   }
 
   void _loadAutoLogoutEnabledSetting() {
-    final enabled = DatabaseService.getSetting<bool>(_autoLogoutEnabledKey, true) ?? true;
+    final enabled =
+        DatabaseService.getSetting<bool>(_autoLogoutEnabledKey, true) ?? true;
     if (!mounted) return;
     setState(() {
       _autoLogoutEnabled = enabled;
@@ -89,7 +97,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _loadAutoLogoutTimeoutSetting() {
-    final saved = DatabaseService.getSetting<int>(_autoLogoutTimeoutKey, 60) ?? 60;
+    final saved =
+        DatabaseService.getSetting<int>(_autoLogoutTimeoutKey, 60) ?? 60;
     final selected = _autoLogoutTimeoutOptions.contains(saved) ? saved : 60;
     if (!mounted) return;
     setState(() {
@@ -125,7 +134,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Biometric authentication is not available on this device.'),
+            content: Text(
+              'Biometric authentication is not available on this device.',
+            ),
           ),
         );
         setState(() {
@@ -172,9 +183,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final isLoggedIn = await CognitoService.isSignedIn();
     String email = '';
     // Load whether auth UI should be shown
-    final enabled = DatabaseService.getSetting<bool>('enableAuthUI', true) ?? true;
+    final enabled =
+        DatabaseService.getSetting<bool>('enableAuthUI', true) ?? true;
     _authUIEnabled = enabled;
-    
+
     if (isLoggedIn) {
       try {
         final attributes = await CognitoService.getCurrentUserAttributes();
@@ -183,7 +195,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         debugPrint('Error loading user attributes: $e');
       }
     }
-    
+
     setState(() {
       _isLoggedIn = isLoggedIn;
       _userEmail = email;
@@ -223,10 +235,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
       dir = Directory('${downloadsDir.path}/CashSense');
     }
-    
+
     List<File> files = [];
     if (await dir.exists()) {
-      files = dir.listSync().whereType<File>().where((f) => f.path.contains('cashsense_auto_backup_')).toList();
+      files = dir
+          .listSync()
+          .whereType<File>()
+          .where((f) => f.path.contains('cashsense_auto_backup_'))
+          .toList();
       files.sort((a, b) => b.path.compareTo(a.path)); // newest first
     }
 
@@ -244,7 +260,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   itemBuilder: (context, idx) {
                     final file = files[idx];
                     final name = file.path.split('/').last;
-                    final ts = name.replaceAll('cashsense_auto_backup_', '').replaceAll('.json', '').replaceAll('-', ':');
+                    final ts = name
+                        .replaceAll('cashsense_auto_backup_', '')
+                        .replaceAll('.json', '')
+                        .replaceAll('-', ':');
                     return ListTile(
                       title: Text('Backup: $ts'),
                       subtitle: Text(file.path),
@@ -269,6 +288,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
   }
+
   void _showBackupRestorePopup() {
     showDialog(
       context: context,
@@ -306,6 +326,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
   }
+
   void _showSubscriptionModeDialog() {
     showDialog(
       context: context,
@@ -373,9 +394,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           controller: controller,
           obscureText: true,
           autofocus: true,
-          decoration: const InputDecoration(
-            labelText: 'Password',
-          ),
+          decoration: const InputDecoration(labelText: 'Password'),
           onSubmitted: (value) => Navigator.pop(context, value),
         ),
         actions: [
@@ -397,17 +416,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     if (enteredPassword != _developerUnlockPassword) {
       if (!mounted) return false;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Incorrect password.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Incorrect password.')));
       return false;
     }
 
     await DatabaseService.setSubscriptionPlan('Lifetime');
     if (!mounted) return true;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Lifetime premium unlocked.')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Lifetime premium unlocked.')));
     return true;
   }
 
@@ -421,9 +440,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           controller: controller,
           obscureText: true,
           autofocus: true,
-          decoration: const InputDecoration(
-            labelText: 'Password',
-          ),
+          decoration: const InputDecoration(labelText: 'Password'),
           onSubmitted: (value) => Navigator.pop(context, value),
         ),
         actions: [
@@ -445,14 +462,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     if (enteredPassword != _testerUnlockPassword) {
       if (!mounted) return false;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Incorrect password.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Incorrect password.')));
       return false;
     }
 
     final expiresAt = DateTime.now().add(const Duration(days: 30));
-    await DatabaseService.setSetting('activeTrialExpiresAt', expiresAt.toIso8601String());
+    await DatabaseService.setSetting(
+      'activeTrialExpiresAt',
+      expiresAt.toIso8601String(),
+    );
     await DatabaseService.setSubscriptionPlan('Annual');
 
     if (!mounted) return true;
@@ -461,6 +481,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
     return true;
   }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -469,10 +490,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           icon: const Icon(Icons.menu),
           onPressed: openRootDrawer,
         ),
-  title: const Text('Settings'),
-  centerTitle: true,
-  backgroundColor: Theme.of(context).colorScheme.primary,
-  foregroundColor: Colors.white,
+        title: const Text('Settings'),
+        centerTitle: true,
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        foregroundColor: Colors.white,
       ),
       body: ListView(
         children: [
@@ -482,13 +503,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 Card(
                   elevation: 2,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                   child: ListTile(
-                    leading: const Icon(Icons.workspace_premium, color: Colors.amber),
+                    leading: const Icon(
+                      Icons.workspace_premium,
+                      color: Colors.amber,
+                    ),
                     title: Text('Subscription'),
                     subtitle: Text(DatabaseService.subscriptionVersion.value),
                     trailing: TextButton(
-                      onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SubscriptionsScreen())),
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const SubscriptionsScreen(),
+                        ),
+                      ),
                       child: const Text('Manage'),
                     ),
                   ),
@@ -546,12 +576,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ]),
           // General section removed (notification options hidden)
           _buildSection('Data', [
-            if (_hasActiveSubscription()) _buildAutoBackupCard(),
             _buildSettingsTile(
               'Backup/Restore',
               'Backup or restore your data',
               Icons.backup,
-              () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const BackupRestoreScreen())),
+              () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const BackupRestoreScreen()),
+              ),
             ),
             _buildSettingsTile(
               'Archived Accounts',
@@ -588,13 +619,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Icons.description,
               () => _showTermsDialog(),
             ),
-            ]),
+          ]),
           // Help & Support card at the bottom
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
             child: Card(
               elevation: 1,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
               child: ListTile(
                 leading: const Icon(Icons.help_outline),
                 title: const Text('Help & Support'),
@@ -608,7 +641,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
             child: Card(
               elevation: 1,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
               child: ListTile(
                 leading: const Icon(Icons.star_rate, color: Colors.amber),
                 title: const Text('Rate App'),
@@ -628,7 +663,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _buildAutoBackupCard() {
-    final subtitle = _autoBackupEnabled ? 'Automatic backups enabled' : 'Automatic backups disabled';
+    final subtitle = _autoBackupEnabled
+        ? 'Automatic backups enabled'
+        : 'Automatic backups disabled';
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 6.0),
       child: Card(
@@ -667,8 +704,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _showHelpSupportDialog() {
-  const supportEmail = 'support@dhdsoftware.com';
-  const helpUrl = 'https://dhdsoftware.com/HelpDocsCashSense';
+    const supportEmail = 'support@dhdsoftware.com';
+    const helpUrl = 'https://dhdsoftware.com/HelpDocsCashSense';
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -683,10 +720,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 title: const Text('Email Support'),
                 subtitle: const Text(
                   'support@dhdsoftware.com',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontFamily: 'monospace',
-                  ),
+                  style: TextStyle(fontSize: 11, fontFamily: 'monospace'),
                   maxLines: 1,
                   softWrap: false,
                 ),
@@ -732,7 +766,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ],
         ),
-        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close'))],
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
       ),
     );
   }
@@ -789,7 +828,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 showDialog(
                   context: context,
                   barrierDismissible: false,
-                  builder: (context) => const Center(child: CircularProgressIndicator()),
+                  builder: (context) =>
+                      const Center(child: CircularProgressIndicator()),
                 );
 
                 // Sign in with Cognito
@@ -808,27 +848,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   // Close login dialog
                   Navigator.pop(context);
                   await _loadUserInfo();
-                  
+
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Login successful!')),
                     );
                   }
-                } else if (result.nextStep.signInStep == AuthSignInStep.confirmSignUp) {
+                } else if (result.nextStep.signInStep ==
+                    AuthSignInStep.confirmSignUp) {
                   // User needs to verify email
                   Navigator.pop(context);
                   _showVerificationDialog(email);
                 } else {
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Next step: ${result.nextStep.signInStep}')),
+                      SnackBar(
+                        content: Text(
+                          'Next step: ${result.nextStep.signInStep}',
+                        ),
+                      ),
                     );
                   }
                 }
               } on AuthException catch (e) {
                 // Close loading indicator
                 if (mounted) Navigator.pop(context);
-                
+
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text(CognitoService.getErrorMessage(e))),
@@ -837,11 +882,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
               } catch (e) {
                 // Close loading indicator
                 if (mounted) Navigator.pop(context);
-                
+
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Login failed: $e')),
-                  );
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text('Login failed: $e')));
                 }
               }
             },
@@ -913,7 +958,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
               if (password.length < 8) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Password must be at least 8 characters')),
+                  const SnackBar(
+                    content: Text('Password must be at least 8 characters'),
+                  ),
                 );
                 return;
               }
@@ -923,7 +970,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 showDialog(
                   context: context,
                   barrierDismissible: false,
-                  builder: (context) => const Center(child: CircularProgressIndicator()),
+                  builder: (context) =>
+                      const Center(child: CircularProgressIndicator()),
                 );
 
                 // Sign up with Cognito
@@ -940,10 +988,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   // Auto sign-in if no verification needed
                   Navigator.pop(context);
                   await _loadUserInfo();
-                  
+
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Account created successfully!')),
+                      const SnackBar(
+                        content: Text('Account created successfully!'),
+                      ),
                     );
                   }
                 } else {
@@ -954,7 +1004,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               } on AuthException catch (e) {
                 // Close loading indicator
                 if (mounted) Navigator.pop(context);
-                
+
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text(CognitoService.getErrorMessage(e))),
@@ -963,11 +1013,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
               } catch (e) {
                 // Close loading indicator
                 if (mounted) Navigator.pop(context);
-                
+
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Sign up failed: $e')),
-                  );
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text('Sign up failed: $e')));
                 }
               }
             },
@@ -1006,9 +1056,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               try {
                 await CognitoService.resendConfirmationCode(email);
                 if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Code resent!')),
-                  );
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(const SnackBar(content: Text('Code resent!')));
                 }
               } catch (e) {
                 if (context.mounted) {
@@ -1040,7 +1090,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 showDialog(
                   context: context,
                   barrierDismissible: false,
-                  builder: (context) => const Center(child: CircularProgressIndicator()),
+                  builder: (context) =>
+                      const Center(child: CircularProgressIndicator()),
                 );
 
                 await CognitoService.confirmSignUp(
@@ -1055,13 +1106,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Email verified! Please login.')),
+                    const SnackBar(
+                      content: Text('Email verified! Please login.'),
+                    ),
                   );
                 }
               } on AuthException catch (e) {
                 // Close loading
                 if (mounted) Navigator.pop(context);
-                
+
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text(CognitoService.getErrorMessage(e))),
@@ -1070,7 +1123,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               } catch (e) {
                 // Close loading
                 if (mounted) Navigator.pop(context);
-                
+
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text('Verification failed: $e')),
@@ -1115,9 +1168,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               } catch (e) {
                 Navigator.pop(context);
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Logout failed: $e')),
-                  );
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text('Logout failed: $e')));
                 }
               }
             },
@@ -1141,7 +1194,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             children: [
               ListTile(
                 title: const Text('System'),
-                trailing: current == ThemeMode.system ? const Icon(Icons.check) : null,
+                trailing: current == ThemeMode.system
+                    ? const Icon(Icons.check)
+                    : null,
                 onTap: () async {
                   final nav = Navigator.of(context);
                   await provider.setThemeMode(ThemeMode.system);
@@ -1152,7 +1207,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               ListTile(
                 title: const Text('Light'),
-                trailing: current == ThemeMode.light ? const Icon(Icons.check) : null,
+                trailing: current == ThemeMode.light
+                    ? const Icon(Icons.check)
+                    : null,
                 onTap: () async {
                   final nav = Navigator.of(context);
                   await provider.setThemeMode(ThemeMode.light);
@@ -1163,7 +1220,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               ListTile(
                 title: const Text('Dark'),
-                trailing: current == ThemeMode.dark ? const Icon(Icons.check) : null,
+                trailing: current == ThemeMode.dark
+                    ? const Icon(Icons.check)
+                    : null,
                 onTap: () async {
                   final nav = Navigator.of(context);
                   await provider.setThemeMode(ThemeMode.dark);
@@ -1198,8 +1257,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
   }
 
-  
-
   Widget _buildSection(String title, List<Widget> tiles) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
@@ -1216,9 +1273,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               fontWeight: FontWeight.bold,
             ),
           ),
-          children: [
-            ...tiles,
-          ],
+          children: [...tiles],
         ),
       ),
     );
@@ -1242,7 +1297,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           subtitle: Text(subtitle),
           trailing: trailing ?? const Icon(Icons.chevron_right),
           onTap: onTap,
-          onLongPress: title == 'Version' ? () => _showSubscriptionModeDialog() : null,
+          onLongPress: title == 'Version'
+              ? () => _showSubscriptionModeDialog()
+              : null,
         ),
       ),
     );
@@ -1312,10 +1369,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ? 'Use $_biometricLabel to unlock app'
                     : 'Not available on this device',
               ),
-              onTap: _biometricAvailable ? () => _setBiometricEnabled(!_biometricEnabled) : null,
+              onTap: _biometricAvailable
+                  ? () => _setBiometricEnabled(!_biometricEnabled)
+                  : null,
               trailing: Switch(
                 value: _biometricEnabled,
-                onChanged: _biometricAvailable ? (value) => _setBiometricEnabled(value) : null,
+                onChanged: _biometricAvailable
+                    ? (value) => _setBiometricEnabled(value)
+                    : null,
               ),
             ),
             ListTile(
@@ -1422,43 +1483,51 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final payees = DatabaseService.getAllPayees();
       final settings = DatabaseService.exportAllSettings();
       final billOccurrences = DatabaseService.exportBillOccurrenceStatuses();
-      
+
       final backupData = {
         'version': '1.0.0',
         'timestamp': DateTime.now().toIso8601String(),
         'transactions': transactions.map((t) => t.toJson()).toList(),
         'categories': categories.map((c) => c.toJson()).toList(),
-        'accounts': accounts.map((a) => {
-          'id': a.id,
-          'name': a.name,
-          'type': a.type.toString().split('.').last,
-          'balance': a.balance,
-          'isActive': a.isActive,
-          'currency': a.currency,
-          'description': a.description,
-          'accountNumber': a.accountNumber,
-          'availableBalance': a.availableBalance,
-          'customType': a.customType,
-        }).toList(),
-        'bills': bills.map((b) => {
-          'id': b.id,
-          'amount': b.amount,
-          'description': b.description,
-          'dueDate': b.dueDate.toIso8601String(),
-          'recurrence': b.recurrence.toString().split('.').last,
-          'recurrenceInterval': b.recurrenceInterval,
-          'recurrenceWeekdays': b.recurrenceWeekdays,
-          'customDays': b.customDays,
-          'recurrenceEndDate': b.recurrenceEndDate?.toIso8601String(),
-          'categoryId': b.categoryId,
-          'type': b.type.toString().split('.').last,
-          'isPaid': b.isPaid,
-          'paymentStatus': b.paymentStatus?.toString().split('.').last,
-          'payeeId': b.payeeId,
-          'accountId': b.accountId,
-          'fromAccountId': b.fromAccountId,
-          'toAccountId': b.toAccountId,
-        }).toList(),
+        'accounts': accounts
+            .map(
+              (a) => {
+                'id': a.id,
+                'name': a.name,
+                'type': a.type.toString().split('.').last,
+                'balance': a.balance,
+                'isActive': a.isActive,
+                'currency': a.currency,
+                'description': a.description,
+                'accountNumber': a.accountNumber,
+                'availableBalance': a.availableBalance,
+                'customType': a.customType,
+              },
+            )
+            .toList(),
+        'bills': bills
+            .map(
+              (b) => {
+                'id': b.id,
+                'amount': b.amount,
+                'description': b.description,
+                'dueDate': b.dueDate.toIso8601String(),
+                'recurrence': b.recurrence.toString().split('.').last,
+                'recurrenceInterval': b.recurrenceInterval,
+                'recurrenceWeekdays': b.recurrenceWeekdays,
+                'customDays': b.customDays,
+                'recurrenceEndDate': b.recurrenceEndDate?.toIso8601String(),
+                'categoryId': b.categoryId,
+                'type': b.type.toString().split('.').last,
+                'isPaid': b.isPaid,
+                'paymentStatus': b.paymentStatus?.toString().split('.').last,
+                'payeeId': b.payeeId,
+                'accountId': b.accountId,
+                'fromAccountId': b.fromAccountId,
+                'toAccountId': b.toAccountId,
+              },
+            )
+            .toList(),
         'payees': payees,
         'settings': settings,
         'bill_occurrence_status': billOccurrences,
@@ -1466,11 +1535,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
       // Convert to JSON
       final jsonString = const JsonEncoder.withIndent('  ').convert(backupData);
-      
+
       // Get the default filename with timestamp
-      final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-').split('.')[0];
+      final timestamp = DateTime.now()
+          .toIso8601String()
+          .replaceAll(':', '-')
+          .split('.')[0];
       final defaultFileName = 'cashsense_backup_$timestamp.json';
-      
+
       // Let user choose where to save the file
       String? outputFile = await FilePicker.platform.saveFile(
         dialogTitle: 'Save Backup File',
@@ -1479,7 +1551,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         allowedExtensions: ['json'],
         bytes: utf8.encode(jsonString),
       );
-      
+
       if (outputFile != null) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -1513,12 +1585,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
         withData: false,
         withReadStream: false,
       );
-      
+
       if (result != null && result.files.single.path != null) {
         // Read the file
         final file = File(result.files.single.path!);
         final jsonString = await file.readAsString();
-        
+
         // Perform restore
         await _performRestore(jsonString);
       }
@@ -1556,17 +1628,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
       if (path != null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Backup created: $path'), backgroundColor: Colors.blueGrey[400]),
+          SnackBar(
+            content: Text('Backup created: $path'),
+            backgroundColor: Colors.blueGrey[400],
+          ),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: const Text('Backup failed'), backgroundColor: Colors.redAccent),
+          SnackBar(
+            content: const Text('Backup failed'),
+            backgroundColor: Colors.redAccent,
+          ),
         );
       }
     } catch (e) {
       if (context.mounted) Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Backup error: $e'), backgroundColor: Colors.redAccent),
+        SnackBar(
+          content: Text('Backup error: $e'),
+          backgroundColor: Colors.redAccent,
+        ),
       );
     }
   }
@@ -1575,9 +1656,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       // Parse JSON
       final Map<String, dynamic> backupData = jsonDecode(jsonData);
-      
+
       // Validate backup data
-      if (!backupData.containsKey('version') || !backupData.containsKey('transactions')) {
+      if (!backupData.containsKey('version') ||
+          !backupData.containsKey('transactions')) {
         throw Exception('Invalid backup data format');
       }
 
@@ -1613,7 +1695,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       // Clear existing data
       await DatabaseService.clearAllData();
 
-
       // Restore payees (if present)
       if (backupData.containsKey('payees')) {
         final payees = backupData['payees'] as List;
@@ -1633,7 +1714,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           name: catData['name'],
           iconCodePoint: catData['iconCodePoint'] ?? '0xe88a',
           colorValue: catData['colorValue'] ?? '0xFF4CAF50',
-          type: catData['type'] == 'income' ? models.CategoryType.income : models.CategoryType.expense,
+          type: catData['type'] == 'income'
+              ? models.CategoryType.income
+              : models.CategoryType.expense,
           isDefault: catData['isDefault'] ?? false,
           budgetLimit: catData['budgetLimit']?.toDouble(),
           image: catData['image'],
@@ -1655,7 +1738,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           currency: accData['currency'] ?? 'USD',
           description: accData['description'],
           accountNumber: accData['accountNumber'],
-          availableBalance: accData['availableBalance'] == null ? null : (accData['availableBalance'] as num).toDouble(),
+          availableBalance: accData['availableBalance'] == null
+              ? null
+              : (accData['availableBalance'] as num).toDouble(),
           customType: accData['customType'],
         );
         await DatabaseService.addAccount(account);
@@ -1666,7 +1751,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         final transaction = Transaction(
           id: txData['id'],
           amount: txData['amount'].toDouble(),
-          type: txData['type'] == 'income' ? TransactionType.income : TransactionType.expense,
+          type: txData['type'] == 'income'
+              ? TransactionType.income
+              : TransactionType.expense,
           categoryId: txData['categoryId'],
           date: DateTime.parse(txData['date']),
           description: txData['description'],
@@ -1676,7 +1763,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           payeeId: txData['payeeId'],
           payerId: txData['payerId'],
           cleared: txData['cleared'],
-          createdAt: txData['createdAt'] != null ? DateTime.parse(txData['createdAt']) : DateTime.now(),
+          createdAt: txData['createdAt'] != null
+              ? DateTime.parse(txData['createdAt'])
+              : DateTime.now(),
           isArchived: txData['isArchived'] ?? false,
         );
         await DatabaseService.addTransaction(transaction);
@@ -1697,9 +1786,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
 
       // Restore payment history / bill occurrence statuses (if included)
-      if (backupData.containsKey('payments_history') || backupData.containsKey('bill_occurrence_status')) {
+      if (backupData.containsKey('payments_history') ||
+          backupData.containsKey('bill_occurrence_status')) {
         try {
-          final occ = (backupData['payments_history'] ?? backupData['bill_occurrence_status']) as Map<String, dynamic>;
+          final occ =
+              (backupData['payments_history'] ??
+                      backupData['bill_occurrence_status'])
+                  as Map<String, dynamic>;
           await DatabaseService.importBillOccurrenceStatuses(occ);
         } catch (e) {
           // ignore restore failures for occurrence statuses
@@ -1733,36 +1826,156 @@ class _SettingsScreenState extends State<SettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Clear All Data'),
-        content: const Text(
-          'This will permanently delete all your transactions, categories, and settings. This action cannot be undone.\n\nAre you sure you want to continue?',
+        title: const Text('Clear Data'),
+        content: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildClearDataOptionTile(
+                option: _ClearDataOption.accounts,
+                title: 'All Accounts',
+                subtitle:
+                    'Remove all accounts and delete all transactions and payments.',
+              ),
+              _buildClearDataOptionTile(
+                option: _ClearDataOption.transactions,
+                title: 'All Transactions',
+                subtitle: 'Remove all transactions and payment history.',
+              ),
+              _buildClearDataOptionTile(
+                option: _ClearDataOption.billsKeepPayments,
+                title: 'All Bills',
+                subtitle:
+                    'Remove all bills but keep bill payments in account transaction lists.',
+              ),
+              _buildClearDataOptionTile(
+                option: _ClearDataOption.billsAndPayments,
+                title: 'All Bills Including Payments',
+                subtitle:
+                    'Remove all bills and any linked payment transactions.',
+              ),
+              _buildClearDataOptionTile(
+                option: _ClearDataOption.payeesAndPayers,
+                title: 'All Payees and Payers',
+                subtitle: 'Remove all payees and payers.',
+              ),
+              _buildClearDataOptionTile(
+                option: _ClearDataOption.categories,
+                title: 'All Categories',
+                subtitle: 'Remove all categories.',
+              ),
+              _buildClearDataOptionTile(
+                option: _ClearDataOption.allData,
+                title: 'All Data',
+                subtitle:
+                    'Reset the app by clearing all stored data and settings.',
+                isDestructive: true,
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('Cancel'),
           ),
-          TextButton(
-            onPressed: () => _confirmClearData(),
-            child: const Text(
-              'Clear All Data',
-              style: TextStyle(color: Colors.red),
-            ),
-          ),
         ],
       ),
     );
   }
 
-  void _confirmClearData() {
-    Navigator.pop(context); // Close the dialog
+  Widget _buildClearDataOptionTile({
+    required _ClearDataOption option,
+    required String title,
+    required String subtitle,
+    bool isDestructive = false,
+  }) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(
+        isDestructive ? Icons.warning_amber_rounded : Icons.delete_outline,
+        color: isDestructive ? Colors.red : null,
+      ),
+      title: Text(
+        title,
+        style: TextStyle(
+          color: isDestructive ? Colors.red : null,
+          fontWeight: isDestructive ? FontWeight.w600 : null,
+        ),
+      ),
+      subtitle: Text(subtitle),
+      onTap: () {
+        Navigator.pop(context);
+        _confirmClearData(option);
+      },
+    );
+  }
 
+  String _clearDataOptionTitle(_ClearDataOption option) {
+    switch (option) {
+      case _ClearDataOption.accounts:
+        return 'Clear All Accounts';
+      case _ClearDataOption.transactions:
+        return 'Clear All Transactions';
+      case _ClearDataOption.billsKeepPayments:
+        return 'Clear All Bills';
+      case _ClearDataOption.billsAndPayments:
+        return 'Clear All Bills Including Payments';
+      case _ClearDataOption.payeesAndPayers:
+        return 'Clear All Payees and Payers';
+      case _ClearDataOption.categories:
+        return 'Clear All Categories';
+      case _ClearDataOption.allData:
+        return 'Clear All Data';
+    }
+  }
+
+  String _clearDataOptionConfirmation(_ClearDataOption option) {
+    switch (option) {
+      case _ClearDataOption.accounts:
+        return 'This will permanently delete all accounts and all transactions, including bill payments. Bills and other data will remain.';
+      case _ClearDataOption.transactions:
+        return 'This will permanently delete all transactions and payment history.';
+      case _ClearDataOption.billsKeepPayments:
+        return 'This will permanently delete all bills while keeping bill payment transactions in your account transaction lists.';
+      case _ClearDataOption.billsAndPayments:
+        return 'This will permanently delete all bills and linked bill payment transactions.';
+      case _ClearDataOption.payeesAndPayers:
+        return 'This will permanently delete all payees and payers.';
+      case _ClearDataOption.categories:
+        return 'This will permanently delete all categories.';
+      case _ClearDataOption.allData:
+        return 'This will permanently delete all data and reset app settings. This action cannot be undone.';
+    }
+  }
+
+  String _clearDataSuccessMessage(_ClearDataOption option) {
+    switch (option) {
+      case _ClearDataOption.accounts:
+        return 'All accounts, transactions, and payments have been cleared';
+      case _ClearDataOption.transactions:
+        return 'All transactions have been cleared';
+      case _ClearDataOption.billsKeepPayments:
+        return 'All bills have been cleared and payments were kept';
+      case _ClearDataOption.billsAndPayments:
+        return 'All bills and linked payments have been cleared';
+      case _ClearDataOption.payeesAndPayers:
+        return 'All payees and payers have been cleared';
+      case _ClearDataOption.categories:
+        return 'All categories have been cleared';
+      case _ClearDataOption.allData:
+        return 'All data has been cleared';
+    }
+  }
+
+  void _confirmClearData(_ClearDataOption option) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Final Confirmation'),
-        content: const Text(
-          'This is your final warning. All data will be permanently deleted. Are you absolutely sure?',
+        title: Text(_clearDataOptionTitle(option)),
+        content: Text(
+          '${_clearDataOptionConfirmation(option)}\n\nAre you sure you want to continue?',
         ),
         actions: [
           TextButton(
@@ -1772,28 +1985,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
           TextButton(
             onPressed: () async {
               Navigator.pop(context);
-              await _clearAllData();
+              await _clearData(option);
             },
-            child: const Text(
-              'Yes, Delete Everything',
-              style: TextStyle(color: Colors.red),
-            ),
+            child: const Text('Confirm', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
     );
   }
 
-  Future<void> _clearAllData() async {
+  Future<void> _clearData(_ClearDataOption option) async {
     try {
-      await DatabaseService.clearAllData();
+      switch (option) {
+        case _ClearDataOption.accounts:
+          await DatabaseService.clearAccountsOnly();
+          break;
+        case _ClearDataOption.transactions:
+          await DatabaseService.clearTransactionsOnly();
+          break;
+        case _ClearDataOption.billsKeepPayments:
+          await DatabaseService.clearBillsOnly(includePayments: false);
+          break;
+        case _ClearDataOption.billsAndPayments:
+          await DatabaseService.clearBillsOnly(includePayments: true);
+          break;
+        case _ClearDataOption.payeesAndPayers:
+          await DatabaseService.clearPayeesAndPayersOnly();
+          break;
+        case _ClearDataOption.categories:
+          await DatabaseService.clearCategoriesOnly();
+          break;
+        case _ClearDataOption.allData:
+          await DatabaseService.clearAllData();
+          break;
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('All data has been cleared'),
+            content: Text(_clearDataSuccessMessage(option)),
             backgroundColor: Colors.blueGrey[400],
           ),
         );
+        setState(() {});
       }
     } catch (e) {
       if (mounted) {
@@ -1811,9 +2044,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final packageInfo = await PackageInfo.fromPlatform();
     final version = packageInfo.version;
     final buildNumber = packageInfo.buildNumber;
-    
+
     if (!mounted) return;
-    
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -1825,7 +2058,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const Text('CashSense'),
             Text('Version $version (Build $buildNumber)'),
             const SizedBox(height: 16),
-            const Text('A simple and elegant personal finance tracker designed to help you stay organized and in control of your money.'),
+            const Text(
+              'A simple and elegant personal finance tracker designed to help you stay organized and in control of your money.',
+            ),
             const SizedBox(height: 16),
             const Text('Features:'),
             const Text('• Transaction tracking'),
@@ -2093,17 +2328,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   String _getNotificationSummary() {
     // Get notification preferences
-    final billReminders = DatabaseService.getSetting<bool>('notif_billReminders', false) ?? false;
-  // Only bill reminders are shown in the app for now
-  final lowBalance = false;
-  final weeklyReports = false;
-  final monthlyReports = false;
+    final billReminders =
+        DatabaseService.getSetting<bool>('notif_billReminders', false) ?? false;
+    // Only bill reminders are shown in the app for now
+    final lowBalance = false;
+    final weeklyReports = false;
+    final monthlyReports = false;
 
     // Count enabled notifications
     int enabledCount = 0;
     if (billReminders) enabledCount++;
-    
-  // other notification types intentionally excluded from UI/count
+
+    // other notification types intentionally excluded from UI/count
 
     if (enabledCount == 0) {
       return 'No notifications enabled';
@@ -2130,7 +2366,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 12),
-              _buildNotificationPreferenceItem('Bill Reminders', 'notif_billReminders'),
+              _buildNotificationPreferenceItem(
+                'Bill Reminders',
+                'notif_billReminders',
+              ),
               const SizedBox(height: 16),
               const Divider(),
               const SizedBox(height: 8),
@@ -2159,7 +2398,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _buildNotificationPreferenceItem(String label, String settingKey) {
-    final isEnabled = DatabaseService.getSetting<bool>(settingKey, false) ?? false;
+    final isEnabled =
+        DatabaseService.getSetting<bool>(settingKey, false) ?? false;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -2173,9 +2413,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Expanded(
             child: Text(
               label,
-              style: TextStyle(
-                color: isEnabled ? null : Colors.grey,
-              ),
+              style: TextStyle(color: isEnabled ? null : Colors.grey),
             ),
           ),
           TextButton(
@@ -2183,12 +2421,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
               await DatabaseService.setSetting(settingKey, !isEnabled);
 
               if (settingKey == 'notif_billReminders') {
-  if (!isEnabled) {
-    await BillReminderService().scheduleAllReminders();
-  } else {
-    await BillReminderService().cancelAllReminders();
-  }
-}
+                if (!isEnabled) {
+                  await BillReminderService().scheduleAllReminders();
+                } else {
+                  await BillReminderService().cancelAllReminders();
+                }
+              }
               // Refresh the dialog
               Navigator.pop(context);
               _showNotificationsDialog();
@@ -2205,7 +2443,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _openNotificationSettings() async {
     // Open device notification settings for this app
     String url;
-    
+
     if (Platform.isIOS) {
       // iOS app-specific notification settings
       url = 'app-settings:';
@@ -2216,7 +2454,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } else {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Notification settings not available on this platform')),
+          const SnackBar(
+            content: Text(
+              'Notification settings not available on this platform',
+            ),
+          ),
         );
       }
       return;
@@ -2285,7 +2527,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: archived.isEmpty
-                ? [const Text('No archived accounts')] 
+                ? [const Text('No archived accounts')]
                 : archived.map((account) {
                     return Card(
                       margin: const EdgeInsets.symmetric(vertical: 8.0),
@@ -2321,15 +2563,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               children: [
                                 TextButton(
                                   onPressed: () async {
-                                    final restored = account.copyWith(isActive: true);
-                                    await DatabaseService.updateAccount(restored);
+                                    final restored = account.copyWith(
+                                      isActive: true,
+                                    );
+                                    await DatabaseService.updateAccount(
+                                      restored,
+                                    );
 
                                     // Restore all transactions for this account
-                                    final allTransactions = DatabaseService.getAllTransactions();
+                                    final allTransactions =
+                                        DatabaseService.getAllTransactions();
                                     for (var tx in allTransactions) {
-                                      if (tx.accountId == account.id && tx.isArchived == true) {
-                                        final restoredTx = tx.copyWith(isArchived: false);
-                                        await DatabaseService.updateTransaction(restoredTx);
+                                      if (tx.accountId == account.id &&
+                                          tx.isArchived == true) {
+                                        final restoredTx = tx.copyWith(
+                                          isArchived: false,
+                                        );
+                                        await DatabaseService.updateTransaction(
+                                          restoredTx,
+                                        );
                                       }
                                     }
 
@@ -2344,25 +2596,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                       context: context,
                                       builder: (context) => AlertDialog(
                                         title: const Text('Delete Account'),
-                                        content: const Text('Are you sure you want to permanently delete this archived account? This action cannot be undone.'),
+                                        content: const Text(
+                                          'Are you sure you want to permanently delete this archived account? This action cannot be undone.',
+                                        ),
                                         actions: [
                                           TextButton(
-                                            onPressed: () => Navigator.pop(context, false),
+                                            onPressed: () =>
+                                                Navigator.pop(context, false),
                                             child: const Text('Cancel'),
                                           ),
                                           TextButton(
-                                            onPressed: () => Navigator.pop(context, true),
-                                            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+                                            onPressed: () =>
+                                                Navigator.pop(context, true),
+                                            child: const Text(
+                                              'Delete',
+                                              style: TextStyle(
+                                                color: Colors.red,
+                                              ),
+                                            ),
                                           ),
                                         ],
                                       ),
                                     );
                                     if (confirm == true) {
-                                      await DatabaseService.deleteAccount(account.id);
+                                      await DatabaseService.deleteAccount(
+                                        account.id,
+                                      );
                                       if (mounted) Navigator.pop(context);
                                     }
                                   },
-                                  child: const Text('Delete', style: TextStyle(color: Colors.red)),
+                                  child: const Text(
+                                    'Delete',
+                                    style: TextStyle(color: Colors.red),
+                                  ),
                                 ),
                               ],
                             ),
@@ -2373,7 +2639,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   }).toList(),
           ),
         ),
-        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close'))],
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
       ),
     );
   }
@@ -2384,13 +2655,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _openRatingPage() async {
     // Define your app's store URLs
-    const iosAppStoreUrl = 'https://apps.apple.com/app/id6741378616'; // App Store ID provided by user
-    const androidPlayStoreUrl = 'https://play.google.com/store/apps/details?id=com.example.cashsense'; // Replace with your actual package name
+    const iosAppStoreUrl =
+        'https://apps.apple.com/app/id6741378616'; // App Store ID provided by user
+    const androidPlayStoreUrl =
+        'https://play.google.com/store/apps/details?id=com.example.cashsense'; // Replace with your actual package name
 
     if (Platform.isIOS) {
       // Prefer the itms-apps scheme to open the App Store directly to the review page.
       // Format: itms-apps://apps.apple.com/app/id<APP_ID>?action=write-review
-      final Uri itmsReviewUri = Uri.parse('itms-apps://apps.apple.com/app/id6741378616?action=write-review');
+      final Uri itmsReviewUri = Uri.parse(
+        'itms-apps://apps.apple.com/app/id6741378616?action=write-review',
+      );
       final Uri httpsReviewUri = Uri.parse(iosAppStoreUrl);
 
       // Try to open App Store via itms-apps first, fall back to https if that fails.
@@ -2405,7 +2680,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
 
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not open App Store')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open App Store')),
+        );
       }
       return;
     } else if (Platform.isAndroid) {
@@ -2414,14 +2691,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
         await launchUrl(playUri, mode: LaunchMode.externalApplication);
       } else {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not open Play Store')));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Could not open Play Store')),
+          );
         }
       }
       return;
     } else {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('App store not available on this platform')),
+          const SnackBar(
+            content: Text('App store not available on this platform'),
+          ),
         );
       }
       return;

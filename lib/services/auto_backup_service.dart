@@ -62,11 +62,13 @@ class AutoBackupService {
       debugPrint('BackgroundFetch configured successfully. Status: $status');
 
       if (Platform.isIOS) {
-        await bf.BackgroundFetch.start().then((status) {
-          debugPrint('[BackgroundFetch] Started with status: $status');
-        }).catchError((e) {
-          debugPrint('[BackgroundFetch] Start failed: $e');
-        });
+        await bf.BackgroundFetch.start()
+            .then((status) {
+              debugPrint('[BackgroundFetch] Started with status: $status');
+            })
+            .catchError((e) {
+              debugPrint('[BackgroundFetch] Start failed: $e');
+            });
       }
     } catch (e) {
       debugPrint('BackgroundFetch configure failed: $e');
@@ -88,8 +90,9 @@ class AutoBackupService {
           DatabaseService.getSetting<bool>('autoBackupEnabled', false) ?? false;
 
       try {
-        await wm.Workmanager()
-            .cancelByUniqueName('cashsense_auto_backup_periodic');
+        await wm.Workmanager().cancelByUniqueName(
+          'cashsense_auto_backup_periodic',
+        );
       } catch (_) {}
 
       if (!enabled) {
@@ -102,8 +105,11 @@ class AutoBackupService {
       Duration initialDelay = const Duration(minutes: 1);
       try {
         final now = DateTime.now();
-        final nextMidnight =
-            DateTime(now.year, now.month, now.day).add(const Duration(days: 1));
+        final nextMidnight = DateTime(
+          now.year,
+          now.month,
+          now.day,
+        ).add(const Duration(days: 1));
         final diffToNextMidnight = nextMidnight.difference(now);
         if (!diffToNextMidnight.isNegative) {
           initialDelay = diffToNextMidnight;
@@ -124,7 +130,9 @@ class AutoBackupService {
         constraints: wm.Constraints(networkType: wm.NetworkType.notRequired),
       );
 
-      debugPrint('Registered periodic auto-backup task (daily): $registerPeriod');
+      debugPrint(
+        'Registered periodic auto-backup task (daily): $registerPeriod',
+      );
     } catch (e) {
       debugPrint('Error configuring periodic task: $e');
     }
@@ -146,19 +154,21 @@ class AutoBackupService {
         'transactions': transactions.map((t) => t.toJson()).toList(),
         'categories': categories.map((c) => c.toJson()).toList(),
         'accounts': accounts
-            .map((a) => {
-                  'id': a.id,
-                  'name': a.name,
-                  'type': a.type.toString().split('.').last,
-                  'balance': a.balance,
-                  'isActive': a.isActive,
-                  'currency': a.currency,
-                  'description': a.description,
-                  'institution': a.institution,
-                  'accountNumber': a.accountNumber,
-                  'availableBalance': a.availableBalance,
-                  'customType': a.customType,
-                })
+            .map(
+              (a) => {
+                'id': a.id,
+                'name': a.name,
+                'type': a.type.toString().split('.').last,
+                'balance': a.balance,
+                'isActive': a.isActive,
+                'currency': a.currency,
+                'description': a.description,
+                'institution': a.institution,
+                'accountNumber': a.accountNumber,
+                'availableBalance': a.availableBalance,
+                'customType': a.customType,
+              },
+            )
             .toList(),
         'bills': bills.map((b) => b.toJson()).toList(),
         'payees': payees,
@@ -201,8 +211,9 @@ class AutoBackupService {
       debugPrint('Backup directory: ${baseDir.path}');
 
       final now = DateTime.now();
-      final filenameTimestamp =
-          DateFormat('M-d-yy_h-mm_a').format(now).toLowerCase();
+      final filenameTimestamp = DateFormat(
+        'M-d-yy_h-mm_a',
+      ).format(now).toLowerCase();
       final filename = 'cashsense_auto_backup_$filenameTimestamp.json';
       final file = File('${baseDir.path}/$filename');
       await file.writeAsString(jsonString);
@@ -218,9 +229,11 @@ class AutoBackupService {
         final files = Directory(baseDir.path)
             .listSync()
             .whereType<File>()
-            .where((f) =>
-                f.path.split('/').last.startsWith('cashsense_auto_backup_') &&
-                f.path.endsWith('.json'))
+            .where(
+              (f) =>
+                  f.path.split('/').last.startsWith('cashsense_auto_backup_') &&
+                  f.path.endsWith('.json'),
+            )
             .toList();
 
         files.sort(
@@ -257,6 +270,55 @@ class AutoBackupService {
     } catch (e) {
       debugPrint('performBackup failed: $e');
       return null;
+    }
+  }
+
+  static Future<bool> backupToCloud() async {
+    File? tempFile;
+    try {
+      final subscription = DatabaseService.subscriptionVersion.value;
+      if (subscription == 'Free') {
+        debugPrint(
+          'Skipping manual cloud backup: premium subscription required',
+        );
+        return false;
+      }
+
+      final jsonString = await buildBackupJsonString();
+      if (jsonString == null) {
+        debugPrint(
+          'Manual cloud backup failed: buildBackupJsonString returned null',
+        );
+        return false;
+      }
+
+      final tmpDir = await getTemporaryDirectory();
+      final timestamp = DateFormat(
+        'yyyy-MM-dd_HH-mm-ss',
+      ).format(DateTime.now());
+      final filename = 'cashsense_cloud_backup_$timestamp.json';
+      tempFile = File('${tmpDir.path}/$filename');
+      await tempFile.writeAsString(jsonString);
+
+      final uploaded = await _uploadBackupToCloud(tempFile.path, filename);
+      if (uploaded) {
+        await DatabaseService.setSetting(
+          'lastManualCloudBackupAt',
+          DateTime.now().toIso8601String(),
+        );
+      }
+      return uploaded;
+    } catch (e) {
+      debugPrint('Manual cloud backup failed: $e');
+      return false;
+    } finally {
+      if (tempFile != null) {
+        try {
+          if (await tempFile.exists()) {
+            await tempFile.delete();
+          }
+        } catch (_) {}
+      }
     }
   }
 
@@ -316,8 +378,10 @@ class AutoBackupService {
           DatabaseService.getSetting<bool>('autoBackupEnabled', false) ?? false;
       if (!enabled) return;
 
-      final lastRaw =
-          DatabaseService.getSetting<String>('lastAutoBackupAt', null);
+      final lastRaw = DatabaseService.getSetting<String>(
+        'lastAutoBackupAt',
+        null,
+      );
 
       DateTime? last;
       if (lastRaw != null) {
@@ -360,7 +424,7 @@ void callbackDispatcher() {
 
         final enabled =
             DatabaseService.getSetting<bool>('autoBackupEnabled', false) ??
-                false;
+            false;
         if (!enabled) {
           debugPrint('Skipping backup: Automatic backups are disabled');
           return Future.value(true);
