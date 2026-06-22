@@ -3,7 +3,6 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import '../services/database_service.dart';
@@ -11,10 +10,12 @@ import '../models/transaction.dart';
 import '../models/category.dart' as models;
 import '../models/account.dart';
 import '../models/bill.dart';
+import '../models/reminder_offset.dart';
 import 'package:provider/provider.dart';
 import '../providers/theme_provider.dart';
 import '../providers/user_session_controller.dart';
 import '../widgets/app_color_picker.dart';
+import '../widgets/bill_reminder_picker.dart';
 import 'subscriptions_screen.dart';
 import 'backup_restore_screen.dart';
 import 'package:file_picker/file_picker.dart';
@@ -66,6 +67,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _biometricLabel = 'Biometrics';
   bool _autoLogoutEnabled = true;
   int _autoLogoutTimeoutSeconds = 60;
+  bool _billRemindersEnabled = false;
+  List<ReminderOffset> _billReminderOffsets = [];
+  bool _syncingNotificationToken = false;
+  bool _reschedulingBillReminders = false;
 
   @override
   void initState() {
@@ -75,6 +80,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _loadBiometricSettings();
     _loadAutoLogoutEnabledSetting();
     _loadAutoLogoutTimeoutSetting();
+    _loadBillReminderSettings();
     _autoBackupEnabled =
         DatabaseService.getSetting<bool>('autoBackupEnabled', false) ?? false;
   }
@@ -113,6 +119,168 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() {
       _autoLogoutTimeoutSeconds = seconds;
     });
+  }
+
+  void _loadBillReminderSettings() {
+    final enabled =
+        DatabaseService.getSetting<bool>('notif_billReminders', false) ?? false;
+    final offsets = <ReminderOffset>[];
+    final raw = DatabaseService.getSetting<String>(
+      'notif_billReminderOffsets',
+      null,
+    );
+
+    if (raw != null && raw.trim().isNotEmpty) {
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is List) {
+          for (final item in decoded) {
+            if (item is Map<String, dynamic>) {
+              offsets.add(ReminderOffset.fromJson(item));
+            } else if (item is Map) {
+              offsets.add(
+                ReminderOffset.fromJson(Map<String, dynamic>.from(item)),
+              );
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _billRemindersEnabled = enabled;
+      _billReminderOffsets = offsets;
+    });
+  }
+
+  Future<void> _setBillRemindersEnabled(bool value) async {
+    await DatabaseService.setSetting('notif_billReminders', value);
+    if (!mounted) return;
+    setState(() {
+      _billRemindersEnabled = value;
+    });
+
+    try {
+      if (value) {
+        await BillReminderService().scheduleAllReminders();
+      } else {
+        await BillReminderService().cancelAllReminders();
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to update bill reminders: $e')),
+      );
+    }
+  }
+
+  Future<void> _setBillReminderOffsets(List<ReminderOffset> offsets) async {
+    final encoded = jsonEncode(offsets.map((r) => r.toJson()).toList());
+    await DatabaseService.setSetting('notif_billReminderOffsets', encoded);
+    if (offsets.isNotEmpty) {
+      final leadDays = offsets
+          .map((r) => r.daysBefore)
+          .reduce((a, b) => a < b ? a : b);
+      await DatabaseService.setSetting(
+        'notif_billReminders_leadDays',
+        leadDays,
+      );
+    }
+    if (!mounted) return;
+    setState(() {
+      _billReminderOffsets = offsets;
+    });
+
+    try {
+      if (_billRemindersEnabled) {
+        await BillReminderService().refreshAllReminders();
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to refresh bill reminders: $e')),
+      );
+    }
+  }
+
+  Future<void> _syncPushNotifications() async {
+    if (_syncingNotificationToken) return;
+    setState(() => _syncingNotificationToken = true);
+    try {
+      final signedIn = await CognitoService.isSignedIn();
+      if (!signedIn) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sign in to sync push notifications.')),
+        );
+        return;
+      }
+
+      if (!_billRemindersEnabled) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Enable bill due reminders first.')),
+        );
+        return;
+      }
+
+      await PushTokenService.forceRegisterNow();
+      PushTokenService.initTokenRefreshListener();
+
+      final info = await PackageInfo.fromPlatform();
+      final currentBuild = int.tryParse(info.buildNumber) ?? 0;
+      await DatabaseService.setSetting('lastDeviceRegisterBuild', currentBuild);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Notification device token synced.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to sync push notifications: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _syncingNotificationToken = false);
+    }
+  }
+
+  Future<void> _rescheduleBillRemindersNow() async {
+    if (_reschedulingBillReminders) return;
+    setState(() => _reschedulingBillReminders = true);
+    try {
+      if (!_billRemindersEnabled) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Enable bill due reminders first.')),
+        );
+        return;
+      }
+
+      final signedIn = await CognitoService.isSignedIn();
+      if (!signedIn) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sign in to reschedule reminders.')),
+        );
+        return;
+      }
+
+      await BillReminderService().refreshAllReminders();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bill reminders rescheduled.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to reschedule bill reminders: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _reschedulingBillReminders = false);
+    }
   }
 
   Future<void> _loadBiometricSettings() async {
@@ -574,6 +742,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               },
             ),
           ]),
+          _buildBillNotificationsTile(),
           // General section removed (notification options hidden)
           _buildSection('Data', [
             _buildSettingsTile(
@@ -1274,6 +1443,82 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           children: [...tiles],
+        ),
+      ),
+    );
+  }
+
+  String _billReminderSettingsSubtitle() {
+    if (!_billRemindersEnabled) return 'Off';
+    if (_billReminderOffsets.isEmpty) return 'On, no reminders selected';
+    if (_billReminderOffsets.length == 1) {
+      return 'On, ${_billReminderOffsets.first.daysLabel}';
+    }
+    return 'On, ${_billReminderOffsets.length} reminders';
+  }
+
+  Widget _buildBillNotificationsTile() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 6.0),
+      child: Card(
+        elevation: 1,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(horizontal: 16.0),
+          title: Text(
+            'Notifications',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: Theme.of(context).colorScheme.primary,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          subtitle: Text(_billReminderSettingsSubtitle()),
+          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          children: [
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Bill due reminders'),
+              subtitle: const Text('Get notifications for upcoming bills'),
+              value: _billRemindersEnabled,
+              onChanged: _setBillRemindersEnabled,
+            ),
+            if (_billRemindersEnabled) ...[
+              const SizedBox(height: 8),
+              BillReminderPicker(
+                initialValue: _billReminderOffsets,
+                onChanged: _setBillReminderOffsets,
+              ),
+            ],
+            const Divider(height: 24),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Sync push notifications'),
+              subtitle: const Text('Register this device for reminders'),
+              trailing: _syncingNotificationToken
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.sync),
+              onTap: _syncingNotificationToken ? null : _syncPushNotifications,
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Reschedule bill reminders now'),
+              subtitle: const Text('Refresh scheduled reminders immediately'),
+              trailing: _reschedulingBillReminders
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.refresh),
+              onTap: _reschedulingBillReminders
+                  ? null
+                  : _rescheduleBillRemindersNow,
+            ),
+          ],
         ),
       ),
     );

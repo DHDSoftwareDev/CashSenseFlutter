@@ -114,7 +114,11 @@ class BillReminderService {
 
       final now = DateTime.now();
       final start = DateTime(now.year, now.month, now.day);
-      final end = start.add(const Duration(days: _scheduleHorizonDays));
+      final end = DateTime(
+        start.year,
+        start.month,
+        start.day + _scheduleHorizonDays,
+      );
       final occurrences = DatabaseService.getBillOccurrencesBetween(start, end);
 
       if (occurrences.isEmpty) {
@@ -128,7 +132,10 @@ class BillReminderService {
         final bill = occ['bill'] as Bill;
         final occDate = occ['date'] as DateTime;
 
-        if (_isOccurrencePaid(bill, occDate)) continue;
+        if (_isOccurrencePaid(bill, occDate)) {
+          await cancelRemindersForBillOccurrence(bill.id, occDate);
+          continue;
+        }
 
         // Skip if notifications are disabled for this specific bill
         if (!_shouldNotifyForBill(bill.id)) continue;
@@ -159,6 +166,42 @@ class BillReminderService {
     await scheduleAllReminders();
   }
 
+  Future<void> cancelRemindersForBillOccurrence(
+    String billId,
+    DateTime occurrenceDate,
+  ) async {
+    try {
+      if (!AwsApiService.isConfigured) return;
+      final stored = _loadStoredScheduleIds();
+      if (stored.isEmpty) return;
+
+      final dueLabel = DateFormat('MM/dd/yyyy').format(occurrenceDate);
+      final keyPrefix = 'bill:$billId:$dueLabel:';
+      final matchingEntries = stored.entries
+          .where((entry) => entry.key.startsWith(keyPrefix))
+          .toList();
+      if (matchingEntries.isEmpty) return;
+
+      final api = NotificationSchedulesApi(
+        baseUrl: AwsApiService.baseUrl,
+        getIdToken: AwsApiService.getIdToken,
+      );
+
+      for (final entry in matchingEntries) {
+        try {
+          await api.deleteSchedule(scheduleId: entry.value);
+        } catch (e) {
+          debugPrint('Failed to delete paid bill reminder ${entry.value}: $e');
+        }
+        stored.remove(entry.key);
+      }
+
+      await _saveStoredScheduleIds(stored);
+    } catch (e) {
+      debugPrint('cancelRemindersForBillOccurrence failed: $e');
+    }
+  }
+
   Future<void> scheduleReminderForBill({
     required String userId,
     required Bill bill,
@@ -183,6 +226,8 @@ class BillReminderService {
       final billNote = _buildBillNote(bill, fallbackName: billName);
       final amountText = NumberFormat.simpleCurrency().format(bill.amount);
       final dueLabel = DateFormat('MM/dd/yyyy').format(dueForMsg);
+      final occurrenceDate = DateFormat('yyyy-MM-dd').format(dueForMsg);
+      final isOverdue = _isPastDue(dueForMsg);
 
       final dedupeKey =
           'bill:${bill.id}:$dueLabel:lead$leadDays:t${reminderHour.toString().padLeft(2, '0')}${reminderMinute.toString().padLeft(2, '0')}:v3';
@@ -193,22 +238,26 @@ class BillReminderService {
         'billName': billName,
         'note': billNote,
         'dueDate': dueLabel,
+        'occurrenceDate': occurrenceDate,
         'amount': bill.amount,
         'leadDays': leadDays,
         'reminderHour': reminderHour,
         'reminderMinute': reminderMinute,
+        'isOverdue': isOverdue,
       };
 
+      final bodyPrefix = isOverdue ? 'Overdue: Due' : 'Due';
       final body = billNote == null || billNote.isEmpty
-          ? '$amountText due on $dueLabel'
-          : '$amountText due on $dueLabel • $billNote';
+          ? '$bodyPrefix $dueLabel - $amountText'
+          : '$bodyPrefix $dueLabel - $amountText - $billNote';
 
       final api = NotificationSchedulesApi(
         baseUrl: AwsApiService.baseUrl,
         getIdToken: AwsApiService.getIdToken,
       );
 
-      final title = billName.isEmpty ? 'Payment due' : '$billName due';
+      final baseTitle = billName.isEmpty ? 'Payment due' : billName;
+      final title = isOverdue ? 'Overdue: $baseTitle' : baseTitle;
 
       final result = await api.createSchedule(
         runAtUtcIso: runAtUtcIso,
@@ -217,6 +266,7 @@ class BillReminderService {
         body: body,
         data: data,
         dedupeKey: dedupeKey,
+        environment: kReleaseMode ? 'production' : 'sandbox',
       );
 
       final scheduleId = _extractScheduleId(result);
@@ -268,6 +318,13 @@ class BillReminderService {
     return totalPaid >= (bill.amount - 0.01);
   }
 
+  bool _isPastDue(DateTime dueDate) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final due = DateTime(dueDate.year, dueDate.month, dueDate.day);
+    return due.isBefore(today);
+  }
+
   /// Check if a bill should receive notifications.
   /// Returns true if notifications are enabled (default) or false if explicitly disabled.
   bool _shouldNotifyForBill(String billId) {
@@ -280,14 +337,34 @@ class BillReminderService {
     try {
       if (!AwsApiService.isConfigured) return;
       final stored = _loadStoredScheduleIds();
-      if (stored.isEmpty) return;
-
       final api = NotificationSchedulesApi(
         baseUrl: AwsApiService.baseUrl,
         getIdToken: AwsApiService.getIdToken,
       );
 
-      for (final scheduleId in stored.values) {
+      final scheduleIds = <String>{
+        ...stored.values.where((id) => id.isNotEmpty),
+      };
+
+      String? nextToken;
+      do {
+        final result = await api.listSchedules(
+          status: 'scheduled',
+          nextToken: nextToken,
+        );
+        final items = result['items'];
+        if (items is List) {
+          for (final item in items) {
+            if (item is Map && item['scheduleId'] != null) {
+              scheduleIds.add(item['scheduleId'].toString());
+            }
+          }
+        }
+        nextToken = result['nextToken']?.toString();
+        if (nextToken != null && nextToken.isEmpty) nextToken = null;
+      } while (nextToken != null);
+
+      for (final scheduleId in scheduleIds) {
         try {
           await api.deleteSchedule(scheduleId: scheduleId);
         } catch (e) {
@@ -357,7 +434,10 @@ class BillReminderService {
     final stored = _loadStoredScheduleIds();
     if (stored.isEmpty) return;
 
-    final legacyKeys = stored.keys.where((k) => !k.contains(':v2')).toList();
+    final versionedReminderKey = RegExp(r':v\d+$');
+    final legacyKeys = stored.keys
+        .where((key) => !versionedReminderKey.hasMatch(key))
+        .toList();
     if (legacyKeys.isEmpty) return;
 
     final api = NotificationSchedulesApi(

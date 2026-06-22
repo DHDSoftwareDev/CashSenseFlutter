@@ -30,8 +30,12 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   DateTime? _customStartDate;
   DateTime? _customEndDate;
   String? _accountName;
-  bool _showAvailableBalance = false; // Toggle between current and available balance
-  final Set<String> _expandedMonths = {}; // Track which month groups are expanded
+  bool _showAvailableBalance =
+      false; // Toggle between current and available balance
+  final Set<String> _expandedMonths =
+      {}; // Track which month groups are expanded
+  String? _autoExpandedMonthKey;
+  int? _lastPendingTransactionCount;
   bool _showCleared = true; // Toggle for showing/hiding cleared transactions
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
@@ -40,12 +44,17 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   void initState() {
     super.initState();
     // Restore saved filter selection
-    final savedFilter = DatabaseService.getSetting<String>('transactionsFilter', 'All');
+    final savedFilter = DatabaseService.getSetting<String>(
+      'transactionsFilter',
+      'All',
+    );
     if (savedFilter != null && savedFilter.isNotEmpty) {
       _selectedFilter = savedFilter;
     }
     // Restore hide/show cleared preference
-    _showCleared = DatabaseService.getSetting<bool>('transactionsShowCleared', true) ?? true;
+    _showCleared =
+        DatabaseService.getSetting<bool>('transactionsShowCleared', true) ??
+        true;
     _loadTransactions();
     _runLegacyCalendarHideMigrationIfNeeded();
     DatabaseService.transactionsVersion.addListener(_onTransactionsChanged);
@@ -56,8 +65,12 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   Future<void> _runLegacyCalendarHideMigrationIfNeeded() async {
     if (widget.accountId == null || widget.accountId!.isEmpty) return;
     try {
-      final updated = await DatabaseService.migrateLegacyAccountTransactionsHiddenFromCalendar();
-      final accountUpdated = await DatabaseService.hideTransactionsForAccountFromDashboard(widget.accountId!);
+      final updated =
+          await DatabaseService.migrateLegacyAccountTransactionsHiddenFromCalendar();
+      final accountUpdated =
+          await DatabaseService.hideTransactionsForAccountFromDashboard(
+            widget.accountId!,
+          );
       if (updated > 0 && mounted) {
         _loadTransactions();
       } else if (accountUpdated > 0 && mounted) {
@@ -100,12 +113,17 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   Transaction? _findLinkedTransferTransaction(Transaction transaction) {
     final allTransactions = DatabaseService.getAllTransactions();
     final note = transaction.note ?? '';
-    final pairMatch = RegExp(r'pair:([A-Za-z0-9\-]+)', caseSensitive: false).firstMatch(note);
+    final pairMatch = RegExp(
+      r'pair:([A-Za-z0-9\-]+)',
+      caseSensitive: false,
+    ).firstMatch(note);
     if (pairMatch != null) {
       final linkedId = pairMatch.group(1);
       if (linkedId != null && linkedId.isNotEmpty) {
         try {
-          return allTransactions.firstWhere((candidate) => candidate.id == linkedId);
+          return allTransactions.firstWhere(
+            (candidate) => candidate.id == linkedId,
+          );
         } catch (_) {}
       }
     }
@@ -116,14 +134,16 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             candidate.id != transaction.id &&
             candidate.note != null &&
             (candidate.note!.contains(transaction.id) ||
-                (transaction.note != null && transaction.note!.contains(candidate.id))),
+                (transaction.note != null &&
+                    transaction.note!.contains(candidate.id))),
       );
     } catch (_) {}
 
     final candidates = allTransactions.where((candidate) {
       if (candidate.id == transaction.id) return false;
       final sameAmount = candidate.amount == transaction.amount;
-      final sameDate = candidate.date.year == transaction.date.year &&
+      final sameDate =
+          candidate.date.year == transaction.date.year &&
           candidate.date.month == transaction.date.month &&
           candidate.date.day == transaction.date.day;
       final sameCategory = candidate.categoryId == transaction.categoryId;
@@ -135,21 +155,30 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     return candidates.first;
   }
 
-  Future<void> _reverseAccountBalanceForDeletedTransaction(Transaction transaction) async {
+  Future<void> _reverseAccountBalanceForDeletedTransaction(
+    Transaction transaction,
+  ) async {
     final accId = transaction.accountId;
     if (accId == null) return;
 
     final acc = DatabaseService.getAccountById(accId);
     if (acc == null) return;
 
-    final effect = transaction.type == TransactionType.income ? transaction.amount : -transaction.amount;
+    final effect = transaction.type == TransactionType.income
+        ? transaction.amount
+        : -transaction.amount;
     final updatedAcc = acc.copyWith(balance: acc.balance - effect);
     await DatabaseService.updateAccount(updatedAcc);
   }
 
-  Future<void> _deleteTransferTransaction(Transaction transaction, {required bool deleteBothSides}) async {
+  Future<void> _deleteTransferTransaction(
+    Transaction transaction, {
+    required bool deleteBothSides,
+  }) async {
     try {
-      final linked = deleteBothSides ? _findLinkedTransferTransaction(transaction) : null;
+      final linked = deleteBothSides
+          ? _findLinkedTransferTransaction(transaction)
+          : null;
 
       await _reverseAccountBalanceForDeletedTransaction(transaction);
       if (linked != null) {
@@ -175,7 +204,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     }
   }
 
-  Future<_TransferClearChoice?> _askTransferClearChoice({required bool newCleared}) async {
+  Future<_TransferClearChoice?> _askTransferClearChoice({
+    required bool newCleared,
+  }) async {
     final actionLabel = newCleared ? 'cleared' : 'uncleared';
     return showDialog<_TransferClearChoice>(
       context: context,
@@ -191,67 +222,78 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               child: const Text('Cancel'),
             ),
             TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(_TransferClearChoice.oneSide),
-              child: const Text('Just this side', style: TextStyle(color: Colors.red)),
+              onPressed: () =>
+                  Navigator.of(dialogContext).pop(_TransferClearChoice.oneSide),
+              child: const Text(
+                'Just this side',
+                style: TextStyle(color: Colors.red),
+              ),
             ),
             TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(_TransferClearChoice.bothSides),
-              child: const Text('Both sides', style: TextStyle(color: Colors.red)),
+              onPressed: () => Navigator.of(
+                dialogContext,
+              ).pop(_TransferClearChoice.bothSides),
+              child: const Text(
+                'Both sides',
+                style: TextStyle(color: Colors.red),
+              ),
             ),
           ],
         );
       },
     );
   }
-  
-    List<Transaction> get _searchResults {
-      final q = _searchQuery.trim().toLowerCase();
-      if (q.isEmpty) return <Transaction>[];
-      // Base set: if viewing a specific account, limit to that account's transactions
-      final base = (widget.accountId != null && widget.accountId!.isNotEmpty)
-          ? _transactions.where((t) => t.accountId == widget.accountId).toList()
-          : List<Transaction>.from(_transactions);
-      final results = base.where((t) {
-        final desc = t.description.toLowerCase();
-        if (desc.contains(q)) return true;
-        if (t.note != null && t.note!.toLowerCase().contains(q)) return true;
-        final cat = DatabaseService.getCategoryById(t.categoryId);
-        if (cat != null && cat.name.toLowerCase().contains(q)) return true;
-        // match amount strings (simple)
-        if (t.amount.toString().contains(q)) return true;
-        return false;
-      }).toList();
-      results.sort((a, b) {
-        final cmp = b.date.compareTo(a.date);
-        if (cmp != 0) return cmp;
-        final createdCmp = b.createdAt.compareTo(a.createdAt);
-        if (createdCmp != 0) return createdCmp;
-        return b.id.compareTo(a.id);
-      });
-      return results;
-    }
 
-    Widget _buildSearchResults() {
-      final results = _searchResults;
-      if (results.isEmpty) {
-        return Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Text(
-              'No matching transactions',
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Colors.grey[600]),
-            ),
+  List<Transaction> get _searchResults {
+    final q = _searchQuery.trim().toLowerCase();
+    if (q.isEmpty) return <Transaction>[];
+    // Base set: if viewing a specific account, limit to that account's transactions
+    final base = (widget.accountId != null && widget.accountId!.isNotEmpty)
+        ? _transactions.where((t) => t.accountId == widget.accountId).toList()
+        : List<Transaction>.from(_transactions);
+    final results = base.where((t) {
+      final desc = t.description.toLowerCase();
+      if (desc.contains(q)) return true;
+      if (t.note != null && t.note!.toLowerCase().contains(q)) return true;
+      final cat = DatabaseService.getCategoryById(t.categoryId);
+      if (cat != null && cat.name.toLowerCase().contains(q)) return true;
+      // match amount strings (simple)
+      if (t.amount.toString().contains(q)) return true;
+      return false;
+    }).toList();
+    results.sort((a, b) {
+      final cmp = b.date.compareTo(a.date);
+      if (cmp != 0) return cmp;
+      final createdCmp = b.createdAt.compareTo(a.createdAt);
+      if (createdCmp != 0) return createdCmp;
+      return b.id.compareTo(a.id);
+    });
+    return results;
+  }
+
+  Widget _buildSearchResults() {
+    final results = _searchResults;
+    if (results.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Text(
+            'No matching transactions',
+            style: Theme.of(
+              context,
+            ).textTheme.bodyLarge?.copyWith(color: Colors.grey[600]),
           ),
-        );
-      }
-      return ListView.builder(
-        itemCount: results.length,
-        itemBuilder: (context, i) {
-          final tx = results[i];
-          return _buildTransactionItem(tx);
-        },
+        ),
       );
     }
+    return ListView.builder(
+      itemCount: results.length,
+      itemBuilder: (context, i) {
+        final tx = results[i];
+        return _buildTransactionItem(tx);
+      },
+    );
+  }
 
   void _loadTransactions() {
     setState(() {
@@ -265,7 +307,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       final all = DatabaseService.getAllTransactions();
       if (widget.accountId != null && widget.accountId!.isNotEmpty) {
         // Filter transactions that belong to this account
-        _transactions = all.where((t) => t.accountId == widget.accountId).toList();
+        _transactions = all
+            .where((t) => t.accountId == widget.accountId)
+            .toList();
       } else {
         _transactions = all;
       }
@@ -291,29 +335,44 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     List<Transaction> filtered;
     switch (_selectedFilter) {
       case 'Income':
-        filtered = _transactions.where((t) => t.type == TransactionType.income).toList();
+        filtered = _transactions
+            .where((t) => t.type == TransactionType.income)
+            .toList();
         break;
       case 'Expense':
-        filtered = _transactions.where((t) => t.type == TransactionType.expense).toList();
+        filtered = _transactions
+            .where((t) => t.type == TransactionType.expense)
+            .toList();
         break;
       case 'Transfers':
         filtered = _transactions.where((t) {
           try {
             final cat = DatabaseService.getCategoryById(t.categoryId);
-            if (cat != null && cat.name.toLowerCase() == 'transfer') return true;
+            if (cat != null && cat.name.toLowerCase() == 'transfer') {
+              return true;
+            }
           } catch (_) {}
           final desc = t.description.toLowerCase();
           if (desc.contains('transfer')) return true;
-          if (t.note != null && t.note!.toLowerCase().contains('transfer')) return true;
+          if (t.note != null && t.note!.toLowerCase().contains('transfer')) {
+            return true;
+          }
           return false;
         }).toList();
         break;
       case 'Custom Dates':
         if (_customStartDate != null && _customEndDate != null) {
-          filtered = _transactions.where((t) =>
-            t.date.isAfter(_customStartDate!.subtract(const Duration(days: 1))) &&
-            t.date.isBefore(_customEndDate!.add(const Duration(days: 1)))
-          ).toList();
+          filtered = _transactions
+              .where(
+                (t) =>
+                    t.date.isAfter(
+                      _customStartDate!.subtract(const Duration(days: 1)),
+                    ) &&
+                    t.date.isBefore(
+                      _customEndDate!.add(const Duration(days: 1)),
+                    ),
+              )
+              .toList();
         } else {
           filtered = _transactions;
         }
@@ -337,106 +396,119 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
   @override
   Widget build(BuildContext context) {
-  final bool hasAnyTransactions = _transactions.isNotEmpty;
-  return SlidableAutoCloseBehavior(
-    child: Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            // Switch to accounts list root page (index 4)
-            navigateToRootPage(4);
-          },
-        ),
-  centerTitle: true,
-        title: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Transactions'),
-            if (_accountName != null) ...[
-              const SizedBox(height: 2),
-              Text(_accountName!, style: Theme.of(context).textTheme.bodyLarge),
-            ],
-          ],
-        ),
-        backgroundColor: Theme.of(context).colorScheme.primary,
-        foregroundColor: Colors.white,
-        actions: [
-          PopupMenuButton<String>(
-            onSelected: (value) {
-              setState(() {
-                _selectedFilter = value;
-                // Persist selection
-                DatabaseService.setSetting('transactionsFilter', value);
-              });
+    final bool hasAnyTransactions = _transactions.isNotEmpty;
+    return SlidableAutoCloseBehavior(
+      child: Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () {
+              // Switch to accounts list root page (index 4)
+              navigateToRootPage(4);
             },
-            itemBuilder: (context) => [
-              const PopupMenuItem(value: 'All', child: Text('All')),
-              const PopupMenuItem(value: 'Income', child: Text('Income')),
-              const PopupMenuItem(value: 'Expense', child: Text('Expense')),
-              const PopupMenuItem(value: 'Transfers', child: Text('Transfers')),
-            ],
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(_selectedFilter),
-                const Icon(Icons.arrow_drop_down),
-              ],
-            ),
           ),
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: _addTransaction,
-            tooltip: 'Add transaction',
-          ),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          _loadTransactions();
-        },
-        child: Column(
-          children: [
-            _buildBalanceHeader(),
-            // Search bar under the balance header. When a search query is entered
-            // we show a flat list of matching transactions (includes cleared),
-            // otherwise we show the normal grouped transactions list which
-            // respects the Show/Hide Cleared toggle.
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-              child: TextField(
-                controller: _searchController,
-                decoration: InputDecoration(
-                  prefixIcon: const Icon(Icons.search),
-                  hintText: 'Search',
-                  suffixIcon: _searchController.text.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.clear),
-                          onPressed: () {
-                            setState(() {
-                              _searchController.clear();
-                              _searchQuery = '';
-                            });
-                          },
-                        )
-                      : null,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8.0)),
-                  isDense: true,
+          centerTitle: true,
+          title: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Transactions'),
+              if (_accountName != null) ...[
+                const SizedBox(height: 2),
+                Text(
+                  _accountName!,
+                  style: Theme.of(context).textTheme.bodyLarge,
                 ),
-                onChanged: (v) => setState(() => _searchQuery = v.trim()),
+              ],
+            ],
+          ),
+          backgroundColor: Theme.of(context).colorScheme.primary,
+          foregroundColor: Colors.white,
+          actions: [
+            PopupMenuButton<String>(
+              onSelected: (value) {
+                setState(() {
+                  _selectedFilter = value;
+                  // Persist selection
+                  DatabaseService.setSetting('transactionsFilter', value);
+                });
+              },
+              itemBuilder: (context) => [
+                const PopupMenuItem(value: 'All', child: Text('All')),
+                const PopupMenuItem(value: 'Income', child: Text('Income')),
+                const PopupMenuItem(value: 'Expense', child: Text('Expense')),
+                const PopupMenuItem(
+                  value: 'Transfers',
+                  child: Text('Transfers'),
+                ),
+              ],
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(_selectedFilter),
+                  const Icon(Icons.arrow_drop_down),
+                ],
               ),
             ),
-            Expanded(
-              child: _searchQuery.isNotEmpty
-                  ? _buildSearchResults()
-                  : (hasAnyTransactions ? _buildTransactionsList(showHeader: false) : _buildEmptyState()),
+            IconButton(
+              icon: const Icon(Icons.add),
+              onPressed: _addTransaction,
+              tooltip: 'Add transaction',
             ),
           ],
         ),
+        body: RefreshIndicator(
+          onRefresh: () async {
+            _loadTransactions();
+          },
+          child: Column(
+            children: [
+              _buildBalanceHeader(),
+              // Search bar under the balance header. When a search query is entered
+              // we show a flat list of matching transactions (includes cleared),
+              // otherwise we show the normal grouped transactions list which
+              // respects the Show/Hide Cleared toggle.
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16.0,
+                  vertical: 8.0,
+                ),
+                child: TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    prefixIcon: const Icon(Icons.search),
+                    hintText: 'Search',
+                    suffixIcon: _searchController.text.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: () {
+                              setState(() {
+                                _searchController.clear();
+                                _searchQuery = '';
+                              });
+                            },
+                          )
+                        : null,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8.0),
+                    ),
+                    isDense: true,
+                  ),
+                  onChanged: (v) => setState(() => _searchQuery = v.trim()),
+                ),
+              ),
+              Expanded(
+                child: _searchQuery.isNotEmpty
+                    ? _buildSearchResults()
+                    : (hasAnyTransactions
+                          ? _buildTransactionsList(showHeader: false)
+                          : _buildEmptyState()),
+              ),
+            ],
+          ),
+        ),
+        // FloatingActionButton removed; add button is now in the AppBar actions
       ),
-      // FloatingActionButton removed; add button is now in the AppBar actions
-    ),
-  );
+    );
   }
 
   Widget _buildEmptyState() {
@@ -444,24 +516,20 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.receipt_long,
-            size: 80,
-            color: Colors.grey[400],
-          ),
+          Icon(Icons.receipt_long, size: 80, color: Colors.grey[400]),
           const SizedBox(height: 16),
           Text(
             'No transactions',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: Colors.grey[600],
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(color: Colors.grey[600]),
           ),
           const SizedBox(height: 8),
           Text(
             'Tap the + button to add your first transaction',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Colors.grey[600],
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
           ),
         ],
       ),
@@ -476,13 +544,48 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       groupedTransactions[monthKey] ??= [];
       groupedTransactions[monthKey]!.add(transaction);
     }
-
     final sortedMonths = groupedTransactions.keys.toList()
       ..sort((a, b) => b.compareTo(a)); // Most recent first
 
-    // Expand the most recent month by default
-    if (_expandedMonths.isEmpty && sortedMonths.isNotEmpty) {
-      _expandedMonths.add(sortedMonths.first);
+    final showPendingSection =
+        widget.accountId != null && widget.accountId!.isNotEmpty;
+    final pendingTxs = showPendingSection
+        ? _transactions.where((t) => t.cleared != true).toList()
+        : <Transaction>[];
+    pendingTxs.sort((a, b) {
+      final cmp = b.date.compareTo(a.date);
+      if (cmp != 0) return cmp;
+      final createdCmp = b.createdAt.compareTo(a.createdAt);
+      if (createdCmp != 0) return createdCmp;
+      return b.id.compareTo(a.id);
+    });
+    final pendingTotal = pendingTxs.fold<double>(
+      0.0,
+      (sum, tx) =>
+          sum + (tx.type == TransactionType.income ? tx.amount : -tx.amount),
+    );
+    final previousPendingCount = _lastPendingTransactionCount;
+    final pendingJustEmptied =
+        showPendingSection &&
+        pendingTxs.isEmpty &&
+        previousPendingCount != null &&
+        previousPendingCount > 0;
+    _lastPendingTransactionCount = pendingTxs.length;
+    final currentMonthKey = DateFormat('yyyy-MM').format(DateTime.now());
+    final defaultMonthKey = sortedMonths.contains(currentMonthKey)
+        ? currentMonthKey
+        : (sortedMonths.isNotEmpty ? sortedMonths.first : null);
+    if (_expandedMonths.isEmpty && defaultMonthKey != null) {
+      _expandedMonths.add(defaultMonthKey);
+      _autoExpandedMonthKey = defaultMonthKey;
+    } else if (pendingJustEmptied &&
+        sortedMonths.contains(currentMonthKey) &&
+        _autoExpandedMonthKey != currentMonthKey) {
+      if (_autoExpandedMonthKey != null) {
+        _expandedMonths.remove(_autoExpandedMonthKey);
+      }
+      _expandedMonths.add(currentMonthKey);
+      _autoExpandedMonthKey = currentMonthKey;
     }
     // Precompute running balances for account view (oldest -> newest)
     Map<String, double>? runningMap;
@@ -503,16 +606,23 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       if (account != null) {
         final initialBalance = DatabaseService.getInitialBalance(account.id);
         if (_showAvailableBalance) {
-          final pendingExpenses = allForBalance.where((t) => t.type == TransactionType.expense).fold<double>(0.0, (s, t) => s + t.amount);
-          final pendingIncome = allForBalance.where((t) => t.type == TransactionType.income).fold<double>(0.0, (s, t) => s + t.amount);
-          final computedAvailable = account.balance - pendingExpenses + pendingIncome;
+          final pendingExpenses = allForBalance
+              .where((t) => t.type == TransactionType.expense)
+              .fold<double>(0.0, (s, t) => s + t.amount);
+          final pendingIncome = allForBalance
+              .where((t) => t.type == TransactionType.income)
+              .fold<double>(0.0, (s, t) => s + t.amount);
+          final computedAvailable =
+              account.balance - pendingExpenses + pendingIncome;
           final displayBase = account.availableBalance ?? computedAvailable;
           runningMap = <String, double>{};
           pendingRunningMap = <String, double>{};
           double cum = displayBase;
           double cumWithPending = displayBase;
           for (final tx in allForBalance) {
-            final effect = (tx.type == TransactionType.income ? tx.amount : -tx.amount);
+            final effect = (tx.type == TransactionType.income
+                ? tx.amount
+                : -tx.amount);
             if (tx.cleared == true) {
               cum += effect;
             }
@@ -526,7 +636,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           double cum = initialBalance;
           double cumWithPending = initialBalance;
           for (final tx in allForBalance) {
-            final effect = (tx.type == TransactionType.income ? tx.amount : -tx.amount);
+            final effect = (tx.type == TransactionType.income
+                ? tx.amount
+                : -tx.amount);
             if (tx.cleared == true) {
               cum += effect;
             }
@@ -538,22 +650,6 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       }
     }
 
-    final showPendingSection = widget.accountId != null && widget.accountId!.isNotEmpty;
-    final pendingTxs = showPendingSection
-        ? _transactions.where((t) => t.cleared != true).toList()
-        : <Transaction>[];
-    pendingTxs.sort((a, b) {
-      final cmp = b.date.compareTo(a.date);
-      if (cmp != 0) return cmp;
-      final createdCmp = b.createdAt.compareTo(a.createdAt);
-      if (createdCmp != 0) return createdCmp;
-      return b.id.compareTo(a.id);
-    });
-    final pendingTotal = pendingTxs.fold<double>(
-      0.0,
-      (sum, tx) => sum + (tx.type == TransactionType.income ? tx.amount : -tx.amount),
-    );
-
     return ListView(
       children: [
         if (showPendingSection && pendingTxs.isNotEmpty) ...[
@@ -561,7 +657,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
             child: Text(
               'Pending',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
           ),
           Card(
@@ -575,18 +673,23 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                       Expanded(
                         child: Text(
                           'Pending',
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.bold),
                         ),
                       ),
                       Text(
                         '${pendingTxs.length} transaction${pendingTxs.length != 1 ? 's' : ''}',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Colors.grey[600],
+                        ),
                       ),
                       const SizedBox(width: 8),
                       Text(
                         _currencyFormat.format(pendingTotal),
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: pendingTotal >= 0 ? AppTheme.incomeGreen : AppTheme.expenseRed,
+                          color: pendingTotal >= 0
+                              ? AppTheme.incomeGreen
+                              : AppTheme.expenseRed,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -595,7 +698,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 ),
                 const Divider(height: 1),
                 for (var i = 0; i < pendingTxs.length; i++) ...[
-                  _buildTransactionItem(pendingTxs[i], runningBalance: pendingRunningMap?[pendingTxs[i].id]),
+                  _buildTransactionItem(
+                    pendingTxs[i],
+                    runningBalance: pendingRunningMap?[pendingTxs[i].id],
+                  ),
                   if (i != pendingTxs.length - 1) const Divider(height: 1),
                 ],
               ],
@@ -620,7 +726,11 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             // Only show cleared transactions in the main list (pending are shown separately)
             var displayTxs = showPendingSection
                 ? (_showCleared ? groupTxsForDisplay : <Transaction>[])
-                : (_showCleared ? groupTxsForDisplay : groupTxsForDisplay.where((t) => t.cleared != true).toList());
+                : (_showCleared
+                      ? groupTxsForDisplay
+                      : groupTxsForDisplay
+                            .where((t) => t.cleared != true)
+                            .toList());
             final parsedDate = DateTime.parse('$monthKey-01');
             // Always show the group, even if displayTxs is empty
             return _buildMonthGroup(
@@ -628,7 +738,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               parsedDate,
               displayTxs,
               runningBalances: runningMap,
-              allGroupTransactions: showPendingSection ? groupTxsForDisplay : allGroupTxs,
+              allGroupTransactions: showPendingSection
+                  ? groupTxsForDisplay
+                  : allGroupTxs,
             );
           }(),
         ],
@@ -644,47 +756,60 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     if (widget.accountId == null || widget.accountId!.isEmpty) {
       return const SizedBox.shrink();
     }
-    
+
     final account = DatabaseService.getAccountById(widget.accountId!);
     if (account == null) {
       return const SizedBox.shrink();
     }
-    
-  // Compute the final running balance using the same visible transaction set
-  // and starting base as the list computation so the header matches the
-  // per-transaction running values (i.e., the cumulative balance after
-  // applying all visible transactions).
-  // Always include all transactions for running balance calculation, even if 'hide cleared' is selected
-  final List<Transaction> allForHeader = _transactions.where((t) => t.accountId == account.id).toList();
-  // Only filter for display, not for running balance
-  // (visibleForHeader is not needed in this function)
-  // Sort oldest -> newest to match running-balance iteration
-  allForHeader.sort((a, b) {
-    final cmp = a.date.compareTo(b.date);
-    return cmp != 0 ? cmp : a.id.compareTo(b.id);
-  });
-  double finalCum;
-  if (_showAvailableBalance) {
-    final pendingExpenses = allForHeader.where((t) => t.type == TransactionType.expense).fold<double>(0.0, (s, t) => s + t.amount);
-    final pendingIncome = allForHeader.where((t) => t.type == TransactionType.income).fold<double>(0.0, (s, t) => s + t.amount);
-    final computedAvailable = account.balance - pendingExpenses + pendingIncome;
-    double base = account.availableBalance ?? computedAvailable;
-    finalCum = base;
-    for (final tx in allForHeader) {
-      final effect = (tx.type == TransactionType.income ? tx.amount : -tx.amount);
-      finalCum += effect;
+
+    // Compute the final running balance using the same visible transaction set
+    // and starting base as the list computation so the header matches the
+    // per-transaction running values (i.e., the cumulative balance after
+    // applying all visible transactions).
+    // Always include all transactions for running balance calculation, even if 'hide cleared' is selected
+    final List<Transaction> allForHeader = _transactions
+        .where((t) => t.accountId == account.id)
+        .toList();
+    // Only filter for display, not for running balance
+    // (visibleForHeader is not needed in this function)
+    // Sort oldest -> newest to match running-balance iteration
+    allForHeader.sort((a, b) {
+      final cmp = a.date.compareTo(b.date);
+      return cmp != 0 ? cmp : a.id.compareTo(b.id);
+    });
+    double finalCum;
+    if (_showAvailableBalance) {
+      final pendingExpenses = allForHeader
+          .where((t) => t.type == TransactionType.expense)
+          .fold<double>(0.0, (s, t) => s + t.amount);
+      final pendingIncome = allForHeader
+          .where((t) => t.type == TransactionType.income)
+          .fold<double>(0.0, (s, t) => s + t.amount);
+      final computedAvailable =
+          account.balance - pendingExpenses + pendingIncome;
+      double base = account.availableBalance ?? computedAvailable;
+      finalCum = base;
+      for (final tx in allForHeader) {
+        final effect = (tx.type == TransactionType.income
+            ? tx.amount
+            : -tx.amount);
+        finalCum += effect;
+      }
+    } else {
+      final initialBalance = DatabaseService.getInitialBalance(account.id);
+      finalCum = initialBalance;
+      for (final tx in allForHeader) {
+        final effect = (tx.type == TransactionType.income
+            ? tx.amount
+            : -tx.amount);
+        finalCum += effect;
+      }
     }
-  } else {
-    final initialBalance = DatabaseService.getInitialBalance(account.id);
-    finalCum = initialBalance;
-    for (final tx in allForHeader) {
-      final effect = (tx.type == TransactionType.income ? tx.amount : -tx.amount);
-      finalCum += effect;
-    }
-  }
-  final displayBalance = finalCum;
-    final balanceLabel = _showAvailableBalance ? 'Available Balance' : 'Current Balance';
-    
+    final displayBalance = finalCum;
+    final balanceLabel = _showAvailableBalance
+        ? 'Available Balance'
+        : 'Current Balance';
+
     return Container(
       margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(16),
@@ -731,7 +856,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                   _currencyFormat.format(displayBalance),
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: displayBalance >= 0 ? AppTheme.incomeGreen : AppTheme.expenseRed,
+                    color: displayBalance >= 0
+                        ? AppTheme.incomeGreen
+                        : AppTheme.expenseRed,
                     fontSize: 15,
                   ),
                 ),
@@ -744,7 +871,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               setState(() {
                 _showCleared = !_showCleared;
               });
-              DatabaseService.setSetting('transactionsShowCleared', _showCleared);
+              DatabaseService.setSetting(
+                'transactionsShowCleared',
+                _showCleared,
+              );
             },
             child: Text(
               _showCleared ? 'Hide Cleared' : 'Show Cleared',
@@ -759,99 +889,141 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     );
   }
 
-  Widget _buildMonthGroup(String monthKey, DateTime date, List<Transaction> transactions, {Map<String, double>? runningBalances, List<Transaction>? allGroupTransactions}) {
-  final monthName = DateFormat('MMMM yyyy').format(date); // Full month name and year
-  final txsForHeader = allGroupTransactions ?? transactions;
-  List<Widget> children = [];
-  // Group all transactions in the group by date (descending)
-  final allTxs = allGroupTransactions ?? transactions;
-  final allDateGroups = <String, List<Transaction>>{};
-  for (final tx in allTxs) {
-    final dateStr = DateFormat('MM/dd/yyyy').format(tx.date);
-    allDateGroups.putIfAbsent(dateStr, () => []).add(tx);
-  }
+  Widget _buildMonthGroup(
+    String monthKey,
+    DateTime date,
+    List<Transaction> transactions, {
+    Map<String, double>? runningBalances,
+    List<Transaction>? allGroupTransactions,
+  }) {
+    final monthName = DateFormat(
+      'MMMM yyyy',
+    ).format(date); // Full month name and year
+    final txsForHeader = allGroupTransactions ?? transactions;
+    List<Widget> children = [];
+    // Group all transactions in the group by date (descending)
+    final allTxs = allGroupTransactions ?? transactions;
+    final allDateGroups = <String, List<Transaction>>{};
+    for (final tx in allTxs) {
+      final dateStr = DateFormat('MM/dd/yyyy').format(tx.date);
+      allDateGroups.putIfAbsent(dateStr, () => []).add(tx);
+    }
 
-  final sortedDates = allDateGroups.keys.toList()
-    ..sort((a, b) => DateFormat('MM/dd/yyyy').parse(b).compareTo(DateFormat('MM/dd/yyyy').parse(a)));
-  for (final dateStr in sortedDates) {
-    final allTxsForDate = allDateGroups[dateStr]!;
-    // Find the last transaction for this date (since list is newest first, it's the first in the group)
-    final lastTx = allTxsForDate.first;
-    final lastRunning = runningBalances != null ? runningBalances[lastTx.id] : null;
-    // Add a divider before each date group except the first
-    if (children.isNotEmpty) {
+    final sortedDates = allDateGroups.keys.toList()
+      ..sort(
+        (a, b) => DateFormat(
+          'MM/dd/yyyy',
+        ).parse(b).compareTo(DateFormat('MM/dd/yyyy').parse(a)),
+      );
+    for (final dateStr in sortedDates) {
+      final allTxsForDate = allDateGroups[dateStr]!;
+      // Find the last transaction for this date (since list is newest first, it's the first in the group)
+      final lastTx = allTxsForDate.first;
+      final lastRunning = runningBalances != null
+          ? runningBalances[lastTx.id]
+          : null;
+      // Add a divider before each date group except the first
+      if (children.isNotEmpty) {
+        children.add(
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8.0),
+            child: Divider(
+              thickness: 2,
+              color: Theme.of(context).colorScheme.primary.withOpacity(0.18),
+              height: 18,
+            ),
+          ),
+        );
+      }
+      // Now show only visible (uncleared) transactions for this date
+      final visibleTxs = transactions
+          .where((t) => DateFormat('MM/dd/yyyy').format(t.date) == dateStr)
+          .toList();
       children.add(
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8.0),
-          child: Divider(
-            thickness: 2,
-            color: Theme.of(context).colorScheme.primary.withOpacity(0.18),
-            height: 18,
+          padding: const EdgeInsets.only(
+            left: 12,
+            right: 12,
+            bottom: 4,
+            top: 4,
           ),
-        ),
-      );
-    }
-    // Now show only visible (uncleared) transactions for this date
-    final visibleTxs = transactions.where((t) => DateFormat('MM/dd/yyyy').format(t.date) == dateStr).toList();
-    children.add(
-      Padding(
-        padding: const EdgeInsets.only(left: 12, right: 12, bottom: 4, top: 4),
-        child: Row(
-          children: [
-            // Left: date
-            Text(
-              dateStr,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Colors.grey[600],
-                fontWeight: FontWeight.w500,
-                fontSize: 12,
-              ),
-            ),
-            const Spacer(),
-            // Right: running balance
-            if (lastRunning != null)
+          child: Row(
+            children: [
+              // Left: date
               Text(
-                _currencyFormat.format(lastRunning),
+                dateStr,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: Colors.grey[600],
                   fontWeight: FontWeight.w500,
                   fontSize: 12,
                 ),
               ),
-          ],
+              const Spacer(),
+              // Right: running balance
+              if (lastRunning != null)
+                Text(
+                  _currencyFormat.format(lastRunning),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                    fontSize: 12,
+                  ),
+                ),
+            ],
+          ),
         ),
-      ),
-    );
-    if (visibleTxs.isNotEmpty) {
-      children.addAll(visibleTxs.map((transaction) => _buildTransactionItem(transaction, runningBalance: runningBalances != null ? runningBalances[transaction.id] : null)));
+      );
+      if (visibleTxs.isNotEmpty) {
+        children.addAll(
+          visibleTxs.map(
+            (transaction) => _buildTransactionItem(
+              transaction,
+              runningBalance: runningBalances != null
+                  ? runningBalances[transaction.id]
+                  : null,
+            ),
+          ),
+        );
+      }
     }
-  }
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: ExpansionTile(
+        key: PageStorageKey<String>('transactions_month_$monthKey'),
+        initiallyExpanded: _expandedMonths.contains(monthKey),
+        onExpansionChanged: (expanded) {
+          setState(() {
+            if (expanded) {
+              _expandedMonths.add(monthKey);
+            } else {
+              _expandedMonths.remove(monthKey);
+            }
+            if (_autoExpandedMonthKey == monthKey) {
+              _autoExpandedMonthKey = null;
+            }
+          });
+        },
         maintainState: true,
         title: Row(
           children: [
             Expanded(
               child: Text(
                 monthName,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
             ),
             Text(
               // Show count and amount for all transactions in group, not just visible
               '${txsForHeader.length} transaction${txsForHeader.length != 1 ? 's' : ''}',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Colors.grey[600],
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
             ),
           ],
         ),
-        children: children.isNotEmpty
-            ? children
-            : const [],
+        children: children.isNotEmpty ? children : const [],
       ),
     );
   }
@@ -875,13 +1047,17 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     return trimmed.substring('payment for '.length).trim();
   }
 
-  Widget _buildTransactionItem(Transaction transaction, {double? runningBalance}) {
+  Widget _buildTransactionItem(
+    Transaction transaction, {
+    double? runningBalance,
+  }) {
     final lookupsState = context.watch<LookupsState>();
     final normalizedCategoryId = transaction.categoryId.trim();
     final category = normalizedCategoryId.isEmpty
         ? null
         : DatabaseService.getCategoryById(normalizedCategoryId);
-    final categoryText = (category?.name != null && category!.name.trim().isNotEmpty)
+    final categoryText =
+        (category?.name != null && category!.name.trim().isNotEmpty)
         ? category.name
         : lookupsState.categoryName(
             normalizedCategoryId,
@@ -897,7 +1073,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     );
     // If transaction has splits, build a combined category string
     String categoryDisplay;
-    if (transaction.splitsJson != null && transaction.splitsJson!.trim().isNotEmpty) {
+    if (transaction.splitsJson != null &&
+        transaction.splitsJson!.trim().isNotEmpty) {
       try {
         final splits = json.decode(transaction.splitsJson!) as List<dynamic>;
         final parts = <String>[];
@@ -915,7 +1092,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                     cid,
                     fallbackName: cid ?? 'Unknown',
                   );
-            final amountStr = amt is num ? _currencyFormat.format(amt.toDouble()) : amt?.toString() ?? '';
+            final amountStr = amt is num
+                ? _currencyFormat.format(amt.toDouble())
+                : amt?.toString() ?? '';
             parts.add('$name ${amountStr}');
           }
         }
@@ -941,16 +1120,21 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         final lowerCategorySuffix = ' ${cat.toLowerCase()}';
         if (lowerValue.endsWith(lowerCategorySuffix)) {
           paymentForDisplay = paymentForDisplay
-              .substring(0, paymentForDisplay.length - lowerCategorySuffix.length)
+              .substring(
+                0,
+                paymentForDisplay.length - lowerCategorySuffix.length,
+              )
               .trim();
         }
       }
     }
-    
+
     // Calculate running balance if viewing a specific account and no
     // precomputed runningBalance was passed in. Compute from oldest -> newest
     // to match the account history progression.
-    if (runningBalance == null && widget.accountId != null && widget.accountId!.isNotEmpty) {
+    if (runningBalance == null &&
+        widget.accountId != null &&
+        widget.accountId!.isNotEmpty) {
       final account = DatabaseService.getAccountById(widget.accountId!);
       if (account != null) {
         final allForBalance = List<Transaction>.from(_transactions)
@@ -959,10 +1143,14 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         final initialBalance = DatabaseService.getInitialBalance(account.id);
 
         if (_showAvailableBalance) {
-          final displayBase = account.availableBalance ?? DatabaseService.getComputedAvailableBalance(account.id);
+          final displayBase =
+              account.availableBalance ??
+              DatabaseService.getComputedAvailableBalance(account.id);
           double cum = displayBase;
           for (final tx in allForBalance) {
-            final effect = (tx.type == TransactionType.income ? tx.amount : -tx.amount);
+            final effect = (tx.type == TransactionType.income
+                ? tx.amount
+                : -tx.amount);
             if (tx.cleared == true) {
               cum += effect;
             }
@@ -974,7 +1162,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         } else {
           double cum = initialBalance;
           for (final tx in allForBalance) {
-            final effect = (tx.type == TransactionType.income ? tx.amount : -tx.amount);
+            final effect = (tx.type == TransactionType.income
+                ? tx.amount
+                : -tx.amount);
             if (tx.cleared == true) {
               cum += effect;
             }
@@ -986,7 +1176,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         }
       }
     }
-    
+
     Future<void> openEditTransaction() async {
       final result = await Navigator.push(
         context,
@@ -1029,10 +1219,16 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         }
       }
 
-      await DatabaseService.updateTransaction(transaction.copyWith(cleared: newCleared));
+      await DatabaseService.updateTransaction(
+        transaction.copyWith(cleared: newCleared),
+      );
 
-      if (shouldApplyToBothSides && linked != null && linked.cleared != newCleared) {
-        await DatabaseService.updateTransaction(linked.copyWith(cleared: newCleared));
+      if (shouldApplyToBothSides &&
+          linked != null &&
+          linked.cleared != newCleared) {
+        await DatabaseService.updateTransaction(
+          linked.copyWith(cleared: newCleared),
+        );
       }
 
       _loadTransactions();
@@ -1045,7 +1241,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           await openEditTransaction();
         },
         child: ListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 8,
+          ),
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1060,42 +1259,61 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                             children: [
                               Text(
                                 DateFormat('MM/dd/yy').format(transaction.date),
-                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: Colors.grey[600],
-                                ),
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(color: Colors.grey[600]),
                               ),
                               const SizedBox(height: 4),
                               // Extract clean payee/payer name for payment transactions,
                               // removing "Payment for" prefix and trailing date
                               Builder(
                                 builder: (context) {
-                                  final isPayment = transaction.description.toLowerCase().startsWith('payment for ');
+                                  final isPayment = transaction.description
+                                      .toLowerCase()
+                                      .startsWith('payment for ');
                                   final fallbackCounterparty =
-                                      transaction.type == TransactionType.expense
-                                          ? payeeText
-                                          : payerText;
+                                      transaction.type ==
+                                          TransactionType.expense
+                                      ? payeeText
+                                      : payerText;
                                   var baseTitle = isPayment
                                       ? (fallbackCounterparty.isNotEmpty
-                                          ? fallbackCounterparty
-                                          : _extractPayeeName(transaction.description))
+                                            ? fallbackCounterparty
+                                            : _extractPayeeName(
+                                                transaction.description,
+                                              ))
                                       : transaction.description;
                                   baseTitle = baseTitle.replaceFirst(
-                                    RegExp(r'^\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\s+'),
+                                    RegExp(
+                                      r'^\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\s+',
+                                    ),
                                     '',
                                   );
                                   final cat = categoryText.trim();
-                                  if (cat.isNotEmpty && baseTitle.toLowerCase().endsWith(' ${cat.toLowerCase()}')) {
-                                    baseTitle = baseTitle.substring(0, baseTitle.length - cat.length - 1).trim();
+                                  if (cat.isNotEmpty &&
+                                      baseTitle.toLowerCase().endsWith(
+                                        ' ${cat.toLowerCase()}',
+                                      )) {
+                                    baseTitle = baseTitle
+                                        .substring(
+                                          0,
+                                          baseTitle.length - cat.length - 1,
+                                        )
+                                        .trim();
                                   }
                                   final displayTitle =
-                                      (baseTitle.trim().isEmpty || baseTitle.trim().toLowerCase() == 'transaction')
-                                          ? (fallbackCounterparty.isEmpty ? baseTitle : fallbackCounterparty)
-                                          : baseTitle;
+                                      (baseTitle.trim().isEmpty ||
+                                          baseTitle.trim().toLowerCase() ==
+                                              'transaction')
+                                      ? (fallbackCounterparty.isEmpty
+                                            ? baseTitle
+                                            : fallbackCounterparty)
+                                      : baseTitle;
                                   return Text(
                                     displayTitle,
-                                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                      fontWeight: FontWeight.w600,
-                                    ),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium
+                                        ?.copyWith(fontWeight: FontWeight.w600),
                                   );
                                 },
                               ),
@@ -1104,9 +1322,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                               // show each category and allocated amount in-line.
                               Text(
                                 categoryDisplay,
-                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: Colors.grey[700],
-                                ),
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(color: Colors.grey[700]),
                               ),
                             ],
                           ),
@@ -1117,67 +1334,115 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                           children: [
                             Text(
                               '${transaction.type == TransactionType.income ? '+' : '-'}${_currencyFormat.format(transaction.amount)}',
-                              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                color: transaction.type == TransactionType.income
-                                    ? AppTheme.incomeGreen
-                                    : AppTheme.expenseRed,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                              ),
-                            ),
-                            if (transaction.note != null && transaction.note!.trim().isNotEmpty) ...[
-                          Builder(
-                            builder: (ctx) {
-                              String raw = transaction.note!;
-                              String lower = raw.toLowerCase();
-                              final isTransfer = lower.startsWith('__transfer_manual__') || lower.startsWith('__transfer_bill__');
-                              // Only show note for transfers if user entered a note (not just marker)
-                              if (isTransfer && (raw.trim() == '__transfer_manual__' || raw.trim() == '__transfer_bill__')) {
-                                return const SizedBox.shrink();
-                              }
-                              // Remove transfer marker prefix if present
-                              if (isTransfer) {
-                                raw = raw.replaceFirst(RegExp(r'^__transfer_(manual|bill)__'), '').trim();
-                                lower = raw.toLowerCase();
-                              }
-                              // Remove hide marker used for legacy dashboard filtering.
-                              raw = raw.replaceAll(RegExp(r'__hide_from_calendar__', caseSensitive: false), '').trim();
-                              lower = raw.toLowerCase();
-                              // Remove account: prefix if present
-                              if (lower.startsWith('account:')) {
-                                final after = raw.substring('account:'.length).trim();
-                                final parts = after.split(RegExp(r'\s*[—–-]\s*'));
-                                raw = parts.length > 1 ? parts.sublist(1).join(' — ').trim() : '';
-                              }
-                              // Remove any leftover _transfer or _bill_ markers
-                              raw = raw.replaceAll(RegExp(r'_transfer|_bill_', caseSensitive: false), '').trim();
-                              // Remove any internal pair tokens added to link transfer sides (e.g. 'pair:<id>')
-                              raw = raw.replaceAll(RegExp(r'pair:[A-Za-z0-9\-]+'), '').trim();
-                              if (raw.isEmpty) return const SizedBox.shrink();
-                              return Padding(
-                                padding: const EdgeInsets.only(top: 4),
-                                child: SizedBox(
-                                  width: 140,
-                                  child: Text(
-                                    raw,
-                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
-                                    textAlign: TextAlign.right,
-                                    overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodyLarge
+                                  ?.copyWith(
+                                    color:
+                                        transaction.type ==
+                                            TransactionType.income
+                                        ? AppTheme.incomeGreen
+                                        : AppTheme.expenseRed,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
                                   ),
-                                ),
-                              );
-                            },
-                          ),
+                            ),
+                            if (transaction.note != null &&
+                                transaction.note!.trim().isNotEmpty) ...[
+                              Builder(
+                                builder: (ctx) {
+                                  String raw = transaction.note!;
+                                  String lower = raw.toLowerCase();
+                                  final isTransfer =
+                                      lower.startsWith('__transfer_manual__') ||
+                                      lower.startsWith('__transfer_bill__');
+                                  // Only show note for transfers if user entered a note (not just marker)
+                                  if (isTransfer &&
+                                      (raw.trim() == '__transfer_manual__' ||
+                                          raw.trim() == '__transfer_bill__')) {
+                                    return const SizedBox.shrink();
+                                  }
+                                  // Remove transfer marker prefix if present
+                                  if (isTransfer) {
+                                    raw = raw
+                                        .replaceFirst(
+                                          RegExp(
+                                            r'^__transfer_(manual|bill)__',
+                                          ),
+                                          '',
+                                        )
+                                        .trim();
+                                    lower = raw.toLowerCase();
+                                  }
+                                  // Remove hide marker used for legacy dashboard filtering.
+                                  raw = raw
+                                      .replaceAll(
+                                        RegExp(
+                                          r'__hide_from_calendar__',
+                                          caseSensitive: false,
+                                        ),
+                                        '',
+                                      )
+                                      .trim();
+                                  lower = raw.toLowerCase();
+                                  // Remove account: prefix if present
+                                  if (lower.startsWith('account:')) {
+                                    final after = raw
+                                        .substring('account:'.length)
+                                        .trim();
+                                    final parts = after.split(
+                                      RegExp(r'\s*[—–-]\s*'),
+                                    );
+                                    raw = parts.length > 1
+                                        ? parts.sublist(1).join(' — ').trim()
+                                        : '';
+                                  }
+                                  // Remove any leftover _transfer or _bill_ markers
+                                  raw = raw
+                                      .replaceAll(
+                                        RegExp(
+                                          r'_transfer|_bill_',
+                                          caseSensitive: false,
+                                        ),
+                                        '',
+                                      )
+                                      .trim();
+                                  // Remove any internal pair tokens added to link transfer sides (e.g. 'pair:<id>')
+                                  raw = raw
+                                      .replaceAll(
+                                        RegExp(r'pair:[A-Za-z0-9\-]+'),
+                                        '',
+                                      )
+                                      .trim();
+                                  if (raw.isEmpty) {
+                                    return const SizedBox.shrink();
+                                  }
+                                  return Padding(
+                                    padding: const EdgeInsets.only(top: 4),
+                                    child: SizedBox(
+                                      width: 140,
+                                      child: Text(
+                                        raw,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(color: Colors.grey[600]),
+                                        textAlign: TextAlign.right,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
                             ],
                             const SizedBox(height: 4),
                             if (runningBalance != null) ...[
                               Text(
                                 _currencyFormat.format(runningBalance),
-                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.grey[600],
-                                  fontSize: 9,
-                                ),
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.grey[600],
+                                      fontSize: 9,
+                                    ),
                               ),
                             ],
                           ],
@@ -1194,9 +1459,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 const SizedBox(height: 8),
                 Text(
                   'Payment for $paymentForDisplay',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.grey[700],
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: Colors.grey[700]),
                 ),
               ],
             ],
@@ -1228,7 +1493,11 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                     maxLines: 1,
                     softWrap: false,
                     overflow: TextOverflow.visible,
-                    style: TextStyle(color: Colors.white, fontSize: 11, height: 1.1),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      height: 1.1,
+                    ),
                   ),
                 ),
               ],
@@ -1242,7 +1511,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(
-                  transaction.cleared == true ? Icons.undo : Icons.check_circle_outline,
+                  transaction.cleared == true
+                      ? Icons.undo
+                      : Icons.check_circle_outline,
                   color: Colors.white,
                 ),
                 const SizedBox(height: 4),
@@ -1252,7 +1523,11 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                   maxLines: 2,
                   softWrap: true,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Colors.white, fontSize: 11, height: 1.1),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    height: 1.1,
+                  ),
                 ),
               ],
             ),
@@ -1278,7 +1553,11 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                   maxLines: 2,
                   softWrap: true,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: Colors.white, fontSize: 11, height: 1.1),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    height: 1.1,
+                  ),
                 ),
               ],
             ),
@@ -1316,16 +1595,13 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             width: 80,
             child: Text(
               '$label:',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w500,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
             ),
           ),
           Expanded(
-            child: Text(
-              value,
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
+            child: Text(value, style: Theme.of(context).textTheme.bodyMedium),
           ),
         ],
       ),
@@ -1334,7 +1610,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
   void _deleteTransaction(Transaction transaction) {
     final note = transaction.note ?? '';
-    final isTransfer = note.toLowerCase().startsWith('__transfer_manual__') || note.toLowerCase().startsWith('__transfer_bill__');
+    final isTransfer =
+        note.toLowerCase().startsWith('__transfer_manual__') ||
+        note.toLowerCase().startsWith('__transfer_bill__');
     if (isTransfer) {
       showDialog(
         context: context,
@@ -1377,7 +1655,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 nav.pop();
                 _deleteTransferTransaction(transaction, deleteBothSides: true);
               },
-              child: const Text('Both Sides', style: TextStyle(color: Colors.red)),
+              child: const Text(
+                'Both Sides',
+                style: TextStyle(color: Colors.red),
+              ),
             ),
           ],
         ),
@@ -1411,8 +1692,12 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                   if (accId != null) {
                     final acc = DatabaseService.getAccountById(accId);
                     if (acc != null) {
-                      final effect = transaction.type == TransactionType.income ? transaction.amount : -transaction.amount;
-                      final updatedAcc = acc.copyWith(balance: acc.balance - effect);
+                      final effect = transaction.type == TransactionType.income
+                          ? transaction.amount
+                          : -transaction.amount;
+                      final updatedAcc = acc.copyWith(
+                        balance: acc.balance - effect,
+                      );
                       await DatabaseService.updateAccount(updatedAcc);
                     }
                   }

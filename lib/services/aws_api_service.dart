@@ -28,8 +28,9 @@ class AwsApiService {
   static bool get isConfigured => _baseUrl.isNotEmpty;
 
   static String _joinPaths(String basePath, String path) {
-    final cleanBase =
-        basePath.endsWith('/') ? basePath.substring(0, basePath.length - 1) : basePath;
+    final cleanBase = basePath.endsWith('/')
+        ? basePath.substring(0, basePath.length - 1)
+        : basePath;
     final cleanPath = path.startsWith('/') ? path : '/$path';
     if (cleanBase.isEmpty) return cleanPath;
     return '$cleanBase$cleanPath';
@@ -104,9 +105,7 @@ class AwsApiService {
   }
 
   static Future<Map<String, String>> _buildHeaders() async {
-    final headers = <String, String>{
-      'Content-Type': 'application/json',
-    };
+    final headers = <String, String>{'Content-Type': 'application/json'};
 
     final token = await _getIdToken();
     if (token.isEmpty) {
@@ -134,8 +133,9 @@ class AwsApiService {
     }
 
     try {
-      final isSignedIn =
-          await Amplify.Auth.fetchAuthSession().then((session) => session.isSignedIn);
+      final isSignedIn = await Amplify.Auth.fetchAuthSession().then(
+        (session) => session.isSignedIn,
+      );
       if (!isSignedIn) {
         throw StateError('User not signed in - cannot make API requests');
       }
@@ -146,18 +146,14 @@ class AwsApiService {
 
     final resolvedUserId = await _resolveUserId();
 
-    final mergedQueryParams = <String, String>{
-      ...?queryParameters,
-    };
+    final mergedQueryParams = <String, String>{...?queryParameters};
 
     // Always send canonical userId when available.
     if (resolvedUserId.isNotEmpty && !mergedQueryParams.containsKey('userId')) {
       mergedQueryParams['userId'] = resolvedUserId;
     }
 
-    final mergedBody = <String, dynamic>{
-      ...?body,
-    };
+    final mergedBody = <String, dynamic>{...?body};
 
     // Always include canonical userId in body when not already supplied.
     if (resolvedUserId.isNotEmpty && !mergedBody.containsKey('userId')) {
@@ -172,7 +168,9 @@ class AwsApiService {
     final encodedBody = mergedBody.isEmpty ? null : jsonEncode(mergedBody);
 
     debugPrint('AWS API ${method.toUpperCase()} -> $uri');
-    debugPrint('AWS API userId -> ${resolvedUserId.isEmpty ? "(empty)" : resolvedUserId}');
+    debugPrint(
+      'AWS API userId -> ${resolvedUserId.isEmpty ? "(empty)" : resolvedUserId}',
+    );
 
     switch (method) {
       case 'GET':
@@ -211,26 +209,27 @@ class AwsApiService {
     final typeRaw = (json['type'] ?? 'bank').toString();
     final type = _accountTypeFromString(typeRaw);
     final currency = json['currency'] ?? 'USD';
-    final balance = ((json['balance'] ?? json['initialBalance']) as num?)?.toDouble() ?? 0.0;
+    final balance =
+        ((json['balance'] ?? json['initialBalance']) as num?)?.toDouble() ??
+        0.0;
     final statusRaw = json['status']?.toString().trim().toLowerCase();
     final isActiveRaw =
-      json['isActive'] ??
-      json['active'] ??
-      json['enabled'] ??
-      ((statusRaw == 'archived' || statusRaw == 'inactive') ? false : null);
+        json['isActive'] ??
+        json['active'] ??
+        json['enabled'] ??
+        ((statusRaw == 'archived' || statusRaw == 'inactive') ? false : null);
     final isActive = _parseNullableBool(isActiveRaw) ?? true;
-    final institutionRaw = (
-      json['institution'] ??
-      json['bankName'] ??
-      json['provider'] ??
-      json['description'] ??
-      ''
-    ).toString().trim();
-    final descriptionRaw = (
-      json['description'] ??
-      json['institution'] ??
-      ''
-    ).toString().trim();
+    final institutionRaw =
+        (json['institution'] ??
+                json['bankName'] ??
+                json['provider'] ??
+                json['description'] ??
+                '')
+            .toString()
+            .trim();
+    final descriptionRaw = (json['description'] ?? json['institution'] ?? '')
+        .toString()
+        .trim();
 
     return Account(
       id: id.toString(),
@@ -259,10 +258,9 @@ class AwsApiService {
       description: (json['name'] ?? json['description'])?.toString(),
       dueDate: due,
       recurrence: recurrence,
-      recurrenceInterval: json['recurrenceInterval'] ?? 1,
-      recurrenceWeekdays:
-          (json['recurrenceWeekdays'] as List?)?.map((e) => (e as num).toInt()).toList(),
-      customDays: (json['customDays'] as List?)?.map((e) => (e as num).toInt()).toList(),
+      recurrenceInterval: _parsePositiveInt(json['recurrenceInterval']),
+      recurrenceWeekdays: _parseIntList(json['recurrenceWeekdays']),
+      customDays: _parseIntList(json['customDays']),
       recurrenceEndDate: _parseDate(json['recurrenceEndDate']),
       categoryId: json['categoryId']?.toString(),
       type: _billTypeFromString(json['type']?.toString()),
@@ -271,7 +269,9 @@ class AwsApiService {
       fromAccountId: json['fromAccountId']?.toString(),
       toAccountId: json['toAccountId']?.toString(),
       isPaid: json['isPaid'] ?? false,
-      paymentStatus: _paymentStatusFromString(json['paymentStatus']?.toString()),
+      paymentStatus: _paymentStatusFromString(
+        json['paymentStatus']?.toString(),
+      ),
     );
   }
 
@@ -282,16 +282,14 @@ class AwsApiService {
     final type = direction == 'income'
         ? TransactionType.income
         : direction == 'expense'
-            ? TransactionType.expense
-            : (amount >= 0 ? TransactionType.income : TransactionType.expense);
+        ? TransactionType.expense
+        : (amount >= 0 ? TransactionType.income : TransactionType.expense);
     final date = _parseDate(json['transactionDate']) ?? DateTime.now();
-    final categoryIdRaw = (
-      json['categoryId'] ??
-      json['category_id'] ??
-      json['category'] ??
-      ''
-    ).toString();
-    String? categoryName = json['categoryName']?.toString() ??
+    final categoryIdRaw =
+        (json['categoryId'] ?? json['category_id'] ?? json['category'] ?? '')
+            .toString();
+    String? categoryName =
+        json['categoryName']?.toString() ??
         json['category_name']?.toString() ??
         json['categoryDisplayName']?.toString() ??
         json['categoryLabel']?.toString();
@@ -303,7 +301,10 @@ class AwsApiService {
       categoryName = categoryField;
     }
     final clearedRaw =
-        json['cleared'] ?? json['isCleared'] ?? json['is_cleared'] ?? json['clearedStatus'];
+        json['cleared'] ??
+        json['isCleared'] ??
+        json['is_cleared'] ??
+        json['clearedStatus'];
     bool? cleared = _parseNullableBool(clearedRaw);
     if (cleared == null) {
       final status = clearedRaw?.toString().trim().toLowerCase() ?? '';
@@ -315,14 +316,23 @@ class AwsApiService {
     }
 
     final createdAt =
-      _parseDateTime(json['createdAt'] ?? json['created_at'] ?? json['timestamp']) ??
-      date;
+        _parseDateTime(
+          json['createdAt'] ?? json['created_at'] ?? json['timestamp'],
+        ) ??
+        date;
     final updatedAt =
-      _parseDateTime(json['updatedAt'] ?? json['updated_at'] ?? json['lastModified'] ?? json['last_modified']) ??
-      createdAt;
+        _parseDateTime(
+          json['updatedAt'] ??
+              json['updated_at'] ??
+              json['lastModified'] ??
+              json['last_modified'],
+        ) ??
+        createdAt;
 
-    final payeeNameRaw = json['payeeName']?.toString() ?? json['payee_name']?.toString();
-    final payerNameRaw = json['payerName']?.toString() ?? json['payer_name']?.toString();
+    final payeeNameRaw =
+        json['payeeName']?.toString() ?? json['payee_name']?.toString();
+    final payerNameRaw =
+        json['payerName']?.toString() ?? json['payer_name']?.toString();
 
     return Transaction(
       id: id.toString(),
@@ -342,9 +352,14 @@ class AwsApiService {
       billId: json['billId']?.toString(),
       payerId: json['payerId']?.toString(),
       payeeId: json['payeeId']?.toString(),
-      paymentFor: json['paymentFor']?.toString() ?? json['payment_for']?.toString(),
-      payeeName: (payeeNameRaw == null || payeeNameRaw.trim().isEmpty) ? null : payeeNameRaw.trim(),
-      payerName: (payerNameRaw == null || payerNameRaw.trim().isEmpty) ? null : payerNameRaw.trim(),
+      paymentFor:
+          json['paymentFor']?.toString() ?? json['payment_for']?.toString(),
+      payeeName: (payeeNameRaw == null || payeeNameRaw.trim().isEmpty)
+          ? null
+          : payeeNameRaw.trim(),
+      payerName: (payerNameRaw == null || payerNameRaw.trim().isEmpty)
+          ? null
+          : payerNameRaw.trim(),
     );
   }
 
@@ -374,7 +389,11 @@ class AwsApiService {
 
   static Future<void> updateAccount(Account account) async {
     final payload = account.toJson();
-    final response = await _request('PUT', '/accounts/${account.id}', body: payload);
+    final response = await _request(
+      'PUT',
+      '/accounts/${account.id}',
+      body: payload,
+    );
     _throwIfNotOk(response);
   }
 
@@ -405,22 +424,36 @@ class AwsApiService {
     return [];
   }
 
-  static Future<void> createBill(Bill bill, {List<ReminderOffset> reminderOffsets = const []}) async {
+  static Future<void> createBill(
+    Bill bill, {
+    List<ReminderOffset> reminderOffsets = const [],
+  }) async {
     final userId = await _resolveUserId();
     if (userId.isEmpty) {
       throw StateError('No userId available for bill creation');
     }
-    final payload = _billToApiPayload(bill, userId, reminderOffsets: reminderOffsets);
+    final payload = _billToApiPayload(
+      bill,
+      userId,
+      reminderOffsets: reminderOffsets,
+    );
     final response = await _request('POST', '/bills', body: payload);
     _throwIfNotOk(response);
   }
 
-  static Future<void> updateBill(Bill bill, {List<ReminderOffset> reminderOffsets = const []}) async {
+  static Future<void> updateBill(
+    Bill bill, {
+    List<ReminderOffset> reminderOffsets = const [],
+  }) async {
     final userId = await _resolveUserId();
     if (userId.isEmpty) {
       throw StateError('No userId available for bill update');
     }
-    final payload = _billToApiPayload(bill, userId, reminderOffsets: reminderOffsets);
+    final payload = _billToApiPayload(
+      bill,
+      userId,
+      reminderOffsets: reminderOffsets,
+    );
     final response = await _request('PUT', '/bills/${bill.id}', body: payload);
     _throwIfNotOk(response);
   }
@@ -434,6 +467,15 @@ class AwsApiService {
     _throwIfNotOk(response);
   }
 
+  static Future<void> deleteNotificationSchedulesForBill(String billId) async {
+    final encodedBillId = Uri.encodeComponent(billId);
+    final response = await _request(
+      'DELETE',
+      '/notification-schedules/by-bill/$encodedBillId',
+    );
+    _throwIfNotOk(response);
+  }
+
   // Transactions
   static Future<List<Transaction>> fetchTransactions() async {
     final response = await _request('GET', '/transactions');
@@ -441,12 +483,16 @@ class AwsApiService {
     final decoded = jsonDecode(response.body);
     if (decoded is List) {
       return decoded
-          .map<Transaction>((e) => _transactionFromItem(Map<String, dynamic>.from(e)))
+          .map<Transaction>(
+            (e) => _transactionFromItem(Map<String, dynamic>.from(e)),
+          )
           .toList();
     }
     if (decoded is Map && decoded['items'] is List) {
       return (decoded['items'] as List)
-          .map<Transaction>((e) => _transactionFromItem(Map<String, dynamic>.from(e)))
+          .map<Transaction>(
+            (e) => _transactionFromItem(Map<String, dynamic>.from(e)),
+          )
           .toList();
     }
     return [];
@@ -462,8 +508,11 @@ class AwsApiService {
   static Future<void> updateTransaction(Transaction transaction) async {
     final payload = _transactionToApiPayload(transaction)
       ..['transactionId'] = transaction.id;
-    final response =
-        await _request('PUT', '/transactions/${transaction.id}', body: payload);
+    final response = await _request(
+      'PUT',
+      '/transactions/${transaction.id}',
+      body: payload,
+    );
     _throwIfNotOk(response);
   }
 
@@ -496,7 +545,9 @@ class AwsApiService {
       '/lookups',
       queryParameters: {'type': 'payee'},
     );
-    return decoded.map((e) => _contactFromItem(e, forcedType: 'payee')).toList();
+    return decoded
+        .map((e) => _contactFromItem(e, forcedType: 'payee'))
+        .toList();
   }
 
   static Future<List<Map<String, dynamic>>> fetchPayers() async {
@@ -504,7 +555,9 @@ class AwsApiService {
       '/lookups',
       queryParameters: {'type': 'payer'},
     );
-    return decoded.map((e) => _contactFromItem(e, forcedType: 'payer')).toList();
+    return decoded
+        .map((e) => _contactFromItem(e, forcedType: 'payer'))
+        .toList();
   }
 
   static Future<List<Map<String, dynamic>>> fetchPayments() async {
@@ -512,40 +565,48 @@ class AwsApiService {
   }
 
   static Future<void> createCategory(Category category) async {
-    final response = await _request('POST', '/lookups', body: {
-      'type': 'category',
-      'id': category.id,
-      'name': category.name,
-      'color': category.colorValue,
-      'isIncome': category.type == CategoryType.income,
-    });
+    final response = await _request(
+      'POST',
+      '/lookups',
+      body: {
+        'type': 'category',
+        'id': category.id,
+        'name': category.name,
+        'color': category.colorValue,
+        'isIncome': category.type == CategoryType.income,
+      },
+    );
     _throwIfNotOk(response);
   }
 
   static Future<void> updateCategory(Category category) async {
-    final response = await _request('PUT', '/lookups', body: {
-      'type': 'category',
-      'id': category.id,
-      'name': category.name,
-      'color': category.colorValue,
-      'isIncome': category.type == CategoryType.income,
-    });
+    final response = await _request(
+      'PUT',
+      '/lookups',
+      body: {
+        'type': 'category',
+        'id': category.id,
+        'name': category.name,
+        'color': category.colorValue,
+        'isIncome': category.type == CategoryType.income,
+      },
+    );
     _throwIfNotOk(response);
   }
 
   static Future<void> deleteCategory(String id) async {
-    final response = await _request('DELETE', '/lookups', body: {
-      'type': 'category',
-      'id': id,
-    });
+    final response = await _request(
+      'DELETE',
+      '/lookups',
+      body: {'type': 'category', 'id': id},
+    );
     _throwIfNotOk(response);
   }
 
   static Future<List<Map<String, dynamic>>> _fetchCollectionOptional(
     String path, {
     Map<String, String>? queryParameters,
-  }
-  ) async {
+  }) async {
     try {
       final response = await _request(
         'GET',
@@ -602,7 +663,8 @@ class AwsApiService {
       if (platform != null) 'platform': platform,
       if (environment != null) 'environment': environment,
       if (timeZone != null) 'timeZone': timeZone,
-      if (notificationsEnabled != null) 'notificationsEnabled': notificationsEnabled,
+      if (notificationsEnabled != null)
+        'notificationsEnabled': notificationsEnabled,
       if (appVersion != null && appVersion.isNotEmpty) 'appVersion': appVersion,
       if (osVersion != null && osVersion.isNotEmpty) 'osVersion': osVersion,
       if (userId.isNotEmpty) 'userId': userId,
@@ -614,30 +676,38 @@ class AwsApiService {
   }
 
   static Future<void> sendNotification(Map<String, dynamic> payload) async {
-    final response = await _request('POST', '/send-notification', body: payload);
+    final response = await _request(
+      'POST',
+      '/send-notification',
+      body: payload,
+    );
     _throwIfNotOk(response);
   }
 
-static Future<void> refreshBillNotificationSchedules(
-  Map<String, dynamic> payload,
-) async {
-  final response = await _request('POST', '/send-notification', body: payload);
-  _throwIfNotOk(response);
-}
-
-static Future<void> cancelReminder(Map<String, dynamic> payload) async {
-  final scheduleId = payload['scheduleId']?.toString() ?? '';
-
-  if (scheduleId.isEmpty) {
-    throw Exception('scheduleId is required to cancel a reminder');
+  static Future<void> refreshBillNotificationSchedules(
+    Map<String, dynamic> payload,
+  ) async {
+    final response = await _request(
+      'POST',
+      '/send-notification',
+      body: payload,
+    );
+    _throwIfNotOk(response);
   }
 
-  final response = await _request(
-    'DELETE',
-    '/notification-schedules/$scheduleId',
-  );
+  static Future<void> cancelReminder(Map<String, dynamic> payload) async {
+    final scheduleId = payload['scheduleId']?.toString() ?? '';
 
-  _throwIfNotOk(response);
+    if (scheduleId.isEmpty) {
+      throw Exception('scheduleId is required to cancel a reminder');
+    }
+
+    final response = await _request(
+      'DELETE',
+      '/notification-schedules/$scheduleId',
+    );
+
+    _throwIfNotOk(response);
   }
 
   /// Optional backend verification hook for Google Play purchases.
@@ -655,7 +725,8 @@ static Future<void> cancelReminder(Map<String, dynamic> payload) async {
         body: {
           'productId': productId,
           'purchaseToken': purchaseToken,
-          if (purchaseId != null && purchaseId.isNotEmpty) 'purchaseId': purchaseId,
+          if (purchaseId != null && purchaseId.isNotEmpty)
+            'purchaseId': purchaseId,
           if (source != null && source.isNotEmpty) 'source': source,
         },
       );
@@ -670,12 +741,12 @@ static Future<void> cancelReminder(Map<String, dynamic> payload) async {
       final decoded = jsonDecode(response.body);
       if (decoded is! Map) return null;
 
-      final planRaw = (
-        decoded['plan'] ??
-        decoded['subscriptionPlan'] ??
-        decoded['entitlement'] ??
-        decoded['tier']
-      )?.toString();
+      final planRaw =
+          (decoded['plan'] ??
+                  decoded['subscriptionPlan'] ??
+                  decoded['entitlement'] ??
+                  decoded['tier'])
+              ?.toString();
 
       if (planRaw == null || planRaw.trim().isEmpty) return null;
 
@@ -716,11 +787,11 @@ static Future<void> cancelReminder(Map<String, dynamic> payload) async {
     final isIncomeRaw = json['isIncome'];
     final normalizedIncome = isIncomeRaw?.toString().trim().toLowerCase();
     final isIncome =
-      isIncomeRaw == true ||
-      isIncomeRaw == 1 ||
-      normalizedIncome == 'true' ||
-      normalizedIncome == '1' ||
-      typeRaw == 'income';
+        isIncomeRaw == true ||
+        isIncomeRaw == 1 ||
+        normalizedIncome == 'true' ||
+        normalizedIncome == '1' ||
+        typeRaw == 'income';
 
     return Category(
       id: id,
@@ -738,8 +809,10 @@ static Future<void> cancelReminder(Map<String, dynamic> payload) async {
     Map<String, dynamic> json, {
     required String forcedType,
   }) {
-    final id = (json['id'] ?? json['payeeId'] ?? json['payerId'] ?? '').toString();
-    final name = (json['name'] ?? json['displayName'] ?? json['merchant'] ?? '').toString();
+    final id = (json['id'] ?? json['payeeId'] ?? json['payerId'] ?? '')
+        .toString();
+    final name = (json['name'] ?? json['displayName'] ?? json['merchant'] ?? '')
+        .toString();
     return {
       'id': id,
       'name': name,
@@ -818,7 +891,8 @@ static Future<void> cancelReminder(Map<String, dynamic> payload) async {
     String userId, {
     required List<ReminderOffset> reminderOffsets,
   }) {
-    final sanitizedName = ((bill.description ?? '').trim().toLowerCase() == 'bill')
+    final sanitizedName =
+        ((bill.description ?? '').trim().toLowerCase() == 'bill')
         ? ''
         : (bill.description ?? '');
     return {
@@ -828,6 +902,12 @@ static Future<void> cancelReminder(Map<String, dynamic> payload) async {
       'amount': bill.amount,
       'dueDate': _formatDateMMDDYYYY(bill.dueDate),
       'frequency': _recurrenceToApi(bill.recurrence),
+      'recurrenceInterval': bill.recurrenceInterval,
+      'recurrenceWeekdays': bill.recurrenceWeekdays,
+      'customDays': bill.customDays,
+      'recurrenceEndDate': bill.recurrenceEndDate == null
+          ? null
+          : _formatDateMMDDYYYY(bill.recurrenceEndDate!),
       'status': 'active',
       'notes': bill.description,
       'accountId': bill.accountId,
@@ -838,14 +918,20 @@ static Future<void> cancelReminder(Map<String, dynamic> payload) async {
       'toAccountId': bill.toAccountId,
       'remindersEnabled': reminderOffsets.isNotEmpty,
       'reminderOffsets': reminderOffsets.map((r) => r.toJson()).toList(),
-      'reminderDaysBefore': reminderOffsets.isNotEmpty ? reminderOffsets.first.daysBefore : 0,
+      'reminderDaysBefore': reminderOffsets.isNotEmpty
+          ? reminderOffsets.first.daysBefore
+          : 0,
     };
   }
 
-  static Map<String, dynamic> _transactionToApiPayload(Transaction transaction) {
+  static Map<String, dynamic> _transactionToApiPayload(
+    Transaction transaction,
+  ) {
     return {
       'amount': transaction.amount,
-      'direction': transaction.type == TransactionType.income ? 'income' : 'expense',
+      'direction': transaction.type == TransactionType.income
+          ? 'income'
+          : 'expense',
       'category': transaction.categoryId,
       'categoryId': transaction.categoryId,
       'category_id': transaction.categoryId,
@@ -876,6 +962,25 @@ static Future<void> cancelReminder(Map<String, dynamic> payload) async {
       return false;
     }
     return null;
+  }
+
+  static int _parsePositiveInt(dynamic raw, {int fallback = 1}) {
+    final parsed = raw is num
+        ? raw.toInt()
+        : int.tryParse(raw?.toString().trim() ?? '');
+    return parsed == null || parsed <= 0 ? fallback : parsed;
+  }
+
+  static List<int>? _parseIntList(dynamic raw) {
+    if (raw is! List) return null;
+    final values = <int>[];
+    for (final item in raw) {
+      final parsed = item is num
+          ? item.toInt()
+          : int.tryParse(item?.toString().trim() ?? '');
+      if (parsed != null) values.add(parsed);
+    }
+    return values.isEmpty ? null : values;
   }
 
   static DateTime? _parseDate(dynamic raw) {

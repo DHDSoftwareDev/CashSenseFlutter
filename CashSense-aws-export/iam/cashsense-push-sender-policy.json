@@ -8,10 +8,18 @@
       "Resource": "arn:aws:dynamodb:us-east-1:781540302423:table/CashSense-DeviceRegistry"
     },
     {
+      "Sid": "BillReminderGuardRead",
+      "Effect": "Allow",
+      "Action": "dynamodb:GetItem",
+      "Resource": "arn:aws:dynamodb:us-east-1:781540302423:table/CashSense-Bills"
+    },
+    {
       "Sid": "PublishToCashSenseIosEndpoints",
       "Effect": "Allow",
       "Action": "sns:Publish",
       "Resource": [
+        "arn:aws:sns:us-east-1:781540302423:app/APNS/CashSense-iOS",
+        "arn:aws:sns:us-east-1:781540302423:app/APNS_SANDBOX/CashSense-iOS-Sandbox",
         "arn:aws:sns:us-east-1:781540302423:endpoint/APNS/CashSense-iOS/*",
         "arn:aws:sns:us-east-1:781540302423:endpoint/APNS_SANDBOX/CashSense-iOS-Sandbox/*"
       ]

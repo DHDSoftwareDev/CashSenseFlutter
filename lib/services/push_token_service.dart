@@ -17,8 +17,9 @@ class PushTokenService {
   static const Duration _registrationThrottle = Duration(hours: 12);
 
   /// Optional native APNS token bridge (if you implemented it).
-  static const MethodChannel _apnsChannel =
-      MethodChannel('com.dhdsoftware.cashsense/notifications');
+  static const MethodChannel _apnsChannel = MethodChannel(
+    'com.dhdsoftware.cashsense/notifications',
+  );
 
   // ----------------------------
   // Token capture
@@ -29,9 +30,7 @@ class PushTokenService {
     try {
       final token = await _apnsChannel.invokeMethod<String>('getAPNSToken');
       if (token != null && token.isNotEmpty) return token;
-    } catch (_) {
-      // Ignore and fall back.
-    }
+    } catch (_) {}
     return null;
   }
 
@@ -66,30 +65,22 @@ class PushTokenService {
     );
 
     String? token;
-    String source = 'none';
 
     if (Platform.isIOS) {
       token = await _getApnsTokenFromNative();
-      if (token != null && token.isNotEmpty) source = 'apns_native';
 
       token ??= await _getApnsToken();
-      if (token != null && token.isNotEmpty) source = 'apns';
 
       // 🚫 DO NOT FALL BACK TO FCM ON IOS
       if (token == null || token.isEmpty) {
-        debugPrint('❌ No APNS token yet — skipping device registration');
         return null;
       }
     } else {
       token = await _getFcmToken();
-      source = 'fcm';
     }
 
     if (token != null && token.isNotEmpty) {
-      debugPrint('✅ Captured token via $source (${token.length} chars)');
       await UserAuthService.saveDeviceToken(token);
-    } else {
-      debugPrint('❌ Failed to capture device token (source=$source)');
     }
 
     return token;
@@ -102,7 +93,9 @@ class PushTokenService {
   static void initTokenRefreshListener() {
     if (kIsWeb) return;
 
-    _tokenRefreshSub ??= FirebaseMessaging.instance.onTokenRefresh.listen((_) async {
+    _tokenRefreshSub ??= FirebaseMessaging.instance.onTokenRefresh.listen((
+      _,
+    ) async {
       debugPrint('Push token refresh event received');
       await _handleTokenRefresh();
     });
@@ -134,7 +127,9 @@ class PushTokenService {
   /// Hook your “Sync push notifications” button to this.
   static Future<void> forceRegisterNow() async {
     final token = await captureDeviceToken();
-    if (token == null || token.isEmpty) return;
+    if (token == null || token.isEmpty) {
+      return;
+    }
 
     await _ensureLocalUserContext();
     await _registerDevice(token, reason: 'manual_force');
@@ -149,7 +144,9 @@ class PushTokenService {
     if (token == null || token.isEmpty) return;
 
     if (await _shouldSkipRegistration(token)) {
-      debugPrint('Skipping push token refresh registration; token already synced recently');
+      debugPrint(
+        'Skipping push token refresh registration; token already synced recently',
+      );
       return;
     }
 
@@ -163,7 +160,10 @@ class PushTokenService {
   // Backend registration
   // ----------------------------
 
-  static Future<void> _registerDevice(String token, {required String reason}) async {
+  static Future<void> _registerDevice(
+    String token, {
+    required String reason,
+  }) async {
     bool isSignedIn = false;
     try {
       isSignedIn = await CognitoService.isSignedIn();
@@ -171,7 +171,7 @@ class PushTokenService {
       isSignedIn = false;
     }
     if (!isSignedIn) {
-      debugPrint('Skipping device registration ($reason); user not signed in');
+      debugPrint('Skipping device registration ($reason): user not signed in');
       return;
     }
 
@@ -184,8 +184,10 @@ class PushTokenService {
 
     bool notificationsEnabled = false;
     try {
-      final settings = await FirebaseMessaging.instance.getNotificationSettings();
-      notificationsEnabled = settings.authorizationStatus == AuthorizationStatus.authorized ||
+      final settings = await FirebaseMessaging.instance
+          .getNotificationSettings();
+      notificationsEnabled =
+          settings.authorizationStatus == AuthorizationStatus.authorized ||
           settings.authorizationStatus == AuthorizationStatus.provisional;
     } catch (_) {
       notificationsEnabled = false;
@@ -208,10 +210,6 @@ class PushTokenService {
     final String? environment = Platform.isIOS
         ? (kReleaseMode ? 'production' : 'sandbox')
         : null;
-
-    debugPrint(
-      'Registering device ($reason) platform=$platform env=${environment ?? "-"} tz=${timeZone ?? "unknown"}',
-    );
 
     // IMPORTANT: make sure your AwsApiService.registerDevice sends:
     // - Authorization header (Cognito JWT)
@@ -241,8 +239,7 @@ class PushTokenService {
     final lastRegisteredAt = await UserAuthService.getLastDeviceRegisterAt();
     if (lastRegisteredAt == null) return false;
 
-    return DateTime.now().difference(lastRegisteredAt) <
-        _registrationThrottle;
+    return DateTime.now().difference(lastRegisteredAt) < _registrationThrottle;
   }
 
   static Future<void> _ensureLocalUserContext() async {

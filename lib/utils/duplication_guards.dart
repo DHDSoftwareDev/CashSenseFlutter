@@ -24,10 +24,16 @@ bool hasEquivalentRecurringSuccessor({
     if (candidate.recurrence == Recurrence.none) continue;
     if (!_sameDate(candidate.dueDate, nextOccurrenceDate)) continue;
 
-    final equivalent = candidate.recurrence == sourceBill.recurrence &&
+    final equivalent =
+        candidate.recurrence == sourceBill.recurrence &&
         candidate.recurrenceInterval == sourceBill.recurrenceInterval &&
+        (candidate.description ?? '').trim().toLowerCase() ==
+            (sourceBill.description ?? '').trim().toLowerCase() &&
         _sameIntSet(candidate.customDays, sourceBill.customDays) &&
-        _sameIntSet(candidate.recurrenceWeekdays, sourceBill.recurrenceWeekdays) &&
+        _sameIntSet(
+          candidate.recurrenceWeekdays,
+          sourceBill.recurrenceWeekdays,
+        ) &&
         candidate.amount == sourceBill.amount &&
         candidate.type == sourceBill.type &&
         candidate.categoryId == sourceBill.categoryId &&

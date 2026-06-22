@@ -43,11 +43,15 @@ class _AccountsScreenState extends State<AccountsScreen> {
   void initState() {
     super.initState();
     // Load persisted group by selection
-    _groupByIndex = DatabaseService.getSetting<int>('accountsGroupByIndex', 0) ?? 0;
+    _groupByIndex =
+        DatabaseService.getSetting<int>('accountsGroupByIndex', 0) ?? 0;
     // No longer load per-account display preferences; always show available balance
     // Load persisted hidden balances so they survive app restarts
     try {
-      final raw = DatabaseService.getSetting<List<dynamic>>('hiddenAccountBalances', <dynamic>[]);
+      final raw = DatabaseService.getSetting<List<dynamic>>(
+        'hiddenAccountBalances',
+        <dynamic>[],
+      );
       if (raw != null) {
         for (final e in raw) {
           if (e != null) _hiddenBalances.add(e.toString());
@@ -56,7 +60,10 @@ class _AccountsScreenState extends State<AccountsScreen> {
     } catch (_) {}
     // Load persisted expanded groups so the UI remembers collapsed state between launches
     try {
-      final raw = DatabaseService.getSetting<List<dynamic>>('expandedAccountGroups', <dynamic>[]);
+      final raw = DatabaseService.getSetting<List<dynamic>>(
+        'expandedAccountGroups',
+        <dynamic>[],
+      );
       if (raw != null) {
         for (final e in raw) {
           if (e != null) _expandedGroups.add(e.toString());
@@ -71,17 +78,35 @@ class _AccountsScreenState extends State<AccountsScreen> {
     // Load ordering settings
     final allAccounts = DatabaseService.getAllAccounts();
     final accIds = allAccounts.map((a) => a.id).toList();
-    final savedAccountOrderRaw = DatabaseService.getSetting<List<dynamic>>('accountOrder', accIds);
-    _accountOrder = (savedAccountOrderRaw ?? accIds).map((e) => e.toString()).toList();
+    final savedAccountOrderRaw = DatabaseService.getSetting<List<dynamic>>(
+      'accountOrder',
+      accIds,
+    );
+    _accountOrder = (savedAccountOrderRaw ?? accIds)
+        .map((e) => e.toString())
+        .toList();
 
-    final savedTypeOrderRaw = DatabaseService.getSetting<List<dynamic>>('accountTypeOrder', <dynamic>[]);
-    _accountTypeOrder = (savedTypeOrderRaw ?? <dynamic>[]).map((e) => e.toString()).toList();
+    final savedTypeOrderRaw = DatabaseService.getSetting<List<dynamic>>(
+      'accountTypeOrder',
+      <dynamic>[],
+    );
+    _accountTypeOrder = (savedTypeOrderRaw ?? <dynamic>[])
+        .map((e) => e.toString())
+        .toList();
     if (_accountTypeOrder.isEmpty) {
-      _accountTypeOrder = allAccounts.map((a) => a.typeDisplayName).toSet().toList();
+      _accountTypeOrder = allAccounts
+          .map((a) => a.typeDisplayName)
+          .toSet()
+          .toList();
     }
 
-    final savedInstRaw = DatabaseService.getSetting<List<dynamic>>('accountInstitutionOrder', <dynamic>[]);
-    _institutionOrder = (savedInstRaw ?? <dynamic>[]).map((e) => e.toString()).toList();
+    final savedInstRaw = DatabaseService.getSetting<List<dynamic>>(
+      'accountInstitutionOrder',
+      <dynamic>[],
+    );
+    _institutionOrder = (savedInstRaw ?? <dynamic>[])
+        .map((e) => e.toString())
+        .toList();
     if (_institutionOrder.isEmpty) {
       final seen = <String>{};
       final list = <String>[];
@@ -111,6 +136,23 @@ class _AccountsScreenState extends State<AccountsScreen> {
     return label.isEmpty ? null : label;
   }
 
+  String? _accountDetailLabel(Account account) {
+    final institution = _institutionLabel(account);
+    final accountNumber = (account.accountNumber ?? '').trim();
+    final cardNumber = (account.cardNumber ?? '').trim();
+    final numberParts = <String>[
+      if (accountNumber.isNotEmpty) 'Account: $accountNumber',
+      if (cardNumber.isNotEmpty) 'Card: $cardNumber',
+    ];
+    final number = numberParts.isNotEmpty
+        ? numberParts.join(' - ')
+        : _extractNumberFromDescription(institution);
+
+    if (institution == null) return number;
+    if (number == null || number.isEmpty) return institution;
+    return '$institution - $number';
+  }
+
   Future<void> _openAccountTransactions(Account acc) async {
     navigateToRootPage(1, accountId: acc.id);
   }
@@ -122,8 +164,14 @@ class _AccountsScreenState extends State<AccountsScreen> {
         title: const Text('Archive account'),
         content: Text('Archive "${acc.name}"? This will hide it from lists.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Archive')),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Archive'),
+          ),
         ],
       ),
     );
@@ -140,10 +188,18 @@ class _AccountsScreenState extends State<AccountsScreen> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Delete account'),
-        content: Text('Are you sure you want to permanently delete "${acc.name}"? This cannot be undone.'),
+        content: Text(
+          'Are you sure you want to permanently delete "${acc.name}"? This cannot be undone.',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Delete', style: TextStyle(color: Colors.red))),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
         ],
       ),
     );
@@ -172,7 +228,10 @@ class _AccountsScreenState extends State<AccountsScreen> {
       }
     });
     try {
-      await DatabaseService.setSetting('hiddenAccountBalances', _hiddenBalances.toList());
+      await DatabaseService.setSetting(
+        'hiddenAccountBalances',
+        _hiddenBalances.toList(),
+      );
     } catch (_) {}
   }
 
@@ -183,199 +242,248 @@ class _AccountsScreenState extends State<AccountsScreen> {
 
     return SlidableAutoCloseBehavior(
       child: Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.menu),
-          onPressed: openRootDrawer,
-        ),
-  title: const Text('Accounts'),
-  centerTitle: true,
-        actions: _isReordering
-            ? [
-                TextButton(
-                  onPressed: () {
-                    // Cancel reorder
-                    setState(() {
-                      _isReordering = false;
-                    });
-                  },
-                  child: const Text('Cancel', style: TextStyle(color: Colors.white)),
-                ),
-                // Toggle between reordering groups (headers) and accounts within groups
-                IconButton(
-                  icon: Icon(_reorderGroupsOnly ? Icons.view_module : Icons.list),
-                  tooltip: _reorderGroupsOnly ? 'Reorder groups' : 'Reorder accounts',
-                  onPressed: () {
-                    setState(() {
-                      _reorderGroupsOnly = !_reorderGroupsOnly;
-                    });
-                  },
-                ),
-                TextButton(
-                  onPressed: () async {
-                    // Save reorder: reconstruct accountOrder from per-group orders in current group ordering
-                    final newAccountOrder = <String>[];
-                    // Determine the authoritative group ordering to iterate. If the
-                    // persisted group-order list is empty or doesn't contain the
-                    // current group keys (edge-case when there is only one group),
-                    // fall back to the keys present in _groupAccountOrder which
-                    // reflect the visual groups shown to the user.
-                    final groupKeys = (_groupByIndex == 0) ? _accountTypeOrder : _institutionOrder;
-                    final availableGroupKeys = _groupAccountOrder.keys.toList();
-                    final useKeys = (groupKeys.isNotEmpty && groupKeys.any((k) => _groupAccountOrder.containsKey(k)))
-                        ? groupKeys
-                        : availableGroupKeys;
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.menu),
+            onPressed: openRootDrawer,
+          ),
+          title: const Text('Accounts'),
+          centerTitle: true,
+          actions: _isReordering
+              ? [
+                  TextButton(
+                    onPressed: () {
+                      // Cancel reorder
+                      setState(() {
+                        _isReordering = false;
+                      });
+                    },
+                    child: const Text(
+                      'Cancel',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
+                  // Toggle between reordering groups (headers) and accounts within groups
+                  IconButton(
+                    icon: Icon(
+                      _reorderGroupsOnly ? Icons.view_module : Icons.list,
+                    ),
+                    tooltip: _reorderGroupsOnly
+                        ? 'Reorder groups'
+                        : 'Reorder accounts',
+                    onPressed: () {
+                      setState(() {
+                        _reorderGroupsOnly = !_reorderGroupsOnly;
+                      });
+                    },
+                  ),
+                  TextButton(
+                    onPressed: () async {
+                      // Save reorder: reconstruct accountOrder from per-group orders in current group ordering
+                      final newAccountOrder = <String>[];
+                      // Determine the authoritative group ordering to iterate. If the
+                      // persisted group-order list is empty or doesn't contain the
+                      // current group keys (edge-case when there is only one group),
+                      // fall back to the keys present in _groupAccountOrder which
+                      // reflect the visual groups shown to the user.
+                      final groupKeys = (_groupByIndex == 0)
+                          ? _accountTypeOrder
+                          : _institutionOrder;
+                      final availableGroupKeys = _groupAccountOrder.keys
+                          .toList();
+                      final useKeys =
+                          (groupKeys.isNotEmpty &&
+                              groupKeys.any(
+                                (k) => _groupAccountOrder.containsKey(k),
+                              ))
+                          ? groupKeys
+                          : availableGroupKeys;
 
-                    if (_groupByIndex == 0) {
-                      for (final type in useKeys) {
-                        final ids = _groupAccountOrder[type] ?? [];
-                        newAccountOrder.addAll(ids);
+                      if (_groupByIndex == 0) {
+                        for (final type in useKeys) {
+                          final ids = _groupAccountOrder[type] ?? [];
+                          newAccountOrder.addAll(ids);
+                        }
+                      } else {
+                        for (final inst in useKeys) {
+                          final ids = _groupAccountOrder[inst] ?? [];
+                          newAccountOrder.addAll(ids);
+                        }
                       }
-                    } else {
-                      for (final inst in useKeys) {
-                        final ids = _groupAccountOrder[inst] ?? [];
-                        newAccountOrder.addAll(ids);
+                      // Fallback: include any accounts not present yet
+                      final allIds = DatabaseService.getAllAccounts()
+                          .map((a) => a.id)
+                          .toList();
+                      for (final id in allIds) {
+                        if (!newAccountOrder.contains(id)) {
+                          newAccountOrder.add(id);
+                        }
                       }
-                    }
-                    // Fallback: include any accounts not present yet
-                    final allIds = DatabaseService.getAllAccounts().map((a) => a.id).toList();
-                    for (final id in allIds) {
-                      if (!newAccountOrder.contains(id)) newAccountOrder.add(id);
-                    }
 
-                    await DatabaseService.setSetting('accountOrder', newAccountOrder);
-                    // Persist the group ordering that was actually used so
-                    // future screens apply the same visual grouping.
-                    if (_groupByIndex == 0) {
-                      await DatabaseService.setSetting('accountTypeOrder', useKeys);
-                    } else {
-                      await DatabaseService.setSetting('accountInstitutionOrder', useKeys);
-                    }
-                    DatabaseService.accountsVersion.value++;
-                    if (!mounted) return;
-                    setState(() {
-                      _isReordering = false;
-                    });
-                  },
-                  child: const Text('Save', style: TextStyle(color: Colors.white)),
-                ),
-              ]
-            : [
-                // Reorder button: opens a dedicated reorder screen with explicit Save/Cancel
-                IconButton(
-                  icon: const Icon(Icons.swap_vert),
-                  tooltip: 'Reorder accounts',
-                  onPressed: () {
-                    // Enter inline reorder mode and prepare per-group ordering
-                    final accounts = DatabaseService.getAllAccounts();
-                    final orderedIds = _accountOrder;
-                    final Map<String, List<String>> grouped = {};
-                    final mapById = {for (var a in accounts) a.id: a};
-                    if (_groupByIndex == 0) {
-                      // group by type
-                      for (final id in orderedIds) {
-                        if (!mapById.containsKey(id)) continue;
-                        final a = mapById[id]!;
-                        final key = a.typeDisplayName;
-                        grouped.putIfAbsent(key, () => []).add(id);
+                      await DatabaseService.setSetting(
+                        'accountOrder',
+                        newAccountOrder,
+                      );
+                      // Persist the group ordering that was actually used so
+                      // future screens apply the same visual grouping.
+                      if (_groupByIndex == 0) {
+                        await DatabaseService.setSetting(
+                          'accountTypeOrder',
+                          useKeys,
+                        );
+                      } else {
+                        await DatabaseService.setSetting(
+                          'accountInstitutionOrder',
+                          useKeys,
+                        );
                       }
-                      // Ensure all types present and include any missing accounts
-                      for (final a in accounts) {
-                        final key = a.typeDisplayName;
-                        grouped.putIfAbsent(key, () => []);
-                        if (!grouped[key]!.contains(a.id)) grouped[key]!.add(a.id);
+                      DatabaseService.accountsVersion.value++;
+                      if (!mounted) return;
+                      setState(() {
+                        _isReordering = false;
+                      });
+                    },
+                    child: const Text(
+                      'Save',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
+                ]
+              : [
+                  // Reorder button: opens a dedicated reorder screen with explicit Save/Cancel
+                  IconButton(
+                    icon: const Icon(Icons.swap_vert),
+                    tooltip: 'Reorder accounts',
+                    onPressed: () {
+                      // Enter inline reorder mode and prepare per-group ordering
+                      final accounts = DatabaseService.getAllAccounts();
+                      final orderedIds = _accountOrder;
+                      final Map<String, List<String>> grouped = {};
+                      final mapById = {for (var a in accounts) a.id: a};
+                      if (_groupByIndex == 0) {
+                        // group by type
+                        for (final id in orderedIds) {
+                          if (!mapById.containsKey(id)) continue;
+                          final a = mapById[id]!;
+                          final key = a.typeDisplayName;
+                          grouped.putIfAbsent(key, () => []).add(id);
+                        }
+                        // Ensure all types present and include any missing accounts
+                        for (final a in accounts) {
+                          final key = a.typeDisplayName;
+                          grouped.putIfAbsent(key, () => []);
+                          if (!grouped[key]!.contains(a.id)) {
+                            grouped[key]!.add(a.id);
+                          }
+                        }
+                      } else {
+                        // group by institution/description
+                        for (final id in orderedIds) {
+                          if (!mapById.containsKey(id)) continue;
+                          final a = mapById[id]!;
+                          final key = _institutionKey(a);
+                          grouped.putIfAbsent(key, () => []).add(id);
+                        }
+                        for (final a in accounts) {
+                          final key = _institutionKey(a);
+                          grouped.putIfAbsent(key, () => []);
+                          if (!grouped[key]!.contains(a.id)) {
+                            grouped[key]!.add(a.id);
+                          }
+                        }
                       }
-                    } else {
-                      // group by institution/description
-                      for (final id in orderedIds) {
-                        if (!mapById.containsKey(id)) continue;
-                        final a = mapById[id]!;
-                        final key = _institutionKey(a);
-                        grouped.putIfAbsent(key, () => []).add(id);
+                      setState(() {
+                        _groupAccountOrder = grouped;
+                        _isReordering = true;
+                        // Default to groups-only reordering so type headers can be reordered
+                        // (matches institution behavior where groups are reordered)
+                        _reorderGroupsOnly = true;
+                      });
+                    },
+                  ),
+                  // Add account button
+                  IconButton(
+                    icon: const Icon(Icons.add),
+                    tooltip: 'Add account',
+                    onPressed: () async {
+                      final isSubscriber =
+                          DatabaseService.subscriptionVersion.value != 'Free';
+                      final accounts = DatabaseService.getAllAccounts();
+                      if (!isSubscriber && accounts.length >= 3) {
+                        // Show feedback dialog for free users who reached the limit
+                        await showDialog(
+                          context: context,
+                          builder: (dialogContext) => AlertDialog(
+                            title: const Text('Account Limit Reached'),
+                            content: const Text(
+                              'Free users can create up to 3 accounts. Subscribe for unlimited accounts.',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(dialogContext),
+                                child: const Text('OK'),
+                              ),
+                            ],
+                          ),
+                        );
+                        return;
                       }
-                      for (final a in accounts) {
-                        final key = _institutionKey(a);
-                        grouped.putIfAbsent(key, () => []);
-                        if (!grouped[key]!.contains(a.id)) grouped[key]!.add(a.id);
-                      }
-                    }
-                    setState(() {
-                      _groupAccountOrder = grouped;
-                      _isReordering = true;
-                      // Default to groups-only reordering so type headers can be reordered
-                      // (matches institution behavior where groups are reordered)
-                      _reorderGroupsOnly = true;
-                    });
-                  },
-                ),
-                // Add account button
-                IconButton(
-                  icon: const Icon(Icons.add),
-                  tooltip: 'Add account',
-                  onPressed: () async {
-                    final isSubscriber = DatabaseService.subscriptionVersion.value != 'Free';
-                    final accounts = DatabaseService.getAllAccounts();
-                    if (!isSubscriber && accounts.length >= 3) {
-                      // Show feedback dialog for free users who reached the limit
-                      await showDialog(
-                        context: context,
-                        builder: (dialogContext) => AlertDialog(
-                          title: const Text('Account Limit Reached'),
-                          content: const Text('Free users can create up to 3 accounts. Subscribe for unlimited accounts.'),
-                          actions: [
-                            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('OK')),
-                          ],
+                      final result = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const AddAccountScreen(),
                         ),
                       );
-                      return;
-                    }
-                    final result = await Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const AddAccountScreen()),
-                    );
-                    if (!mounted) return;
-                    if (result == true) setState(() {});
-                  },
-                ),
-              ],
-        backgroundColor: Theme.of(context).colorScheme.primary,
-        foregroundColor: Colors.white,
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            // Group by toggle (centered)
-            Center(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('Group by:'),
-                  const SizedBox(width: 8),
-                  ToggleButtons(
-                    isSelected: [_groupByIndex == 0, _groupByIndex == 1],
-                    onPressed: (i) async {
-                      setState(() => _groupByIndex = i);
-                      await DatabaseService.setSetting('accountsGroupByIndex', i);
+                      if (!mounted) return;
+                      if (result == true) setState(() {});
                     },
-                    children: const [
-                      Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('Type')),
-                      Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('Institution')),
-                    ],
                   ),
                 ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            Expanded(
-              child: _buildGroupedAccountsList(accounts),
-            ),
-            const SizedBox(height: 16),
-            // You can swap BannerAdWidget with NativeAdWidget if you want native ads
-            const BannerAdWidget(),
-          ],
+          backgroundColor: Theme.of(context).colorScheme.primary,
+          foregroundColor: Colors.white,
         ),
-      ),
+        body: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              // Group by toggle (centered)
+              Center(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Group by:'),
+                    const SizedBox(width: 8),
+                    ToggleButtons(
+                      isSelected: [_groupByIndex == 0, _groupByIndex == 1],
+                      onPressed: (i) async {
+                        setState(() => _groupByIndex = i);
+                        await DatabaseService.setSetting(
+                          'accountsGroupByIndex',
+                          i,
+                        );
+                      },
+                      children: const [
+                        Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 12),
+                          child: Text('Type'),
+                        ),
+                        Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 12),
+                          child: Text('Institution'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              Expanded(child: _buildGroupedAccountsList(accounts)),
+              const SizedBox(height: 16),
+              // You can swap BannerAdWidget with NativeAdWidget if you want native ads
+              const BannerAdWidget(),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -408,7 +516,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
     if (_groupByIndex == 0) {
       // Group by AccountType (use display name string to avoid enum null issues)
       // Apply saved order for account types when grouping
-  // persisted type order is loaded into `_accountTypeOrder` in initState
+      // persisted type order is loaded into `_accountTypeOrder` in initState
       final Map<String, List<Account>> groups = {};
       for (final a in accounts) {
         final key = a.typeDisplayName;
@@ -419,8 +527,12 @@ class _AccountsScreenState extends State<AccountsScreen> {
       // Apply persisted type order if present
       if (_accountTypeOrder.isNotEmpty) {
         entries.sort((a, b) {
-          final ai = _accountTypeOrder.indexWhere((e) => e.toLowerCase() == a.key.toLowerCase());
-          final bi = _accountTypeOrder.indexWhere((e) => e.toLowerCase() == b.key.toLowerCase());
+          final ai = _accountTypeOrder.indexWhere(
+            (e) => e.toLowerCase() == a.key.toLowerCase(),
+          );
+          final bi = _accountTypeOrder.indexWhere(
+            (e) => e.toLowerCase() == b.key.toLowerCase(),
+          );
           if (ai == -1 && bi == -1) return a.key.compareTo(b.key);
           if (ai == -1) return 1;
           if (bi == -1) return -1;
@@ -435,7 +547,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
           itemBuilder: (context, index) {
             final title = entries[index].key;
             final items = entries[index].value;
-      return _buildAccountGroup(title: title, accounts: items);
+            return _buildAccountGroup(title: title, accounts: items);
           },
         );
       }
@@ -462,7 +574,9 @@ class _AccountsScreenState extends State<AccountsScreen> {
               final ids = _groupAccountOrder[type] ?? [];
               newAccountOrder.addAll(ids);
             }
-            final allIds = DatabaseService.getAllAccounts().map((a) => a.id).toList();
+            final allIds = DatabaseService.getAllAccounts()
+                .map((a) => a.id)
+                .toList();
             for (final id in allIds) {
               if (!newAccountOrder.contains(id)) newAccountOrder.add(id);
             }
@@ -471,18 +585,21 @@ class _AccountsScreenState extends State<AccountsScreen> {
             DatabaseService.accountsVersion.value++;
           },
           children: [
-              for (final entry in entries)
+            for (final entry in entries)
               Card(
                 key: ValueKey('group_${entry.key}'),
                 margin: const EdgeInsets.symmetric(vertical: 6.0),
-                child: _buildAccountGroup(title: entry.key, accounts: entry.value),
+                child: _buildAccountGroup(
+                  title: entry.key,
+                  accounts: entry.value,
+                ),
               ),
           ],
         );
       }
 
       // Accounts-only reorder: render groups in order, but each group's list is reorderable (handled in _buildAccountGroup)
-        return ListView.separated(
+      return ListView.separated(
         itemCount: entries.length,
         separatorBuilder: (_, __) => const Divider(),
         itemBuilder: (context, index) {
@@ -504,8 +621,12 @@ class _AccountsScreenState extends State<AccountsScreen> {
     // Apply persisted institution order
     if (_institutionOrder.isNotEmpty) {
       entries.sort((a, b) {
-        final ai = _institutionOrder.indexWhere((e) => e.toLowerCase() == a.key.toLowerCase());
-        final bi = _institutionOrder.indexWhere((e) => e.toLowerCase() == b.key.toLowerCase());
+        final ai = _institutionOrder.indexWhere(
+          (e) => e.toLowerCase() == a.key.toLowerCase(),
+        );
+        final bi = _institutionOrder.indexWhere(
+          (e) => e.toLowerCase() == b.key.toLowerCase(),
+        );
         if (ai == -1 && bi == -1) return a.key.compareTo(b.key);
         if (ai == -1) return 1;
         if (bi == -1) return -1;
@@ -541,12 +662,17 @@ class _AccountsScreenState extends State<AccountsScreen> {
           final ids = _groupAccountOrder[inst] ?? [];
           newAccountOrder.addAll(ids);
         }
-        final allIds = DatabaseService.getAllAccounts().map((a) => a.id).toList();
+        final allIds = DatabaseService.getAllAccounts()
+            .map((a) => a.id)
+            .toList();
         for (final id in allIds) {
           if (!newAccountOrder.contains(id)) newAccountOrder.add(id);
         }
         DatabaseService.setSetting('accountOrder', newAccountOrder);
-        DatabaseService.setSetting('accountInstitutionOrder', _institutionOrder);
+        DatabaseService.setSetting(
+          'accountInstitutionOrder',
+          _institutionOrder,
+        );
         DatabaseService.accountsVersion.value++;
       },
       children: [
@@ -560,7 +686,10 @@ class _AccountsScreenState extends State<AccountsScreen> {
     );
   }
 
-  Widget _buildAccountGroup({required String title, required List<Account> accounts}) {
+  Widget _buildAccountGroup({
+    required String title,
+    required List<Account> accounts,
+  }) {
     // Determine display order for this group. When reordering, use the
     // _groupAccountOrder that was initialized when entering reorder mode so
     // the visual list remains stable across rebuilds while dragging.
@@ -613,7 +742,10 @@ class _AccountsScreenState extends State<AccountsScreen> {
           });
           // Persist expanded group list
           try {
-            await DatabaseService.setSetting('expandedAccountGroups', _expandedGroups.toList());
+            await DatabaseService.setSetting(
+              'expandedAccountGroups',
+              _expandedGroups.toList(),
+            );
           } catch (_) {}
         },
         title: Container(
@@ -646,364 +778,465 @@ class _AccountsScreenState extends State<AccountsScreen> {
           Container(
             decoration: BoxDecoration(
               color: Theme.of(context).cardColor,
-              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
+              borderRadius: const BorderRadius.vertical(
+                bottom: Radius.circular(12),
+              ),
             ),
             padding: const EdgeInsets.all(8.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-        // Compute totals for this group
-        Builder(builder: (context) {
-              // Calculate total based on available balances only
-              final double groupTotal = displayAccounts.fold(0.0, (s, a) {
-                if (_hiddenBalances.contains(a.id) || !a.isActive) return s;
-                final displayAmount = DatabaseService.getDisplayBalanceForAccount(a.id, showAvailable: true, includeCleared: true);
-                return s + displayAmount;
-              });
-              final totalColor = groupTotal >= 0 ? Colors.green : Theme.of(context).colorScheme.error;
-              return Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const SizedBox.shrink(),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text('Total: ${formatCurrency(groupTotal)}', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: totalColor)),
-                      Text('Available Balance', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey, fontStyle: FontStyle.italic)),
-                    ],
-                  ),
-                ],
-              );
-        }),
-        const SizedBox(height: 8),
-        if (!_isReordering) ...displayAccounts.map<Widget>((acc) {
-      final displayAmount = _hiddenBalances.contains(acc.id) || !acc.isActive
-        ? 0.0
-        : DatabaseService.getDisplayBalanceForAccount(acc.id, showAvailable: true, includeCleared: true);
-      final balanceText = _hiddenBalances.contains(acc.id)
-        ? '•••'
-        : formatCurrency(displayAmount);
-          try {
-            final card = Card(
-              margin: const EdgeInsets.symmetric(vertical: 6.0),
-              child: ListTile(
-                leading: const Icon(Icons.account_balance_wallet),
-                title: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(acc.name, style: Theme.of(context).textTheme.titleMedium),
-                          if (_institutionLabel(acc) != null)
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    acc.accountNumber != null && acc.accountNumber!.isNotEmpty
-                                        ? '${_institutionLabel(acc)!} - ${acc.accountNumber!}'
-                                        : (_extractNumberFromDescription(_institutionLabel(acc)) != null
-                                            ? '${_institutionLabel(acc)!} - ${_extractNumberFromDescription(_institutionLabel(acc))!}'
-                                            : _institutionLabel(acc)!),
-                                    style: Theme.of(context).textTheme.bodySmall,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
-                            ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(acc.typeDisplayName),
-                  ],
-                ),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          balanceText,
-                          style: _hiddenBalances.contains(acc.id)
-                              ? null
-                              : Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                  color: (displayAmount >= 0) ? Colors.green : Theme.of(context).colorScheme.error,
-                                ),
-                        ),
-                        if (!_hiddenBalances.contains(acc.id))
-                          Text(
-                            'Available',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Colors.grey,
-                              fontSize: 10,
-                              fontStyle: FontStyle.italic,
-                            ),
-                          ),
-                      ],
-                    ),
-                  ],
-                ),
-                onTap: () async {
-                  await _openAccountTransactions(acc);
-                },
-              ),
-            );
-
-            final isHidden = _hiddenBalances.contains(acc.id);
-            return Slidable(
-              key: ValueKey('account_swipe_${acc.id}'),
-              startActionPane: ActionPane(
-                motion: const DrawerMotion(),
-                extentRatio: 0.50,
-                children: [
-                  CustomSlidableAction(
-                    onPressed: (_) async => _editAccount(acc),
-                    backgroundColor: Theme.of(context).colorScheme.primary,
-                    foregroundColor: Colors.white,
-                    child: const Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.edit, color: Colors.white),
-                        SizedBox(height: 4),
-                        Text(
-                          'Edit',
-                          textAlign: TextAlign.center,
-                          maxLines: 2,
-                          softWrap: true,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(color: Colors.white, fontSize: 11, height: 1.1),
-                        ),
-                      ],
-                    ),
-                  ),
-                  CustomSlidableAction(
-                    onPressed: (_) async => _toggleAccountBalanceHidden(acc),
-                    backgroundColor: Colors.blueGrey,
-                    foregroundColor: Colors.white,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          isHidden ? Icons.visibility : Icons.visibility_off,
-                          color: Colors.white,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          isHidden ? 'Show\nBalance' : 'Hide\nBalance',
-                          textAlign: TextAlign.center,
-                          maxLines: 2,
-                          softWrap: false,
-                          overflow: TextOverflow.visible,
-                          style: const TextStyle(color: Colors.white, fontSize: 11, height: 1.1),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              endActionPane: ActionPane(
-                motion: const DrawerMotion(),
-                extentRatio: 0.50,
-                children: [
-                  CustomSlidableAction(
-                    onPressed: (_) async => _archiveAccount(acc),
-                    backgroundColor: Colors.orange,
-                    foregroundColor: Colors.white,
-                    child: const Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.archive, color: Colors.white),
-                        SizedBox(height: 4),
-                        FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Text(
-                            'Archive',
-                            textAlign: TextAlign.center,
-                            maxLines: 1,
-                            softWrap: false,
-                            overflow: TextOverflow.visible,
-                            style: TextStyle(color: Colors.white, fontSize: 11, height: 1.1),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  CustomSlidableAction(
-                    onPressed: (_) async => _deleteAccount(acc),
-                    backgroundColor: Colors.red,
-                    foregroundColor: Colors.white,
-                    child: const Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.delete, color: Colors.white),
-                        SizedBox(height: 4),
-                        Text(
-                          'Delete',
-                          textAlign: TextAlign.center,
-                          maxLines: 2,
-                          softWrap: true,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(color: Colors.white, fontSize: 11, height: 1.1),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              child: card,
-            );
-          } catch (e, st) {
-            print('Error rendering account list tile: $e\n$st');
-            return const SizedBox.shrink();
-          }
-        })
-            else ...[
-              // In reordering mode, allow reordering accounts within this group if not in groups-only mode
-              if (!_reorderGroupsOnly)
-                SizedBox(
-                  height: displayAccounts.length * 78.0 + 8,
-                  child: ReorderableListView(
-                    onReorder: (oldIndex, newIndex) {
-                      setState(() {
-                        if (newIndex > oldIndex) newIndex -= 1;
-                        final item = displayAccounts.removeAt(oldIndex);
-                        displayAccounts.insert(newIndex, item);
-                        // Update group-specific ordering
-                        final ids = displayAccounts.map((a) => a.id).toList();
-                        _groupAccountOrder[title] = ids;
-                      });
-                      // Persist immediately
-                      final newAccountOrder = <String>[];
-                      if (_groupByIndex == 0) {
-                        for (final type in _accountTypeOrder) {
-                          final ids = _groupAccountOrder[type] ?? [];
-                          newAccountOrder.addAll(ids);
-                        }
-                      } else {
-                        for (final inst in _institutionOrder) {
-                          final ids = _groupAccountOrder[inst] ?? [];
-                          newAccountOrder.addAll(ids);
-                        }
+                // Compute totals for this group
+                Builder(
+                  builder: (context) {
+                    // Calculate total based on available balances only
+                    final double groupTotal = displayAccounts.fold(0.0, (s, a) {
+                      if (_hiddenBalances.contains(a.id) || !a.isActive) {
+                        return s;
                       }
-                      final allIds = DatabaseService.getAllAccounts().map((a) => a.id).toList();
-                      for (final id in allIds) {
-                        if (!newAccountOrder.contains(id)) newAccountOrder.add(id);
-                      }
-                      DatabaseService.setSetting('accountOrder', newAccountOrder);
-                      // Persist the current group ordering as well so institution/type
-                      // orders remain in sync when users reorder accounts while
-                      // grouped by a specific key.
-                      if (_groupByIndex == 0) {
-                        DatabaseService.setSetting('accountTypeOrder', _accountTypeOrder);
-                      } else {
-                        DatabaseService.setSetting('accountInstitutionOrder', _institutionOrder);
-                      }
-                      DatabaseService.accountsVersion.value++;
-                    },
-                    children: [
-                      for (final acc in displayAccounts)
-                        ListTile(
-                          key: ValueKey(acc.id),
-                          leading: const Icon(Icons.drag_handle),
-                          title: Text(acc.name, style: Theme.of(context).textTheme.titleMedium),
-                          subtitle: Text(acc.typeDisplayName),
-                          trailing: Text(formatCurrency(acc.balance)),
-                        )
-                    ],
-                  ),
-                )
-              else
-                // If groups-only reorder is active, show the regular list but without drag handles
-                ...displayAccounts.map<Widget>((acc) {
-                  try {
-                    final displayAmount = _hiddenBalances.contains(acc.id) || !acc.isActive
-                        ? 0.0
-                        : DatabaseService.getDisplayBalanceForAccount(acc.id, showAvailable: true, includeCleared: false);
-                    final balanceText = _hiddenBalances.contains(acc.id) ? '•••' : formatCurrency(displayAmount);
-                    return Card(
-                      margin: const EdgeInsets.symmetric(vertical: 6.0),
-                      child: ListTile(
-                        leading: const Icon(Icons.account_balance_wallet),
-                        title: Row(
+                      final displayAmount =
+                          DatabaseService.getDisplayBalanceForAccount(
+                            a.id,
+                            showAvailable: true,
+                            includeCleared: true,
+                          );
+                      return s + displayAmount;
+                    });
+                    final totalColor = groupTotal >= 0
+                        ? Colors.green
+                        : Theme.of(context).colorScheme.error;
+                    return Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const SizedBox.shrink(),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                            Text(
+                              'Total: ${formatCurrency(groupTotal)}',
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(color: totalColor),
+                            ),
+                            Text(
+                              'Available Balance',
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: Colors.grey,
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    );
+                  },
+                ),
+                const SizedBox(height: 8),
+                if (!_isReordering)
+                  ...displayAccounts.map<Widget>((acc) {
+                    final displayAmount =
+                        _hiddenBalances.contains(acc.id) || !acc.isActive
+                        ? 0.0
+                        : DatabaseService.getDisplayBalanceForAccount(
+                            acc.id,
+                            showAvailable: true,
+                            includeCleared: true,
+                          );
+                    final balanceText = _hiddenBalances.contains(acc.id)
+                        ? '•••'
+                        : formatCurrency(displayAmount);
+                    try {
+                      final card = Card(
+                        margin: const EdgeInsets.symmetric(vertical: 6.0),
+                        child: ListTile(
+                          leading: const Icon(Icons.account_balance_wallet),
+                          title: Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      acc.name,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.titleMedium,
+                                    ),
+                                    if (_accountDetailLabel(acc) != null)
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              _accountDetailLabel(acc)!,
+                                              style: Theme.of(
+                                                context,
+                                              ).textTheme.bodySmall,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [Text(acc.typeDisplayName)],
+                          ),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Text(acc.name, style: Theme.of(context).textTheme.titleMedium),
-                                  if (_institutionLabel(acc) != null)
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            acc.accountNumber != null && acc.accountNumber!.isNotEmpty
-                                                ? '${_institutionLabel(acc)!} - ${acc.accountNumber!}'
-                                                : (_extractNumberFromDescription(_institutionLabel(acc)) != null
-                                                    ? '${_institutionLabel(acc)!} - ${_extractNumberFromDescription(_institutionLabel(acc))!}'
-                                                    : _institutionLabel(acc)!),
-                                            style: Theme.of(context).textTheme.bodySmall,
-                                            overflow: TextOverflow.ellipsis,
+                                  Text(
+                                    balanceText,
+                                    style: _hiddenBalances.contains(acc.id)
+                                        ? null
+                                        : Theme.of(
+                                            context,
+                                          ).textTheme.bodyMedium?.copyWith(
+                                            color: (displayAmount >= 0)
+                                                ? Colors.green
+                                                : Theme.of(
+                                                    context,
+                                                  ).colorScheme.error,
                                           ),
-                                        ),
-                                      ],
+                                  ),
+                                  if (!_hiddenBalances.contains(acc.id))
+                                    Text(
+                                      'Available',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                            color: Colors.grey,
+                                            fontSize: 10,
+                                            fontStyle: FontStyle.italic,
+                                          ),
                                     ),
+                                ],
+                              ),
+                            ],
+                          ),
+                          onTap: () async {
+                            await _openAccountTransactions(acc);
+                          },
+                        ),
+                      );
+
+                      final isHidden = _hiddenBalances.contains(acc.id);
+                      return Slidable(
+                        key: ValueKey('account_swipe_${acc.id}'),
+                        startActionPane: ActionPane(
+                          motion: const DrawerMotion(),
+                          extentRatio: 0.50,
+                          children: [
+                            CustomSlidableAction(
+                              onPressed: (_) async => _editAccount(acc),
+                              backgroundColor: Theme.of(
+                                context,
+                              ).colorScheme.primary,
+                              foregroundColor: Colors.white,
+                              child: const Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.edit, color: Colors.white),
+                                  SizedBox(height: 4),
+                                  Text(
+                                    'Edit',
+                                    textAlign: TextAlign.center,
+                                    maxLines: 2,
+                                    softWrap: true,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 11,
+                                      height: 1.1,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            CustomSlidableAction(
+                              onPressed: (_) async =>
+                                  _toggleAccountBalanceHidden(acc),
+                              backgroundColor: Colors.blueGrey,
+                              foregroundColor: Colors.white,
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    isHidden
+                                        ? Icons.visibility
+                                        : Icons.visibility_off,
+                                    color: Colors.white,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    isHidden
+                                        ? 'Show\nBalance'
+                                        : 'Hide\nBalance',
+                                    textAlign: TextAlign.center,
+                                    maxLines: 2,
+                                    softWrap: false,
+                                    overflow: TextOverflow.visible,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 11,
+                                      height: 1.1,
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
                           ],
                         ),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        endActionPane: ActionPane(
+                          motion: const DrawerMotion(),
+                          extentRatio: 0.50,
                           children: [
-                            Text(acc.typeDisplayName),
-                          ],
-                        ),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  balanceText,
-                                  style: _hiddenBalances.contains(acc.id)
-                                      ? null
-                                      : Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                          color: (displayAmount >= 0) ? Colors.green : Theme.of(context).colorScheme.error,
-                                        ),
-                                ),
-                                if (!_hiddenBalances.contains(acc.id))
-                                  Text(
-                                    'Available',
-                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                      color: Colors.grey,
-                                      fontSize: 10,
-                                      fontStyle: FontStyle.italic,
+                            CustomSlidableAction(
+                              onPressed: (_) async => _archiveAccount(acc),
+                              backgroundColor: Colors.orange,
+                              foregroundColor: Colors.white,
+                              child: const Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.archive, color: Colors.white),
+                                  SizedBox(height: 4),
+                                  FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: Text(
+                                      'Archive',
+                                      textAlign: TextAlign.center,
+                                      maxLines: 1,
+                                      softWrap: false,
+                                      overflow: TextOverflow.visible,
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 11,
+                                        height: 1.1,
+                                      ),
                                     ),
                                   ),
-                              ],
+                                ],
+                              ),
+                            ),
+                            CustomSlidableAction(
+                              onPressed: (_) async => _deleteAccount(acc),
+                              backgroundColor: Colors.red,
+                              foregroundColor: Colors.white,
+                              child: const Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.delete, color: Colors.white),
+                                  SizedBox(height: 4),
+                                  Text(
+                                    'Delete',
+                                    textAlign: TextAlign.center,
+                                    maxLines: 2,
+                                    softWrap: true,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 11,
+                                      height: 1.1,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
+                        child: card,
+                      );
+                    } catch (e, st) {
+                      print('Error rendering account list tile: $e\n$st');
+                      return const SizedBox.shrink();
+                    }
+                  })
+                else ...[
+                  // In reordering mode, allow reordering accounts within this group if not in groups-only mode
+                  if (!_reorderGroupsOnly)
+                    SizedBox(
+                      height: displayAccounts.length * 78.0 + 8,
+                      child: ReorderableListView(
+                        onReorder: (oldIndex, newIndex) {
+                          setState(() {
+                            if (newIndex > oldIndex) newIndex -= 1;
+                            final item = displayAccounts.removeAt(oldIndex);
+                            displayAccounts.insert(newIndex, item);
+                            // Update group-specific ordering
+                            final ids = displayAccounts
+                                .map((a) => a.id)
+                                .toList();
+                            _groupAccountOrder[title] = ids;
+                          });
+                          // Persist immediately
+                          final newAccountOrder = <String>[];
+                          if (_groupByIndex == 0) {
+                            for (final type in _accountTypeOrder) {
+                              final ids = _groupAccountOrder[type] ?? [];
+                              newAccountOrder.addAll(ids);
+                            }
+                          } else {
+                            for (final inst in _institutionOrder) {
+                              final ids = _groupAccountOrder[inst] ?? [];
+                              newAccountOrder.addAll(ids);
+                            }
+                          }
+                          final allIds = DatabaseService.getAllAccounts()
+                              .map((a) => a.id)
+                              .toList();
+                          for (final id in allIds) {
+                            if (!newAccountOrder.contains(id)) {
+                              newAccountOrder.add(id);
+                            }
+                          }
+                          DatabaseService.setSetting(
+                            'accountOrder',
+                            newAccountOrder,
+                          );
+                          // Persist the current group ordering as well so institution/type
+                          // orders remain in sync when users reorder accounts while
+                          // grouped by a specific key.
+                          if (_groupByIndex == 0) {
+                            DatabaseService.setSetting(
+                              'accountTypeOrder',
+                              _accountTypeOrder,
+                            );
+                          } else {
+                            DatabaseService.setSetting(
+                              'accountInstitutionOrder',
+                              _institutionOrder,
+                            );
+                          }
+                          DatabaseService.accountsVersion.value++;
+                        },
+                        children: [
+                          for (final acc in displayAccounts)
+                            ListTile(
+                              key: ValueKey(acc.id),
+                              leading: const Icon(Icons.drag_handle),
+                              title: Text(
+                                acc.name,
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                              subtitle: Text(acc.typeDisplayName),
+                              trailing: Text(formatCurrency(acc.balance)),
+                            ),
+                        ],
                       ),
-                    );
-                  } catch (e, st) {
-                    print('Error rendering account list tile (groups-only): $e\n$st');
-                    return const SizedBox.shrink();
-                  }
-                }),
-            ],
+                    )
+                  else
+                    // If groups-only reorder is active, show the regular list but without drag handles
+                    ...displayAccounts.map<Widget>((acc) {
+                      try {
+                        final displayAmount =
+                            _hiddenBalances.contains(acc.id) || !acc.isActive
+                            ? 0.0
+                            : DatabaseService.getDisplayBalanceForAccount(
+                                acc.id,
+                                showAvailable: true,
+                                includeCleared: false,
+                              );
+                        final balanceText = _hiddenBalances.contains(acc.id)
+                            ? '•••'
+                            : formatCurrency(displayAmount);
+                        return Card(
+                          margin: const EdgeInsets.symmetric(vertical: 6.0),
+                          child: ListTile(
+                            leading: const Icon(Icons.account_balance_wallet),
+                            title: Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        acc.name,
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.titleMedium,
+                                      ),
+                                      if (_accountDetailLabel(acc) != null)
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                _accountDetailLabel(acc)!,
+                                                style: Theme.of(
+                                                  context,
+                                                ).textTheme.bodySmall,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [Text(acc.typeDisplayName)],
+                            ),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      balanceText,
+                                      style: _hiddenBalances.contains(acc.id)
+                                          ? null
+                                          : Theme.of(
+                                              context,
+                                            ).textTheme.bodyMedium?.copyWith(
+                                              color: (displayAmount >= 0)
+                                                  ? Colors.green
+                                                  : Theme.of(
+                                                      context,
+                                                    ).colorScheme.error,
+                                            ),
+                                    ),
+                                    if (!_hiddenBalances.contains(acc.id))
+                                      Text(
+                                        'Available',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(
+                                              color: Colors.grey,
+                                              fontSize: 10,
+                                              fontStyle: FontStyle.italic,
+                                            ),
+                                      ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      } catch (e, st) {
+                        print(
+                          'Error rendering account list tile (groups-only): $e\n$st',
+                        );
+                        return const SizedBox.shrink();
+                      }
+                    }),
                 ],
+              ],
             ),
           ),
         ],

@@ -285,6 +285,30 @@ class DatabaseService {
     await _settingsBox.flush();
   }
 
+  static Future<int> clearStaleForeverBillRecurrenceEndOverrides() async {
+    final current = _getBillRecurrenceEndOverrides();
+    if (current.isEmpty) return 0;
+
+    var removed = 0;
+    for (final bill in _billsBox.values) {
+      if (bill.recurrence == Recurrence.none) continue;
+      if (bill.recurrenceEndDate != null) continue;
+      if (current.remove(bill.id) != null) {
+        removed++;
+      }
+    }
+
+    if (removed == 0) return 0;
+
+    final encoded = <String, String>{
+      for (final e in current.entries) e.key: e.value.toIso8601String(),
+    };
+    await _settingsBox.put(_billRecurrenceEndOverridesKey, encoded);
+    await _settingsBox.flush();
+    billsVersion.value++;
+    return removed;
+  }
+
   static void _registerAdapterIfNeeded<T>(int typeId, TypeAdapter<T> adapter) {
     try {
       Hive.registerAdapter<T>(adapter, override: true);
@@ -725,9 +749,7 @@ class DatabaseService {
       }
     }
     await _removeDeletedBillId(bill.id);
-    if (bill.recurrence == Recurrence.none) {
-      await clearBillRecurrenceEndOverride(bill.id);
-    }
+    await clearBillRecurrenceEndOverride(bill.id);
     billsVersion.value++;
     final synced = await _safeAwsCall(
       () => AwsApiService.updateBill(
@@ -782,6 +804,10 @@ class DatabaseService {
     await _billsBox.delete(id);
     await _billsBox.flush();
     billsVersion.value++;
+    await _safeAwsCall(
+      () => AwsApiService.deleteNotificationSchedulesForBill(id),
+      'delete bill notification schedules',
+    );
     await _safeAwsCall(() => AwsApiService.deleteBill(id), 'delete bill');
   }
 
@@ -1422,14 +1448,186 @@ class DatabaseService {
     return updatedCount;
   }
 
-  static int _monthDelta(DateTime from, DateTime to) {
-    return (to.year - from.year) * 12 + (to.month - from.month);
-  }
-
   static DateTime? _earliestDate(DateTime? a, DateTime? b) {
     if (a == null) return b;
     if (b == null) return a;
     return a.isBefore(b) ? a : b;
+  }
+
+  static DateTime _addCalendarDays(DateTime date, int days) {
+    return DateTime(date.year, date.month, date.day + days);
+  }
+
+  static List<DateTime> generateBillOccurrenceDatesForRange(
+    Bill bill,
+    DateTime startDate,
+    DateTime endDate, {
+    DateTime? recurrenceEndOverride,
+  }) {
+    final normalizedStart = DateTime(
+      startDate.year,
+      startDate.month,
+      startDate.day,
+    );
+    final normalizedEnd = DateTime(endDate.year, endDate.month, endDate.day);
+    final effectiveRecurrenceEndDate = bill.recurrence == Recurrence.none
+        ? null
+        : _earliestDate(recurrenceEndOverride, bill.recurrenceEndDate);
+    final out = <DateTime>[];
+    final seen = <String>{};
+
+    if (effectiveRecurrenceEndDate != null &&
+        effectiveRecurrenceEndDate.isBefore(normalizedStart)) {
+      return out;
+    }
+
+    void addIfInRange(DateTime rawDate) {
+      final occ = DateTime(rawDate.year, rawDate.month, rawDate.day);
+      if (occ.isBefore(normalizedStart) || occ.isAfter(normalizedEnd)) return;
+      final key = '${occ.year}-${occ.month}-${occ.day}';
+      if (!seen.add(key)) return;
+      out.add(occ);
+    }
+
+    switch (bill.recurrence) {
+      case Recurrence.none:
+        addIfInRange(
+          DateTime(bill.dueDate.year, bill.dueDate.month, bill.dueDate.day),
+        );
+        break;
+      case Recurrence.daily:
+        final interval = bill.recurrenceInterval <= 0
+            ? 1
+            : bill.recurrenceInterval;
+        var cur = DateTime(
+          bill.dueDate.year,
+          bill.dueDate.month,
+          bill.dueDate.day,
+        );
+        while (!(effectiveRecurrenceEndDate != null &&
+                cur.isAfter(effectiveRecurrenceEndDate)) &&
+            !cur.isAfter(normalizedEnd)) {
+          addIfInRange(cur);
+          cur = _addCalendarDays(cur, interval);
+        }
+        break;
+      case Recurrence.weekly:
+        final intervalWeeks = bill.recurrenceInterval <= 0
+            ? 1
+            : bill.recurrenceInterval;
+        final weekdays =
+            ((bill.recurrenceWeekdays == null ||
+                        bill.recurrenceWeekdays!.isEmpty)
+                    ? <int>[bill.dueDate.weekday]
+                    : bill.recurrenceWeekdays!)
+                .where((weekday) => weekday >= 1 && weekday <= 7)
+                .toSet()
+                .toList()
+              ..sort();
+
+        final due = DateTime(
+          bill.dueDate.year,
+          bill.dueDate.month,
+          bill.dueDate.day,
+        );
+        if (due.isAfter(normalizedEnd)) break;
+
+        final dueWeekStart = _addCalendarDays(due, -(due.weekday - 1));
+        var cycle = 0;
+        while (true) {
+          final weekStart = _addCalendarDays(
+            dueWeekStart,
+            7 * intervalWeeks * cycle,
+          );
+          if (weekStart.isAfter(normalizedEnd)) break;
+          if (effectiveRecurrenceEndDate != null &&
+              weekStart.isAfter(effectiveRecurrenceEndDate)) {
+            break;
+          }
+
+          for (final weekday in weekdays) {
+            final occ = _addCalendarDays(weekStart, weekday - 1);
+            if (occ.isBefore(due)) continue;
+            if (effectiveRecurrenceEndDate != null &&
+                occ.isAfter(effectiveRecurrenceEndDate)) {
+              continue;
+            }
+            addIfInRange(occ);
+          }
+          cycle++;
+        }
+        break;
+      case Recurrence.monthly:
+        final intervalMonths = bill.recurrenceInterval <= 0
+            ? 1
+            : bill.recurrenceInterval;
+        final days =
+            ((bill.customDays == null || bill.customDays!.isEmpty)
+                    ? <int>[bill.dueDate.day]
+                    : bill.customDays!)
+                .toSet()
+                .toList()
+              ..sort();
+        final billStartDate = DateTime(
+          bill.dueDate.year,
+          bill.dueDate.month,
+          bill.dueDate.day,
+        );
+        var currentYear = bill.dueDate.year;
+        var currentMonth = bill.dueDate.month;
+        while (true) {
+          final monthStart = DateTime(currentYear, currentMonth, 1);
+          if (monthStart.isAfter(normalizedEnd)) break;
+          if (effectiveRecurrenceEndDate != null &&
+              monthStart.isAfter(effectiveRecurrenceEndDate)) {
+            break;
+          }
+          for (final configuredDay in days) {
+            final day = configuredDay == 99
+                ? DateTime(currentYear, currentMonth + 1, 0).day
+                : configuredDay;
+            final lastDay = DateTime(currentYear, currentMonth + 1, 0).day;
+            if (day < 1 || day > lastDay) continue;
+            final occ = DateTime(currentYear, currentMonth, day);
+            if (occ.isBefore(billStartDate)) continue;
+            if (effectiveRecurrenceEndDate != null &&
+                occ.isAfter(effectiveRecurrenceEndDate)) {
+              continue;
+            }
+            addIfInRange(occ);
+          }
+          currentMonth += intervalMonths;
+          while (currentMonth > 12) {
+            currentMonth -= 12;
+            currentYear += 1;
+          }
+        }
+        break;
+      case Recurrence.yearly:
+        final intervalYears = bill.recurrenceInterval <= 0
+            ? 1
+            : bill.recurrenceInterval;
+        var cur = DateTime(
+          bill.dueDate.year,
+          bill.dueDate.month,
+          bill.dueDate.day,
+        );
+        while (!(effectiveRecurrenceEndDate != null &&
+                cur.isAfter(effectiveRecurrenceEndDate)) &&
+            !cur.isAfter(normalizedEnd)) {
+          addIfInRange(cur);
+          cur = DateTime(cur.year + intervalYears, cur.month, cur.day);
+        }
+        break;
+      case Recurrence.custom:
+        addIfInRange(
+          DateTime(bill.dueDate.year, bill.dueDate.month, bill.dueDate.day),
+        );
+        break;
+    }
+
+    out.sort();
+    return out;
   }
 
   static bool _billOccursOnDate(
@@ -1437,93 +1635,60 @@ class DatabaseService {
     DateTime date, {
     DateTime? effectiveEndDate,
   }) {
-    final due = DateTime(
-      bill.dueDate.year,
-      bill.dueDate.month,
-      bill.dueDate.day,
-    );
     final target = DateTime(date.year, date.month, date.day);
-    final effectiveEnd = effectiveEndDate == null
-        ? null
-        : DateTime(
-            effectiveEndDate.year,
-            effectiveEndDate.month,
-            effectiveEndDate.day,
-          );
+    return generateBillOccurrenceDatesForRange(
+      bill,
+      target,
+      target,
+      recurrenceEndOverride: effectiveEndDate,
+    ).isNotEmpty;
+  }
 
-    if (target.isBefore(due)) return false;
-    if (effectiveEnd != null && target.isAfter(effectiveEnd)) return false;
+  static String _normalizedBillName(Bill bill) {
+    return (bill.description ?? '').trim().toLowerCase();
+  }
 
-    switch (bill.recurrence) {
-      case Recurrence.none:
-        return target.year == due.year &&
-            target.month == due.month &&
-            target.day == due.day;
-      case Recurrence.daily:
-        final interval = bill.recurrenceInterval <= 0
-            ? 1
-            : bill.recurrenceInterval;
-        final days = target.difference(due).inDays;
-        return days % interval == 0;
-      case Recurrence.weekly:
-        final intervalWeeks = bill.recurrenceInterval <= 0
-            ? 1
-            : bill.recurrenceInterval;
-        final weekdays =
-            (bill.recurrenceWeekdays == null ||
-                bill.recurrenceWeekdays!.isEmpty)
-            ? <int>[due.weekday]
-            : bill.recurrenceWeekdays!;
-        if (!weekdays.contains(target.weekday)) return false;
-        final days = target.difference(due).inDays;
-        final weekIndex = days ~/ 7;
-        return weekIndex % intervalWeeks == 0;
-      case Recurrence.monthly:
-        final intervalMonths = bill.recurrenceInterval <= 0
-            ? 1
-            : bill.recurrenceInterval;
-        final months = _monthDelta(due, target);
-        if (months < 0 || months % intervalMonths != 0) return false;
-
-        final days =
-            ((bill.customDays == null || bill.customDays!.isEmpty)
-                    ? <int>[due.day]
-                    : bill.customDays!)
-                .toSet()
-                .toList()
-              ..sort();
-
-        int day = target.day;
-        final lastDay = DateTime(target.year, target.month + 1, 0).day;
-        if (day == lastDay && days.contains(99)) {
-          day = 99;
-        }
-        if (!days.contains(day)) return false;
-
-        if (target.year == due.year &&
-            target.month == due.month &&
-            target.day < due.day) {
-          return false;
-        }
-        return true;
-      case Recurrence.yearly:
-        final intervalYears = bill.recurrenceInterval <= 0
-            ? 1
-            : bill.recurrenceInterval;
-        final yearDiff = target.year - due.year;
-        if (yearDiff < 0 || yearDiff % intervalYears != 0) return false;
-        return target.month == due.month && target.day == due.day;
-      case Recurrence.custom:
-        return target.year == due.year &&
-            target.month == due.month &&
-            target.day == due.day;
+  static bool _sameIntListValues(List<int>? a, List<int>? b) {
+    final left = (a ?? <int>[]).toList()..sort();
+    final right = (b ?? <int>[]).toList()..sort();
+    if (left.length != right.length) return false;
+    for (var i = 0; i < left.length; i++) {
+      if (left[i] != right[i]) return false;
     }
+    return true;
+  }
+
+  static bool _sameBillSchedule(Bill a, Bill b) {
+    return a.recurrence == b.recurrence &&
+        a.recurrenceInterval == b.recurrenceInterval &&
+        _sameIntListValues(a.customDays, b.customDays) &&
+        _sameIntListValues(a.recurrenceWeekdays, b.recurrenceWeekdays);
+  }
+
+  static bool _hasAmbiguousLegacyBillNameMatch(
+    Bill bill,
+    DateTime occurrenceDate,
+    Iterable<Bill> candidates,
+  ) {
+    final billName = _normalizedBillName(bill);
+    if (billName.isEmpty || billName == 'bill') return false;
+
+    for (final candidate in candidates) {
+      if (candidate.id == bill.id) continue;
+      if (_normalizedBillName(candidate) != billName) continue;
+      if (_sameBillSchedule(candidate, bill)) continue;
+      if (!_billOccursOnDate(candidate, occurrenceDate)) continue;
+      return true;
+    }
+
+    return false;
   }
 
   static String _recurringBillSignature(Bill bill) {
     final customDays = (bill.customDays ?? <int>[]).toList()..sort();
     final weekdays = (bill.recurrenceWeekdays ?? <int>[]).toList()..sort();
     return [
+      (bill.description ?? '').trim().toLowerCase(),
       bill.type.name,
       bill.amount.toStringAsFixed(4),
       bill.categoryId ?? '',
@@ -1554,6 +1719,7 @@ class DatabaseService {
         .toList();
     final grouped = <String, List<Bill>>{};
     for (final bill in recurringBills) {
+      if ((bill.description ?? '').trim().isEmpty) continue;
       final signature = _recurringBillSignature(bill);
       grouped.putIfAbsent(signature, () => <Bill>[]).add(bill);
     }
@@ -1586,7 +1752,7 @@ class DatabaseService {
           continue;
         }
 
-        final cutoff = newerStart.subtract(const Duration(days: 1));
+        final cutoff = _addCalendarDays(newerStart, -1);
         final normalizedCutoff = DateTime(
           cutoff.year,
           cutoff.month,
@@ -1815,8 +1981,13 @@ class DatabaseService {
 
         if (!sameOcc) return false;
 
-        if (candidate.billId != null && candidate.billId!.trim() == bill.id) {
-          return true;
+        final candidateBillId = candidate.billId?.trim() ?? '';
+        if (candidateBillId.isNotEmpty) {
+          return candidateBillId == bill.id;
+        }
+
+        if (_hasAmbiguousLegacyBillNameMatch(bill, occ, bills)) {
+          return false;
         }
 
         // Legacy/partial link: allow paymentFor-based matches to keep old bill
@@ -1963,6 +2134,7 @@ class DatabaseService {
     await migrateLegacyTransactionPaymentFor();
     await migrateLegacyRecurringBillSplitOverlaps();
     await runPostFixRecurringSplitRepairIfNeeded();
+    await clearStaleForeverBillRecurrenceEndOverrides();
     await migrateLegacyBillPlaceholderText();
   }
 
@@ -2603,12 +2775,6 @@ class DatabaseService {
     DateTime startDate,
     DateTime endDate,
   ) {
-    DateTime? earliestDate(DateTime? a, DateTime? b) {
-      if (a == null) return b;
-      if (b == null) return a;
-      return a.isBefore(b) ? a : b;
-    }
-
     final normalizedStart = DateTime(
       startDate.year,
       startDate.month,
@@ -2620,196 +2786,17 @@ class DatabaseService {
     final seenAcrossBills = <String>{};
     final bills = getAllBills();
     for (final bill in bills) {
-      final seenForBill = <String>{};
-      final DateTime? effectiveRecurrenceEndDate =
-          bill.recurrence == Recurrence.none
-          ? null
-          : earliestDate(
-              recurrenceEndOverrides[bill.id],
-              bill.recurrenceEndDate,
-            );
-      // Skip bills that end before the requested range
-      if (effectiveRecurrenceEndDate != null &&
-          effectiveRecurrenceEndDate.isBefore(normalizedStart)) {
-        continue;
-      }
-
-      // Helper to add an occurrence if within bounds
-      void addIfInRange(DateTime occ) {
-        if ((occ.isAtSameMomentAs(normalizedStart) ||
-                occ.isAfter(normalizedStart)) &&
-            (occ.isAtSameMomentAs(normalizedEnd) ||
-                occ.isBefore(normalizedEnd))) {
-          final key = '${occ.year}-${occ.month}-${occ.day}';
-          if (seenForBill.contains(key)) return;
-          final globalKey = '${bill.id}|$key|${bill.type.name}';
-          if (!seenAcrossBills.add(globalKey)) return;
-          seenForBill.add(key);
-          out.add({'bill': bill, 'date': occ});
-        }
-      }
-
-      switch (bill.recurrence) {
-        case Recurrence.none:
-          addIfInRange(
-            DateTime(bill.dueDate.year, bill.dueDate.month, bill.dueDate.day),
-          );
-          break;
-        case Recurrence.daily:
-          {
-            final interval = bill.recurrenceInterval <= 0
-                ? 1
-                : bill.recurrenceInterval;
-            DateTime cur = DateTime(
-              bill.dueDate.year,
-              bill.dueDate.month,
-              bill.dueDate.day,
-            );
-            // iterate until the earlier of recurrenceEndDate (if any) or endDate
-            while (!(effectiveRecurrenceEndDate != null &&
-                    cur.isAfter(effectiveRecurrenceEndDate)) &&
-                !cur.isAfter(normalizedEnd)) {
-              if (!cur.isBefore(normalizedStart)) addIfInRange(cur);
-              cur = cur.add(Duration(days: interval));
-            }
-          }
-          break;
-        case Recurrence.weekly:
-          {
-            final intervalWeeks = bill.recurrenceInterval <= 0
-                ? 1
-                : bill.recurrenceInterval;
-            final weekdays =
-                (bill.recurrenceWeekdays == null ||
-                    bill.recurrenceWeekdays!.isEmpty)
-                ? [bill.dueDate.weekday]
-                : bill.recurrenceWeekdays!;
-
-            final due = DateTime(
-              bill.dueDate.year,
-              bill.dueDate.month,
-              bill.dueDate.day,
-            );
-            if (due.isAfter(normalizedEnd)) break;
-
-            final sortedWeekdays = weekdays.toSet().toList()..sort();
-            final dueWeekStart = due.subtract(
-              Duration(days: due.weekday - 1),
-            ); // Monday start
-
-            var cycle = 0;
-            while (true) {
-              final weekStart = dueWeekStart.add(
-                Duration(days: 7 * intervalWeeks * cycle),
-              );
-              if (weekStart.isAfter(normalizedEnd)) break;
-              if (effectiveRecurrenceEndDate != null &&
-                  weekStart.isAfter(effectiveRecurrenceEndDate)) {
-                break;
-              }
-
-              for (final weekday in sortedWeekdays) {
-                final occ = weekStart.add(Duration(days: weekday - 1));
-                // Never generate before the bill's initial due date.
-                if (occ.isBefore(due)) continue;
-                if (occ.isAfter(normalizedEnd)) continue;
-                if (effectiveRecurrenceEndDate != null &&
-                    occ.isAfter(effectiveRecurrenceEndDate)) {
-                  continue;
-                }
-                addIfInRange(occ);
-              }
-
-              cycle += 1;
-            }
-          }
-          break;
-        case Recurrence.monthly:
-          {
-            final intervalMonths = bill.recurrenceInterval <= 0
-                ? 1
-                : bill.recurrenceInterval;
-            final days =
-                ((bill.customDays == null || bill.customDays!.isEmpty)
-                        ? <int>[bill.dueDate.day]
-                        : bill.customDays!)
-                    .toSet()
-                    .toList()
-                  ..sort();
-            int currentYear = bill.dueDate.year;
-            int currentMonth = bill.dueDate.month;
-            while (true) {
-              final monthStart = DateTime(currentYear, currentMonth, 1);
-              if (monthStart.isAfter(normalizedEnd)) break;
-              if (effectiveRecurrenceEndDate != null &&
-                  monthStart.isAfter(effectiveRecurrenceEndDate)) {
-                break;
-              }
-              for (final d in days) {
-                try {
-                  int day = d;
-                  if (d == 99) {
-                    // Calculate last day of the month
-                    day = DateTime(currentYear, currentMonth + 1, 0).day;
-                  }
-                  final occ = DateTime(currentYear, currentMonth, day);
-
-                  // IMPORTANT: Do not generate occurrences in the bill's starting
-                  // month that are before the bill's original due date. Example:
-                  // bill.dueDate = 15th, customDays = [1,15] -> do not create
-                  // an occurrence for the 1st of the same month as the dueDate.
-                  final billStartDate = DateTime(
-                    bill.dueDate.year,
-                    bill.dueDate.month,
-                    bill.dueDate.day,
-                  );
-                  if (currentYear == bill.dueDate.year &&
-                      currentMonth == bill.dueDate.month &&
-                      occ.isBefore(billStartDate)) {
-                    continue; // skip past-day occurrences in the first month
-                  }
-
-                  if (!occ.isAfter(normalizedEnd) &&
-                      (effectiveRecurrenceEndDate == null ||
-                          !occ.isAfter(effectiveRecurrenceEndDate))) {
-                    addIfInRange(occ);
-                  }
-                } catch (_) {
-                  // invalid day (e.g., Feb 30) — skip
-                }
-              }
-              currentMonth += intervalMonths;
-              while (currentMonth > 12) {
-                currentMonth -= 12;
-                currentYear += 1;
-              }
-            }
-          }
-          break;
-        case Recurrence.yearly:
-          {
-            final intervalYears = bill.recurrenceInterval <= 0
-                ? 1
-                : bill.recurrenceInterval;
-            DateTime cur = DateTime(
-              bill.dueDate.year,
-              bill.dueDate.month,
-              bill.dueDate.day,
-            );
-            while (!(effectiveRecurrenceEndDate != null &&
-                    cur.isAfter(effectiveRecurrenceEndDate)) &&
-                !cur.isAfter(normalizedEnd)) {
-              if (!cur.isBefore(normalizedStart)) addIfInRange(cur);
-              cur = DateTime(cur.year + intervalYears, cur.month, cur.day);
-            }
-          }
-          break;
-        case Recurrence.custom:
-          // custom recurrence semantics not implemented — fallback to dueDate
-          addIfInRange(
-            DateTime(bill.dueDate.year, bill.dueDate.month, bill.dueDate.day),
-          );
-          break;
+      final occurrences = generateBillOccurrenceDatesForRange(
+        bill,
+        normalizedStart,
+        normalizedEnd,
+        recurrenceEndOverride: recurrenceEndOverrides[bill.id],
+      );
+      for (final occ in occurrences) {
+        final key = '${occ.year}-${occ.month}-${occ.day}';
+        final globalKey = '${bill.id}|$key|${bill.type.name}';
+        if (!seenAcrossBills.add(globalKey)) continue;
+        out.add({'bill': bill, 'date': occ});
       }
     }
     return out;

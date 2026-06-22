@@ -7,7 +7,11 @@
 // - Keeps caller-provided title/body if present
 
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
+import {
+  DynamoDBDocumentClient,
+  GetCommand,
+  QueryCommand,
+} from "@aws-sdk/lib-dynamodb";
 import {
   SNSClient,
   PublishCommand /*, GetEndpointAttributesCommand */,
@@ -15,6 +19,7 @@ import {
 
 const DEVICE_REGISTRY_TABLE =
   process.env.DEVICE_REGISTRY_TABLE ?? "CashSense-DeviceRegistry";
+const BILLS_TABLE = process.env.BILLS_TABLE ?? "CashSense-Bills";
 
 // Must exactly match your iOS bundle id (APNs topic)
 const IOS_BUNDLE_ID = process.env.IOS_BUNDLE_ID ?? "";
@@ -30,6 +35,7 @@ export const handler = async (event) => {
     userId: event?.userId,
     timeZone: event?.timeZone,
     runAt: event?.runAt,
+    environment: event?.environment,
     mode: event?.mode ?? "alert",
     hasTitle: Boolean(event?.title),
     hasBody: Boolean(event?.body),
@@ -44,6 +50,15 @@ export const handler = async (event) => {
   const userId = String(event?.userId ?? "").trim();
   if (!userId) return { ok: false, message: "Missing userId" };
 
+  const data =
+    event?.data && typeof event.data === "object" ? event.data : {};
+
+  const reminderGuard = await shouldSendBillReminder(userId, data);
+  if (!reminderGuard.ok) {
+    console.log("Skipping bill reminder", reminderGuard);
+    return reminderGuard;
+  }
+
   // Load devices for user
   const res = await ddb.send(
     new QueryCommand({
@@ -54,6 +69,9 @@ export const handler = async (event) => {
   );
 
   const devices = res.Items ?? [];
+  const requestedEnvironment = normalizeNonEmptyString(
+    event?.environment || event?.data?.environment
+  ).toLowerCase();
 
   const enabled = devices.filter((d) => {
     const notificationsEnabled =
@@ -77,11 +95,23 @@ export const handler = async (event) => {
     );
   });
 
+  const matchingEnvironment =
+    requestedEnvironment === "production" || requestedEnvironment === "sandbox"
+      ? enabled.filter(
+          (d) =>
+            String(d?.environment ?? "production").toLowerCase() ===
+            requestedEnvironment
+        )
+      : [];
+  const deliveryTargets = matchingEnvironment.length ? matchingEnvironment : enabled;
+
   console.log(
     "Devices",
     {
       total: devices.length,
       enabledWithEndpoint: enabled.length,
+      requestedEnvironment: requestedEnvironment || null,
+      deliveryTargets: deliveryTargets.length,
       enabledEndpoints: enabled.map((d) => ({
         environment: d?.environment ?? "production",
         endpointArn: d?.snsEndpointArn ?? null,
@@ -89,16 +119,13 @@ export const handler = async (event) => {
     }
   );
 
-  if (enabled.length === 0) {
+  if (deliveryTargets.length === 0) {
     return { ok: false, message: "No enabled endpoints for user" };
   }
 
   // alert = banner/lock-screen
   // background = silent
   const mode = String(event?.mode ?? "alert"); // "background" | "alert"
-
-  const data =
-    event?.data && typeof event.data === "object" ? event.data : {};
 
   // ---- Title/body (caller overrides; otherwise build from data) ----
   const callerTitle = normalizeNonEmptyString(event?.title);
@@ -114,7 +141,7 @@ export const handler = async (event) => {
 
   const results = [];
 
-  for (const d of enabled) {
+  for (const d of deliveryTargets) {
     const endpointArn = String(d.snsEndpointArn);
     const platform = String(d?.platform ?? "unknown").toLowerCase();
 
@@ -174,6 +201,11 @@ export const handler = async (event) => {
         })
       );
 
+      console.log("Publish succeeded", {
+        endpointArn,
+        mode,
+        messageId: out.MessageId,
+      });
       results.push({ ok: true, endpointArn, messageId: out.MessageId, mode });
     } catch (e) {
       console.error("Publish FAILED", {
@@ -203,6 +235,81 @@ function formatMoney(amount) {
   const n = Number(amount);
   if (!Number.isFinite(n)) return "";
   return n.toFixed(2);
+}
+
+async function shouldSendBillReminder(userId, data) {
+  const type = String(data?.type ?? "").toLowerCase();
+  if (type !== "bill_reminder") return { ok: true };
+
+  const billId = normalizeNonEmptyString(data?.billId);
+  if (!billId) {
+    return {
+      ok: false,
+      skipped: true,
+      reason: "missing_bill_id",
+      message: "Bill reminder payload is missing billId",
+    };
+  }
+
+  const result = await ddb.send(
+    new GetCommand({
+      TableName: BILLS_TABLE,
+      Key: { userId, billId },
+    })
+  );
+
+  const bill = result.Item;
+  if (!bill) {
+    return {
+      ok: false,
+      skipped: true,
+      reason: "bill_deleted",
+      userId,
+      billId,
+      message: "Bill no longer exists",
+    };
+  }
+
+  const status = String(bill?.status ?? "").trim().toLowerCase();
+  const paymentStatus = String(bill?.paymentStatus ?? "").trim().toLowerCase();
+  const isPaid = Boolean(bill?.isPaid) || paymentStatus === "paid";
+  const remindersDisabled = bill?.remindersEnabled === false;
+
+  if (status === "deleted" || status === "archived" || status === "inactive") {
+    return {
+      ok: false,
+      skipped: true,
+      reason: "bill_inactive",
+      userId,
+      billId,
+      status,
+      message: "Bill is no longer active",
+    };
+  }
+
+  if (isPaid) {
+    return {
+      ok: false,
+      skipped: true,
+      reason: "bill_paid",
+      userId,
+      billId,
+      message: "Bill is already paid",
+    };
+  }
+
+  if (remindersDisabled) {
+    return {
+      ok: false,
+      skipped: true,
+      reason: "bill_reminders_disabled",
+      userId,
+      billId,
+      message: "Bill reminders are disabled",
+    };
+  }
+
+  return { ok: true };
 }
 
 function buildTitleBodyFromData(data) {

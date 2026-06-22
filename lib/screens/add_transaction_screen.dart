@@ -9,6 +9,7 @@ import '../models/category.dart';
 import '../models/bill.dart';
 import '../models/account.dart';
 import '../services/database_service.dart';
+import '../services/bill_reminder_service.dart';
 import '../services/lookups_state.dart';
 import '../services/lookups_sync_helper.dart';
 import '../widgets/app_color_picker.dart';
@@ -58,6 +59,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   List<Map<String, dynamic>> _splits = [];
   bool _useSplits = false;
   bool _isSaving = false;
+  bool _didUserEditNotes = false;
+  bool _didUserSelectPayee = false;
+  TransactionScreenType? _initialTransactionType;
 
   TransactionScreenType _transactionType = TransactionScreenType.expense;
 
@@ -217,6 +221,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             ],
             onPressed: (index) {
               setState(() {
+                if (_transactionType != TransactionScreenType.values[index]) {
+                  _didUserSelectPayee = true;
+                }
                 _transactionType = TransactionScreenType.values[index];
                 _selectedPayeeId = null;
                 _selectedCategoryId = null;
@@ -709,6 +716,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 catId != null &&
                 DatabaseService.getAllCategories().any((c) => c.id == catId);
             setState(() {
+              _didUserSelectPayee = true;
               _selectedPayeeId = selected.isEmpty ? null : selected;
               // If we're editing/duplicating a transaction that already has a category,
               // preserve the transaction's category instead of using the payee's default category
@@ -2112,6 +2120,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   Widget _buildNotesField() {
     return TextFormField(
       controller: _notesController,
+      onChanged: (_) {
+        if (!_didUserEditNotes) {
+          setState(() => _didUserEditNotes = true);
+        }
+      },
       decoration: const InputDecoration(
         labelText: 'Notes',
         hintText: 'Optional notes',
@@ -2327,9 +2340,29 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
         if (isEditing) {
           final orig = widget.existingTransaction!;
+          final sameTransactionKind =
+              _initialTransactionType == null ||
+              _initialTransactionType == _transactionType;
+          final preserveOriginalPayee =
+              sameTransactionKind && !_didUserSelectPayee;
+          final effectivePayeeId = preserveOriginalPayee
+              ? orig.payeeId
+              : payeeId;
+          final effectivePayeeName = preserveOriginalPayee
+              ? orig.payeeName
+              : selectedPayeeName;
+          final effectivePayerId = preserveOriginalPayee
+              ? orig.payerId
+              : payerId;
+          final effectivePayerName = preserveOriginalPayee
+              ? orig.payerName
+              : selectedPayerName;
           final shouldHideFromCalendar = _shouldHideFromDashboard(
             existing: orig,
           );
+          if (!_didUserEditNotes) {
+            finalNote = orig.note;
+          }
           finalNote = _applyHideFromCalendarMarker(
             finalNote,
             shouldHideFromCalendar,
@@ -2361,10 +2394,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             note: finalNote,
             cleared: _cleared,
             accountId: _selectedAccountId,
-            payeeId: payeeId, // Always set from selected
-            payeeName: selectedPayeeName,
-            payerId: payerId, // Always set from selected
-            payerName: selectedPayerName,
+            payeeId: effectivePayeeId,
+            payeeName: effectivePayeeName,
+            payerId: effectivePayerId,
+            payerName: effectivePayerName,
             categoryName: selectedCategoryName,
             // Explicitly preserve bill linkage for payments so edits keep the
             // transaction associated with the original bill occurrence.
@@ -2383,6 +2416,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             try {
               DatabaseService.billsVersion.value++;
             } catch (_) {}
+            BillReminderService().refreshAllReminders().catchError((e) {
+              debugPrint('Bill reminder refresh failed after payment edit: $e');
+            });
           }
 
           final oldEffect = (orig.type == TransactionType.income)
@@ -2460,6 +2496,13 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             hideFromCalendarDashboard: shouldHideFromCalendar,
           );
           await DatabaseService.addTransaction(tx);
+          if (tx.billId != null && tx.billId!.isNotEmpty) {
+            BillReminderService().refreshAllReminders().catchError((e) {
+              debugPrint(
+                'Bill reminder refresh failed after payment create: $e',
+              );
+            });
+          }
 
           if (_selectedAccountId != null) {
             final account = DatabaseService.getAccountById(_selectedAccountId!);
@@ -3039,6 +3082,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
       if (detectedTransfer) {
         _transactionType = TransactionScreenType.transfer;
+        _initialTransactionType = _transactionType;
         _cleared = source.cleared ?? false;
         _showInReports = false;
         return;
@@ -3115,6 +3159,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     _transactionType = source.type == TransactionType.income
         ? TransactionScreenType.income
         : TransactionScreenType.expense;
+    _initialTransactionType = _transactionType;
     // Initialize cleared state from source (default false)
     _cleared = source.cleared ?? false;
     _showInReports = source.showInReports;

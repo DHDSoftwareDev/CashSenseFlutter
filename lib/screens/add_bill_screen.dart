@@ -1,7 +1,5 @@
 // ignore_for_file: deprecated_member_use, no_leading_underscores_for_local_identifiers, curly_braces_in_flow_control_structures, unused_import
 
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../theme/app_theme.dart';
@@ -9,11 +7,9 @@ import '../models/bill.dart';
 import '../models/transaction.dart';
 import '../models/category.dart';
 import '../models/account.dart';
-import '../models/reminder_offset.dart';
 import '../services/database_service.dart';
 import '../services/bill_reminder_service.dart';
 import '../services/lookups_sync_helper.dart';
-import '../widgets/bill_reminder_picker.dart';
 import '../widgets/app_color_picker.dart';
 import 'package:uuid/uuid.dart';
 
@@ -752,9 +748,6 @@ class _AddBillScreenState extends State<AddBillScreen> {
   // Transfer-specific accounts
   String? _fromAccountId;
   String? _toAccountId;
-  bool _remindersEnabled = false;
-
-  List<ReminderOffset> _selectedReminders = [];
 
   List<Map<String, dynamic>> _payees = [];
   List accountList = [];
@@ -789,54 +782,7 @@ class _AddBillScreenState extends State<AddBillScreen> {
       _toAccountId = bill.toAccountId;
       _selectedPayeeId = bill.payeeId;
       _selectedAccountId = bill.accountId;
-      _loadBillReminders(bill.id, bill.toJson());
     }
-  }
-
-  List<ReminderOffset> _storedReminderOffsets() {
-    try {
-      final raw = DatabaseService.getSetting<String>(
-        'notif_billReminderOffsets',
-        null,
-      );
-      if (raw == null || raw.trim().isEmpty) return const <ReminderOffset>[];
-
-      final decoded = jsonDecode(raw);
-      if (decoded is! List) return const <ReminderOffset>[];
-
-      final reminders = <ReminderOffset>[];
-      for (final item in decoded) {
-        if (item is Map<String, dynamic>) {
-          reminders.add(ReminderOffset.fromJson(item));
-        } else if (item is Map) {
-          reminders.add(
-            ReminderOffset.fromJson(Map<String, dynamic>.from(item)),
-          );
-        }
-      }
-      return reminders;
-    } catch (_) {
-      return const <ReminderOffset>[];
-    }
-  }
-
-  void _loadBillReminders(String billId, Map<String, dynamic> billData) {
-    final rawOffsets = billData['reminderOffsets'] as List?;
-
-    final parsed = rawOffsets == null
-        ? <ReminderOffset>[]
-        : rawOffsets
-              .whereType<Map>()
-              .map((e) => ReminderOffset.fromJson(Map<String, dynamic>.from(e)))
-              .toList();
-
-    final settingKey = 'notif_bill_${billId}_enabled';
-    final savedEnabled =
-        DatabaseService.getSetting<bool>(settingKey, parsed.isNotEmpty) ??
-        parsed.isNotEmpty;
-
-    _selectedReminders = parsed.isNotEmpty ? parsed : _storedReminderOffsets();
-    _remindersEnabled = savedEnabled;
   }
 
   void _loadLookups() {
@@ -956,30 +902,6 @@ class _AddBillScreenState extends State<AddBillScreen> {
             const SizedBox(height: 16),
             _buildRecurrenceField(),
             const SizedBox(height: 12),
-            Card(
-              child: SwitchListTile(
-                title: const Text('Enable reminders'),
-                subtitle: Text(_remindersEnabled ? 'On' : 'Off'),
-                value: _remindersEnabled,
-                onChanged: (value) {
-                  setState(() {
-                    _remindersEnabled = value;
-                  });
-                },
-              ),
-            ),
-            if (_remindersEnabled) ...[
-              const SizedBox(height: 12),
-              BillReminderPicker(
-                initialValue: _selectedReminders,
-                onChanged: (value) {
-                  setState(() {
-                    _selectedReminders = value;
-                  });
-                },
-              ),
-            ],
-            const SizedBox(height: 12),
             _buildNotesField(),
             const SizedBox(height: 16),
             const SizedBox(height: 32),
@@ -1093,8 +1015,33 @@ class _AddBillScreenState extends State<AddBillScreen> {
       lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
     );
     if (picked != null && picked != _dueDate) {
+      final previousDueDate = _dueDate;
       setState(() {
         _dueDate = picked;
+        if (_recurrence == Recurrence.weekly) {
+          final weekdays = {...?_recurrenceWeekdays};
+          if (weekdays.isEmpty) {
+            _recurrenceWeekdays = null;
+          } else {
+            if (weekdays.length == 1 &&
+                weekdays.contains(previousDueDate.weekday)) {
+              _recurrenceWeekdays = <int>[picked.weekday];
+            } else {
+              weekdays.add(picked.weekday);
+              _recurrenceWeekdays = weekdays.toList()..sort();
+            }
+          }
+        } else if (_recurrence == Recurrence.monthly) {
+          final days = {...?_customDays};
+          if (days.isEmpty) {
+            _customDays = null;
+          } else if (days.length == 1 && days.contains(previousDueDate.day)) {
+            _customDays = <int>[picked.day];
+          } else {
+            days.add(picked.day);
+            _customDays = days.toList()..sort();
+          }
+        }
       });
     }
   }
@@ -2741,38 +2688,33 @@ class _AddBillScreenState extends State<AddBillScreen> {
 
     final List<int>? normalizedRecurrenceWeekdays =
         normalizedRecurrence == Recurrence.weekly
-        ? ((_recurrenceWeekdays == null || _recurrenceWeekdays!.isEmpty)
-              ? null
-              : (_recurrenceWeekdays!.toSet().toList()..sort()))
+        ? (((_recurrenceWeekdays == null || _recurrenceWeekdays!.isEmpty)
+                  ? <int>{normalizedDueDate.weekday}
+                  : <int>{..._recurrenceWeekdays!, normalizedDueDate.weekday})
+              .toList()
+            ..sort())
         : null;
 
     final List<int>? normalizedCustomDays =
         normalizedRecurrence == Recurrence.monthly
-        ? ((_customDays == null || _customDays!.isEmpty)
-              ? <int>[normalizedDueDate.day]
-              : (_customDays!.toSet().toList()..sort()))
+        ? (((_customDays == null || _customDays!.isEmpty)
+                  ? <int>{normalizedDueDate.day}
+                  : <int>{..._customDays!, normalizedDueDate.day})
+              .toList()
+            ..sort())
         : null;
 
     final notes = _notesController.text.trim();
-    final isCreateFlow = widget.existingBill == null || widget.isDuplicate;
     final existingNotes = _initialNotes;
 
     String? description;
 
-    if (isCreateFlow) {
-      if (notes.isNotEmpty && _didUserEditNotes) {
-        description = notes;
-      } else {
-        description = null;
-      }
+    if (_didUserEditNotes) {
+      description = notes.isEmpty ? null : notes;
+    } else if (existingNotes.isNotEmpty) {
+      description = existingNotes;
     } else {
-      if (_didUserEditNotes) {
-        description = notes.isEmpty ? null : notes;
-      } else if (existingNotes.isNotEmpty) {
-        description = existingNotes;
-      } else {
-        description = null;
-      }
+      description = null;
     }
 
     final Bill bill;
@@ -2816,27 +2758,14 @@ class _AddBillScreenState extends State<AddBillScreen> {
 
     try {
       if (widget.existingBill != null && !widget.isDuplicate) {
-        await DatabaseService.updateBill(
-          bill,
-          reminderOffsets: _remindersEnabled
-              ? _selectedReminders
-              : const <ReminderOffset>[],
-        );
+        await DatabaseService.updateBill(bill);
       } else {
-        await DatabaseService.addBill(
-          bill,
-          reminderOffsets: _remindersEnabled
-              ? _selectedReminders
-              : const <ReminderOffset>[],
-        );
+        await DatabaseService.addBill(bill);
       }
 
       try {
         DatabaseService.billsVersion.value++;
       } catch (_) {}
-
-      final settingKey = 'notif_bill_${bill.id}_enabled';
-      await DatabaseService.setSetting(settingKey, _remindersEnabled);
 
       _refreshBillReminders();
 

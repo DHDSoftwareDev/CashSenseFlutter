@@ -12,8 +12,9 @@ enum TransactionType {
 }
 
 @HiveType(typeId: 1)
-
 class Transaction extends HiveObject {
+  static const Object _unset = Object();
+
   @HiveField(0)
   String id;
 
@@ -53,42 +54,42 @@ class Transaction extends HiveObject {
 
   @HiveField(12)
   String? payerId;
-  
-    // Bill ID for bill-related transactions
-    @HiveField(13)
-    String? billId;
-  
-    // Optional occurrence date linking this transaction to a specific bill occurrence
-    @HiveField(14)
-    DateTime? occurrenceDate;
-  
-    // Optional JSON-encoded splits for this transaction. Format:
-    // '[{"categoryId":"id1","amount":10.0},{"categoryId":"id2","amount":5.0}]'
-    // When present, the transaction represents a single logical transaction
-    // whose amount is allocated across multiple categories.
-    @HiveField(15)
-    String? splitsJson;
 
-    @HiveField(16)
-    bool showInReports;
+  // Bill ID for bill-related transactions
+  @HiveField(13)
+  String? billId;
 
-    @HiveField(17)
-    bool hideFromCalendarDashboard;
+  // Optional occurrence date linking this transaction to a specific bill occurrence
+  @HiveField(14)
+  DateTime? occurrenceDate;
 
-    @HiveField(18)
-    String? categoryName;
+  // Optional JSON-encoded splits for this transaction. Format:
+  // '[{"categoryId":"id1","amount":10.0},{"categoryId":"id2","amount":5.0}]'
+  // When present, the transaction represents a single logical transaction
+  // whose amount is allocated across multiple categories.
+  @HiveField(15)
+  String? splitsJson;
 
-    @HiveField(19)
-    String? payeeName;
+  @HiveField(16)
+  bool showInReports;
 
-    @HiveField(20)
-    String? payerName;
+  @HiveField(17)
+  bool hideFromCalendarDashboard;
 
-    @HiveField(21)
-    DateTime updatedAt;
+  @HiveField(18)
+  String? categoryName;
 
-    @HiveField(22)
-    String? paymentFor;
+  @HiveField(19)
+  String? payeeName;
+
+  @HiveField(20)
+  String? payerName;
+
+  @HiveField(21)
+  DateTime updatedAt;
+
+  @HiveField(22)
+  String? paymentFor;
 
   Transaction({
     String? id,
@@ -105,18 +106,18 @@ class Transaction extends HiveObject {
     this.isArchived = false,
     this.payeeId,
     this.payerId,
-      this.billId,
-      this.occurrenceDate,
-      this.splitsJson,
-      this.showInReports = true,
-      this.hideFromCalendarDashboard = false,
-      this.categoryName,
-      this.payeeName,
-      this.payerName,
-      this.paymentFor,
-  })  : id = id ?? const Uuid().v4(),
-        createdAt = createdAt ?? DateTime.now(),
-        updatedAt = updatedAt ?? DateTime.now();
+    this.billId,
+    this.occurrenceDate,
+    this.splitsJson,
+    this.showInReports = true,
+    this.hideFromCalendarDashboard = false,
+    this.categoryName,
+    this.payeeName,
+    this.payerName,
+    this.paymentFor,
+  }) : id = id ?? const Uuid().v4(),
+       createdAt = createdAt ?? DateTime.now(),
+       updatedAt = updatedAt ?? DateTime.now();
 
   Map<String, dynamic> toJson() {
     return {
@@ -137,8 +138,8 @@ class Transaction extends HiveObject {
       'payeeName': payeeName,
       'payerId': payerId,
       'payerName': payerName,
-        'billId': billId,
-        'occurrenceDate': occurrenceDate?.toIso8601String(),
+      'billId': billId,
+      'occurrenceDate': occurrenceDate?.toIso8601String(),
       'showInReports': showInReports,
       'hideFromCalendarDashboard': hideFromCalendarDashboard,
       'updatedAt': updatedAt.toIso8601String(),
@@ -152,12 +153,12 @@ class Transaction extends HiveObject {
       amount: json['amount'].toDouble(),
       categoryId: json['categoryId'],
       categoryName: json['categoryName'] as String?,
-      type: TransactionType.values.firstWhere(
-        (e) => e.name == json['type'],
-      ),
+      type: TransactionType.values.firstWhere((e) => e.name == json['type']),
       description: json['description'],
       date: DateTime.parse(json['date']),
-      createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt']) : DateTime.now(),
+      createdAt: json['createdAt'] != null
+          ? DateTime.parse(json['createdAt'])
+          : DateTime.now(),
       note: json['note'],
       accountId: json['accountId'],
       cleared: json['cleared'],
@@ -166,12 +167,17 @@ class Transaction extends HiveObject {
       payeeName: json['payeeName'] as String?,
       payerId: json['payerId'],
       payerName: json['payerName'] as String?,
-        billId: json['billId'],
-        occurrenceDate: json['occurrenceDate'] != null ? DateTime.parse(json['occurrenceDate']) : null,
-        splitsJson: json['splitsJson'] as String?,
+      billId: json['billId'],
+      occurrenceDate: json['occurrenceDate'] != null
+          ? DateTime.parse(json['occurrenceDate'])
+          : null,
+      splitsJson: json['splitsJson'] as String?,
       showInReports: json['showInReports'] as bool? ?? true,
-      hideFromCalendarDashboard: json['hideFromCalendarDashboard'] as bool? ?? false,
-      updatedAt: json['updatedAt'] != null ? DateTime.parse(json['updatedAt']) : DateTime.now(),
+      hideFromCalendarDashboard:
+          json['hideFromCalendarDashboard'] as bool? ?? false,
+      updatedAt: json['updatedAt'] != null
+          ? DateTime.parse(json['updatedAt'])
+          : DateTime.now(),
       paymentFor: json['paymentFor'] as String?,
     );
   }
@@ -180,47 +186,61 @@ class Transaction extends HiveObject {
     String? id,
     double? amount,
     String? categoryId,
-    String? categoryName,
+    Object? categoryName = _unset,
     TransactionType? type,
     String? description,
     DateTime? date,
     DateTime? updatedAt,
-    String? note,
-    String? accountId,
+    Object? note = _unset,
+    Object? accountId = _unset,
     bool? cleared,
     bool? isArchived,
-    String? payeeId,
-    String? payeeName,
-    String? payerId,
-    String? payerName,
-      String? paymentFor,
-      String? billId,
-      DateTime? occurrenceDate,
-      String? splitsJson,
-      bool? showInReports,
-      bool? hideFromCalendarDashboard,
+    Object? payeeId = _unset,
+    Object? payeeName = _unset,
+    Object? payerId = _unset,
+    Object? payerName = _unset,
+    Object? paymentFor = _unset,
+    Object? billId = _unset,
+    Object? occurrenceDate = _unset,
+    Object? splitsJson = _unset,
+    bool? showInReports,
+    bool? hideFromCalendarDashboard,
   }) {
     return Transaction(
       id: id ?? this.id,
       amount: amount ?? this.amount,
       categoryId: categoryId ?? this.categoryId,
-      categoryName: categoryName ?? this.categoryName,
+      categoryName: identical(categoryName, _unset)
+          ? this.categoryName
+          : categoryName as String?,
       type: type ?? this.type,
       description: description ?? this.description,
       date: date ?? this.date,
       updatedAt: updatedAt ?? this.updatedAt,
-      note: note ?? this.note,
-      accountId: accountId ?? this.accountId,
+      note: identical(note, _unset) ? this.note : note as String?,
+      accountId: identical(accountId, _unset)
+          ? this.accountId
+          : accountId as String?,
       cleared: cleared ?? this.cleared,
       isArchived: isArchived ?? this.isArchived,
-      payeeId: payeeId ?? this.payeeId,
-      payeeName: payeeName ?? this.payeeName,
-      payerId: payerId ?? this.payerId,
-      payerName: payerName ?? this.payerName,
-        paymentFor: paymentFor ?? this.paymentFor,
-        billId: billId ?? this.billId,
-        occurrenceDate: occurrenceDate ?? this.occurrenceDate,
-        splitsJson: splitsJson ?? this.splitsJson,
+      payeeId: identical(payeeId, _unset) ? this.payeeId : payeeId as String?,
+      payeeName: identical(payeeName, _unset)
+          ? this.payeeName
+          : payeeName as String?,
+      payerId: identical(payerId, _unset) ? this.payerId : payerId as String?,
+      payerName: identical(payerName, _unset)
+          ? this.payerName
+          : payerName as String?,
+      paymentFor: identical(paymentFor, _unset)
+          ? this.paymentFor
+          : paymentFor as String?,
+      billId: identical(billId, _unset) ? this.billId : billId as String?,
+      occurrenceDate: identical(occurrenceDate, _unset)
+          ? this.occurrenceDate
+          : occurrenceDate as DateTime?,
+      splitsJson: identical(splitsJson, _unset)
+          ? this.splitsJson
+          : splitsJson as String?,
       showInReports: showInReports ?? this.showInReports,
       hideFromCalendarDashboard:
           hideFromCalendarDashboard ?? this.hideFromCalendarDashboard,

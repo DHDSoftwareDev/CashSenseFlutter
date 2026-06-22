@@ -1,10 +1,9 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
-import '../screens/bill_detail_screen.dart';
 import '../screens/main_navigation_screen.dart';
 import '../services/cognito_service.dart';
-import '../services/database_service.dart';
 import '../utils/root_scaffold.dart';
 
 class NotificationHandlerService {
@@ -13,11 +12,9 @@ class NotificationHandlerService {
 
   /// Background message handler - runs when app is terminated or in background
   /// MUST be a top-level or static function for Firebase
-  static Future<void> _firebaseBackgroundMessageHandler(RemoteMessage message) async {
-    debugPrint('Handling background message: ${message.messageId}');
-    debugPrint('Title: ${message.notification?.title}');
-    debugPrint('Body: ${message.notification?.body}');
-    
+  static Future<void> _firebaseBackgroundMessageHandler(
+    RemoteMessage message,
+  ) async {
     // TODO: Implement your background notification logic here
     // Examples:
     // - Save to local database
@@ -35,17 +32,10 @@ class NotificationHandlerService {
     if (!_foregroundListenerInitialized) {
       _foregroundListenerInitialized = true;
 
-      FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-        debugPrint('Handling foreground message: ${message.messageId}');
-        debugPrint('Title: ${message.notification?.title}');
-        debugPrint('Body: ${message.notification?.body}');
-      });
+      FirebaseMessaging.onMessage.listen((RemoteMessage message) {});
 
       // 3. Message opened handler (when user taps notification)
       FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-        debugPrint('User tapped notification: ${message.messageId}');
-        debugPrint('Title: ${message.notification?.title}');
-        debugPrint('Body: ${message.notification?.body}');
         _openMessage(message);
       });
     }
@@ -53,7 +43,6 @@ class NotificationHandlerService {
     // 4. Initial message handler (app opened from notification)
     final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
     if (initialMessage != null) {
-      debugPrint('App opened from notification: ${initialMessage.messageId}');
       _pendingOpenMessage = initialMessage;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         final pending = _pendingOpenMessage;
@@ -64,11 +53,12 @@ class NotificationHandlerService {
     }
 
     // Optional: Configure foreground notification presentation options
-    await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
+    await FirebaseMessaging.instance
+        .setForegroundNotificationPresentationOptions(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
   }
 
   static Future<void> _openMessage(RemoteMessage message) async {
@@ -97,33 +87,42 @@ class NotificationHandlerService {
     }
 
     final data = message.data;
-    final billId = (data['billId'] ?? '').toString().trim();
     final type = (data['type'] ?? '').toString().trim();
+    final selectedDate = _notificationDate(data);
 
     navigator.pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => MainNavigationScreen(key: mainNavKey)),
       (route) => false,
     );
 
-    if (type == 'bill_reminder' && billId.isNotEmpty) {
+    if (type == 'bill_reminder') {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        final bill = DatabaseService.getAllBills().cast<dynamic>().firstWhere(
-          (candidate) => candidate.id == billId,
-          orElse: () => null,
-        );
-
-        if (bill != null) {
-          navigatorKey.currentState?.push(
-            MaterialPageRoute(
-              builder: (_) => BillDetailScreen(bill: bill),
-            ),
-          );
-        }
+        navigateToRootPage(0, selectedDate: selectedDate);
         _pendingOpenMessage = null;
       });
       return;
     }
 
     _pendingOpenMessage = null;
+  }
+
+  static DateTime? _notificationDate(Map<String, dynamic> data) {
+    final occurrenceDate = (data['occurrenceDate'] ?? '').toString().trim();
+    if (occurrenceDate.isNotEmpty) {
+      try {
+        return DateTime.parse(occurrenceDate);
+      } catch (_) {}
+    }
+
+    final dueDate = (data['dueDate'] ?? '').toString().trim();
+    if (dueDate.isEmpty || dueDate.toLowerCase() == 'today') {
+      return DateTime.now();
+    }
+
+    try {
+      return DateFormat('MM/dd/yyyy').parseStrict(dueDate);
+    } catch (_) {
+      return null;
+    }
   }
 }

@@ -1,4 +1,3 @@
-
 import 'package:hive/hive.dart';
 import 'package:uuid/uuid.dart';
 part 'bill.g.dart';
@@ -66,6 +65,13 @@ class Bill extends HiveObject {
 
     final parsed = DateTime.parse(value);
     return DateTime(parsed.year, parsed.month, parsed.day);
+  }
+
+  static int _parsePositiveInt(dynamic raw, {int fallback = 1}) {
+    final parsed = raw is num
+        ? raw.toInt()
+        : int.tryParse(raw?.toString() ?? '');
+    return parsed == null || parsed <= 0 ? fallback : parsed;
   }
 
   @HiveField(0)
@@ -177,12 +183,16 @@ class Bill extends HiveObject {
         (e) => e.name == recurrenceName,
         orElse: () => Recurrence.none,
       ),
-      customDays: (json['customDays'] as List?)?.map((e) => (e as num).toInt()).toList(),
+      customDays: (json['customDays'] as List?)
+          ?.map((e) => (e as num).toInt())
+          .toList(),
       recurrenceEndDate: json['recurrenceEndDate'] != null
           ? _parseDateOnly(json['recurrenceEndDate'])
           : null,
-      recurrenceInterval: json['recurrenceInterval'] ?? 1,
-      recurrenceWeekdays: (json['recurrenceWeekdays'] as List?)?.map((e) => (e as num).toInt()).toList(),
+      recurrenceInterval: _parsePositiveInt(json['recurrenceInterval']),
+      recurrenceWeekdays: (json['recurrenceWeekdays'] as List?)
+          ?.map((e) => (e as num).toInt())
+          .toList(),
       categoryId: json['categoryId'],
       type: BillType.values.firstWhere(
         (e) => e.name == typeName,
@@ -224,21 +234,39 @@ class Bill extends HiveObject {
     return Bill(
       id: id ?? this.id,
       amount: amount ?? this.amount,
-      description: identical(description, _unset) ? this.description : description as String?,
+      description: identical(description, _unset)
+          ? this.description
+          : description as String?,
       dueDate: dueDate ?? this.dueDate,
       recurrence: recurrence ?? this.recurrence,
-      customDays: identical(customDays, _unset) ? this.customDays : customDays as List<int>?,
+      customDays: identical(customDays, _unset)
+          ? this.customDays
+          : customDays as List<int>?,
       recurrenceInterval: recurrenceInterval ?? this.recurrenceInterval,
-      recurrenceWeekdays: identical(recurrenceWeekdays, _unset) ? this.recurrenceWeekdays : recurrenceWeekdays as List<int>?,
-      categoryId: identical(categoryId, _unset) ? this.categoryId : categoryId as String?,
+      recurrenceWeekdays: identical(recurrenceWeekdays, _unset)
+          ? this.recurrenceWeekdays
+          : recurrenceWeekdays as List<int>?,
+      categoryId: identical(categoryId, _unset)
+          ? this.categoryId
+          : categoryId as String?,
       type: type ?? this.type,
-      fromAccountId: identical(fromAccountId, _unset) ? this.fromAccountId : fromAccountId as String?,
-      toAccountId: identical(toAccountId, _unset) ? this.toAccountId : toAccountId as String?,
+      fromAccountId: identical(fromAccountId, _unset)
+          ? this.fromAccountId
+          : fromAccountId as String?,
+      toAccountId: identical(toAccountId, _unset)
+          ? this.toAccountId
+          : toAccountId as String?,
       payeeId: identical(payeeId, _unset) ? this.payeeId : payeeId as String?,
-      accountId: identical(accountId, _unset) ? this.accountId : accountId as String?,
+      accountId: identical(accountId, _unset)
+          ? this.accountId
+          : accountId as String?,
       isPaid: isPaid ?? this.isPaid,
-      paymentStatus: identical(paymentStatus, _unset) ? this.paymentStatus : paymentStatus as PaymentStatus?,
-      recurrenceEndDate: identical(recurrenceEndDate, _unset) ? this.recurrenceEndDate : recurrenceEndDate as DateTime?,
+      paymentStatus: identical(paymentStatus, _unset)
+          ? this.paymentStatus
+          : paymentStatus as PaymentStatus?,
+      recurrenceEndDate: identical(recurrenceEndDate, _unset)
+          ? this.recurrenceEndDate
+          : recurrenceEndDate as DateTime?,
     );
   }
 }

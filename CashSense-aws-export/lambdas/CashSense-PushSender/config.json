@@ -14,6 +14,7 @@
     "Environment": {
         "Variables": {
             "IOS_BUNDLE_ID": "name.dhdsoftware.cashsense.CashSenseMM",
+            "BILLS_TABLE": "CashSense-Bills",
             "DEVICE_REGISTRY_TABLE": "CashSense-DeviceRegistry"
         }
     },

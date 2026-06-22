@@ -11,6 +11,7 @@ import 'package:table_calendar/table_calendar.dart';
 import '../widgets/banner_ad_widget.dart';
 import '../utils/root_scaffold.dart';
 import '../services/database_service.dart';
+import '../services/bill_reminder_service.dart';
 import '../services/lookups_state.dart';
 import '../models/transaction.dart';
 import '../models/bill.dart';
@@ -91,7 +92,9 @@ class DashboardTitleInline extends StatelessWidget {
 }
 
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({super.key});
+  final DateTime? initialSelectedDate;
+
+  const DashboardScreen({super.key, this.initialSelectedDate});
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -104,6 +107,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
+    final initialDate = widget.initialSelectedDate ?? DateTime.now();
+    _focusedDay = _dateOnly(initialDate);
+    _selectedDay = _dateOnly(initialDate);
     _showPaidBills =
         DatabaseService.getSetting<bool>(_showPaidBillsSettingKey, false) ??
         false;
@@ -188,7 +194,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final days =
           sourceBill.customDays == null || sourceBill.customDays!.isEmpty
           ? [sourceBill.dueDate.day]
-          : (sourceBill.customDays!..sort());
+          : (sourceBill.customDays!.toList()..sort());
 
       // Try to find next configured day in the same month
       final year = occurrenceDate.year;
@@ -217,24 +223,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     // Fallback: daily/weekly/yearly use previous logic based on occurrenceDate
     if (sourceBill.recurrence == Recurrence.daily) {
-      return occurrenceDate.add(
-        Duration(
-          days: sourceBill.recurrenceInterval <= 0
-              ? 1
-              : sourceBill.recurrenceInterval,
-        ),
+      return _addCalendarDays(
+        occurrenceDate,
+        sourceBill.recurrenceInterval <= 0 ? 1 : sourceBill.recurrenceInterval,
       );
     }
     if (sourceBill.recurrence == Recurrence.weekly) {
-      return occurrenceDate.add(
-        Duration(
-          days:
-              7 *
-              (sourceBill.recurrenceInterval <= 0
-                  ? 1
-                  : sourceBill.recurrenceInterval),
-        ),
+      final start = _addCalendarDays(occurrenceDate, 1);
+      final occurrences = DatabaseService.generateBillOccurrenceDatesForRange(
+        sourceBill,
+        start,
+        _addCalendarDays(start, 370),
       );
+      return occurrences.isEmpty ? null : occurrences.first;
     }
     if (sourceBill.recurrence == Recurrence.yearly) {
       final yrs = sourceBill.recurrenceInterval <= 0
@@ -452,8 +453,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   final NumberFormat _currencyFormat = NumberFormat.currency(symbol: '\$');
   DateTime _focusedDay = DateTime.now();
-  DateTime? _selectedDay =
-      DateTime.now(); // Initialize to today to show today's transactions immediately
+  DateTime? _selectedDay;
   // Bill visibility toggle: hide paid occurrences by default.
   bool _showPaidBills = false;
   // Track expanded transaction cards
@@ -486,6 +486,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   DateTime _dateOnly(DateTime dt) => DateTime(dt.year, dt.month, dt.day);
+
+  DateTime _addCalendarDays(DateTime date, int days) {
+    return DateTime(date.year, date.month, date.day + days);
+  }
 
   void _scheduleOccurrenceStatusBackgroundSync() {
     if (!mounted) return;
@@ -558,13 +562,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (updates.isEmpty) return;
 
       _suppressOccurrenceStatusSync = true;
+      var anyPaid = false;
       for (final update in updates.take(24)) {
+        final status = update['status'] as PaymentStatus;
+        anyPaid = anyPaid || status == PaymentStatus.paid;
         await DatabaseService.setBillOccurrenceStatus(
           update['billId'] as String,
           update['date'] as DateTime,
-          (update['status'] as PaymentStatus) == PaymentStatus.paid,
-          update['status'] as PaymentStatus,
+          status == PaymentStatus.paid,
+          status,
         );
+      }
+      if (anyPaid) {
+        BillReminderService().refreshAllReminders().catchError((e) {
+          debugPrint(
+            'Bill reminder refresh failed after dashboard paid sync: $e',
+          );
+        });
       }
     } catch (_) {
       // Keep dashboard responsive even if backfill fails.
@@ -600,6 +614,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
       out.add(occ);
     }
     return out;
+  }
+
+  bool _billOccurrenceMatchesActiveFilters(Bill bill, DateTime occDate) {
+    if (_searchQuery.isNotEmpty && !_matchedSearchBillIds.contains(bill.id)) {
+      return false;
+    }
+    if (!_showPaidBills &&
+        _getOccurrencePaymentStatus(bill, occDate) == PaymentStatus.paid) {
+      return false;
+    }
+    return true;
+  }
+
+  DateTime _firstVisibleBillDateInMonth(DateTime month) {
+    final monthStart = DateTime(month.year, month.month, 1);
+    final monthEnd = DateTime(month.year, month.month + 1, 0);
+    final occurrences = _dedupeBillOccurrences(
+      DatabaseService.getBillOccurrencesBetween(monthStart, monthEnd),
+    );
+
+    final visibleDates = <DateTime>[];
+    for (final occurrence in occurrences) {
+      final bill = occurrence['bill'];
+      final occDate = occurrence['date'];
+      if (bill is! Bill || occDate is! DateTime) continue;
+      if (!_billOccurrenceMatchesActiveFilters(bill, occDate)) continue;
+      visibleDates.add(_dateOnly(occDate));
+    }
+
+    if (visibleDates.isEmpty) return monthStart;
+    visibleDates.sort();
+    return visibleDates.first;
   }
 
   // Search bills by description, payee name, or notes
@@ -645,7 +691,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (matchedBillIds.isNotEmpty) {
       final now = DateTime.now();
       final startDate = DateTime(now.year - 1, now.month, now.day);
-      final endDate = DateTime(now.year + 1, now.month, now.day);
+      final endDate = DateTime(now.year + 10, now.month, now.day);
 
       final allOccurrences = _dedupeBillOccurrences(
         DatabaseService.getBillOccurrencesBetween(startDate, endDate),
@@ -657,18 +703,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         if (bill is! Bill || date is! DateTime) continue;
         if (!matchedBillIds.contains(bill.id)) continue;
         if (!_showPaidBills) {
-          // Fast path for search typing: rely on persisted occurrence state to
-          // avoid expensive recomputation for every keypress.
-          final persisted = DatabaseService.getBillOccurrenceStatus(
-            bill.id,
-            date,
-          );
-          final persistedStatus = persisted?['paymentStatus'] as PaymentStatus?;
-          final persistedIsPaid = persisted?['isPaid'] as bool?;
-          final isPaid =
-              persistedStatus == PaymentStatus.paid ||
-              (persistedStatus == null && persistedIsPaid == true);
-          if (isPaid) continue;
+          if (_getOccurrencePaymentStatus(bill, date) == PaymentStatus.paid) {
+            continue;
+          }
         }
         results.add({
           'bill': bill,
@@ -871,19 +908,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 IconButton(
                   icon: const Icon(Icons.chevron_left),
                   onPressed: () {
+                    final prevMonth = DateTime(
+                      _focusedDay.year,
+                      _focusedDay.month - 1,
+                      1,
+                    );
+                    final selectedDate = _firstVisibleBillDateInMonth(
+                      prevMonth,
+                    );
                     setState(() {
-                      // Move focus to the previous month and select its first day
-                      final prevMonth = DateTime(
-                        _focusedDay.year,
-                        _focusedDay.month - 1,
-                        1,
-                      );
                       _focusedDay = prevMonth;
-                      _selectedDay = DateTime(
-                        prevMonth.year,
-                        prevMonth.month,
-                        1,
-                      );
+                      _selectedDay = selectedDate;
                     });
                   },
                 ),
@@ -897,19 +932,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 IconButton(
                   icon: const Icon(Icons.chevron_right),
                   onPressed: () {
+                    final nextMonth = DateTime(
+                      _focusedDay.year,
+                      _focusedDay.month + 1,
+                      1,
+                    );
+                    final selectedDate = _firstVisibleBillDateInMonth(
+                      nextMonth,
+                    );
                     setState(() {
-                      // Move focus to the next month and select its first day
-                      final nextMonth = DateTime(
-                        _focusedDay.year,
-                        _focusedDay.month + 1,
-                        1,
-                      );
                       _focusedDay = nextMonth;
-                      _selectedDay = DateTime(
-                        nextMonth.year,
-                        nextMonth.month,
-                        1,
-                      );
+                      _selectedDay = selectedDate;
                     });
                   },
                 ),
@@ -939,22 +972,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       // Only reset selected day to day 1 if we're changing to a month that
                       // doesn't contain the currently selected day.
                       onPageChanged: (focused) {
+                        final shouldMoveSelection =
+                            _selectedDay == null ||
+                            (_selectedDay!.year != focused.year ||
+                                _selectedDay!.month != focused.month);
+                        final selectedDate = shouldMoveSelection
+                            ? _firstVisibleBillDateInMonth(focused)
+                            : _selectedDay;
                         setState(() {
                           _focusedDay = focused;
-                          // Only change selected day to the 1st if the selected day is in a different month
-                          // than the focused month AND the focused day itself isn't a specific selected date
-                          if (_selectedDay == null ||
-                              (_selectedDay!.year != focused.year ||
-                                  _selectedDay!.month != focused.month)) {
-                            // Don't reset if the focused date IS the selected date (e.g., from search or Today button)
-                            if (!isSameDay(_selectedDay, focused)) {
-                              _selectedDay = DateTime(
-                                focused.year,
-                                focused.month,
-                                1,
-                              );
-                            }
-                          }
+                          _selectedDay = selectedDate;
                         });
                       },
                       selectedDayPredicate: (day) =>
@@ -1336,6 +1363,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             type: TransactionType.expense,
             description: desc,
             date: date,
+            occurrenceDate: date,
             note: debitNote,
           );
           recentTransactions.add(
@@ -1350,6 +1378,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             type: TransactionType.income,
             description: desc,
             date: date,
+            occurrenceDate: date,
             note: creditNote,
           );
           recentTransactions.add(
@@ -1387,6 +1416,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             type: txType,
             description: desc,
             date: date,
+            occurrenceDate: date,
             note: noteWithAccount,
           );
           recentTransactions.add(
@@ -1474,6 +1504,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             type: TransactionType.expense,
             description: desc,
             date: date,
+            occurrenceDate: date,
             note: debitNote,
           );
           recentTransactions.add(
@@ -1489,6 +1520,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             type: TransactionType.income,
             description: desc,
             date: date,
+            occurrenceDate: date,
             note: creditNote,
           );
           recentTransactions.add(
@@ -1525,6 +1557,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             type: txType,
             description: desc,
             date: date,
+            occurrenceDate: date,
             note: noteWithAccount,
           );
           recentTransactions.add(
@@ -1646,7 +1679,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (sourceBill != null) {
       // Only count payments for this bill occurrence (billId + occurrence date)
       final allTransactions = _visibleTransactionsCache;
-      final occDate = transaction.date;
+      final occDate = _transactionOccurrenceDate(transaction);
       final occDateStr = DateFormat('MM/dd/yyyy').format(occDate);
       final paymentHistory = allTransactions
           .where(
@@ -1862,7 +1895,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       if (sourceBill != null) ...[
                         Builder(
                           builder: (ctx) {
-                            final occDate = transaction.date;
+                            final occDate = _transactionOccurrenceDate(
+                              transaction,
+                            );
                             final status = _getOccurrencePaymentStatus(
                               sourceBill,
                               occDate,
@@ -2148,7 +2183,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (choice == 'this') {
         // Edit only this occurrence: create a one-off edited bill for the occurrence date,
         // and split the existing series so it ends before this occurrence and (if applicable) recreate the future series starting after it.
-        final occurrenceDate = transaction.date;
+        final occurrenceDate = _transactionOccurrenceDate(transaction);
 
         // Open add screen prefilled with this occurrence values, but save as a new bill (isDuplicate=true)
         final tempBill = Bill(
@@ -2191,7 +2226,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
         if (editedResult == true || occurrenceBillId != null) {
           try {
-            final dayBefore = occurrenceDate.subtract(const Duration(days: 1));
+            final dayBefore = _addCalendarDays(occurrenceDate, -1);
 
             // "Only this occurrence" must always remain a one-time bill.
             // If the edit screen changed recurrence, normalize it back to none
@@ -2380,7 +2415,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         // occurrence date (pre-filled from the original) and save it as a
         // duplicate (new series). Then update the original bill to end the
         // day before the occurrence so past occurrences remain linked to it.
-        final occurrenceDate = transaction.date;
+        final occurrenceDate = _transactionOccurrenceDate(transaction);
 
         // Build a prefilled bill for the new (future) series that the user
         // can edit. Mark `isDuplicate=true` so AddBillScreen will create a
@@ -2424,7 +2459,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
         if (editedResult == true || newBillId != null) {
           try {
-            final dayBefore = occurrenceDate.subtract(const Duration(days: 1));
+            final dayBefore = _addCalendarDays(occurrenceDate, -1);
             DateTime editedFutureStartDate = occurrenceDate;
             if (newBillId != null) {
               try {
@@ -2432,6 +2467,47 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   (b) => b.id == newBillId,
                 );
                 editedFutureStartDate = _dateOnly(newBill.dueDate);
+                final recurrenceEndDate = newBill.recurrenceEndDate == null
+                    ? null
+                    : _dateOnly(newBill.recurrenceEndDate!);
+                final shouldClearEndDate =
+                    newBill.recurrence != Recurrence.none &&
+                    recurrenceEndDate != null &&
+                    recurrenceEndDate.isBefore(editedFutureStartDate);
+                final shouldIncludeStartWeekday =
+                    newBill.recurrence == Recurrence.weekly &&
+                    newBill.recurrenceWeekdays != null &&
+                    newBill.recurrenceWeekdays!.isNotEmpty &&
+                    !newBill.recurrenceWeekdays!.contains(
+                      editedFutureStartDate.weekday,
+                    );
+                final shouldIncludeStartMonthDay =
+                    newBill.recurrence == Recurrence.monthly &&
+                    newBill.customDays != null &&
+                    newBill.customDays!.isNotEmpty &&
+                    !newBill.customDays!.contains(editedFutureStartDate.day);
+                if (shouldClearEndDate ||
+                    shouldIncludeStartWeekday ||
+                    shouldIncludeStartMonthDay) {
+                  final updatedNewBill = newBill.copyWith(
+                    recurrenceEndDate: shouldClearEndDate
+                        ? null
+                        : newBill.recurrenceEndDate,
+                    recurrenceWeekdays: shouldIncludeStartWeekday
+                        ? (<int>{
+                            ...newBill.recurrenceWeekdays!,
+                            editedFutureStartDate.weekday,
+                          }.toList()..sort())
+                        : newBill.recurrenceWeekdays,
+                    customDays: shouldIncludeStartMonthDay
+                        ? (<int>{
+                            ...newBill.customDays!,
+                            editedFutureStartDate.day,
+                          }.toList()..sort())
+                        : newBill.customDays,
+                  );
+                  await DatabaseService.updateBill(updatedNewBill);
+                }
               } catch (_) {}
             }
 
@@ -2572,6 +2648,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return a.year == b.year && a.month == b.month && a.day == b.day;
   }
 
+  DateTime _transactionOccurrenceDate(Transaction transaction) {
+    return _dateOnly(transaction.occurrenceDate ?? transaction.date);
+  }
+
   List<Transaction> _getTransactionsForBillOccurrence(
     Bill bill,
     DateTime occurrenceDate,
@@ -2687,7 +2767,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   ) async {
     final DateTime occ = _dateOnly(occurrenceDate);
     final DateTime start = _dateOnly(sourceBill.dueDate);
-    final DateTime dayBefore = occ.subtract(const Duration(days: 1));
+    final DateTime dayBefore = _addCalendarDays(occ, -1);
     final DateTime? nextOccurrence = _computeNextOccurrenceDate(
       sourceBill,
       occ,
@@ -2719,7 +2799,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
         await DatabaseService.addBill(newBill);
       }
 
-      await DatabaseService.deleteBill(sourceBill.id);
+      final updatedBill = sourceBill.copyWith(recurrenceEndDate: dayBefore);
+      await DatabaseService.updateBill(updatedBill);
+      await DatabaseService.setBillRecurrenceEndOverride(
+        updatedBill.id,
+        dayBefore,
+      );
       return;
     }
 
@@ -2810,7 +2895,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         return true;
       }
 
-      final dayBefore = occ.subtract(const Duration(days: 1));
+      final dayBefore = _addCalendarDays(occ, -1);
       await _deleteBillPaymentsWhere(sourceBill, (tx) {
         final txOcc = tx.occurrenceDate == null
             ? _dateOnly(tx.date)
@@ -2863,9 +2948,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Future<void> _handleDelete(Transaction transaction, Bill? sourceBill) async {
     if (sourceBill != null) {
+      final occurrenceDate = _transactionOccurrenceDate(transaction);
       final relatedPayments = _getTransactionsForBillOccurrence(
         sourceBill,
-        transaction.date,
+        occurrenceDate,
       );
       final confirmed = await showDialog<bool>(
         context: context,
@@ -2891,7 +2977,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
       if (confirmed == true) {
         try {
-          await _deleteBillFromDashboard(sourceBill, transaction.date);
+          await _deleteBillFromDashboard(sourceBill, occurrenceDate);
           if (mounted) {
             ScaffoldMessenger.of(context).clearSnackBars();
             setState(() {});
@@ -2970,12 +3056,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Future<void> _handlePay(Transaction transaction, Bill? sourceBill) async {
     if (sourceBill != null) {
+      final occurrenceDate = _transactionOccurrenceDate(transaction);
       // Open pay bill screen
       final result = await Navigator.push<bool>(
         context,
         MaterialPageRoute(
           builder: (context) =>
-              PayBillScreen(bill: sourceBill, occurrenceDate: transaction.date),
+              PayBillScreen(bill: sourceBill, occurrenceDate: occurrenceDate),
         ),
       );
 
@@ -3002,11 +3089,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (sourceBill != null) {
       // Open add bill screen with pre-filled information from the source bill
       // Create a template bill with the same properties but use occurrence date as due date
+      final occurrenceDate = _transactionOccurrenceDate(transaction);
       final billTemplate = Bill(
         amount: sourceBill.amount,
         description: sourceBill.description,
-        dueDate:
-            transaction.date, // Use the occurrence date as the new due date
+        dueDate: occurrenceDate,
         recurrence: Recurrence.none, // Duplicated bills should be one-time
         customDays: null,
         recurrenceEndDate: null,

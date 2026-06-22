@@ -93,6 +93,14 @@ export const handler = async (event) => {
       return await listSchedules(userId, qs);
     }
 
+    if (method === "DELETE" && !scheduleId) {
+      const qs = event?.queryStringParameters || {};
+      if (String(qs?.all ?? "").toLowerCase() === "true") {
+        console.log("Deleting all schedules for user", { userId });
+        return await deleteAllSchedulesForUser(userId);
+      }
+    }
+
     if (method === "POST") {
       const body = safeJson(event?.body);
 
@@ -201,6 +209,7 @@ async function createSchedule(userId, body) {
     mode: body?.mode ?? "alert",
     runAt: storedRunAt,
     timeZone: requestedTimeZone,
+    environment: normalizeNonEmptyString(body?.environment),
   };
 
   const desiredHash = contentHash(desiredContent);
@@ -218,6 +227,7 @@ async function createSchedule(userId, body) {
           mode: existing?.mode ?? "alert",
           runAt: existing?.runAt,
           timeZone: existing?.timeZone,
+          environment: existing?.environment,
         });
 
       if (existingHash === desiredHash) {
@@ -270,6 +280,7 @@ async function createSchedule(userId, body) {
     scheduleId,
     runAt: storedRunAt,
     timeZone: requestedTimeZone,
+    environment: desiredContent.environment,
   };
 
   await scheduler.send(
@@ -300,6 +311,7 @@ async function createSchedule(userId, body) {
     body: invokePayload.body,
     data: invokePayload.data,
     mode: invokePayload.mode,
+    environment: invokePayload.environment,
     contentHash: desiredHash,
     ...(effectiveDedupeKey ? { dedupeKey: effectiveDedupeKey } : {}),
     status: "scheduled",
@@ -353,6 +365,7 @@ async function overwriteExistingSchedule({
     scheduleId,
     runAt: storedRunAt,
     timeZone: requestedTimeZone,
+    environment: desiredContent.environment,
   };
 
   try {
@@ -391,6 +404,7 @@ async function overwriteExistingSchedule({
     body: invokePayload.body,
     data: invokePayload.data,
     mode: invokePayload.mode,
+    environment: invokePayload.environment,
     contentHash: desiredHash,
     status: "scheduled",
     updatedAt: nowIso,
@@ -553,6 +567,46 @@ async function deleteSchedulesByBill(userId, billId) {
     ok: true,
     message: "Deleted bill schedules",
     billId,
+    scanned,
+    deleted,
+  });
+}
+
+// --------------------
+// Delete all schedules for one user
+// --------------------
+async function deleteAllSchedulesForUser(userId) {
+  let deleted = 0;
+  let scanned = 0;
+  let ExclusiveStartKey = undefined;
+
+  do {
+    const result = await ddb.send(
+      new QueryCommand({
+        TableName: NOTIFICATION_SCHEDULES_TABLE,
+        IndexName: USER_GSI_NAME,
+        KeyConditionExpression: "userId = :uid",
+        ExpressionAttributeValues: {
+          ":uid": userId,
+        },
+        ExclusiveStartKey,
+      })
+    );
+
+    const items = result.Items ?? [];
+    scanned += items.length;
+    ExclusiveStartKey = result.LastEvaluatedKey;
+
+    for (const item of items) {
+      if (item?.userId !== userId || item?.status !== "scheduled") continue;
+      await deleteSchedulerAndDbItem(item);
+      deleted++;
+    }
+  } while (ExclusiveStartKey);
+
+  return json(200, {
+    ok: true,
+    message: "Deleted user schedules",
     scanned,
     deleted,
   });

@@ -76,12 +76,15 @@ class _PayBillScreenState extends State<PayBillScreen> {
       final billText = _visibleBillText(widget.bill.description).toLowerCase();
       final paymentForLower = paymentFor.toLowerCase();
       final descriptionLower = tx.description.toLowerCase();
-      final dateMatches = paymentFor.contains(dateLong) ||
+      final dateMatches =
+          paymentFor.contains(dateLong) ||
           paymentFor.contains(dateShort) ||
           descriptionLower.contains(dateLong.toLowerCase()) ||
           descriptionLower.contains(dateShort.toLowerCase());
-      final billMatches = billText.isNotEmpty &&
-          (paymentForLower.contains(billText) || descriptionLower.contains(billText));
+      final billMatches =
+          billText.isNotEmpty &&
+          (paymentForLower.contains(billText) ||
+              descriptionLower.contains(billText));
       if (!(dateMatches && billMatches)) return false;
     }
 
@@ -103,7 +106,7 @@ class _PayBillScreenState extends State<PayBillScreen> {
     super.initState();
     final now = DateTime.now();
     _paymentDate = DateTime(now.year, now.month, now.day);
-  // Show bill amount as placeholder, let user input their own amount
+    // Show bill amount as placeholder, let user input their own amount
     // Load payment history first so we can compute the current amount due and prefill the amount field
     _loadAccounts();
     _loadPaymentHistory();
@@ -114,15 +117,17 @@ class _PayBillScreenState extends State<PayBillScreen> {
     // Use setState so the UI reliably updates after init
     final initialBillNote = _visibleBillText(widget.bill.description);
     setState(() {
-      _amountController.text = amountDue > 0 ? amountDue.toStringAsFixed(2) : widget.bill.amount.toStringAsFixed(2);
+      _amountController.text = amountDue > 0
+          ? amountDue.toStringAsFixed(2)
+          : widget.bill.amount.toStringAsFixed(2);
       _notesController.text = initialBillNote;
       _selectedAccountId = widget.bill.accountId;
     });
     _refreshAutoPaymentFor(force: true);
     // Initialize empty splits for payment (user may add splits before saving)
-  _splits = [];
-  _useSplits = _splits.isNotEmpty;
-  _isRefund = false;
+    _splits = [];
+    _useSplits = _splits.isNotEmpty;
+    _isRefund = false;
     // If the amount due is already zero (e.g. paid via multiple partial payments),
     // persist the paid status so the pay bill screen and calendar/dashboard reflect it.
     // Use tolerance of 0.01 to handle floating-point precision issues
@@ -156,21 +161,41 @@ class _PayBillScreenState extends State<PayBillScreen> {
         if (widget.bill.type == BillType.expense) {
           // For expense bills, expense transactions increase paid amount,
           // income transactions (refunds) decrease the paid total.
-          totalPaid += (tx.type == TransactionType.expense) ? tx.amount : -tx.amount;
+          totalPaid += (tx.type == TransactionType.expense)
+              ? tx.amount
+              : -tx.amount;
         } else {
           // For income bills, income transactions increase paid amount,
           // expense transactions (refunds/chargebacks) decrease it.
-          totalPaid += (tx.type == TransactionType.income) ? tx.amount : -tx.amount;
+          totalPaid += (tx.type == TransactionType.income)
+              ? tx.amount
+              : -tx.amount;
         }
       }
       final newStatus = _statusForTotalPaid(totalPaid);
 
       // Persist occurrence-level status instead of editing the top-level Bill.
-      final existing = DatabaseService.getBillOccurrenceStatus(widget.bill.id, widget.occurrenceDate);
-      final bool existingIsPaid = existing != null ? (existing['isPaid'] as bool) : false;
-      final PaymentStatus existingStatus = existing != null ? (existing['paymentStatus'] as PaymentStatus) : widget.bill.paymentStatus ?? PaymentStatus.unpaid;
-      if (existingIsPaid != (newStatus == PaymentStatus.paid) || existingStatus != newStatus) {
-        await DatabaseService.setBillOccurrenceStatus(widget.bill.id, widget.occurrenceDate, newStatus == PaymentStatus.paid, newStatus);
+      final existing = DatabaseService.getBillOccurrenceStatus(
+        widget.bill.id,
+        widget.occurrenceDate,
+      );
+      final bool existingIsPaid = existing != null
+          ? (existing['isPaid'] as bool)
+          : false;
+      final PaymentStatus existingStatus = existing != null
+          ? (existing['paymentStatus'] as PaymentStatus)
+          : widget.bill.paymentStatus ?? PaymentStatus.unpaid;
+      if (existingIsPaid != (newStatus == PaymentStatus.paid) ||
+          existingStatus != newStatus) {
+        await DatabaseService.setBillOccurrenceStatus(
+          widget.bill.id,
+          widget.occurrenceDate,
+          newStatus == PaymentStatus.paid,
+          newStatus,
+        );
+        if (newStatus == PaymentStatus.paid) {
+          _refreshBillReminders();
+        }
       }
     } catch (_) {
       // Swallow errors - non-critical. UI will still reflect computed status.
@@ -191,9 +216,13 @@ class _PayBillScreenState extends State<PayBillScreen> {
     double totalPaid = 0.0;
     for (final tx in txs) {
       if (widget.bill.type == BillType.expense) {
-        totalPaid += (tx.type == TransactionType.expense) ? tx.amount : -tx.amount;
+        totalPaid += (tx.type == TransactionType.expense)
+            ? tx.amount
+            : -tx.amount;
       } else {
-        totalPaid += (tx.type == TransactionType.income) ? tx.amount : -tx.amount;
+        totalPaid += (tx.type == TransactionType.income)
+            ? tx.amount
+            : -tx.amount;
       }
     }
     return totalPaid;
@@ -210,10 +239,13 @@ class _PayBillScreenState extends State<PayBillScreen> {
     // or the transaction description includes the occurrence date string (this
     // covers payments recorded on a different date but explicitly for this
     // occurrence).
-    _paymentHistory = allTransactions
-        .where((tx) => _matchesBillOccurrence(tx, widget.occurrenceDate))
-        .toList()
-      ..sort((a, b) => b.date.compareTo(a.date)); // Sort by date, newest first
+    _paymentHistory =
+        allTransactions
+            .where((tx) => _matchesBillOccurrence(tx, widget.occurrenceDate))
+            .toList()
+          ..sort(
+            (a, b) => b.date.compareTo(a.date),
+          ); // Sort by date, newest first
   }
 
   String _resolveCounterpartyName() {
@@ -243,8 +275,11 @@ class _PayBillScreenState extends State<PayBillScreen> {
   }
 
   String _buildAutoPaymentFor({String? counterpartyName}) {
-    final formattedDate = DateFormat('MM/dd/yyyy').format(widget.occurrenceDate);
-    final counterparty = (counterpartyName ?? _resolveCounterpartyName()).trim();
+    final formattedDate = DateFormat(
+      'MM/dd/yyyy',
+    ).format(widget.occurrenceDate);
+    final counterparty = (counterpartyName ?? _resolveCounterpartyName())
+        .trim();
     final category = _resolveCategoryName().trim();
     return '$formattedDate $counterparty $category';
   }
@@ -252,7 +287,9 @@ class _PayBillScreenState extends State<PayBillScreen> {
   void _refreshAutoPaymentFor({bool force = false}) {
     final current = _paymentForController.text.trim();
     final canOverwrite =
-        force || current.isEmpty || (_lastAutoPaymentFor != null && current == _lastAutoPaymentFor);
+        force ||
+        current.isEmpty ||
+        (_lastAutoPaymentFor != null && current == _lastAutoPaymentFor);
     if (!canOverwrite) return;
 
     final autoText = _buildAutoPaymentFor();
@@ -281,7 +318,10 @@ class _PayBillScreenState extends State<PayBillScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     // Strip out any non-numeric characters (currency symbols, spaces, etc.) before parsing
-    final cleanedAmountText = _amountController.text.replaceAll(RegExp(r'[^0-9\.]'), '');
+    final cleanedAmountText = _amountController.text.replaceAll(
+      RegExp(r'[^0-9\.]'),
+      '',
+    );
     final amount = double.tryParse(cleanedAmountText);
     if (amount == null || amount <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -309,25 +349,28 @@ class _PayBillScreenState extends State<PayBillScreen> {
       if (_splits.isNotEmpty && !validateSplitsEqualAmount(_splits, amount)) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Split amounts must equal the payment amount'), backgroundColor: Colors.redAccent),
+            const SnackBar(
+              content: Text('Split amounts must equal the payment amount'),
+              backgroundColor: Colors.redAccent,
+            ),
           );
         }
         return;
       }
       // Build description with unique format: "Payment for (BillName) (DueDate)"
-        final counterpartyName = _resolveCounterpartyName();
-      
-        final paymentForInput = _paymentForController.text.trim();
-        final paymentForValue = paymentForInput.isNotEmpty
+      final counterpartyName = _resolveCounterpartyName();
+
+      final paymentForInput = _paymentForController.text.trim();
+      final paymentForValue = paymentForInput.isNotEmpty
           ? paymentForInput
           : _buildAutoPaymentFor(counterpartyName: counterpartyName);
-        final desc = 'Payment for $paymentForValue';
+      final desc = 'Payment for $paymentForValue';
 
-        final lookupsState = context.read<LookupsState>();
-        final categoryLookup = widget.bill.categoryId != null
+      final lookupsState = context.read<LookupsState>();
+      final categoryLookup = widget.bill.categoryId != null
           ? lookupsState.categoriesById[widget.bill.categoryId!]
           : null;
-        final payeeLookup = widget.bill.payeeId != null
+      final payeeLookup = widget.bill.payeeId != null
           ? lookupsState.payeesById[widget.bill.payeeId!]
           : null;
 
@@ -338,8 +381,8 @@ class _PayBillScreenState extends State<PayBillScreen> {
       final txType = _isRefund
           ? TransactionType.income
           : (widget.bill.type == BillType.income
-              ? TransactionType.income
-              : TransactionType.expense);
+                ? TransactionType.income
+                : TransactionType.expense);
 
       if (isLikelyDuplicateBillPayment(
         transactions: DatabaseService.getAllTransactions(),
@@ -368,10 +411,11 @@ class _PayBillScreenState extends State<PayBillScreen> {
         id: const Uuid().v4(),
         amount: amount,
         categoryId: widget.bill.categoryId ?? '',
-        categoryName: categoryLookup?.name
-          ?? (widget.bill.categoryId != null
-            ? DatabaseService.getCategoryById(widget.bill.categoryId!)?.name
-            : null),
+        categoryName:
+            categoryLookup?.name ??
+            (widget.bill.categoryId != null
+                ? DatabaseService.getCategoryById(widget.bill.categoryId!)?.name
+                : null),
         type: txType,
         description: desc,
         date: _paymentDate,
@@ -384,7 +428,9 @@ class _PayBillScreenState extends State<PayBillScreen> {
         payeeName: payeeLookup?.name ?? counterpartyName,
         billId: widget.bill.id,
         occurrenceDate: widget.occurrenceDate,
-  splitsJson: (_useSplits && _splits.isNotEmpty) ? jsonEncode(_splits) : null,
+        splitsJson: (_useSplits && _splits.isNotEmpty)
+            ? jsonEncode(_splits)
+            : null,
         showInReports: _showInReports,
       );
 
@@ -395,7 +441,8 @@ class _PayBillScreenState extends State<PayBillScreen> {
         final account = DatabaseService.getAccountById(_selectedAccountId!);
         if (account != null) {
           // Update account based on transaction type (income increases, expense decreases)
-          final newBalance = ( _isRefund || (widget.bill.type == BillType.income && !_isRefund) )
+          final newBalance =
+              (_isRefund || (widget.bill.type == BillType.income && !_isRefund))
               ? account.balance + amount
               : account.balance - amount;
           final updatedAccount = account.copyWith(balance: newBalance);
@@ -411,15 +458,24 @@ class _PayBillScreenState extends State<PayBillScreen> {
       double totalPaid2 = 0.0;
       for (final tx in relatedPayments) {
         if (widget.bill.type == BillType.expense) {
-          totalPaid2 += (tx.type == TransactionType.expense) ? tx.amount : -tx.amount;
+          totalPaid2 += (tx.type == TransactionType.expense)
+              ? tx.amount
+              : -tx.amount;
         } else {
-          totalPaid2 += (tx.type == TransactionType.income) ? tx.amount : -tx.amount;
+          totalPaid2 += (tx.type == TransactionType.income)
+              ? tx.amount
+              : -tx.amount;
         }
       }
       final totalPaid = totalPaid2;
       final newStatus = _statusForTotalPaid(totalPaid);
       // Persist occurrence-level status instead of editing top-level Bill
-      await DatabaseService.setBillOccurrenceStatus(widget.bill.id, widget.occurrenceDate, newStatus == PaymentStatus.paid, newStatus);
+      await DatabaseService.setBillOccurrenceStatus(
+        widget.bill.id,
+        widget.occurrenceDate,
+        newStatus == PaymentStatus.paid,
+        newStatus,
+      );
 
       if (mounted) {
         // Notify dashboard/calendar to refresh immediately
@@ -489,7 +545,9 @@ class _PayBillScreenState extends State<PayBillScreen> {
                   onPressed: _isSaving ? null : _handlePay,
                   style: ElevatedButton.styleFrom(
                     textStyle: const TextStyle(fontSize: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
                   child: _isSaving
                       ? Row(
@@ -522,9 +580,9 @@ class _PayBillScreenState extends State<PayBillScreen> {
         Text(
           title,
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).colorScheme.primary,
-              ),
+            fontWeight: FontWeight.bold,
+            color: Theme.of(context).colorScheme.primary,
+          ),
         ),
       ],
     );
@@ -577,7 +635,10 @@ class _PayBillScreenState extends State<PayBillScreen> {
                     child: category.displayEmoji != null
                         ? Text(
                             category.displayEmoji!,
-                            style: TextStyle(fontSize: 24, color: category.color),
+                            style: TextStyle(
+                              fontSize: 24,
+                              color: category.color,
+                            ),
                           )
                         : Container(
                             width: 12,
@@ -592,11 +653,7 @@ class _PayBillScreenState extends State<PayBillScreen> {
                   CircleAvatar(
                     radius: 24,
                     backgroundColor: Colors.grey.withAlpha(0x33),
-                    child: const Icon(
-                      Icons.help,
-                      color: Colors.grey,
-                      size: 24,
-                    ),
+                    child: const Icon(Icons.help, color: Colors.grey, size: 24),
                   ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -606,15 +663,15 @@ class _PayBillScreenState extends State<PayBillScreen> {
                       Text(
                         billName,
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         category?.name ?? 'Uncategorized',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Colors.grey[600],
-                            ),
+                          color: Colors.grey[600],
+                        ),
                       ),
                     ],
                   ),
@@ -622,55 +679,73 @@ class _PayBillScreenState extends State<PayBillScreen> {
               ],
             ),
             const Divider(height: 24),
-            
+
             // Name/Description
             _buildDetailRow('Name:', billName),
             const SizedBox(height: 8),
-            
+
             // Category
             _buildDetailRow('Category:', category?.name ?? 'Uncategorized'),
             const SizedBox(height: 8),
-            
+
             // Original Amount
             _buildDetailRow(
-              'Original Amount:', 
+              'Original Amount:',
               NumberFormat.currency(symbol: '\$').format(widget.bill.amount),
             ),
             const SizedBox(height: 8),
-            
+
             // Amount Paid
             _buildDetailRow(
-              'Amount Paid:', 
+              'Amount Paid:',
               NumberFormat.currency(symbol: '\$').format(totalPaid),
               valueColor: totalPaid > 0 ? AppTheme.incomeGreen : null,
             ),
             const SizedBox(height: 8),
-            
+
             // Amount Due
             _buildDetailRow(
-              'Amount Due:', 
-              NumberFormat.currency(symbol: '\$').format(amountDue > 0 ? amountDue : 0),
-              valueColor: amountDue > 0 ? AppTheme.expenseRed : AppTheme.incomeGreen,
+              'Amount Due:',
+              NumberFormat.currency(
+                symbol: '\$',
+              ).format(amountDue > 0 ? amountDue : 0),
+              valueColor: amountDue > 0
+                  ? AppTheme.expenseRed
+                  : AppTheme.incomeGreen,
               valueBold: true,
             ),
             const SizedBox(height: 8),
-            
+
             const Divider(height: 16),
             const SizedBox(height: 8),
-            
+
             // Due Date
-            _buildDetailRow('Due Date:', DateFormat.yMMMd().format(widget.occurrenceDate)),
+            _buildDetailRow(
+              'Due Date:',
+              DateFormat.yMMMd().format(widget.occurrenceDate),
+            ),
             const SizedBox(height: 8),
-            
+
             // Type
-            _buildDetailRow('Type:', widget.bill.type == BillType.expense ? 'Expense' : widget.bill.type == BillType.income ? 'Income' : 'Transfer'),
+            _buildDetailRow(
+              'Type:',
+              widget.bill.type == BillType.expense
+                  ? 'Expense'
+                  : widget.bill.type == BillType.income
+                  ? 'Income'
+                  : 'Transfer',
+            ),
             const SizedBox(height: 8),
-            
+
             // Status
             _buildDetailRow(
-              'Status:', 
-              amountDue <= 0.01 ? 'Paid' : (totalPaid > 0 ? 'Partially Paid' : 'Unpaid'),
-              valueColor: amountDue <= 0.01 ? AppTheme.incomeGreen : (totalPaid > 0 ? Colors.orange : AppTheme.expenseRed),
+              'Status:',
+              amountDue <= 0.01
+                  ? 'Paid'
+                  : (totalPaid > 0 ? 'Partially Paid' : 'Unpaid'),
+              valueColor: amountDue <= 0.01
+                  ? AppTheme.incomeGreen
+                  : (totalPaid > 0 ? Colors.orange : AppTheme.expenseRed),
             ),
           ],
         ),
@@ -689,9 +764,9 @@ class _PayBillScreenState extends State<PayBillScreen> {
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   child: Text(
                     'No payment history available',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Colors.grey[600],
-                        ),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
                   ),
                 ),
               )
@@ -701,243 +776,285 @@ class _PayBillScreenState extends State<PayBillScreen> {
                   Text(
                     'Recent Payments',
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   ...(_paymentHistory.take(5).map((tx) {
-                        // Show the account name under the date (strip any leading 'account:' text from notes)
-                        String subtitleText = '';
-                        if (tx.accountId != null) {
-                          final acct = DatabaseService.getAccountById(tx.accountId!);
-                          if (acct != null) subtitleText = acct.name;
+                    // Show the account name under the date (strip any leading 'account:' text from notes)
+                    String subtitleText = '';
+                    if (tx.accountId != null) {
+                      final acct = DatabaseService.getAccountById(
+                        tx.accountId!,
+                      );
+                      if (acct != null) subtitleText = acct.name;
+                    }
+                    // Prepare a user-visible note by stripping internal markers and pair tokens
+                    String displayNote = '';
+                    final displayPaymentFor =
+                        (tx.paymentFor ?? '').trim().isNotEmpty
+                        ? (tx.paymentFor ?? '').trim()
+                        : _extractPaymentForValue(tx.description);
+                    final rawNote = (tx.note ?? '').trim();
+                    if (rawNote.isNotEmpty) {
+                      String n = rawNote;
+                      // If note contains an account: prefix like 'account: Name — usernote', extract the user part
+                      if (n.toLowerCase().startsWith('account:')) {
+                        final parts = n.split('—');
+                        if (parts.length > 1) {
+                          n = parts.sublist(1).join('—').trim();
+                        } else {
+                          // No user note after account prefix
+                          n = '';
                         }
-                        // Prepare a user-visible note by stripping internal markers and pair tokens
-                        String displayNote = '';
-                        final displayPaymentFor =
-                          (tx.paymentFor ?? '').trim().isNotEmpty
-                            ? (tx.paymentFor ?? '').trim()
-                            : _extractPaymentForValue(tx.description);
-                        final rawNote = (tx.note ?? '').trim();
-                        if (rawNote.isNotEmpty) {
-                          String n = rawNote;
-                          // If note contains an account: prefix like 'account: Name — usernote', extract the user part
-                          if (n.toLowerCase().startsWith('account:')) {
-                            final parts = n.split('—');
-                            if (parts.length > 1) {
-                              n = parts.sublist(1).join('—').trim();
-                            } else {
-                              // No user note after account prefix
-                              n = '';
-                            }
-                            // Also extract account name for subtitle if present
-                            final left = parts.first;
-                            final idx = left.indexOf(':');
-                            if (idx >= 0 && idx + 1 < left.length) {
-                              final name = left.substring(idx + 1).trim();
-                              if (name.isNotEmpty) subtitleText = name;
-                            }
-                          }
-
-                          // Remove known internal markers and transfer pairing tokens
-                          n = n.replaceAll('__transfer_bill__', '');
-                          n = n.replaceAll('__transfer_manual__', '');
-                          n = n.replaceAll('__hide_from_calendar__', '');
-                          n = n.replaceAll(RegExp(r'pair:[A-Za-z0-9\-]+'), '');
-                          displayNote = n.trim();
+                        // Also extract account name for subtitle if present
+                        final left = parts.first;
+                        final idx = left.indexOf(':');
+                        if (idx >= 0 && idx + 1 < left.length) {
+                          final name = left.substring(idx + 1).trim();
+                          if (name.isNotEmpty) subtitleText = name;
                         }
-                        
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(4),
-                            onTap: () async {
-                              final ctx = context;
-                              // Capture local references before any awaits to avoid using
-                              // the BuildContext across async gaps.
-                              final overlay = Overlay.of(context).context.findRenderObject() as RenderBox?;
-                              final navigator = Navigator.of(context);
-                              final messenger = ScaffoldMessenger.of(context);
+                      }
 
-                              final position = overlay != null
-                                  ? RelativeRect.fromLTRB(
-                                      overlay.size.width / 2,
-                                      overlay.size.height / 2,
-                                      overlay.size.width / 2,
-                                      overlay.size.height / 2,
-                                    )
-                                  : const RelativeRect.fromLTRB(100, 100, 100, 100);
+                      // Remove known internal markers and transfer pairing tokens
+                      n = n.replaceAll('__transfer_bill__', '');
+                      n = n.replaceAll('__transfer_manual__', '');
+                      n = n.replaceAll('__hide_from_calendar__', '');
+                      n = n.replaceAll(RegExp(r'pair:[A-Za-z0-9\-]+'), '');
+                      displayNote = n.trim();
+                    }
 
-                              final result = await showMenu<String>(
-                                context: ctx,
-                                position: position,
-                                items: [
-                                  const PopupMenuItem(
-                                    value: 'edit',
-                                    child: Text('Edit'),
-                                  ),
-                                  const PopupMenuItem(
-                                    value: 'delete',
-                                    child: Text('Delete'),
-                                  ),
-                                ],
-                              );
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(4),
+                        onTap: () async {
+                          final ctx = context;
+                          // Capture local references before any awaits to avoid using
+                          // the BuildContext across async gaps.
+                          final overlay =
+                              Overlay.of(context).context.findRenderObject()
+                                  as RenderBox?;
+                          final navigator = Navigator.of(context);
+                          final messenger = ScaffoldMessenger.of(context);
 
-                              if (result == 'edit') {
-                                final editResult = await navigator.push<bool?> (
-                                  MaterialPageRoute(
-                                    // Allow editing date/description when opening the
-                                    // transaction editor from the Pay Bill screen so
-                                    // user changes persist on both sides.
-                                    builder: (_) => AddTransactionScreen(existingTransaction: tx, preserveDescriptionAndDate: false),
-                                  ),
-                                );
-                                if (!mounted) return;
-                                if (editResult == true) {
-                                  setState(() {
-                                    _loadPaymentHistory();
-                                  });
-                                  await _recalculateAndPersistBillStatus();
-                                  DatabaseService.billsVersion.value++;
-                                  _refreshBillReminders();
-                                }
-                              } else if (result == 'delete') {
-                                if (!mounted) return;
-                                final confirm = await showDialog<bool>(
-                                  context: navigator.context,
-                                  builder: (dialogCtx) => AlertDialog(
-                                    title: const Text('Delete Payment'),
-                                    content: const Text('Are you sure you want to delete this payment? This action cannot be undone.'),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () => Navigator.of(dialogCtx).pop(false),
-                                        child: const Text('Cancel'),
-                                      ),
-                                      TextButton(
-                                        onPressed: () => Navigator.of(dialogCtx).pop(true),
-                                        child: const Text('Delete', style: TextStyle(color: Colors.red)),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                                if (confirm == true) {
-                                  try {
-                                    // Revert the transaction effect on the linked account balance (if any)
-                                    final accId = tx.accountId;
-                                    if (accId != null) {
-                                      final acc = DatabaseService.getAccountById(accId);
-                                      if (acc != null) {
-                                        final effect = tx.type == TransactionType.income ? tx.amount : -tx.amount;
-                                        final updatedAcc = acc.copyWith(balance: acc.balance - effect);
-                                        await DatabaseService.updateAccount(updatedAcc);
-                                      }
-                                    }
-                                  } catch (_) {
-                                    // ignore failures reverting balance but still proceed with deletion
-                                  }
+                          final position = overlay != null
+                              ? RelativeRect.fromLTRB(
+                                  overlay.size.width / 2,
+                                  overlay.size.height / 2,
+                                  overlay.size.width / 2,
+                                  overlay.size.height / 2,
+                                )
+                              : const RelativeRect.fromLTRB(100, 100, 100, 100);
 
-                                  // Remove from hidden list (if present) and delete the transaction
-                                  try {
-                                    await DatabaseService.removeHiddenTransactionId(tx.id);
-                                  } catch (_) {}
-                                  await DatabaseService.deleteTransaction(tx.id);
-                                  if (!mounted) return;
-                                  setState(() {
-                                    _loadPaymentHistory();
-                                  });
-                                  // Keep occurrence-level status in sync with dashboard after deletion.
-                                  await _recalculateAndPersistBillStatus();
+                          final result = await showMenu<String>(
+                            context: ctx,
+                            position: position,
+                            items: [
+                              const PopupMenuItem(
+                                value: 'edit',
+                                child: Text('Edit'),
+                              ),
+                              const PopupMenuItem(
+                                value: 'delete',
+                                child: Text('Delete'),
+                              ),
+                            ],
+                          );
 
-                                  _refreshBillReminders();
-                                  messenger.clearSnackBars();
-                                }
-                              }
-                            },
-                            child: Card(
-                              elevation: 1,
-                              child: Padding(
-                                padding: const EdgeInsets.all(12),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          DateFormat('MM/dd/yyyy').format(tx.date),
-                                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                                fontWeight: FontWeight.w500,
-                                              ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        if (subtitleText.isNotEmpty)
-                                          Text(
-                                            subtitleText,
-                                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                                  color: Colors.grey[600],
-                                                ),
-                                          ),
-                                        // Note is shown under the amount column now (right side)
-                                      ],
-                                    ),
-                                    Column(
-                                      crossAxisAlignment: CrossAxisAlignment.end,
-                                      children: [
-                                        Text(
-                                          NumberFormat.currency(symbol: '\$').format(tx.amount),
-                                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                                fontWeight: FontWeight.w600,
-                                                color: tx.type == TransactionType.income
-                                                    ? AppTheme.incomeGreen
-                                                    : AppTheme.expenseRed,
-                                              ),
-                                        ),
-                                        const SizedBox(height: 6),
-                                        if (displayPaymentFor.isNotEmpty) ...[
-                                          SizedBox(
-                                            width: 180,
-                                            child: Text(
-                                              'Payment for $displayPaymentFor',
-                                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                                    color: Colors.grey[700],
-                                                  ),
-                                              textAlign: TextAlign.right,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                        ],
-                                        if (displayNote.isNotEmpty) ...[
-                                          SizedBox(
-                                            width: 160,
-                                            child: Text(
-                                              displayNote,
-                                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                                    color: Colors.grey[700],
-                                                  ),
-                                              textAlign: TextAlign.right,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                  ],
+                          if (result == 'edit') {
+                            final editResult = await navigator.push<bool?>(
+                              MaterialPageRoute(
+                                // Allow editing date/description when opening the
+                                // transaction editor from the Pay Bill screen so
+                                // user changes persist on both sides.
+                                builder: (_) => AddTransactionScreen(
+                                  existingTransaction: tx,
+                                  preserveDescriptionAndDate: false,
                                 ),
                               ),
+                            );
+                            if (!mounted) return;
+                            if (editResult == true) {
+                              setState(() {
+                                _loadPaymentHistory();
+                              });
+                              await _recalculateAndPersistBillStatus();
+                              DatabaseService.billsVersion.value++;
+                              _refreshBillReminders();
+                            }
+                          } else if (result == 'delete') {
+                            if (!mounted) return;
+                            final confirm = await showDialog<bool>(
+                              context: navigator.context,
+                              builder: (dialogCtx) => AlertDialog(
+                                title: const Text('Delete Payment'),
+                                content: const Text(
+                                  'Are you sure you want to delete this payment? This action cannot be undone.',
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.of(dialogCtx).pop(false),
+                                    child: const Text('Cancel'),
+                                  ),
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.of(dialogCtx).pop(true),
+                                    child: const Text(
+                                      'Delete',
+                                      style: TextStyle(color: Colors.red),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                            if (confirm == true) {
+                              try {
+                                // Revert the transaction effect on the linked account balance (if any)
+                                final accId = tx.accountId;
+                                if (accId != null) {
+                                  final acc = DatabaseService.getAccountById(
+                                    accId,
+                                  );
+                                  if (acc != null) {
+                                    final effect =
+                                        tx.type == TransactionType.income
+                                        ? tx.amount
+                                        : -tx.amount;
+                                    final updatedAcc = acc.copyWith(
+                                      balance: acc.balance - effect,
+                                    );
+                                    await DatabaseService.updateAccount(
+                                      updatedAcc,
+                                    );
+                                  }
+                                }
+                              } catch (_) {
+                                // ignore failures reverting balance but still proceed with deletion
+                              }
+
+                              // Remove from hidden list (if present) and delete the transaction
+                              try {
+                                await DatabaseService.removeHiddenTransactionId(
+                                  tx.id,
+                                );
+                              } catch (_) {}
+                              await DatabaseService.deleteTransaction(tx.id);
+                              if (!mounted) return;
+                              setState(() {
+                                _loadPaymentHistory();
+                              });
+                              // Keep occurrence-level status in sync with dashboard after deletion.
+                              await _recalculateAndPersistBillStatus();
+
+                              _refreshBillReminders();
+                              messenger.clearSnackBars();
+                            }
+                          }
+                        },
+                        child: Card(
+                          elevation: 1,
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      DateFormat('MM/dd/yyyy').format(tx.date),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    if (subtitleText.isNotEmpty)
+                                      Text(
+                                        subtitleText,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(color: Colors.grey[600]),
+                                      ),
+                                    // Note is shown under the amount column now (right side)
+                                  ],
+                                ),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Text(
+                                      NumberFormat.currency(
+                                        symbol: '\$',
+                                      ).format(tx.amount),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w600,
+                                            color:
+                                                tx.type ==
+                                                    TransactionType.income
+                                                ? AppTheme.incomeGreen
+                                                : AppTheme.expenseRed,
+                                          ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    if (displayPaymentFor.isNotEmpty) ...[
+                                      SizedBox(
+                                        width: 180,
+                                        child: Text(
+                                          'Payment for $displayPaymentFor',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.copyWith(
+                                                color: Colors.grey[700],
+                                              ),
+                                          textAlign: TextAlign.right,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                    ],
+                                    if (displayNote.isNotEmpty) ...[
+                                      SizedBox(
+                                        width: 160,
+                                        child: Text(
+                                          displayNote,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.copyWith(
+                                                color: Colors.grey[700],
+                                              ),
+                                          textAlign: TextAlign.right,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ],
                             ),
                           ),
-                        );
-                      })),
+                        ),
+                      ),
+                    );
+                  })),
                   if (_paymentHistory.length > 5)
                     Padding(
                       padding: const EdgeInsets.only(top: 8),
                       child: Text(
                         '+ ${_paymentHistory.length - 5} more payments',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Colors.grey[600],
-                              fontStyle: FontStyle.italic,
-                            ),
+                          color: Colors.grey[600],
+                          fontStyle: FontStyle.italic,
+                        ),
                       ),
                     ),
                 ],
@@ -968,16 +1085,20 @@ class _PayBillScreenState extends State<PayBillScreen> {
                 prefixText: '\$ ',
                 border: const OutlineInputBorder(),
                 // Show a nicely formatted currency hint for the original bill amount
-                hintText: NumberFormat.currency(symbol: '\$').format(widget.bill.amount),
+                hintText: NumberFormat.currency(
+                  symbol: '\$',
+                ).format(widget.bill.amount),
                 suffixIcon: IconButton(
                   icon: const Icon(Icons.calculate),
                   onPressed: () async {
-                    final result = await showModalBottomSheet<double?> (
+                    final result = await showModalBottomSheet<double?>(
                       context: context,
                       isScrollControlled: true,
                       builder: (_) => FractionallySizedBox(
                         heightFactor: 0.6,
-                        child: _CalculatorSheet(initialValue: _amountController.text),
+                        child: _CalculatorSheet(
+                          initialValue: _amountController.text,
+                        ),
                       ),
                     );
                     if (result != null) {
@@ -1015,7 +1136,10 @@ class _PayBillScreenState extends State<PayBillScreen> {
                   },
                   child: const Padding(
                     padding: EdgeInsets.symmetric(vertical: 6.0),
-                    child: Text('Split Categories', style: TextStyle(fontWeight: FontWeight.w600)),
+                    child: Text(
+                      'Split Categories',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
                   ),
                 ),
                 TextButton(
@@ -1025,7 +1149,13 @@ class _PayBillScreenState extends State<PayBillScreen> {
                       if (!_useSplits) _splits = [];
                     });
                   },
-                  child: Text(_useSplits ? 'Disable' : 'Enable', style: TextStyle(fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.primary)),
+                  child: Text(
+                    _useSplits ? 'Disable' : 'Enable',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -1034,9 +1164,10 @@ class _PayBillScreenState extends State<PayBillScreen> {
                 initialSplits: _splits,
                 transactionAmount: double.tryParse(_amountController.text),
                 onChanged: (s) => _splits = s,
-                categoryTypeFilter: widget.bill.type == BillType.income ? CategoryType.income : CategoryType.expense,
+                categoryTypeFilter: widget.bill.type == BillType.income
+                    ? CategoryType.income
+                    : CategoryType.expense,
               ),
-
 
             // Payment Date
             ListTile(
@@ -1069,15 +1200,15 @@ class _PayBillScreenState extends State<PayBillScreen> {
               subtitle: Text(
                 _selectedAccountId != null
                     ? _accounts
-                        .firstWhere(
-                          (a) => a.id == _selectedAccountId,
-                          orElse: () => Account(
-                            name: 'Unknown',
-                            type: AccountType.cash,
-                            balance: 0,
-                          ),
-                        )
-                        .name
+                          .firstWhere(
+                            (a) => a.id == _selectedAccountId,
+                            orElse: () => Account(
+                              name: 'Unknown',
+                              type: AccountType.cash,
+                              balance: 0,
+                            ),
+                          )
+                          .name
                     : 'Select account',
               ),
               trailing: const Icon(Icons.arrow_forward_ios, size: 16),
@@ -1087,17 +1218,19 @@ class _PayBillScreenState extends State<PayBillScreen> {
                   builder: (context) => ListView(
                     shrinkWrap: true,
                     children: _accounts.map((account) {
-                              return ListTile(
-                                leading: Icon(account.type == AccountType.bank
-                                    ? Icons.account_balance
-                                    : account.type == AccountType.card
-                                        ? Icons.credit_card
-                                        : Icons.money),
-                                title: Text(account.name),
-                                // Amounts removed from the account list per UI request
-                                selected: _selectedAccountId == account.id,
-                                onTap: () => Navigator.pop(context, account.id),
-                              );
+                      return ListTile(
+                        leading: Icon(
+                          account.type == AccountType.bank
+                              ? Icons.account_balance
+                              : account.type == AccountType.card
+                              ? Icons.credit_card
+                              : Icons.money,
+                        ),
+                        title: Text(account.name),
+                        // Amounts removed from the account list per UI request
+                        selected: _selectedAccountId == account.id,
+                        onTap: () => Navigator.pop(context, account.id),
+                      );
                     }).toList(),
                   ),
                 );
@@ -1140,7 +1273,9 @@ class _PayBillScreenState extends State<PayBillScreen> {
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('Refund (money received)'),
-              subtitle: const Text('Record this as income (refund) instead of a payment'),
+              subtitle: const Text(
+                'Record this as income (refund) instead of a payment',
+              ),
               value: _isRefund,
               onChanged: (v) => setState(() => _isRefund = v),
             ),
@@ -1148,7 +1283,9 @@ class _PayBillScreenState extends State<PayBillScreen> {
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('Show in reports'),
-              subtitle: const Text('Include this payment in report totals and charts'),
+              subtitle: const Text(
+                'Include this payment in report totals and charts',
+              ),
               value: _showInReports,
               onChanged: (v) => setState(() => _showInReports = v),
             ),
@@ -1158,22 +1295,27 @@ class _PayBillScreenState extends State<PayBillScreen> {
     );
   }
 
-  Widget _buildDetailRow(String label, String value, {Color? valueColor, bool valueBold = false}) {
+  Widget _buildDetailRow(
+    String label,
+    String value, {
+    Color? valueColor,
+    bool valueBold = false,
+  }) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(
           label,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Colors.grey[700],
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: Colors.grey[700]),
         ),
         Text(
           value,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                fontWeight: valueBold ? FontWeight.bold : FontWeight.w600,
-                color: valueColor,
-              ),
+            fontWeight: valueBold ? FontWeight.bold : FontWeight.w600,
+            color: valueColor,
+          ),
         ),
       ],
     );
@@ -1205,7 +1347,11 @@ class _CalculatorSheetState extends State<_CalculatorSheet> {
   }
 
   void _backspace() {
-    if (_expression.isNotEmpty) setState(() => _expression = _expression.substring(0, _expression.length - 1));
+    if (_expression.isNotEmpty) {
+      setState(
+        () => _expression = _expression.substring(0, _expression.length - 1),
+      );
+    }
   }
 
   void _clear() {
@@ -1273,8 +1419,16 @@ class _CalculatorSheetState extends State<_CalculatorSheet> {
             padding: const EdgeInsets.all(12.0),
             child: Row(
               children: [
-                Expanded(child: Text(_expression, style: const TextStyle(fontSize: 24))),
-                IconButton(onPressed: _backspace, icon: const Icon(Icons.backspace))
+                Expanded(
+                  child: Text(
+                    _expression,
+                    style: const TextStyle(fontSize: 24),
+                  ),
+                ),
+                IconButton(
+                  onPressed: _backspace,
+                  icon: const Icon(Icons.backspace),
+                ),
               ],
             ),
           ),
@@ -1283,9 +1437,15 @@ class _CalculatorSheetState extends State<_CalculatorSheet> {
               padding: const EdgeInsets.symmetric(horizontal: 12.0),
               child: Row(
                 children: [
-                  const Text('Result:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text(
+                    'Result:',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                   const SizedBox(width: 8),
-                  Text(eval.toStringAsFixed(2), style: const TextStyle(fontSize: 20)),
+                  Text(
+                    eval.toStringAsFixed(2),
+                    style: const TextStyle(fontSize: 20),
+                  ),
                 ],
               ),
             ),
@@ -1295,27 +1455,43 @@ class _CalculatorSheetState extends State<_CalculatorSheet> {
               crossAxisCount: 4,
               childAspectRatio: 1.6,
               padding: const EdgeInsets.all(12),
-              children: [
-                '7','8','9','/',
-                '4','5','6','*',
-                '1','2','3','-',
-                '.','0','=','+',
-              ].map((label) {
-                return Padding(
-                  padding: const EdgeInsets.all(6.0),
-                  child: ElevatedButton(
-                    onPressed: () {
-                      if (label == '=') {
-                        final value = _evaluate();
-                        if (value != null) Navigator.of(context).pop(value);
-                        return;
-                      }
-                      _append(label);
-                    },
-                    child: Text(label, style: const TextStyle(fontSize: 18)),
-                  ),
-                );
-              }).toList(),
+              children:
+                  [
+                    '7',
+                    '8',
+                    '9',
+                    '/',
+                    '4',
+                    '5',
+                    '6',
+                    '*',
+                    '1',
+                    '2',
+                    '3',
+                    '-',
+                    '.',
+                    '0',
+                    '=',
+                    '+',
+                  ].map((label) {
+                    return Padding(
+                      padding: const EdgeInsets.all(6.0),
+                      child: ElevatedButton(
+                        onPressed: () {
+                          if (label == '=') {
+                            final value = _evaluate();
+                            if (value != null) Navigator.of(context).pop(value);
+                            return;
+                          }
+                          _append(label);
+                        },
+                        child: Text(
+                          label,
+                          style: const TextStyle(fontSize: 18),
+                        ),
+                      ),
+                    );
+                  }).toList(),
             ),
           ),
           Padding(

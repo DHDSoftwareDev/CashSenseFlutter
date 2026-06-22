@@ -20,6 +20,7 @@ class NotificationSchedulesApi {
     required String body,
     required Map<String, dynamic> data,
     required String dedupeKey,
+    String? environment,
   }) async {
     final token = await getIdToken();
     final uri = Uri.parse('$baseUrl/notification-schedules');
@@ -38,6 +39,8 @@ class NotificationSchedulesApi {
           'body': body,
           'data': data,
           'dedupeKey': dedupeKey,
+          if (environment != null && environment.isNotEmpty)
+            'environment': environment,
         }),
       ),
       maxAttempts: 2,
@@ -70,5 +73,64 @@ class NotificationSchedulesApi {
     if (res.statusCode != 200) {
       throw Exception('deleteSchedule failed: ${res.statusCode} ${res.body}');
     }
+  }
+
+  Future<void> deleteSchedulesForBill({required String billId}) async {
+    final token = await getIdToken();
+    final encodedBillId = Uri.encodeComponent(billId);
+    final uri = Uri.parse(
+      '$baseUrl/notification-schedules/by-bill/$encodedBillId',
+    );
+
+    final res = await HttpService.execute(
+      () => http.delete(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      ),
+      maxAttempts: 2,
+      retryOnFailure: true,
+    );
+
+    if (res.statusCode != 200) {
+      throw Exception(
+        'deleteSchedulesForBill failed: ${res.statusCode} ${res.body}',
+      );
+    }
+  }
+
+  Future<Map<String, dynamic>> listSchedules({
+    String? status,
+    String? nextToken,
+    int limit = 100,
+  }) async {
+    final token = await getIdToken();
+    final uri = Uri.parse('$baseUrl/notification-schedules').replace(
+      queryParameters: {
+        'limit': limit.toString(),
+        if (status != null && status.isNotEmpty) 'status': status,
+        if (nextToken != null && nextToken.isNotEmpty) 'nextToken': nextToken,
+      },
+    );
+
+    final res = await HttpService.execute(
+      () => http.get(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      ),
+      maxAttempts: 2,
+      retryOnFailure: true,
+    );
+
+    final decoded = jsonDecode(res.body) as Map<String, dynamic>;
+    if (res.statusCode != 200) {
+      throw Exception('listSchedules failed: ${res.statusCode} $decoded');
+    }
+    return decoded;
   }
 }

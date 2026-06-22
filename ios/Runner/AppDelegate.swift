@@ -66,11 +66,8 @@ import UserNotifications
     UNUserNotificationCenter.current().requestAuthorization(
       options: authOptions,
       completionHandler: { granted, error in
-        if let error = error {
-          print("❌ Error requesting notification authorization: \(error)")
-        } else {
-          print("✅ Notification permissions granted: \(granted)")
-        }
+        _ = granted
+        _ = error
       }
     )
   }
@@ -95,10 +92,6 @@ import UserNotifications
     didReceive response: UNNotificationResponse,
     withCompletionHandler completionHandler: @escaping () -> Void
   ) {
-    let userInfo = response.notification.request.content.userInfo
-    if let billId = userInfo["billId"] as? String {
-      print("User tapped notification for bill: \(billId)")
-    }
     completionHandler()
   }
   
@@ -110,7 +103,6 @@ import UserNotifications
     // Convert token to hex string for AWS SNS
     let tokenParts = deviceToken.map { data in String(format: "%02.2hhx", data) }
     let token = tokenParts.joined()
-    print("✅ APNS Device Token: \(token)")
     
     // Store token in UserDefaults to be accessed by Flutter
     UserDefaults.standard.set(token, forKey: "apns_device_token")
@@ -137,10 +129,8 @@ import UserNotifications
     didReceiveRemoteNotification userInfo: [AnyHashable: Any],
     fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
   ) {
-    print("✅ Background push received:", userInfo)
     // Persist last background push timestamp (seconds since epoch)
     UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "last_bg_push")
-    print("✅ BG push stored timestamp")
     completionHandler(.newData)
   }
   

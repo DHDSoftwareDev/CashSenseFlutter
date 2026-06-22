@@ -24,8 +24,16 @@ void openRootDrawer() {
 
 /// Request the root navigation to switch to [index]. Optionally pass
 /// [accountId] which the Transactions screen will use to filter its list.
-void navigateToRootPage(int index, {String? accountId}) {
+void navigateToRootPage(
+  int index, {
+  String? accountId,
+  DateTime? selectedDate,
+}) {
   try {
-    (mainNavKey.currentState as dynamic)?.navigateToPage(index, accountId: accountId);
+    (mainNavKey.currentState as dynamic)?.navigateToPage(
+      index,
+      accountId: accountId,
+      selectedDate: selectedDate,
+    );
   } catch (_) {}
 }
