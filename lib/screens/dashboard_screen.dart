@@ -627,6 +627,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return true;
   }
 
+  List<Map<String, dynamic>> _visibleBillOccurrencesForDay(DateTime day) {
+    final billDay = _dateOnly(day);
+    final billOcc = _dedupeBillOccurrences(
+      DatabaseService.getBillOccurrencesBetween(billDay, billDay),
+    );
+
+    return billOcc.where((occ) {
+      final bill = occ['bill'] as Bill?;
+      final occDate = occ['date'] as DateTime?;
+      if (bill == null || occDate == null) return false;
+      return _billOccurrenceMatchesActiveFilters(bill, occDate);
+    }).toList();
+  }
+
   DateTime _firstVisibleBillDateInMonth(DateTime month) {
     final monthStart = DateTime(month.year, month.month, 1);
     final monthEnd = DateTime(month.year, month.month + 1, 0);
@@ -988,20 +1002,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           isSameDay(_selectedDay, day),
                       eventLoader: (day) {
                         // Calendar events are bill-only on dashboard.
-                        final billDay = DateTime(day.year, day.month, day.day);
-                        var billOcc = DatabaseService.getBillOccurrencesBetween(
-                          billDay,
-                          billDay,
-                        );
-                        billOcc = _dedupeBillOccurrences(billOcc);
-
-                        // Apply search filter if search query is not empty
-                        if (_searchQuery.isNotEmpty) {
-                          billOcc = billOcc.where((occ) {
-                            final bill = occ['bill'] as Bill;
-                            return _matchedSearchBillIds.contains(bill.id);
-                          }).toList();
-                        }
+                        final billOcc = _visibleBillOccurrencesForDay(day);
 
                         // Use the persisted per-occurrence status from Pay Bill as the source of truth.
                         final List<Map<String, dynamic>> updatedBillOcc = [];
@@ -1021,30 +1022,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       },
                       calendarBuilders: CalendarBuilders(
                         defaultBuilder: (context, day, focusedDay) {
-                          // Color the date if a bill (including transfer bills) is present
-                          var billOcc =
-                              DatabaseService.getBillOccurrencesBetween(
-                                DateTime(day.year, day.month, day.day),
-                                DateTime(day.year, day.month, day.day),
-                              );
-                          billOcc = _dedupeBillOccurrences(billOcc);
-
-                          // Apply search filter if search query is not empty
-                          if (_searchQuery.isNotEmpty) {
-                            billOcc = billOcc.where((occ) {
-                              final bill = occ['bill'] as Bill;
-                              return _matchedSearchBillIds.contains(bill.id);
-                            }).toList();
-                          }
-
-                          final hasOutstandingBills = billOcc.any((occ) {
-                            final bill = occ['bill'] as Bill?;
-                            final occDate = occ['date'] as DateTime?;
-                            if (bill == null || occDate == null) return false;
-                            return _getOccurrencePaymentStatus(bill, occDate) !=
-                                PaymentStatus.paid;
-                          });
-                          final textStyle = hasOutstandingBills
+                          // Color dates that have bill occurrences visible under the active filters.
+                          final hasVisibleBills = _visibleBillOccurrencesForDay(
+                            day,
+                          ).isNotEmpty;
+                          final textStyle = hasVisibleBills
                               ? Theme.of(
                                   context,
                                 ).textTheme.bodyMedium?.copyWith(
@@ -1056,34 +1038,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           );
                         },
                         todayBuilder: (context, day, focusedDay) {
-                          var billOcc =
-                              DatabaseService.getBillOccurrencesBetween(
-                                DateTime(day.year, day.month, day.day),
-                                DateTime(day.year, day.month, day.day),
-                              );
-                          billOcc = _dedupeBillOccurrences(billOcc);
-
-                          // Apply search filter if search query is not empty
-                          if (_searchQuery.isNotEmpty) {
-                            billOcc = billOcc.where((occ) {
-                              final bill = occ['bill'] as Bill;
-                              return _matchedSearchBillIds.contains(bill.id);
-                            }).toList();
-                          }
-
-                          final hasOutstandingBills = billOcc.any((occ) {
-                            final bill = occ['bill'] as Bill?;
-                            final occDate = occ['date'] as DateTime?;
-                            if (bill == null || occDate == null) return false;
-                            return _getOccurrencePaymentStatus(bill, occDate) !=
-                                PaymentStatus.paid;
-                          });
+                          final hasVisibleBills = _visibleBillOccurrencesForDay(
+                            day,
+                          ).isNotEmpty;
                           final base = BoxDecoration(
                             color: Theme.of(context).colorScheme.primary
                                 .withAlpha((0.2 * 255).round()),
                             shape: BoxShape.circle,
                           );
-                          final textStyle = hasOutstandingBills
+                          final textStyle = hasVisibleBills
                               ? Theme.of(
                                   context,
                                 ).textTheme.bodyMedium?.copyWith(
