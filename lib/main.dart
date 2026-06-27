@@ -419,6 +419,10 @@ class _AppLifecycleBiometricLockState extends State<AppLifecycleBiometricLock>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      PushTokenService.resetBadgeCount();
+    }
+
     if (!_isAutoLogoutEnabled()) {
       _shouldAuthenticateOnResume = false;
       _backgroundedAt = null;

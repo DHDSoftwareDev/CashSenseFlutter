@@ -9,8 +9,8 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import {
   DynamoDBDocumentClient,
-  GetCommand,
   QueryCommand,
+  UpdateCommand,
 } from "@aws-sdk/lib-dynamodb";
 import {
   SNSClient,
@@ -19,7 +19,6 @@ import {
 
 const DEVICE_REGISTRY_TABLE =
   process.env.DEVICE_REGISTRY_TABLE ?? "CashSense-DeviceRegistry";
-const BILLS_TABLE = process.env.BILLS_TABLE ?? "CashSense-Bills";
 
 // Must exactly match your iOS bundle id (APNs topic)
 const IOS_BUNDLE_ID = process.env.IOS_BUNDLE_ID ?? "";
@@ -52,12 +51,6 @@ export const handler = async (event) => {
 
   const data =
     event?.data && typeof event.data === "object" ? event.data : {};
-
-  const reminderGuard = await shouldSendBillReminder(userId, data);
-  if (!reminderGuard.ok) {
-    console.log("Skipping bill reminder", reminderGuard);
-    return reminderGuard;
-  }
 
   // Load devices for user
   const res = await ddb.send(
@@ -103,7 +96,9 @@ export const handler = async (event) => {
             requestedEnvironment
         )
       : [];
-  const deliveryTargets = matchingEnvironment.length ? matchingEnvironment : enabled;
+  const hasRequestedEnvironment =
+    requestedEnvironment === "production" || requestedEnvironment === "sandbox";
+  const deliveryTargets = hasRequestedEnvironment ? matchingEnvironment : enabled;
 
   console.log(
     "Devices",
@@ -135,10 +130,6 @@ export const handler = async (event) => {
   const title = callerTitle || built.title || "CashSense";
   const body = callerBody || built.body || "Reminder";
 
-  // Badge:
-  const badge =
-    Number.isFinite(Number(data?.badge)) ? Number(data.badge) : 1;
-
   const results = [];
 
   for (const d of deliveryTargets) {
@@ -146,6 +137,10 @@ export const handler = async (event) => {
     const platform = String(d?.platform ?? "unknown").toLowerCase();
 
     if (platform !== "ios") continue;
+
+    const badge = Number.isFinite(Number(data?.badge))
+      ? Number(data.badge)
+      : await incrementBadgeCount(userId, String(d.deviceToken));
 
     const apnsPayload =
       mode === "alert"
@@ -224,6 +219,23 @@ export const handler = async (event) => {
 
 // --------------------
 // Helpers
+async function incrementBadgeCount(userId, deviceToken) {
+  const result = await ddb.send(
+    new UpdateCommand({
+      TableName: DEVICE_REGISTRY_TABLE,
+      Key: { userId, deviceToken },
+      UpdateExpression: "SET badgeCount = if_not_exists(badgeCount, :zero) + :one",
+      ExpressionAttributeValues: {
+        ":zero": 0,
+        ":one": 1,
+      },
+      ReturnValues: "UPDATED_NEW",
+    })
+  );
+
+  return Number(result.Attributes?.badgeCount ?? 1);
+}
+
 // --------------------
 function normalizeNonEmptyString(v) {
   if (v === undefined || v === null) return "";
@@ -235,81 +247,6 @@ function formatMoney(amount) {
   const n = Number(amount);
   if (!Number.isFinite(n)) return "";
   return n.toFixed(2);
-}
-
-async function shouldSendBillReminder(userId, data) {
-  const type = String(data?.type ?? "").toLowerCase();
-  if (type !== "bill_reminder") return { ok: true };
-
-  const billId = normalizeNonEmptyString(data?.billId);
-  if (!billId) {
-    return {
-      ok: false,
-      skipped: true,
-      reason: "missing_bill_id",
-      message: "Bill reminder payload is missing billId",
-    };
-  }
-
-  const result = await ddb.send(
-    new GetCommand({
-      TableName: BILLS_TABLE,
-      Key: { userId, billId },
-    })
-  );
-
-  const bill = result.Item;
-  if (!bill) {
-    return {
-      ok: false,
-      skipped: true,
-      reason: "bill_deleted",
-      userId,
-      billId,
-      message: "Bill no longer exists",
-    };
-  }
-
-  const status = String(bill?.status ?? "").trim().toLowerCase();
-  const paymentStatus = String(bill?.paymentStatus ?? "").trim().toLowerCase();
-  const isPaid = Boolean(bill?.isPaid) || paymentStatus === "paid";
-  const remindersDisabled = bill?.remindersEnabled === false;
-
-  if (status === "deleted" || status === "archived" || status === "inactive") {
-    return {
-      ok: false,
-      skipped: true,
-      reason: "bill_inactive",
-      userId,
-      billId,
-      status,
-      message: "Bill is no longer active",
-    };
-  }
-
-  if (isPaid) {
-    return {
-      ok: false,
-      skipped: true,
-      reason: "bill_paid",
-      userId,
-      billId,
-      message: "Bill is already paid",
-    };
-  }
-
-  if (remindersDisabled) {
-    return {
-      ok: false,
-      skipped: true,
-      reason: "bill_reminders_disabled",
-      userId,
-      billId,
-      message: "Bill reminders are disabled",
-    };
-  }
-
-  return { ok: true };
 }
 
 function buildTitleBodyFromData(data) {

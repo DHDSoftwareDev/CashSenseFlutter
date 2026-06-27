@@ -139,6 +139,22 @@ class PushTokenService {
     await UserAuthService.saveLastDeviceRegisterAt(DateTime.now());
   }
 
+  /// Reset the server-side APNs badge counter when the user opens the app.
+  static Future<void> resetBadgeCount() async {
+    if (kIsWeb) return;
+
+    final token = await UserAuthService.getDeviceToken();
+    if (token.isEmpty) return;
+
+    try {
+      final signedIn = await CognitoService.isSignedIn();
+      if (!signedIn) return;
+      await AwsApiService.resetDeviceBadge(token);
+    } catch (e) {
+      debugPrint('Failed to reset push badge count: $e');
+    }
+  }
+
   static Future<void> _handleTokenRefresh() async {
     final token = await captureDeviceToken();
     if (token == null || token.isEmpty) return;

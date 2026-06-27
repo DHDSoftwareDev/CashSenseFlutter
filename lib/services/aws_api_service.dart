@@ -675,6 +675,17 @@ class AwsApiService {
     _throwIfNotOk(response);
   }
 
+  static Future<void> resetDeviceBadge(String deviceToken) async {
+    if (deviceToken.isEmpty) return;
+    final encodedToken = Uri.encodeComponent(deviceToken);
+    final response = await _request(
+      'PUT',
+      '/devices/$encodedToken',
+      body: const {'badgeCount': 0},
+    );
+    _throwIfNotOk(response);
+  }
+
   static Future<void> sendNotification(Map<String, dynamic> payload) async {
     final response = await _request(
       'POST',

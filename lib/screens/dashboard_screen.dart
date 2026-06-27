@@ -191,10 +191,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final interval = sourceBill.recurrenceInterval <= 0
           ? 1
           : sourceBill.recurrenceInterval;
-      final days =
-          sourceBill.customDays == null || sourceBill.customDays!.isEmpty
-          ? [sourceBill.dueDate.day]
-          : (sourceBill.customDays!.toList()..sort());
+      final days = _normalizedMonthlyDays(sourceBill);
 
       // Try to find next configured day in the same month
       final year = occurrenceDate.year;
@@ -486,6 +483,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   DateTime _dateOnly(DateTime dt) => DateTime(dt.year, dt.month, dt.day);
+
+  List<int> _normalizedMonthlyDays(Bill bill) {
+    final rawDays = bill.customDays == null || bill.customDays!.isEmpty
+        ? <int>[bill.dueDate.day]
+        : bill.customDays!;
+
+    final validDays = rawDays.where((day) => day >= 1 && day <= 31).toSet();
+
+    if (rawDays.contains(99) || validDays.containsAll(<int>{30, 31})) {
+      return <int>[99];
+    }
+
+    return validDays.toList()..sort();
+  }
 
   DateTime _addCalendarDays(DateTime date, int days) {
     return DateTime(date.year, date.month, date.day + days);

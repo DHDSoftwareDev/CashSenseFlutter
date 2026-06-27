@@ -230,7 +230,7 @@ class BillReminderService {
       final isOverdue = _isPastDue(dueForMsg);
 
       final dedupeKey =
-          'bill:${bill.id}:$dueLabel:lead$leadDays:t${reminderHour.toString().padLeft(2, '0')}${reminderMinute.toString().padLeft(2, '0')}:v3';
+          'bill:${bill.id}:$occurrenceDate:lead$leadDays:t${reminderHour.toString().padLeft(2, '0')}${reminderMinute.toString().padLeft(2, '0')}:v3';
       final data = <String, dynamic>{
         'type': 'bill_reminder',
         'billId': bill.id,

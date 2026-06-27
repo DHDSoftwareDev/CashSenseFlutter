@@ -402,6 +402,7 @@ async function registerDevice(userId, body) {
     osVersion: body?.osVersion ?? undefined,
     snsEndpointArn,
     notificationsEnabled,
+    badgeCount: 0,
     timeZone: body?.timeZone ?? undefined,
     lastSeenAt: now,
     createdAt: existing?.Item?.createdAt ?? now,
@@ -423,11 +424,20 @@ async function updateDevice(userId, deviceToken, body) {
     "timeZone",
     "lastSeenAt",
     "deviceId",
+    "badgeCount",
   ];
 
   const updates = Object.fromEntries(
     Object.entries(body ?? {}).filter(([k]) => allowed.includes(k))
   );
+
+  if (updates.badgeCount !== undefined) {
+    const badgeCount = Number(updates.badgeCount);
+    if (!Number.isInteger(badgeCount) || badgeCount < 0) {
+      return json(400, { message: "badgeCount must be a non-negative integer" });
+    }
+    updates.badgeCount = badgeCount;
+  }
 
   if (Object.keys(updates).length === 0) {
     return json(400, { message: "No valid fields to update" });

@@ -63,6 +63,58 @@ void main() {
         );
       },
     );
+
+    test('monthly last-day sentinel only emits month-end dates', () {
+      final bill = Bill(
+        id: 'last-day-bill',
+        amount: 100,
+        description: 'Last day bill',
+        dueDate: DateTime(2026, 1, 31),
+        recurrence: Recurrence.monthly,
+        recurrenceInterval: 1,
+        customDays: const [99],
+        type: BillType.expense,
+      );
+
+      final occurrences = DatabaseService.generateBillOccurrenceDatesForRange(
+        bill,
+        DateTime(2026, 1, 1),
+        DateTime(2026, 4, 30),
+      ).map((date) => DateTime(date.year, date.month, date.day)).toList();
+
+      expect(occurrences, <DateTime>[
+        DateTime(2026, 1, 31),
+        DateTime(2026, 2, 28),
+        DateTime(2026, 3, 31),
+        DateTime(2026, 4, 30),
+      ]);
+    });
+
+    test('legacy monthly 30 and 31 custom days are treated as last day', () {
+      final bill = Bill(
+        id: 'legacy-last-day-bill',
+        amount: 100,
+        description: 'Legacy last day bill',
+        dueDate: DateTime(2026, 1, 31),
+        recurrence: Recurrence.monthly,
+        recurrenceInterval: 1,
+        customDays: const [30, 31],
+        type: BillType.expense,
+      );
+
+      final occurrences = DatabaseService.generateBillOccurrenceDatesForRange(
+        bill,
+        DateTime(2026, 1, 1),
+        DateTime(2026, 4, 30),
+      ).map((date) => DateTime(date.year, date.month, date.day)).toList();
+
+      expect(occurrences, <DateTime>[
+        DateTime(2026, 1, 31),
+        DateTime(2026, 2, 28),
+        DateTime(2026, 3, 31),
+        DateTime(2026, 4, 30),
+      ]);
+    });
   });
 
   group('duplication guards', () {

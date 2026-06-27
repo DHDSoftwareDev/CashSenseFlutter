@@ -196,9 +196,17 @@ async function createSchedule(userId, body) {
   const dedupeKey = normalizeNonEmptyString(body?.dedupeKey);
   const billId = normalizeNonEmptyString(body?.data?.billId);
   const storedRunAt = runAt || runAtLocal;
+  const billReminderDedupe = buildBillReminderDedupe(body?.data, dedupeKey);
 
   const effectiveDedupeKey =
-    dedupeKey || (billId ? `${billId}#${storedRunAt}` : undefined);
+    billReminderDedupe?.canonical ||
+    dedupeKey ||
+    (billId ? `${billId}#${storedRunAt}` : undefined);
+
+  const dedupeLookupKeys = [
+    effectiveDedupeKey,
+    ...(billReminderDedupe?.aliases ?? []),
+  ].filter(Boolean);
 
   const overwriteIfChanged = Boolean(body?.overwriteIfChanged);
 
@@ -215,7 +223,7 @@ async function createSchedule(userId, body) {
   const desiredHash = contentHash(desiredContent);
 
   if (effectiveDedupeKey) {
-    const existing = await findByDedupeKey(userId, effectiveDedupeKey);
+    const existing = await findByDedupeKeys(userId, dedupeLookupKeys);
 
     if (existing) {
       const existingHash =
@@ -268,7 +276,9 @@ async function createSchedule(userId, body) {
   }
 
   const nowIso = new Date().toISOString();
-  const scheduleId = crypto.randomUUID();
+  const scheduleId = effectiveDedupeKey
+    ? deterministicScheduleId(userId, effectiveDedupeKey)
+    : crypto.randomUUID();
   const scheduleName = buildScheduleName(scheduleId);
 
   const invokePayload = {
@@ -282,23 +292,6 @@ async function createSchedule(userId, body) {
     timeZone: requestedTimeZone,
     environment: desiredContent.environment,
   };
-
-  await scheduler.send(
-    new CreateScheduleCommand({
-      Name: scheduleName,
-      GroupName: "default",
-      ScheduleExpression: `at(${atValue})`,
-      ScheduleExpressionTimezone: scheduleTimeZone,
-      FlexibleTimeWindow: { Mode: "OFF" },
-      Target: {
-        Arn: PUSH_SENDER_LAMBDA_ARN,
-        RoleArn: SCHEDULER_ROLE_ARN,
-        Input: JSON.stringify(invokePayload),
-      },
-      ActionAfterCompletion: "DELETE",
-      Description: `CashSense schedule ${scheduleId} for user ${userId}`,
-    })
-  );
 
   const item = {
     scheduleId,
@@ -319,12 +312,69 @@ async function createSchedule(userId, body) {
     updatedAt: nowIso,
   };
 
-  await ddb.send(
-    new PutCommand({
-      TableName: NOTIFICATION_SCHEDULES_TABLE,
-      Item: item,
-    })
-  );
+  if (effectiveDedupeKey) {
+    try {
+      await ddb.send(
+        new PutCommand({
+          TableName: NOTIFICATION_SCHEDULES_TABLE,
+          Item: { ...item, status: "creating" },
+          ConditionExpression: "attribute_not_exists(scheduleId)",
+        })
+      );
+    } catch (e) {
+      if (e?.name !== "ConditionalCheckFailedException") throw e;
+
+      const winner = await ddb.send(
+        new GetCommand({
+          TableName: NOTIFICATION_SCHEDULES_TABLE,
+          Key: { scheduleId },
+          ConsistentRead: true,
+        })
+      );
+      return json(200, {
+        ok: true,
+        deduped: true,
+        changed: false,
+        ...(winner.Item ?? item),
+      });
+    }
+  }
+
+  try {
+    await scheduler.send(
+      new CreateScheduleCommand({
+        Name: scheduleName,
+        GroupName: "default",
+        ScheduleExpression: `at(${atValue})`,
+        ScheduleExpressionTimezone: scheduleTimeZone,
+        FlexibleTimeWindow: { Mode: "OFF" },
+        Target: {
+          Arn: PUSH_SENDER_LAMBDA_ARN,
+          RoleArn: SCHEDULER_ROLE_ARN,
+          Input: JSON.stringify(invokePayload),
+        },
+        ActionAfterCompletion: "DELETE",
+        Description: `CashSense schedule ${scheduleId} for user ${userId}`,
+      })
+    );
+
+    await ddb.send(
+      new PutCommand({
+        TableName: NOTIFICATION_SCHEDULES_TABLE,
+        Item: item,
+      })
+    );
+  } catch (e) {
+    if (effectiveDedupeKey) {
+      await ddb.send(
+        new DeleteCommand({
+          TableName: NOTIFICATION_SCHEDULES_TABLE,
+          Key: { scheduleId },
+        })
+      );
+    }
+    throw e;
+  }
 
   return json(201, {
     ok: true,
@@ -447,6 +497,20 @@ async function findByDedupeKey(userId, dedupeKey) {
   );
 
   return (res.Items ?? [])[0] ?? null;
+}
+
+async function findByDedupeKeys(userId, dedupeKeys) {
+  const seen = new Set();
+  for (const key of dedupeKeys ?? []) {
+    const dk = normalizeNonEmptyString(key);
+    if (!dk || seen.has(dk)) continue;
+    seen.add(dk);
+
+    const existing = await findByDedupeKey(userId, dk);
+    if (existing) return existing;
+  }
+
+  return null;
 }
 
 // --------------------
@@ -674,12 +738,108 @@ function buildScheduleName(scheduleId) {
     .slice(0, 64);
 }
 
+function buildBillReminderDedupe(data, requestedDedupeKey) {
+  if (data?.type !== "bill_reminder") return null;
+
+  const billId = normalizeNonEmptyString(data?.billId);
+  if (!billId) return null;
+
+  const leadDays = normalizeInteger(data?.leadDays);
+  const reminderHour = normalizeInteger(data?.reminderHour);
+  const reminderMinute = normalizeInteger(data?.reminderMinute);
+  if (
+    leadDays === undefined ||
+    reminderHour === undefined ||
+    reminderMinute === undefined
+  ) {
+    return null;
+  }
+
+  const occurrenceDate =
+    normalizeDateOnly(data?.occurrenceDate) ||
+    normalizeDateOnly(data?.dueDate) ||
+    parseOccurrenceDateFromDedupeKey(requestedDedupeKey);
+
+  if (!occurrenceDate) return null;
+
+  const timePart = `${String(reminderHour).padStart(2, "0")}${String(
+    reminderMinute
+  ).padStart(2, "0")}`;
+
+  const canonical = `bill:${billId}:${occurrenceDate}:lead${leadDays}:t${timePart}:v3`;
+  const aliases = new Set();
+
+  const dueDate = normalizeNonEmptyString(data?.dueDate);
+  if (dueDate) {
+    aliases.add(`bill:${billId}:${dueDate}:lead${leadDays}:t${timePart}:v3`);
+  }
+
+  const requested = normalizeNonEmptyString(requestedDedupeKey);
+  if (requested) aliases.add(requested);
+  aliases.delete(canonical);
+
+  return {
+    canonical,
+    aliases: [...aliases],
+  };
+}
+
+function deterministicScheduleId(userId, dedupeKey) {
+  return crypto
+    .createHash("sha256")
+    .update(`${userId}\n${dedupeKey}`)
+    .digest("hex")
+    .slice(0, 32);
+}
+
 function normalizeNonEmptyString(value) {
   if (value === undefined || value === null) return undefined;
 
   const s = String(value).trim();
 
   return s.length ? s : undefined;
+}
+
+function normalizeInteger(value) {
+  if (value === undefined || value === null || value === "") return undefined;
+
+  const n = Number(value);
+  if (!Number.isInteger(n)) return undefined;
+
+  return n;
+}
+
+function normalizeDateOnly(value) {
+  const s = normalizeNonEmptyString(value);
+  if (!s) return undefined;
+
+  const isoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+
+  const usMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (usMatch) {
+    return `${usMatch[3]}-${usMatch[1].padStart(2, "0")}-${usMatch[2].padStart(
+      2,
+      "0"
+    )}`;
+  }
+
+  const parsed = new Date(s);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString().slice(0, 10);
+  }
+
+  return undefined;
+}
+
+function parseOccurrenceDateFromDedupeKey(dedupeKey) {
+  const key = normalizeNonEmptyString(dedupeKey);
+  if (!key) return undefined;
+
+  const parts = key.split(":");
+  if (parts.length < 5 || parts[0] !== "bill") return undefined;
+
+  return normalizeDateOnly(parts[2]);
 }
 
 function normalizePath(event) {

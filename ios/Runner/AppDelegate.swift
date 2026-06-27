@@ -47,13 +47,11 @@ import UserNotifications
 
   override func applicationDidBecomeActive(_ application: UIApplication) {
     application.applicationIconBadgeNumber = 0
-    UNUserNotificationCenter.current().removeAllDeliveredNotifications()
   }
 
-  // Clear badge manually
+  // Clear the app icon badge without removing delivered notifications.
   func clearBadge() {
     UIApplication.shared.applicationIconBadgeNumber = 0
-    UNUserNotificationCenter.current().removeAllDeliveredNotifications()
   }
 
   // Set badge to specific number (e.g., unread count)
@@ -92,7 +90,13 @@ import UserNotifications
     didReceive response: UNNotificationResponse,
     withCompletionHandler completionHandler: @escaping () -> Void
   ) {
-    completionHandler()
+    // FlutterAppDelegate forwards the response to Firebase Messaging so
+    // onMessageOpenedApp/getInitialMessage can route to the bill due date.
+    super.userNotificationCenter(
+      center,
+      didReceive: response,
+      withCompletionHandler: completionHandler
+    )
   }
   
   // Handle remote notification registration - APNS token for AWS SNS

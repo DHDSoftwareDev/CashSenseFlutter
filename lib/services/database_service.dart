@@ -1458,6 +1458,20 @@ class DatabaseService {
     return DateTime(date.year, date.month, date.day + days);
   }
 
+  static List<int> _normalizedMonthlyDays(Bill bill) {
+    final rawDays = bill.customDays == null || bill.customDays!.isEmpty
+        ? <int>[bill.dueDate.day]
+        : bill.customDays!;
+
+    final validDays = rawDays.where((day) => day >= 1 && day <= 31).toSet();
+
+    if (rawDays.contains(99) || validDays.containsAll(<int>{30, 31})) {
+      return <int>[99];
+    }
+
+    return validDays.toList()..sort();
+  }
+
   static List<DateTime> generateBillOccurrenceDatesForRange(
     Bill bill,
     DateTime startDate,
@@ -1561,13 +1575,7 @@ class DatabaseService {
         final intervalMonths = bill.recurrenceInterval <= 0
             ? 1
             : bill.recurrenceInterval;
-        final days =
-            ((bill.customDays == null || bill.customDays!.isEmpty)
-                    ? <int>[bill.dueDate.day]
-                    : bill.customDays!)
-                .toSet()
-                .toList()
-              ..sort();
+        final days = _normalizedMonthlyDays(bill);
         final billStartDate = DateTime(
           bill.dueDate.year,
           bill.dueDate.month,

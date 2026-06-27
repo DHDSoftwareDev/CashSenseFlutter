@@ -1035,6 +1035,8 @@ class _AddBillScreenState extends State<AddBillScreen> {
           final days = {...?_customDays};
           if (days.isEmpty) {
             _customDays = null;
+          } else if (days.contains(99)) {
+            _customDays = <int>[99];
           } else if (days.length == 1 && days.contains(previousDueDate.day)) {
             _customDays = <int>[picked.day];
           } else {
@@ -1356,9 +1358,9 @@ class _AddBillScreenState extends State<AddBillScreen> {
                                     : (tempWeekdays.toList()..sort());
                                 // if monthly, persist selected days (or null if none selected, which means use due date)
                                 if (temp == Recurrence.monthly) {
-                                  _customDays = tempCustomDays.isEmpty
-                                      ? null
-                                      : (tempCustomDays.toList()..sort());
+                                  _customDays = _normalizeMonthlyCustomDays(
+                                    tempCustomDays,
+                                  );
                                 } else {
                                   _customDays = null;
                                 }
@@ -1420,6 +1422,18 @@ class _AddBillScreenState extends State<AddBillScreen> {
       _ => 'period',
     };
     return interval == 1 ? unit : '${unit}s';
+  }
+
+  List<int>? _normalizeMonthlyCustomDays(Set<int> days) {
+    final normalized = days.where((day) => day >= 1 && day <= 31).toSet();
+
+    if (days.contains(99) || normalized.containsAll(<int>{30, 31})) {
+      return <int>[99];
+    }
+
+    if (normalized.isEmpty) return null;
+
+    return normalized.toList()..sort();
   }
 
   // recurrence end date selection is handled inside the recurrence modal
@@ -2697,11 +2711,11 @@ class _AddBillScreenState extends State<AddBillScreen> {
 
     final List<int>? normalizedCustomDays =
         normalizedRecurrence == Recurrence.monthly
-        ? (((_customDays == null || _customDays!.isEmpty)
-                  ? <int>{normalizedDueDate.day}
-                  : <int>{..._customDays!, normalizedDueDate.day})
-              .toList()
-            ..sort())
+        ? _normalizeMonthlyCustomDays(
+            ((_customDays == null || _customDays!.isEmpty)
+                ? <int>{normalizedDueDate.day}
+                : <int>{..._customDays!}),
+          )
         : null;
 
     final notes = _notesController.text.trim();
