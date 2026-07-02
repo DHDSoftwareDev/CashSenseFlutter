@@ -18,7 +18,8 @@ class _PieSlice {
   final String label;
   final double value;
   final Color color;
-  _PieSlice(this.label, this.value, this.color);
+  final String? categoryId;
+  _PieSlice(this.label, this.value, this.color, {this.categoryId});
 }
 
 // Simple horizontal bar chart used to replace pie charts when there are many items.
@@ -117,6 +118,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
     DateTime end, {
     TransactionType? type,
     String? filterOverride,
+    String? filterId,
   }) {
     String filterType = 'category';
     if (filterOverride != null && filterOverride.isNotEmpty) {
@@ -139,6 +141,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
           start: start,
           end: end,
           type: type,
+          filterId: filterId,
         ),
       ),
     );
@@ -221,10 +224,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
           (categoryTotals[t.categoryId] ?? 0) + t.amount;
     }
     final total = categoryTotals.values.fold(0.0, (a, b) => a + b);
-    // Group by the final display label so categories that resolve to the same
-    // name (for example via fallback matching) are aggregated onto one slice.
-    final Map<String, double> grouped = {};
-    final Map<String, Color> groupedColor = {};
+    final slices = <_PieSlice>[];
     for (final e in categoryTotals.entries) {
       // Try to match by category ID, then by name, fallback to 'Unknown'
       Category cat = _categories.firstWhere(
@@ -293,14 +293,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
         }
       }
       final color = _parseCategoryColor(cat);
-      grouped[label] = (grouped[label] ?? 0) + e.value;
-      groupedColor.putIfAbsent(label, () => color);
+      slices.add(_PieSlice(label, e.value, color, categoryId: e.key));
     }
-    final List<_PieSlice> slices = grouped.entries
-        .map(
-          (g) => _PieSlice(g.key, g.value, groupedColor[g.key] ?? Colors.grey),
-        )
-        .toList();
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -355,6 +349,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                         start,
                         end,
                         type: type,
+                        filterId: s.categoryId,
                       ),
                     ),
             ),
@@ -392,6 +387,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                                             start,
                                             end,
                                             type: type,
+                                            filterId: s.categoryId,
                                           ),
                                     ),
                                   ),
@@ -1548,35 +1544,45 @@ class _ReportsScreenState extends State<ReportsScreen> {
         ? allTxs.where((t) => t.categoryId != transferCategory.id).toList()
         : allTxs;
 
-    // Map category name -> totals
+    // Map category id -> totals. Display names are labels only; ids keep
+    // similarly named categories from being merged.
     final Map<String, double> incomeTotals = {};
     final Map<String, double> expenseTotals = {};
+    final Map<String, String> categoryLabels = {};
 
     for (final t in txs) {
-      String catName = 'Unknown';
+      final categoryKey = t.categoryId.trim().isNotEmpty
+          ? t.categoryId.trim()
+          : (t.categoryName ?? 'Unknown').trim();
+      String catLabel = 'Unknown';
       try {
         final cat = _categories.firstWhere((c) => c.id == t.categoryId);
-        catName = cat.name;
+        catLabel = cat.name;
       } catch (_) {
-        catName = 'Unknown';
+        catLabel = (t.categoryName ?? '').trim().isNotEmpty
+            ? t.categoryName!.trim()
+            : 'Unknown';
       }
+      categoryLabels.putIfAbsent(categoryKey, () => catLabel);
 
       if (t.type == TransactionType.income) {
-        incomeTotals[catName] = (incomeTotals[catName] ?? 0) + t.amount;
+        incomeTotals[categoryKey] = (incomeTotals[categoryKey] ?? 0) + t.amount;
       } else if (t.type == TransactionType.expense) {
-        expenseTotals[catName] = (expenseTotals[catName] ?? 0) + t.amount;
+        expenseTotals[categoryKey] =
+            (expenseTotals[categoryKey] ?? 0) + t.amount;
       }
     }
 
-    // Build results list — only include category names that appear in BOTH
+    // Build results list — only include category ids that appear in BOTH
     // income and expense (behaves like Payee vs Payer net totals card).
-    final Set<String> categoryNames = incomeTotals.keys.toSet().intersection(
+    final Set<String> categoryKeys = incomeTotals.keys.toSet().intersection(
       expenseTotals.keys.toSet(),
     );
     final List<Map<String, dynamic>> results = [];
-    for (final name in categoryNames) {
-      final inc = incomeTotals[name] ?? 0.0;
-      final exp = expenseTotals[name] ?? 0.0;
+    for (final key in categoryKeys) {
+      final name = categoryLabels[key] ?? 'Unknown';
+      final inc = incomeTotals[key] ?? 0.0;
+      final exp = expenseTotals[key] ?? 0.0;
       final net = inc - exp;
       // Omit categories containing 'transfer'
       if (name.trim().toLowerCase().contains('transfer')) continue;
@@ -1585,7 +1591,13 @@ class _ReportsScreenState extends State<ReportsScreen> {
       // activity; the user requested to show items only when they appear in
       // both lists.
       if ((inc - 0.0).abs() > 0.0 && (exp - 0.0).abs() > 0.0) {
-        results.add({'name': name, 'income': inc, 'expense': exp, 'net': net});
+        results.add({
+          'id': key,
+          'name': name,
+          'income': inc,
+          'expense': exp,
+          'net': net,
+        });
       }
     }
 
@@ -1660,6 +1672,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                             start,
                             end,
                             filterOverride: 'category_both',
+                            filterId: r['id'] as String?,
                           ),
                           child: Padding(
                             padding: const EdgeInsets.symmetric(

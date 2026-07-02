@@ -1,4 +1,4 @@
-// ignore_for_file: use_build_context_synchronously, use_super_parameters
+// ignore_for_file: use_build_context_synchronously, use_super_parameters, curly_braces_in_flow_control_structures
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -12,11 +12,21 @@ class ReportTransactionsScreen extends StatefulWidget {
   final DateTime start;
   final DateTime end;
   final TransactionType? type;
+  final String? filterId;
 
-  const ReportTransactionsScreen({Key? key, required this.filterType, required this.label, required this.start, required this.end, this.type}) : super(key: key);
+  const ReportTransactionsScreen({
+    Key? key,
+    required this.filterType,
+    required this.label,
+    required this.start,
+    required this.end,
+    this.type,
+    this.filterId,
+  }) : super(key: key);
 
   @override
-  State<ReportTransactionsScreen> createState() => _ReportTransactionsScreenState();
+  State<ReportTransactionsScreen> createState() =>
+      _ReportTransactionsScreenState();
 }
 
 class _ReportTransactionsScreenState extends State<ReportTransactionsScreen> {
@@ -65,21 +75,29 @@ class _ReportTransactionsScreenState extends State<ReportTransactionsScreen> {
   bool _matchesPayee(Transaction t, String label) {
     // Prefer explicit transaction fields and ID-backed lookup first.
     final txPayeeName = (t.payeeName ?? '').trim();
-    if (txPayeeName.isNotEmpty && _matchesLabelInsensitive(txPayeeName, label)) return true;
+    if (txPayeeName.isNotEmpty && _matchesLabelInsensitive(txPayeeName, label))
+      return true;
 
     // Match by explicit payee id -> name
     if (t.payeeId != null && t.payeeId!.isNotEmpty) {
-      final payee = DatabaseService.getAllPayees().firstWhere((p) => (p['id'] ?? '') == t.payeeId, orElse: () => <String, dynamic>{});
+      final payee = DatabaseService.getAllPayees().firstWhere(
+        (p) => (p['id'] ?? '') == t.payeeId,
+        orElse: () => <String, dynamic>{},
+      );
       final payeeName = (payee['name'] ?? '').toString();
-      if (payeeName.isNotEmpty && _matchesLabelInsensitive(payeeName, label)) return true;
+      if (payeeName.isNotEmpty && _matchesLabelInsensitive(payeeName, label))
+        return true;
     }
 
     // Match by extracted payee-like description (e.g. "Payment for Rent 11/06/2025")
     final extracted = _extractPayeeName(t.description);
-    if (extracted.isNotEmpty && _matchesLabelInsensitive(extracted, label)) return true;
+    if (extracted.isNotEmpty && _matchesLabelInsensitive(extracted, label))
+      return true;
 
     // Match by raw description containing the label
-    if (t.description.isNotEmpty && _matchesLabelInsensitive(t.description, label)) return true;
+    if (t.description.isNotEmpty &&
+        _matchesLabelInsensitive(t.description, label))
+      return true;
 
     // If transaction links to a bill whose description matches, include it
     if (t.billId != null && t.billId!.isNotEmpty) {
@@ -96,23 +114,32 @@ class _ReportTransactionsScreenState extends State<ReportTransactionsScreen> {
         ),
       );
       final bdesc = (bill.description ?? '').toString();
-      if (bdesc.isNotEmpty && _matchesLabelInsensitive(bdesc, label)) return true;
+      if (bdesc.isNotEmpty && _matchesLabelInsensitive(bdesc, label))
+        return true;
     }
     return false;
   }
 
   bool _matchesPayer(Transaction t, String label) {
     final txPayerName = (t.payerName ?? '').trim();
-    if (txPayerName.isNotEmpty && _matchesLabelInsensitive(txPayerName, label)) return true;
+    if (txPayerName.isNotEmpty && _matchesLabelInsensitive(txPayerName, label))
+      return true;
 
     if (t.payerId != null && t.payerId!.isNotEmpty) {
-      final payer = DatabaseService.getAllPayees().firstWhere((p) => (p['id'] ?? '') == t.payerId, orElse: () => <String, dynamic>{});
+      final payer = DatabaseService.getAllPayees().firstWhere(
+        (p) => (p['id'] ?? '') == t.payerId,
+        orElse: () => <String, dynamic>{},
+      );
       final payerName = (payer['name'] ?? '').toString();
-      if (payerName.isNotEmpty && _matchesLabelInsensitive(payerName, label)) return true;
+      if (payerName.isNotEmpty && _matchesLabelInsensitive(payerName, label))
+        return true;
     }
     final extractedP = _extractPayeeName(t.description);
-    if (extractedP.isNotEmpty && _matchesLabelInsensitive(extractedP, label)) return true;
-    if (t.description.isNotEmpty && _matchesLabelInsensitive(t.description, label)) return true;
+    if (extractedP.isNotEmpty && _matchesLabelInsensitive(extractedP, label))
+      return true;
+    if (t.description.isNotEmpty &&
+        _matchesLabelInsensitive(t.description, label))
+      return true;
     if (t.billId != null && t.billId!.isNotEmpty) {
       final bill = DatabaseService.getAllBills().firstWhere(
         (b) => b.id == t.billId,
@@ -127,7 +154,8 @@ class _ReportTransactionsScreenState extends State<ReportTransactionsScreen> {
         ),
       );
       final bdesc = (bill.description ?? '').toString();
-      if (bdesc.isNotEmpty && _matchesLabelInsensitive(bdesc, label)) return true;
+      if (bdesc.isNotEmpty && _matchesLabelInsensitive(bdesc, label))
+        return true;
     }
     return false;
   }
@@ -143,16 +171,27 @@ class _ReportTransactionsScreenState extends State<ReportTransactionsScreen> {
       final noteLower = (t.note ?? '').toLowerCase();
       if (descLower.contains('transfer')) return false;
       if (noteLower.contains('transfer')) return false;
-      if (descLower.startsWith('__transfer_manual__') || descLower.startsWith('__transfer_bill__')) return false;
+      if (descLower.startsWith('__transfer_manual__') ||
+          descLower.startsWith('__transfer_bill__'))
+        return false;
 
       if (t.date.isBefore(start) || t.date.isAfter(end)) return false;
       if (widget.type != null && t.type != widget.type) return false;
-      if (widget.filterType == 'category' || widget.filterType == 'category_both') {
+      if (widget.filterType == 'category' ||
+          widget.filterType == 'category_both') {
+        final exactCategoryId = widget.filterId?.trim();
+        if (exactCategoryId != null && exactCategoryId.isNotEmpty) {
+          return t.categoryId.trim() == exactCategoryId;
+        }
+
         final txCategoryName = (t.categoryName ?? '').trim();
-        if (txCategoryName.isNotEmpty && _matchesLabelInsensitive(txCategoryName, widget.label)) return true;
+        if (txCategoryName.isNotEmpty &&
+            _matchesLabelInsensitive(txCategoryName, widget.label))
+          return true;
 
         final cat = DatabaseService.getCategoryById(t.categoryId);
-        if (cat != null && _matchesLabelInsensitive(cat.name, widget.label)) return true;
+        if (cat != null && _matchesLabelInsensitive(cat.name, widget.label))
+          return true;
 
         if (t.description.trim() == widget.label) return true;
         return false;
@@ -185,46 +224,52 @@ class _ReportTransactionsScreenState extends State<ReportTransactionsScreen> {
   Widget _buildTxRow(Transaction t) {
     // Show date in MM/DD/YYYY for reports transactions list
     final dateStr = DateFormat('MM/dd/yyyy').format(t.date);
-  // Category/account not shown in reports transactions list per UX request.
-  // Keep lookup removed to avoid unused variable warnings.
-  // final category = DatabaseService.getCategoryById(t.categoryId);
-  // final catName = category?.name ?? '';
-  final amountStr = _currencyFormat.format(t.amount * (t.type == TransactionType.expense ? -1 : 1));
-  final color = t.type == TransactionType.income ? Colors.green : Colors.red;
-  final visibleNote = _stripAccountPrefix(t.note);
-  // For transactions created by the Pay Bill flow the description often
-  // follows the pattern "Payment for {PayeeName} (MM/DD/YYYY)". Extract
-  // a clean payee/payer name and, when a payment-style description is
-  // detected, show only that name and hide the redundant date line.
-  final extracted = _extractPayeeName(t.description);
-  final isPayment = t.description.toLowerCase().startsWith('payment for ');
-  final displayTitle = (isPayment && extracted.isNotEmpty) ? extracted : (t.description.isNotEmpty ? t.description : '(No description)');
-  final showDate = !isPayment;
+    // Category/account not shown in reports transactions list per UX request.
+    // Keep lookup removed to avoid unused variable warnings.
+    // final category = DatabaseService.getCategoryById(t.categoryId);
+    // final catName = category?.name ?? '';
+    final amountStr = _currencyFormat.format(
+      t.amount * (t.type == TransactionType.expense ? -1 : 1),
+    );
+    final color = t.type == TransactionType.income ? Colors.green : Colors.red;
+    final visibleNote = _stripAccountPrefix(t.note);
+    // For transactions created by the Pay Bill flow the description often
+    // follows the pattern "Payment for {PayeeName} (MM/DD/YYYY)". Extract
+    // a clean payee/payer name and, when a payment-style description is
+    // detected, show only that name and hide the redundant date line.
+    final extracted = _extractPayeeName(t.description);
+    final isPayment = t.description.toLowerCase().startsWith('payment for ');
+    final displayTitle = (isPayment && extracted.isNotEmpty)
+        ? extracted
+        : (t.description.isNotEmpty ? t.description : '(No description)');
+    final showDate = !isPayment;
 
-  return ListTile(
-    title: Text(displayTitle),
-    subtitle: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Show date except for payment transactions where date is embedded
-        // in the description and should be omitted from the subtitle.
-        if (showDate) Text(dateStr),
-        if ((visibleNote ?? '').trim().isNotEmpty) ...[
-          const SizedBox(height: 4),
-          Text(
-            visibleNote!,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
-          ),
+    return ListTile(
+      title: Text(displayTitle),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Show date except for payment transactions where date is embedded
+          // in the description and should be omitted from the subtitle.
+          if (showDate) Text(dateStr),
+          if ((visibleNote ?? '').trim().isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              visibleNote!,
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+            ),
+          ],
         ],
-      ],
-    ),
-    trailing: Text(amountStr, style: TextStyle(color: color)),
-    onTap: () {
-      // Navigate to the main Transactions screen focused on this account if desired.
-      // For now, do nothing or could open transaction detail in future.
-    },
-  );
+      ),
+      trailing: Text(amountStr, style: TextStyle(color: color)),
+      onTap: () {
+        // Navigate to the main Transactions screen focused on this account if desired.
+        // For now, do nothing or could open transaction detail in future.
+      },
+    );
   }
 
   // Returns the user-visible portion of a note by removing any internal
@@ -240,7 +285,9 @@ class _ReportTransactionsScreenState extends State<ReportTransactionsScreen> {
     }
     // Remove any internal pair tokens left in notes (e.g. 'pair:<id>').
     if (plainNote.contains('pair:')) {
-      plainNote = plainNote.replaceAll(RegExp(r'pair:[A-Za-z0-9\-]+'), '').trim();
+      plainNote = plainNote
+          .replaceAll(RegExp(r'pair:[A-Za-z0-9\-]+'), '')
+          .trim();
       if (plainNote.isEmpty) return null;
     }
     final lower = plainNote.toLowerCase();
@@ -271,7 +318,12 @@ class _ReportTransactionsScreenState extends State<ReportTransactionsScreen> {
           ? Center(
               child: Padding(
                 padding: const EdgeInsets.all(24.0),
-                child: Text('No transactions for this selection', style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Colors.grey[600])),
+                child: Text(
+                  'No transactions for this selection',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyLarge?.copyWith(color: Colors.grey[600]),
+                ),
               ),
             )
           : ListView.separated(

@@ -2295,50 +2295,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
             // If the AddBillScreen returned a specific occurrence bill id,
             // migrate payments for this occurrence to that bill so history
             // remains visible even when this was the last recurring occurrence.
+            var migrated = <Transaction>[];
             try {
-              final allTx = DatabaseService.getAllTransactions()
-                  .where((t) => t.hideFromCalendarDashboard != true)
-                  .toList();
-              final occDateStr = DateFormat(
-                'MM/dd/yyyy',
-              ).format(occurrenceDate);
-              final migrated = allTx
-                  .where(
-                    (tx) =>
-                        tx.billId == sourceBill!.id &&
-                        ((tx.occurrenceDate != null
-                            ? (tx.occurrenceDate!.year == occurrenceDate.year &&
-                                  tx.occurrenceDate!.month ==
-                                      occurrenceDate.month &&
-                                  tx.occurrenceDate!.day == occurrenceDate.day)
-                            : ((tx.date.year == occurrenceDate.year &&
-                                      tx.date.month == occurrenceDate.month &&
-                                      tx.date.day == occurrenceDate.day) ||
-                                  tx.description.contains(occDateStr)))),
-                  )
-                  .toList();
-              for (final tx in migrated) {
-                final targetBillId = occurrenceBillId ?? tx.billId;
-                final currentOccurrenceDate = tx.occurrenceDate == null
-                    ? null
-                    : _dateOnly(tx.occurrenceDate!);
-                final occurrenceDateChanged =
-                    currentOccurrenceDate == null ||
-                    !_isSameDay(currentOccurrenceDate, editedOccurrenceDate);
-                if (targetBillId == tx.billId && !occurrenceDateChanged) {
-                  continue;
-                }
-                // Keep tx.date as the actual payment date. occurrenceDate is
-                // only the bill occurrence this payment is linked to.
-                final updatedTx = tx.copyWith(
-                  billId: targetBillId,
-                  occurrenceDate: editedOccurrenceDate,
-                );
-                await DatabaseService.updateTransaction(updatedTx);
-                try {
-                  await DatabaseService.removeHiddenTransactionId(tx.id);
-                } catch (_) {}
-              }
+              migrated = await _relinkBillOccurrencePayments(
+                fromBillId: sourceBill.id,
+                toBillId: occurrenceBillId ?? sourceBill.id,
+                fromOccurrenceDate: occurrenceDate,
+                toOccurrenceDate: editedOccurrenceDate,
+              );
               // Persist occurrence-level status for the occurrence on the occurrence-specific bill
               if (occurrenceBillId != null) {
                 final editedBillAmount =
@@ -2502,67 +2466,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
             // future series. Leave any past transactions untouched.
             if (newBillId != null) {
               try {
-                final allTx = DatabaseService.getAllTransactions()
-                    .where((t) => t.hideFromCalendarDashboard != true)
-                    .toList();
-                final occDateStr = DateFormat(
-                  'MM/dd/yyyy',
-                ).format(occurrenceDate);
-                final toMigrate = allTx.where((tx) {
-                  if (tx.billId != sourceBill!.id) return false;
-                  // If tx has an explicit occurrenceDate, compare that.
-                  if (tx.occurrenceDate != null) {
-                    final od = DateTime(
-                      tx.occurrenceDate!.year,
-                      tx.occurrenceDate!.month,
-                      tx.occurrenceDate!.day,
-                    );
-                    return !od.isBefore(
-                      DateTime(
-                        occurrenceDate.year,
-                        occurrenceDate.month,
-                        occurrenceDate.day,
-                      ),
-                    );
-                  }
-                  // Otherwise, treat transactions on/after the occurrenceDate
-                  // or those with descriptions indicating the occurrence date
-                  // as part of the future series.
-                  final td = DateTime(tx.date.year, tx.date.month, tx.date.day);
-                  if (!td.isBefore(
-                    DateTime(
-                      occurrenceDate.year,
-                      occurrenceDate.month,
-                      occurrenceDate.day,
-                    ),
-                  )) {
-                    return true;
-                  }
-                  if (tx.description.contains(occDateStr)) return true;
-                  return false;
-                }).toList();
-
-                for (final tx in toMigrate) {
-                  final currentOccurrenceDate = tx.occurrenceDate == null
-                      ? null
-                      : _dateOnly(tx.occurrenceDate!);
-                  final occurrenceDateChanged =
-                      currentOccurrenceDate == null ||
-                      !_isSameDay(currentOccurrenceDate, editedFutureStartDate);
-                  if (tx.billId == newBillId && !occurrenceDateChanged) {
-                    continue;
-                  }
-                  // Keep tx.date as the actual payment date. occurrenceDate is
-                  // only the bill occurrence this payment is linked to.
-                  final updatedTx = tx.copyWith(
-                    billId: newBillId,
-                    occurrenceDate: editedFutureStartDate,
-                  );
-                  await DatabaseService.updateTransaction(updatedTx);
-                  try {
-                    await DatabaseService.removeHiddenTransactionId(tx.id);
-                  } catch (_) {}
-                }
+                await _relinkBillOccurrencePayments(
+                  fromBillId: sourceBill.id,
+                  toBillId: newBillId,
+                  fromOccurrenceDate: occurrenceDate,
+                  toOccurrenceDate: editedFutureStartDate,
+                  includeFutureOccurrences: true,
+                );
               } catch (_) {}
             }
 
@@ -2589,6 +2499,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     } else if (sourceBill != null) {
       // Non-recurring bill: open edit screen directly
       final sourceBillId = sourceBill.id;
+      final originalDueDate = _dateOnly(sourceBill.dueDate);
       final result = await Navigator.push(
         context,
         MaterialPageRoute(
@@ -2603,6 +2514,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
               .dueDate;
         } catch (_) {
           updatedDueDate = null;
+        }
+        if (updatedDueDate != null) {
+          await _relinkBillOccurrencePayments(
+            fromBillId: sourceBillId,
+            toBillId: sourceBillId,
+            fromOccurrenceDate: originalDueDate,
+            toOccurrenceDate: updatedDueDate,
+          );
         }
         await _removeDuplicateBillPaymentsForBill(sourceBillId);
         _refreshAfterBillEdit(selectedDate: updatedDueDate);
@@ -2641,6 +2560,86 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return _isSameDay(tx.date, occurrenceDate) ||
           tx.description.contains(occDateStr);
     }).toList();
+  }
+
+  bool _transactionMatchesBillOccurrenceDate(
+    Transaction tx,
+    DateTime occurrenceDate,
+  ) {
+    final occDate = _dateOnly(occurrenceDate);
+    final occDateStr = DateFormat('MM/dd/yyyy').format(occDate);
+    final occDateShort = DateFormat('MM/dd/yy').format(occDate);
+    final paymentFor = tx.paymentFor ?? '';
+
+    if (tx.occurrenceDate != null) {
+      return _isSameDay(tx.occurrenceDate!, occDate);
+    }
+
+    return _isSameDay(tx.date, occDate) ||
+        tx.description.contains(occDateStr) ||
+        tx.description.contains(occDateShort) ||
+        paymentFor.contains(occDateStr) ||
+        paymentFor.contains(occDateShort);
+  }
+
+  Future<List<Transaction>> _relinkBillOccurrencePayments({
+    required String fromBillId,
+    required String toBillId,
+    required DateTime fromOccurrenceDate,
+    required DateTime toOccurrenceDate,
+    bool includeFutureOccurrences = false,
+  }) async {
+    final sourceId = fromBillId.trim();
+    final targetId = toBillId.trim();
+    if (sourceId.isEmpty || targetId.isEmpty) return <Transaction>[];
+
+    final sourceDate = _dateOnly(fromOccurrenceDate);
+    final targetDate = _dateOnly(toOccurrenceDate);
+
+    bool shouldRelink(Transaction tx) {
+      if ((tx.billId ?? '').trim() != sourceId) return false;
+
+      if (!includeFutureOccurrences) {
+        return _transactionMatchesBillOccurrenceDate(tx, sourceDate);
+      }
+
+      final txOccurrenceDate = _dateOnly(tx.occurrenceDate ?? tx.date);
+      if (!txOccurrenceDate.isBefore(sourceDate)) return true;
+      return _transactionMatchesBillOccurrenceDate(tx, sourceDate);
+    }
+
+    final relatedPayments = DatabaseService.getAllTransactions()
+        .where(shouldRelink)
+        .toList();
+
+    final relinked = <Transaction>[];
+    for (final tx in relatedPayments) {
+      final currentOccurrenceDate = tx.occurrenceDate == null
+          ? null
+          : _dateOnly(tx.occurrenceDate!);
+      final occurrenceDateChanged =
+          currentOccurrenceDate == null ||
+          !_isSameDay(currentOccurrenceDate, targetDate);
+
+      if ((tx.billId ?? '').trim() == targetId && !occurrenceDateChanged) {
+        relinked.add(tx);
+        continue;
+      }
+
+      // Keep tx.date as the actual payment date. occurrenceDate is only the
+      // bill occurrence this payment is linked to.
+      final updatedTx = tx.copyWith(
+        billId: targetId,
+        occurrenceDate: targetDate,
+      );
+      await DatabaseService.updateTransaction(updatedTx);
+      try {
+        await DatabaseService.removeHiddenTransactionId(tx.id);
+      } catch (_) {}
+      relinked.add(updatedTx);
+    }
+
+    return relinked;
   }
 
   Future<void> _removeDuplicateBillPaymentsForBill(String billId) async {
