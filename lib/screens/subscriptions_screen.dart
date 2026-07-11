@@ -21,24 +21,33 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
 
   // Benefits per plan
   final Map<String, List<String>> _benefits = {
-    'Monthly': [
-    ],
-    'Annual': [
-    ],
-    'Lifetime': [
-    ],
+    'Monthly': [],
+    'Annual': [],
+    'Lifetime': [],
   };
 
   final List<Map<String, String>> _plans = [
-    {'id': 'Monthly', 'title': 'Monthly', 'desc': 'Billed monthly — full feature access.'},
-    {'id': 'Annual', 'title': 'Annual', 'desc': 'Billed yearly — best value for active users.'},
-    {'id': 'Lifetime', 'title': 'Lifetime', 'desc': 'One-time purchase — lifetime access.'},
+    {
+      'id': 'Monthly',
+      'title': 'Monthly',
+      'desc': 'Billed monthly — full feature access.',
+    },
+    {
+      'id': 'Annual',
+      'title': 'Annual',
+      'desc': 'Billed yearly — best value for active users.',
+    },
+    {
+      'id': 'Lifetime',
+      'title': 'Lifetime',
+      'desc': 'One-time purchase — lifetime access.',
+    },
   ];
 
   @override
   void initState() {
     super.initState();
-  _currentPlan = DatabaseService.subscriptionVersion.value;
+    _currentPlan = DatabaseService.subscriptionVersion.value;
     _appliedPromo = DatabaseService.getSetting<String>('appliedPromoCode');
     // promo/trial info will be read on demand from DatabaseService/BillingService
     _loadPrices();
@@ -53,7 +62,6 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
       });
     }
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -76,7 +84,9 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
               child: ListTile(
                 leading: const Icon(Icons.timer, color: Colors.green),
                 title: const Text('Trial active'),
-                subtitle: Text('Expires ${BillingService.trialExpiry()?.toLocal().toString().split(" ").first ?? ''}'),
+                subtitle: Text(
+                  'Expires ${BillingService.trialExpiry()?.toLocal().toString().split(" ").first ?? ''}',
+                ),
               ),
             ),
             const SizedBox(height: 8),
@@ -103,10 +113,18 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                       final code = _promoController.text.trim();
                       if (code.isEmpty) return;
                       final res = await BillingService.applyPromoCode(code);
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? ''), backgroundColor: Colors.grey[400]));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(res['message'] ?? ''),
+                          backgroundColor: Colors.grey[400],
+                        ),
+                      );
                       setState(() {
-                        _currentPlan = DatabaseService.subscriptionVersion.value;
-                        _appliedPromo = DatabaseService.getSetting<String>('appliedPromoCode');
+                        _currentPlan =
+                            DatabaseService.subscriptionVersion.value;
+                        _appliedPromo = DatabaseService.getSetting<String>(
+                          'appliedPromoCode',
+                        );
                       });
                     },
                     child: const Text('Apply'),
@@ -120,12 +138,18 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
             child: Column(
               children: [
                 ListTile(
-                  leading: const Icon(Icons.workspace_premium, color: Colors.amber),
+                  leading: const Icon(
+                    Icons.workspace_premium,
+                    color: Colors.amber,
+                  ),
                   title: const Text('Current Plan'),
                   subtitle: Text(_currentPlan),
                 ),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   child: Align(
                     alignment: Alignment.centerRight,
                     child: TextButton(
@@ -151,16 +175,29 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
               initiallyExpanded: false,
               leading: const Icon(Icons.info_outline, color: Colors.blue),
               title: const Text("What's included in Premium"),
-              childrenPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              childrenPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 8,
+              ),
               children: [
                 const Align(
                   alignment: Alignment.centerLeft,
-                  child: Text('Premium features include:', style: TextStyle(fontWeight: FontWeight.w600)),
+                  child: Text(
+                    'Premium features include:',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: Text('No Ads', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: headerColor)),
+                  child: Text(
+                    'No Ads',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                      color: headerColor,
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 6),
                 Align(
@@ -174,7 +211,14 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                 const SizedBox(height: 8),
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: Text('Unlimited Reports', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: headerColor)),
+                  child: Text(
+                    'Unlimited Reports',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                      color: headerColor,
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 6),
                 Align(
@@ -187,7 +231,14 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                 const SizedBox(height: 8),
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: Text('Unlimited Accounts', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: headerColor)),
+                  child: Text(
+                    'Unlimited Accounts',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                      color: headerColor,
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 6),
                 Align(
@@ -200,20 +251,34 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                 const SizedBox(height: 8),
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: Text('Unlimited Bills', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: headerColor)),
+                  child: Text(
+                    'Unlimited Bills',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                      color: headerColor,
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 6),
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                  "Manage up to 100 bills and payments for free — upgrade for unlimited tracking.",
+                    "Manage up to 100 bills and payments for free — upgrade for unlimited tracking.",
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ),
                 const SizedBox(height: 8),
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: Text('Unlimited Transactions', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: headerColor)),
+                  child: Text(
+                    'Unlimited Transactions',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                      color: headerColor,
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 6),
                 Align(
@@ -226,7 +291,14 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                 const SizedBox(height: 8),
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: Text('Auto Backup & Device Sync', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: headerColor)),
+                  child: Text(
+                    'Auto Backup & Device Sync',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                      color: headerColor,
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 6),
                 Align(
@@ -241,7 +313,10 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          Text('Available Plans', style: Theme.of(context).textTheme.titleLarge),
+          Text(
+            'Available Plans',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
           const SizedBox(height: 8),
           ..._plans.map((p) {
             final id = p['id']!;
@@ -262,49 +337,94 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                         Text(p['desc']!),
                         const SizedBox(height: 8),
                         // Trial badge for Monthly / Annual
-                        Builder(builder: (context) {
-                          if (id == 'Monthly') {
-                            // Monthly has a 7-day trial promotion
-                            if (BillingService.isTrialActive() && (DatabaseService.getSetting<String>('subscriptionPlan') == 'Monthly')) {
-                              final exp = BillingService.trialExpiry();
-                              final text = exp != null ? 'Trial active until ${exp.toLocal().toString().split(' ').first}' : 'Trial active';
+                        Builder(
+                          builder: (context) {
+                            if (id == 'Monthly') {
+                              // Monthly has a 7-day trial promotion
+                              if (BillingService.isTrialActive() &&
+                                  (DatabaseService.getSetting<String>(
+                                        'subscriptionPlan',
+                                      ) ==
+                                      'Monthly')) {
+                                final exp = BillingService.trialExpiry();
+                                final text = exp != null
+                                    ? 'Trial active until ${exp.toLocal().toString().split(' ').first}'
+                                    : 'Trial active';
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 8.0),
+                                  child: Chip(
+                                    label: Text(
+                                      text,
+                                      style: TextStyle(fontSize: 11),
+                                    ),
+                                    backgroundColor: Colors.transparent,
+                                  ),
+                                );
+                              }
                               return Padding(
                                 padding: const EdgeInsets.only(bottom: 8.0),
-                                child: Chip(label: Text(text, style: TextStyle(fontSize: 11)), backgroundColor: Colors.transparent),
+                                child: Chip(
+                                  label: const Text(
+                                    '7-day free trial',
+                                    style: TextStyle(fontSize: 11),
+                                  ),
+                                  backgroundColor: Colors.transparent,
+                                ),
                               );
                             }
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 8.0),
-                              child: Chip(label: const Text('7-day free trial', style: TextStyle(fontSize: 11)), backgroundColor: Colors.transparent),
-                            );
-                          }
 
-                          if (id == 'Annual') {
-                            // Annual has a 30-day trial promotion
-                            if (BillingService.isTrialActive() && (DatabaseService.getSetting<String>('subscriptionPlan') == 'Annual')) {
-                              final exp = BillingService.trialExpiry();
-                              final text = exp != null ? 'Trial active until ${exp.toLocal().toString().split(' ').first}' : 'Trial active';
+                            if (id == 'Annual') {
+                              // Annual has a 30-day trial promotion
+                              if (BillingService.isTrialActive() &&
+                                  (DatabaseService.getSetting<String>(
+                                        'subscriptionPlan',
+                                      ) ==
+                                      'Annual')) {
+                                final exp = BillingService.trialExpiry();
+                                final text = exp != null
+                                    ? 'Trial active until ${exp.toLocal().toString().split(' ').first}'
+                                    : 'Trial active';
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 8.0),
+                                  child: Chip(
+                                    label: Text(
+                                      text,
+                                      style: TextStyle(fontSize: 11),
+                                    ),
+                                    backgroundColor: Colors.transparent,
+                                  ),
+                                );
+                              }
                               return Padding(
                                 padding: const EdgeInsets.only(bottom: 8.0),
-                                child: Chip(label: Text(text, style: TextStyle(fontSize: 11)), backgroundColor: Colors.transparent),
+                                child: Chip(
+                                  label: const Text(
+                                    '30-day free trial',
+                                    style: TextStyle(fontSize: 11),
+                                  ),
+                                  backgroundColor: Colors.transparent,
+                                ),
                               );
                             }
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 8.0),
-                              child: Chip(label: const Text('30-day free trial', style: TextStyle(fontSize: 11)), backgroundColor: Colors.transparent),
-                            );
-                          }
 
-                          return const SizedBox.shrink();
-                        }),
+                            return const SizedBox.shrink();
+                          },
+                        ),
                         // Benefits
-                        ...?_benefits[id]?.map((b) => Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text('• ', style: TextStyle(fontSize: 12)),
-                                Expanded(child: Text(b, style: Theme.of(context).textTheme.bodySmall)),
-                              ],
-                            )),
+                        ...?_benefits[id]?.map(
+                          (b) => Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('• ', style: TextStyle(fontSize: 12)),
+                              Expanded(
+                                child: Text(
+                                  b,
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ],
                     ),
                     trailing: isCurrent
@@ -339,7 +459,9 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
             child: ListTile(
               leading: const Icon(Icons.restore),
               title: const Text('Restore Purchases'),
-              subtitle: const Text('Restore previous purchase or subscription status'),
+              subtitle: const Text(
+                'Restore previous purchase or subscription status',
+              ),
               trailing: TextButton(
                 onPressed: () async {
                   final restored = await BillingService.restore();
@@ -348,11 +470,19 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                   });
                   if (restored) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Your previous subscription has been restored.')),
+                      const SnackBar(
+                        content: Text(
+                          'Your previous subscription has been restored.',
+                        ),
+                      ),
                     );
                   } else {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('No active subscription found to restore.')),
+                      const SnackBar(
+                        content: Text(
+                          'No active subscription found to restore.',
+                        ),
+                      ),
                     );
                   }
                 },
@@ -366,46 +496,33 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
   }
 
   void _confirmSubscribe(String id) async {
-    await _openAppStoreForSubscription();
-  }
+    try {
+      final started = await BillingService.buy(id);
+      if (!context.mounted) return;
 
+      setState(() {
+        _currentPlan = DatabaseService.subscriptionVersion.value;
+      });
+
+      if (!started) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not start purchase')),
+        );
+      }
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not start purchase: $e')));
+    }
+  }
 
   void _showManagePlanDialog(String id) async {
-    await _openAppStoreForSubscription();
-  }
-
-  Future<void> _openAppStoreForSubscription() async {
-    // Opens the app's page in the App Store or Play Store for subscription management
-    String url;
-    if (Platform.isIOS) {
-      // Replace with your actual App Store app URL
-      url = 'https://apps.apple.com/app/idYOUR_APP_ID';
-    } else if (Platform.isAndroid) {
-      // Replace with your actual Play Store app URL
-      url = 'https://play.google.com/store/apps/details?id=YOUR_PACKAGE_NAME';
-    } else {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('App Store not available on this platform')),
-        );
-      }
-      return;
-    }
-
-    final Uri appStoreUri = Uri.parse(url);
-    if (await canLaunchUrl(appStoreUri)) {
-      await launchUrl(appStoreUri, mode: LaunchMode.externalApplication);
-    } else {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not open app store')),
-        );
-      }
-    }
+    await _openDeviceSubscriptionPage();
   }
 
   // Add this method to open the device's subscription management page
-  void _openDeviceSubscriptionPage() async {
+  Future<void> _openDeviceSubscriptionPage() async {
     String url;
     if (Platform.isIOS) {
       url = 'https://apps.apple.com/account/subscriptions';
@@ -420,7 +537,9 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
     } else {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not open subscription management')),
+          const SnackBar(
+            content: Text('Could not open subscription management'),
+          ),
         );
       }
     }

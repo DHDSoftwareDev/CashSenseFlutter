@@ -18,11 +18,10 @@ class BillingService {
   static final Map<String, ProductDetails> _productDetailsByPlan = {};
   static Completer<bool>? _restoreCompleter;
 
-  // IMPORTANT: These must match Play Console product IDs.
-  // Override by setting these keys in settings if needed.
-  static const String _monthlyProductId = 'premium_monthly';
-  static const String _annualProductId = 'premium_annual';
-  static const String _lifetimeProductId = 'premium_lifetime';
+  // IMPORTANT: These must match the product IDs in App Store Connect / Play Console.
+  static const String _monthlyProductId = 'cashsense.app.premium.monthly';
+  static const String _annualProductId = 'cashsense.app.premium.annual';
+  static const String _lifetimeProductId = 'cashsense.app.premium.lifetime';
 
   // Internal cache for price data (localized strings). Keys: planId.
   static final Map<String, String> _priceCache = {
@@ -55,12 +54,15 @@ class BillingService {
     await DatabaseService.setSetting('appliedPromoCode', null);
   }
 
-  static Future<void> _processPurchaseUpdates(List<PurchaseDetails> purchases) async {
+  static Future<void> _processPurchaseUpdates(
+    List<PurchaseDetails> purchases,
+  ) async {
     bool restoredAny = false;
 
     for (final purchase in purchases) {
       try {
-        if (purchase.status == PurchaseStatus.purchased || purchase.status == PurchaseStatus.restored) {
+        if (purchase.status == PurchaseStatus.purchased ||
+            purchase.status == PurchaseStatus.restored) {
           final localPlan = _planForProductId(purchase.productID);
           String? resolvedPlan = localPlan;
 
@@ -69,7 +71,10 @@ class BillingService {
             final token = purchase.verificationData.serverVerificationData;
             if (token.isNotEmpty) {
               await DatabaseService.setSetting('lastGooglePlayToken', token);
-              await DatabaseService.setSetting('lastGooglePlayProductId', purchase.productID);
+              await DatabaseService.setSetting(
+                'lastGooglePlayProductId',
+                purchase.productID,
+              );
               final backendPlan = await AwsApiService.verifyAndroidPurchase(
                 productId: purchase.productID,
                 purchaseToken: token,
@@ -102,7 +107,11 @@ class BillingService {
   }
 
   static Future<void> _queryStoreProducts() async {
-    final ids = <String>{_monthlyProductId, _annualProductId, _lifetimeProductId};
+    final ids = <String>{
+      _monthlyProductId,
+      _annualProductId,
+      _lifetimeProductId,
+    };
     final response = await _iap.queryProductDetails(ids);
 
     if (response.error != null) {
@@ -152,7 +161,11 @@ class BillingService {
 
     // Fallback: generate a formatted price using NumberFormat for the
     // current locale. We'll use a simple mapping of base amounts here.
-    final baseAmounts = <String, double>{'Monthly': 4.99, 'Annual': 29.99, 'Lifetime': 49.99};
+    final baseAmounts = <String, double>{
+      'Monthly': 4.99,
+      'Annual': 29.99,
+      'Lifetime': 49.99,
+    };
     final amount = baseAmounts[planId];
     if (amount == null) return null;
 
@@ -174,10 +187,9 @@ class BillingService {
     final available = await _iap.isAvailable();
     final product = _productDetailsByPlan[planId];
 
-    // If store billing isn't ready, preserve previous local behavior as fallback.
+    // Paid plans must come from a real store product.
     if (!available || product == null) {
-      await _grantPlan(planId);
-      return true;
+      return false;
     }
 
     final purchaseParam = PurchaseParam(productDetails: product);
@@ -197,7 +209,9 @@ class BillingService {
 
       // Wait briefly for purchase stream callbacks.
       try {
-        final restored = await _restoreCompleter!.future.timeout(const Duration(seconds: 8));
+        final restored = await _restoreCompleter!.future.timeout(
+          const Duration(seconds: 8),
+        );
         if (restored) return true;
       } catch (_) {
         // Fall back to last persisted entitlement below.
@@ -227,7 +241,10 @@ class BillingService {
 
     if (normalized == 'TRIAL30') {
       final expires = DateTime.now().add(const Duration(days: 30));
-      await DatabaseService.setSetting('activeTrialExpiresAt', expires.toIso8601String());
+      await DatabaseService.setSetting(
+        'activeTrialExpiresAt',
+        expires.toIso8601String(),
+      );
       await DatabaseService.setSetting('appliedPromoCode', normalized);
       // Grant trial plan (we'll represent trial as 'Annual' for feature unlocking)
       await DatabaseService.setSubscriptionPlan('Annual');
@@ -236,7 +253,10 @@ class BillingService {
 
     if (normalized == 'TRIAL7') {
       final expires = DateTime.now().add(const Duration(days: 7));
-      await DatabaseService.setSetting('activeTrialExpiresAt', expires.toIso8601String());
+      await DatabaseService.setSetting(
+        'activeTrialExpiresAt',
+        expires.toIso8601String(),
+      );
       await DatabaseService.setSetting('appliedPromoCode', normalized);
       await DatabaseService.setSubscriptionPlan('Monthly');
       return {'applied': true, 'message': '7-day Monthly trial applied'};
