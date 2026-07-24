@@ -17,28 +17,58 @@ class _NativeAdWidgetState extends State<NativeAdWidget> {
   @override
   void initState() {
     super.initState();
+    DatabaseService.subscriptionVersion.addListener(_onPlanChanged);
+    _syncAdForPlan();
+  }
+
+  void _onPlanChanged() {
+    _syncAdForPlan();
+    if (mounted) setState(() {});
+  }
+
+  void _syncAdForPlan() {
+    final isFree = DatabaseService.subscriptionVersion.value == 'Free';
+    if (!isFree) {
+      _nativeAd?.dispose();
+      _nativeAd = null;
+      _loaded = false;
+      return;
+    }
+    if (_nativeAd != null) return;
+
     _nativeAd = NativeAd(
-      adUnitId: 'ca-app-pub-3193820644001678/5478211822', // iOS native banner ID
+      adUnitId:
+          'ca-app-pub-3193820644001678/5478211822', // iOS native banner ID
       factoryId: 'listTile', // Must match a registered factory
       request: const AdRequest(),
       listener: NativeAdListener(
-        onAdLoaded: (ad) => setState(() => _loaded = true),
-        onAdFailedToLoad: (ad, error) { ad.dispose(); },
+        onAdLoaded: (ad) {
+          if (!mounted || DatabaseService.subscriptionVersion.value != 'Free') {
+            ad.dispose();
+            return;
+          }
+          setState(() => _loaded = true);
+        },
+        onAdFailedToLoad: (ad, error) {
+          ad.dispose();
+          if (identical(_nativeAd, ad)) _nativeAd = null;
+        },
       ),
     )..load();
   }
 
   @override
   void dispose() {
+    DatabaseService.subscriptionVersion.removeListener(_onPlanChanged);
     _nativeAd?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // Only show ads to free users
-    final plan = DatabaseService.getSetting<String>('subscriptionPlan', 'Free') ?? 'Free';
-    if (plan != 'Free') return const SizedBox.shrink();
+    if (DatabaseService.subscriptionVersion.value != 'Free') {
+      return const SizedBox.shrink();
+    }
     if (!_loaded || _nativeAd == null) return const SizedBox.shrink();
     return Container(
       height: 72, // Adjust as needed

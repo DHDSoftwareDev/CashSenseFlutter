@@ -289,5 +289,46 @@ void main() {
 
       expect(isDup, isFalse);
     });
+
+    test('identifies duplicate bill-payment records with different IDs', () {
+      final first = Transaction(
+        id: 'payment-local',
+        amount: 75,
+        categoryId: 'utilities',
+        type: TransactionType.expense,
+        description: 'Payment for Electric',
+        date: DateTime(2026, 7, 24),
+        createdAt: DateTime(2026, 7, 24, 9),
+        updatedAt: DateTime(2026, 7, 24, 9),
+        accountId: 'checking',
+        billId: 'electric-bill',
+        occurrenceDate: DateTime(2026, 7, 20),
+        paymentFor: 'Electric 07/20/2026',
+      );
+      final duplicate = first.copyWith(
+        id: 'payment-synced-copy',
+        updatedAt: DateTime(2026, 7, 24, 9, 0, 2),
+      );
+
+      expect(areEquivalentBillPayments(first, duplicate), isTrue);
+    });
+
+    test('does not combine distinct installments', () {
+      final first = Transaction(
+        id: 'payment-one',
+        amount: 50,
+        categoryId: 'utilities',
+        type: TransactionType.expense,
+        description: 'Payment for Electric',
+        date: DateTime(2026, 7, 24),
+        accountId: 'checking',
+        billId: 'electric-bill',
+        occurrenceDate: DateTime(2026, 7, 20),
+        paymentFor: 'Electric 07/20/2026',
+      );
+      final second = first.copyWith(id: 'payment-two', amount: 25);
+
+      expect(areEquivalentBillPayments(first, second), isFalse);
+    });
   });
 }

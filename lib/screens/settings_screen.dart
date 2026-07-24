@@ -510,8 +510,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 value: 'Free',
                 groupValue: currentMode,
                 onChanged: (val) async {
-                  await DatabaseService.setSubscriptionPlan(val!);
+                  await DatabaseService.setSetting(
+                    'activeTrialExpiresAt',
+                    null,
+                  );
+                  await DatabaseService.setSubscriptionModeOverride(val!);
                   if (mounted) setState(() {});
+                  if (!context.mounted) return;
                   Navigator.pop(context);
                 },
               ),
@@ -590,11 +595,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       return false;
     }
 
-    await DatabaseService.setSubscriptionPlan('Lifetime');
+    await DatabaseService.setSubscriptionModeOverride('Developer');
     if (!mounted) return true;
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(const SnackBar(content: Text('Lifetime premium unlocked.')));
+    ).showSnackBar(const SnackBar(content: Text('Developer mode enabled.')));
     return true;
   }
 
@@ -641,11 +646,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       'activeTrialExpiresAt',
       expiresAt.toIso8601String(),
     );
-    await DatabaseService.setSubscriptionPlan('Annual');
+    await DatabaseService.setSubscriptionModeOverride('Tester');
 
     if (!mounted) return true;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Tester premium unlocked for 30 days.')),
+      const SnackBar(content: Text('Tester mode enabled for 30 days.')),
     );
     return true;
   }
@@ -674,20 +679,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: ListTile(
-                    leading: const Icon(
-                      Icons.workspace_premium,
-                      color: Colors.amber,
-                    ),
-                    title: Text('Subscription'),
-                    subtitle: Text(DatabaseService.subscriptionVersion.value),
-                    trailing: TextButton(
-                      onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const SubscriptionsScreen(),
-                        ),
+                  child: ValueListenableBuilder<String>(
+                    valueListenable: DatabaseService.subscriptionVersion,
+                    builder: (context, plan, _) => ListTile(
+                      leading: const Icon(
+                        Icons.workspace_premium,
+                        color: Colors.amber,
                       ),
-                      child: const Text('Manage'),
+                      title: const Text('Subscription'),
+                      subtitle: Text(plan),
+                      trailing: TextButton(
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const SubscriptionsScreen(),
+                          ),
+                        ),
+                        child: const Text('Manage'),
+                      ),
                     ),
                   ),
                 ),

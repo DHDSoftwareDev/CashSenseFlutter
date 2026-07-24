@@ -11,6 +11,7 @@ import '../models/transaction.dart';
 import '../theme/app_theme.dart';
 import 'add_transaction_screen.dart';
 import '../utils/root_scaffold.dart';
+import '../utils/account_ledger.dart';
 
 class TransactionsScreen extends StatefulWidget {
   final String? accountId;
@@ -587,66 +588,20 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       _expandedMonths.add(currentMonthKey);
       _autoExpandedMonthKey = currentMonthKey;
     }
-    // Precompute running balances for account view (oldest -> newest)
+    // Precompute the two ledgers represented by this screen. Cleared
+    // transactions are the historical ledger; pending transactions are a
+    // projection from the final cleared balance.
     Map<String, double>? runningMap;
     Map<String, double>? pendingRunningMap;
     if (widget.accountId != null && widget.accountId!.isNotEmpty) {
-      // Always use all transactions for running balance, not just visible ones
-      var allForBalance = List<Transaction>.from(_transactions);
-      // Sort oldest to newest: date ASC, then createdAt ASC, then id ASC
-      allForBalance.sort((a, b) {
-        final cmp = a.date.compareTo(b.date);
-        if (cmp != 0) return cmp;
-        final createdCmp = a.createdAt.compareTo(b.createdAt);
-        if (createdCmp != 0) return createdCmp;
-        return a.id.compareTo(b.id);
-      });
-
       final account = DatabaseService.getAccountById(widget.accountId!);
       if (account != null) {
-        final initialBalance = DatabaseService.getInitialBalance(account.id);
-        if (_showAvailableBalance) {
-          final pendingExpenses = allForBalance
-              .where((t) => t.type == TransactionType.expense)
-              .fold<double>(0.0, (s, t) => s + t.amount);
-          final pendingIncome = allForBalance
-              .where((t) => t.type == TransactionType.income)
-              .fold<double>(0.0, (s, t) => s + t.amount);
-          final computedAvailable =
-              account.balance - pendingExpenses + pendingIncome;
-          final displayBase = account.availableBalance ?? computedAvailable;
-          runningMap = <String, double>{};
-          pendingRunningMap = <String, double>{};
-          double cum = displayBase;
-          double cumWithPending = displayBase;
-          for (final tx in allForBalance) {
-            final effect = (tx.type == TransactionType.income
-                ? tx.amount
-                : -tx.amount);
-            if (tx.cleared == true) {
-              cum += effect;
-            }
-            cumWithPending += effect;
-            runningMap[tx.id] = cum;
-            pendingRunningMap[tx.id] = cumWithPending;
-          }
-        } else {
-          runningMap = <String, double>{};
-          pendingRunningMap = <String, double>{};
-          double cum = initialBalance;
-          double cumWithPending = initialBalance;
-          for (final tx in allForBalance) {
-            final effect = (tx.type == TransactionType.income
-                ? tx.amount
-                : -tx.amount);
-            if (tx.cleared == true) {
-              cum += effect;
-            }
-            cumWithPending += effect;
-            runningMap[tx.id] = cum;
-            pendingRunningMap[tx.id] = cumWithPending;
-          }
-        }
+        final ledger = AccountLedger.calculate(
+          initialBalance: DatabaseService.getInitialBalance(account.id),
+          transactions: _transactions,
+        );
+        runningMap = ledger.clearedRunningBalances;
+        pendingRunningMap = ledger.pendingRunningBalances;
       }
     }
 
@@ -762,50 +717,13 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       return const SizedBox.shrink();
     }
 
-    // Compute the final running balance using the same visible transaction set
-    // and starting base as the list computation so the header matches the
-    // per-transaction running values (i.e., the cumulative balance after
-    // applying all visible transactions).
-    // Always include all transactions for running balance calculation, even if 'hide cleared' is selected
-    final List<Transaction> allForHeader = _transactions
-        .where((t) => t.accountId == account.id)
-        .toList();
-    // Only filter for display, not for running balance
-    // (visibleForHeader is not needed in this function)
-    // Sort oldest -> newest to match running-balance iteration
-    allForHeader.sort((a, b) {
-      final cmp = a.date.compareTo(b.date);
-      return cmp != 0 ? cmp : a.id.compareTo(b.id);
-    });
-    double finalCum;
-    if (_showAvailableBalance) {
-      final pendingExpenses = allForHeader
-          .where((t) => t.type == TransactionType.expense)
-          .fold<double>(0.0, (s, t) => s + t.amount);
-      final pendingIncome = allForHeader
-          .where((t) => t.type == TransactionType.income)
-          .fold<double>(0.0, (s, t) => s + t.amount);
-      final computedAvailable =
-          account.balance - pendingExpenses + pendingIncome;
-      double base = account.availableBalance ?? computedAvailable;
-      finalCum = base;
-      for (final tx in allForHeader) {
-        final effect = (tx.type == TransactionType.income
-            ? tx.amount
-            : -tx.amount);
-        finalCum += effect;
-      }
-    } else {
-      final initialBalance = DatabaseService.getInitialBalance(account.id);
-      finalCum = initialBalance;
-      for (final tx in allForHeader) {
-        final effect = (tx.type == TransactionType.income
-            ? tx.amount
-            : -tx.amount);
-        finalCum += effect;
-      }
-    }
-    final displayBalance = finalCum;
+    final ledger = AccountLedger.calculate(
+      initialBalance: DatabaseService.getInitialBalance(account.id),
+      transactions: _transactions,
+    );
+    final displayBalance = _showAvailableBalance
+        ? ledger.availableBalance
+        : ledger.currentBalance;
     final balanceLabel = _showAvailableBalance
         ? 'Available Balance'
         : 'Current Balance';
@@ -1129,51 +1047,20 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       }
     }
 
-    // Calculate running balance if viewing a specific account and no
-    // precomputed runningBalance was passed in. Compute from oldest -> newest
-    // to match the account history progression.
+    // Search results do not receive the precomputed map, so use the same
+    // ledger calculation here rather than maintaining a second formula.
     if (runningBalance == null &&
         widget.accountId != null &&
         widget.accountId!.isNotEmpty) {
       final account = DatabaseService.getAccountById(widget.accountId!);
       if (account != null) {
-        final allForBalance = List<Transaction>.from(_transactions)
-          ..sort((a, b) => a.date.compareTo(b.date));
-
-        final initialBalance = DatabaseService.getInitialBalance(account.id);
-
-        if (_showAvailableBalance) {
-          final displayBase =
-              account.availableBalance ??
-              DatabaseService.getComputedAvailableBalance(account.id);
-          double cum = displayBase;
-          for (final tx in allForBalance) {
-            final effect = (tx.type == TransactionType.income
-                ? tx.amount
-                : -tx.amount);
-            if (tx.cleared == true) {
-              cum += effect;
-            }
-            if (tx.id == transaction.id) {
-              runningBalance = cum;
-              break;
-            }
-          }
-        } else {
-          double cum = initialBalance;
-          for (final tx in allForBalance) {
-            final effect = (tx.type == TransactionType.income
-                ? tx.amount
-                : -tx.amount);
-            if (tx.cleared == true) {
-              cum += effect;
-            }
-            if (tx.id == transaction.id) {
-              runningBalance = cum;
-              break;
-            }
-          }
-        }
+        final ledger = AccountLedger.calculate(
+          initialBalance: DatabaseService.getInitialBalance(account.id),
+          transactions: _transactions,
+        );
+        runningBalance = transaction.cleared == true
+            ? ledger.clearedRunningBalances[transaction.id]
+            : ledger.pendingRunningBalances[transaction.id];
       }
     }
 

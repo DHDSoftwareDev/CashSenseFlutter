@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/database_service.dart';
 import '../models/transaction.dart';
+import '../utils/split_utils.dart';
 import '../models/bill.dart';
 
 class ReportTransactionsScreen extends StatefulWidget {
@@ -181,7 +182,12 @@ class _ReportTransactionsScreenState extends State<ReportTransactionsScreen> {
           widget.filterType == 'category_both') {
         final exactCategoryId = widget.filterId?.trim();
         if (exactCategoryId != null && exactCategoryId.isNotEmpty) {
-          return t.categoryId.trim() == exactCategoryId;
+          return transactionUsesCategory(
+            primaryCategoryId: t.categoryId,
+            total: t.amount,
+            categoryId: exactCategoryId,
+            splitsJson: t.splitsJson,
+          );
         }
 
         final txCategoryName = (t.categoryName ?? '').trim();
@@ -228,8 +234,22 @@ class _ReportTransactionsScreenState extends State<ReportTransactionsScreen> {
     // Keep lookup removed to avoid unused variable warnings.
     // final category = DatabaseService.getCategoryById(t.categoryId);
     // final catName = category?.name ?? '';
+    var displayedAmount = t.amount;
+    final exactCategoryId = widget.filterId?.trim();
+    if ((widget.filterType == 'category' ||
+            widget.filterType == 'category_both') &&
+        exactCategoryId != null &&
+        exactCategoryId.isNotEmpty) {
+      displayedAmount =
+          categoryAllocations(
+            primaryCategoryId: t.categoryId,
+            total: t.amount,
+            splitsJson: t.splitsJson,
+          )[exactCategoryId] ??
+          t.amount;
+    }
     final amountStr = _currencyFormat.format(
-      t.amount * (t.type == TransactionType.expense ? -1 : 1),
+      displayedAmount * (t.type == TransactionType.expense ? -1 : 1),
     );
     final color = t.type == TransactionType.income ? Colors.green : Colors.red;
     final visibleNote = _stripAccountPrefix(t.note);

@@ -45,6 +45,7 @@ class BillingService {
   }
 
   static Future<void> _grantPlan(String planId, {String? purchaseId}) async {
+    await DatabaseService.clearSubscriptionModeOverride();
     await DatabaseService.setSubscriptionPlan(planId);
     await DatabaseService.setSetting(
       'lastPurchase',

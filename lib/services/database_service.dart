@@ -9,10 +9,13 @@ import '../models/category.dart';
 import '../models/account.dart';
 import '../models/bill.dart';
 import '../models/reminder_offset.dart';
+import '../utils/account_ledger.dart';
+import '../utils/duplication_guards.dart';
 import 'aws_api_service.dart';
 import 'cloud_sync_policy.dart';
 
 class DatabaseService {
+  static const String _subscriptionModeOverrideKey = 'subscriptionModeOverride';
   static const String _hideFromCalendarMarker = '__hide_from_calendar__';
   static const String _legacyAccountCalendarMigrationKey =
       'migratedLegacyAccountCalendarHiddenV1';
@@ -1893,6 +1896,14 @@ class DatabaseService {
     // Read the transaction before deleting so we can update any linked
     // bill occurrence status if this transaction represented a bill payment.
     final Transaction? tx = _transactionBox.get(id);
+    final idsToDelete = <String>{id};
+    if (tx != null && (tx.billId ?? '').trim().isNotEmpty) {
+      for (final candidate in _transactionBox.values) {
+        if (areEquivalentBillPayments(tx, candidate)) {
+          idsToDelete.add(candidate.id);
+        }
+      }
+    }
     DateTime? txOccDate;
     DateTime? txDate;
     String? txDescription;
@@ -1902,17 +1913,24 @@ class DatabaseService {
       txDescription = tx.description;
     }
 
-    await _addDeletedTransactionId(id);
-    await _transactionBox.delete(id);
+    // Remove every duplicate representation of a logical bill payment. Each
+    // ID receives a durable tombstone so backup hydration cannot restore it.
+    for (final transactionId in idsToDelete) {
+      await removeHiddenTransactionId(transactionId);
+      await _addDeletedTransactionId(transactionId);
+      await _transactionBox.delete(transactionId);
+    }
     // Flush so the deletion is persisted and any subsequent reads from
     // the Hive box return the updated set of transactions. Notify
     // listeners only after flush so UI can rebuild with the latest data.
     await _transactionBox.flush();
     transactionsVersion.value++;
-    await _safeAwsCall(
-      () => AwsApiService.deleteTransaction(id),
-      'delete transaction',
-    );
+    for (final transactionId in idsToDelete) {
+      await _safeAwsCall(
+        () => AwsApiService.deleteTransaction(transactionId),
+        'delete transaction',
+      );
+    }
 
     // If this transaction was linked to a bill, recompute the per-occurrence
     // paid totals for the affected occurrence(s) and persist the new status.
@@ -2126,9 +2144,18 @@ class DatabaseService {
     _billOccurrenceBox = await _openBoxWithRecovery(_billOccurrenceBoxName);
     _settingsBox = await _openBoxWithRecovery(_settingsBoxName);
 
-    // Restore subscription plan from settings if present
+    // A locally selected Free/Developer/Tester mode is authoritative across
+    // launches. Otherwise restore the real billing plan.
+    final savedModeOverride =
+        _settingsBox.get(_subscriptionModeOverrideKey) as String?;
     final savedPlan = _settingsBox.get('subscriptionPlan') as String?;
-    if (savedPlan != null && savedPlan.isNotEmpty) {
+    if (savedModeOverride != null && savedModeOverride.isNotEmpty) {
+      subscriptionVersion.value = savedModeOverride;
+      if (savedPlan != savedModeOverride) {
+        await _settingsBox.put('subscriptionPlan', savedModeOverride);
+        await _settingsBox.flush();
+      }
+    } else if (savedPlan != null && savedPlan.isNotEmpty) {
       subscriptionVersion.value = savedPlan;
     } else {
       subscriptionVersion.value = 'Free';
@@ -2408,13 +2435,12 @@ class DatabaseService {
     return acc.balance - pendingExpenses + pendingIncome;
   }
 
-  /// Compute the display/final running balance for an account using the same
-  /// approach as the transactions screen header so different screens match.
+  /// Compute the final ledger balance for an account using the same calculation
+  /// as the transactions screen.
   ///
-  /// - [showAvailable]: when true, prefer `account.availableBalance` if set,
-  ///   otherwise compute availability from visible transactions.
-  /// - [includeCleared]: whether to include cleared transactions in the
-  ///   computation (TransactionsScreen allows toggling this); default false.
+  /// [showAvailable] includes pending transactions after the cleared/current
+  /// ledger. [includeCleared] is retained for call-site compatibility; hiding
+  /// rows must not change an account balance.
   static double getDisplayBalanceForAccount(
     String accountId, {
     bool showAvailable = false,
@@ -2423,46 +2449,14 @@ class DatabaseService {
     final acc = getAccountById(accountId);
     if (acc == null) return 0.0;
 
-    // Build visible transactions for this account according to includeCleared
-    final visible = _transactionBox.values
+    final transactions = _transactionBox.values
         .where((t) => t.accountId == accountId)
         .toList();
-    if (!includeCleared) visible.removeWhere((t) => t.cleared == true);
-    // Sort oldest -> newest for running-balance iteration
-    visible.sort((a, b) {
-      final cmp = a.date.compareTo(b.date);
-      return cmp != 0 ? cmp : a.id.compareTo(b.id);
-    });
-
-    double cum;
-    if (showAvailable) {
-      final pendingExpenses = visible
-          .where((t) => t.type == TransactionType.expense)
-          .fold<double>(0.0, (s, t) => s + t.amount);
-      final pendingIncome = visible
-          .where((t) => t.type == TransactionType.income)
-          .fold<double>(0.0, (s, t) => s + t.amount);
-      final computedAvailable = acc.balance - pendingExpenses + pendingIncome;
-      final base = acc.availableBalance ?? computedAvailable;
-      cum = base;
-      for (final tx in visible) {
-        final effect = (tx.type == TransactionType.income
-            ? tx.amount
-            : -tx.amount);
-        cum += effect;
-      }
-    } else {
-      final initial = getInitialBalance(accountId);
-      cum = initial;
-      for (final tx in visible) {
-        final effect = (tx.type == TransactionType.income
-            ? tx.amount
-            : -tx.amount);
-        cum += effect;
-      }
-    }
-
-    return cum;
+    final ledger = AccountLedger.calculate(
+      initialBalance: getInitialBalance(accountId),
+      transactions: transactions,
+    );
+    return showAvailable ? ledger.availableBalance : ledger.currentBalance;
   }
 
   // Settings operations
@@ -3424,7 +3418,33 @@ class DatabaseService {
   // Set subscription plan and notify listeners
   static Future<void> setSubscriptionPlan(String plan) async {
     await _settingsBox.put('subscriptionPlan', plan);
+    await _settingsBox.flush();
     subscriptionVersion.value = plan;
+  }
+
+  /// Persist a locally selected subscription-testing mode. This remains
+  /// authoritative over backend entitlement refreshes until explicitly
+  /// cleared (for example, by completing a real purchase).
+  static Future<void> setSubscriptionModeOverride(String mode) async {
+    if (mode != 'Free' && mode != 'Developer' && mode != 'Tester') {
+      throw ArgumentError.value(mode, 'mode', 'Unsupported subscription mode');
+    }
+    await _settingsBox.put(_subscriptionModeOverrideKey, mode);
+    await _settingsBox.put('subscriptionPlan', mode);
+    await _settingsBox.flush();
+    subscriptionVersion.value = mode;
+  }
+
+  static String? getSubscriptionModeOverride() {
+    final mode = getSetting<String>(_subscriptionModeOverrideKey);
+    return mode == 'Free' || mode == 'Developer' || mode == 'Tester'
+        ? mode
+        : null;
+  }
+
+  static Future<void> clearSubscriptionModeOverride() async {
+    await _settingsBox.delete(_subscriptionModeOverrideKey);
+    await _settingsBox.flush();
   }
 
   /// Export all settings (key -> value) as a JSON-encodable map.

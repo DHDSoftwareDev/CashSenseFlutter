@@ -13,6 +13,7 @@ import '../models/bill.dart';
 import '../utils/root_scaffold.dart';
 import '../widgets/banner_ad_widget.dart';
 import 'manage_cards_screen.dart';
+import '../utils/split_utils.dart';
 
 class _PieSlice {
   final String label;
@@ -177,7 +178,16 @@ class _ReportsScreenState extends State<ReportsScreen> {
     // Only filter if a filter is selected
     if (_selectedCategoryIds.isNotEmpty) {
       txs = txs
-          .where((t) => _selectedCategoryIds.contains(t.categoryId))
+          .where(
+            (t) => _selectedCategoryIds.any(
+              (categoryId) => transactionUsesCategory(
+                primaryCategoryId: t.categoryId,
+                total: t.amount,
+                categoryId: categoryId,
+                splitsJson: t.splitsJson,
+              ),
+            ),
+          )
           .toList();
     }
     if (_selectedPayeeIds.isNotEmpty) {
@@ -220,8 +230,18 @@ class _ReportsScreenState extends State<ReportsScreen> {
     }
     final Map<String, double> categoryTotals = {};
     for (final t in txs) {
-      categoryTotals[t.categoryId] =
-          (categoryTotals[t.categoryId] ?? 0) + t.amount;
+      final allocations = categoryAllocations(
+        primaryCategoryId: t.categoryId,
+        total: t.amount,
+        splitsJson: t.splitsJson,
+      );
+      for (final allocation in allocations.entries) {
+        if (_selectedCategoryIds.isNotEmpty &&
+            !_selectedCategoryIds.contains(allocation.key))
+          continue;
+        categoryTotals[allocation.key] =
+            (categoryTotals[allocation.key] ?? 0) + allocation.value;
+      }
     }
     final total = categoryTotals.values.fold(0.0, (a, b) => a + b);
     final slices = <_PieSlice>[];
@@ -723,6 +743,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
   VoidCallback? _categoriesListener;
   VoidCallback? _payeesListener;
   VoidCallback? _subscriptionListener;
+  VoidCallback? _transactionsListener;
 
   void _loadCategories() async {
     final cats = DatabaseService.getAllCategories();
@@ -797,6 +818,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
       _loadPayees();
     };
     DatabaseService.payeesVersion.addListener(_payeesListener!);
+
+    _transactionsListener = () {
+      if (mounted) setState(() {});
+    };
+    DatabaseService.transactionsVersion.addListener(_transactionsListener!);
   }
 
   @override
@@ -806,6 +832,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
     }
     if (_payeesListener != null) {
       DatabaseService.payeesVersion.removeListener(_payeesListener!);
+    }
+    if (_transactionsListener != null) {
+      DatabaseService.transactionsVersion.removeListener(
+        _transactionsListener!,
+      );
     }
     super.dispose();
   }
@@ -1551,25 +1582,32 @@ class _ReportsScreenState extends State<ReportsScreen> {
     final Map<String, String> categoryLabels = {};
 
     for (final t in txs) {
-      final categoryKey = t.categoryId.trim().isNotEmpty
-          ? t.categoryId.trim()
-          : (t.categoryName ?? 'Unknown').trim();
-      String catLabel = 'Unknown';
-      try {
-        final cat = _categories.firstWhere((c) => c.id == t.categoryId);
-        catLabel = cat.name;
-      } catch (_) {
-        catLabel = (t.categoryName ?? '').trim().isNotEmpty
-            ? t.categoryName!.trim()
-            : 'Unknown';
-      }
-      categoryLabels.putIfAbsent(categoryKey, () => catLabel);
+      final allocations = categoryAllocations(
+        primaryCategoryId: t.categoryId,
+        total: t.amount,
+        splitsJson: t.splitsJson,
+      );
+      for (final allocation in allocations.entries) {
+        final categoryKey = allocation.key.isNotEmpty
+            ? allocation.key
+            : (t.categoryName ?? 'Unknown').trim();
+        String catLabel = 'Unknown';
+        try {
+          catLabel = _categories.firstWhere((c) => c.id == allocation.key).name;
+        } catch (_) {
+          catLabel = (t.categoryName ?? '').trim().isNotEmpty
+              ? t.categoryName!.trim()
+              : 'Unknown';
+        }
+        categoryLabels.putIfAbsent(categoryKey, () => catLabel);
 
-      if (t.type == TransactionType.income) {
-        incomeTotals[categoryKey] = (incomeTotals[categoryKey] ?? 0) + t.amount;
-      } else if (t.type == TransactionType.expense) {
-        expenseTotals[categoryKey] =
-            (expenseTotals[categoryKey] ?? 0) + t.amount;
+        if (t.type == TransactionType.income) {
+          incomeTotals[categoryKey] =
+              (incomeTotals[categoryKey] ?? 0) + allocation.value;
+        } else if (t.type == TransactionType.expense) {
+          expenseTotals[categoryKey] =
+              (expenseTotals[categoryKey] ?? 0) + allocation.value;
+        }
       }
     }
 
@@ -2912,7 +2950,14 @@ class _ReportsScreenState extends State<ReportsScreen> {
     // Apply category filter if any
     if (_selectedCategoryIds.isNotEmpty) {
       filtered = filtered.where(
-        (t) => _selectedCategoryIds.contains(t.categoryId),
+        (t) => _selectedCategoryIds.any(
+          (categoryId) => transactionUsesCategory(
+            primaryCategoryId: t.categoryId,
+            total: t.amount,
+            categoryId: categoryId,
+            splitsJson: t.splitsJson,
+          ),
+        ),
       );
     }
 
@@ -2959,6 +3004,20 @@ class _ReportsScreenState extends State<ReportsScreen> {
       }
     }
 
-    return filtered.fold(0.0, (sum, t) => sum + t.amount);
+    if (_selectedCategoryIds.isEmpty) {
+      return filtered.fold(0.0, (sum, t) => sum + t.amount);
+    }
+    return filtered.fold(0.0, (sum, t) {
+      final allocations = categoryAllocations(
+        primaryCategoryId: t.categoryId,
+        total: t.amount,
+        splitsJson: t.splitsJson,
+      );
+      final selectedAmount = _selectedCategoryIds.fold<double>(
+        0,
+        (subtotal, categoryId) => subtotal + (allocations[categoryId] ?? 0),
+      );
+      return sum + selectedAmount;
+    });
   }
 }

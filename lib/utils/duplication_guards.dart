@@ -83,3 +83,25 @@ bool isLikelyDuplicateBillPayment({
 
   return false;
 }
+
+/// Whether two records are duplicate representations of the same bill
+/// payment. IDs and timestamps are excluded because legacy save/sync races
+/// produced identical payments under different IDs.
+bool areEquivalentBillPayments(Transaction a, Transaction b) {
+  final aBillId = (a.billId ?? '').trim();
+  final bBillId = (b.billId ?? '').trim();
+  if (aBillId.isEmpty || aBillId != bBillId) return false;
+
+  final aOccurrence = a.occurrenceDate ?? a.date;
+  final bOccurrence = b.occurrenceDate ?? b.date;
+
+  return _sameDate(aOccurrence, bOccurrence) &&
+      _sameDate(a.date, b.date) &&
+      a.type == b.type &&
+      (a.accountId ?? '').trim() == (b.accountId ?? '').trim() &&
+      (a.amount - b.amount).abs() <= 0.0001 &&
+      a.description.trim().toLowerCase() ==
+          b.description.trim().toLowerCase() &&
+      (a.paymentFor ?? '').trim().toLowerCase() ==
+          (b.paymentFor ?? '').trim().toLowerCase();
+}

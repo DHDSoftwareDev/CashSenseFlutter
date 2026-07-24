@@ -360,6 +360,9 @@ class AwsApiService {
       payerName: (payerNameRaw == null || payerNameRaw.trim().isEmpty)
           ? null
           : payerNameRaw.trim(),
+      splitsJson: _normalizeSplitsJson(
+        json['splitsJson'] ?? json['splits_json'] ?? json['splits'],
+      ),
     );
   }
 
@@ -957,7 +960,19 @@ class AwsApiService {
       'payment_for': transaction.paymentFor,
       'cleared': transaction.cleared,
       'isCleared': transaction.cleared,
+      'splitsJson': transaction.splitsJson,
+      'splits_json': transaction.splitsJson,
+      'splits': transaction.splitsJson,
     };
+  }
+
+  static String? _normalizeSplitsJson(dynamic raw) {
+    if (raw == null) return null;
+    if (raw is String) {
+      return raw.trim().isEmpty ? null : raw;
+    }
+    if (raw is List) return jsonEncode(raw);
+    return null;
   }
 
   static bool? _parseNullableBool(dynamic raw) {

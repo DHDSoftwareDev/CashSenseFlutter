@@ -2242,10 +2242,12 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       return;
     }
 
-    // Enforce category selection for expense/income transactions
+    // A primary category is only needed when splits do not fully categorize
+    // the transaction.
     if ((_transactionType == TransactionScreenType.expense ||
             _transactionType == TransactionScreenType.income) &&
-        _selectedCategoryId == null) {
+        (_selectedCategoryId == null || _selectedCategoryId!.trim().isEmpty) &&
+        !_useSplits) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -2258,7 +2260,31 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     }
 
     // If splits are defined, ensure they sum to the transaction amount
-    if (_splits.isNotEmpty) {
+    if (_useSplits) {
+      if (_splits.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Add at least one category split'),
+              backgroundColor: Colors.red[700],
+            ),
+          );
+        }
+        return;
+      }
+      if (!validateSplitCategories(_splits)) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Select a category and enter an amount for every split',
+              ),
+              backgroundColor: Colors.red[700],
+            ),
+          );
+        }
+        return;
+      }
       if (!validateSplitsEqualAmount(_splits, amount)) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(

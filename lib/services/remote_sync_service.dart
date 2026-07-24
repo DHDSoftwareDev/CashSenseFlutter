@@ -36,7 +36,9 @@ class RemoteSyncService {
         debugPrint('Remote sync skipped: premium subscription required');
         return;
       }
-      debugPrint('Premium user detected ($plan); evaluating cloud backup restore');
+      debugPrint(
+        'Premium user detected ($plan); evaluating cloud backup restore',
+      );
 
       if (!CloudSyncPolicy.syncUserFinanceDataToAws) {
         await _restoreLatestCloudBackupIfLocalDataEmpty();
@@ -54,6 +56,17 @@ class RemoteSyncService {
 
   static Future<void> _refreshSubscriptionFromApiUser() async {
     try {
+      final localMode = DatabaseService.getSubscriptionModeOverride();
+      if (localMode != null) {
+        if (DatabaseService.subscriptionVersion.value != localMode) {
+          await DatabaseService.setSubscriptionPlan(localMode);
+        }
+        debugPrint(
+          'Subscription API refresh skipped for local mode: $localMode',
+        );
+        return;
+      }
+
       final user = await UserApiService.fetchCurrentUser();
       final resolvedPlan = _resolvePlanFromUser(user);
 
