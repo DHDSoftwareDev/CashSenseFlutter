@@ -58,4 +58,24 @@ void main() {
       isFalse,
     );
   });
+
+  group('remainingSplitAmount', () {
+    test('calculates the remainder without counting the balancing split', () {
+      final splits = [
+        {'categoryId': 'groceries', 'amount': 60.25},
+        {'categoryId': 'household', 'amount': 0},
+      ];
+
+      expect(remainingSplitAmount(100, splits, excludingIndex: 1), 39.75);
+    });
+
+    test('returns zero when the entered splits exceed the total', () {
+      final splits = [
+        {'categoryId': 'groceries', 'amount': 120},
+        {'categoryId': 'household', 'amount': 0},
+      ];
+
+      expect(remainingSplitAmount(100, splits, excludingIndex: 1), 0);
+    });
+  });
 }

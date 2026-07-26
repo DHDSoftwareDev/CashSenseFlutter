@@ -1120,6 +1120,7 @@ class _PayBillScreenState extends State<PayBillScreen> {
                 }
                 return null;
               },
+              onChanged: (_) => setState(() {}),
             ),
             const SizedBox(height: 16),
 

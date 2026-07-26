@@ -300,6 +300,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         if (v == null || v <= 0) return 'Please enter a valid amount';
         return null;
       },
+      onChanged: (_) => setState(() {}),
     );
   }
 

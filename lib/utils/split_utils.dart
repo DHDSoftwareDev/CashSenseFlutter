@@ -23,6 +23,29 @@ double sumSplits(List<Map<String, dynamic>> splits) {
   });
 }
 
+/// Returns the transaction amount that has not been assigned to other splits.
+///
+/// Calculating in cents keeps auto-populated currency values from accumulating
+/// floating-point rounding errors.
+double remainingSplitAmount(
+  double total,
+  List<Map<String, dynamic>> splits, {
+  int? excludingIndex,
+}) {
+  var assignedCents = 0;
+  for (var i = 0; i < splits.length; i++) {
+    if (i == excludingIndex) continue;
+    final rawAmount = splits[i]['amount'];
+    final amount = rawAmount is num
+        ? rawAmount.toDouble()
+        : double.tryParse(rawAmount?.toString() ?? '') ?? 0.0;
+    assignedCents += (amount * 100).round();
+  }
+
+  final remainingCents = (total * 100).round() - assignedCents;
+  return (remainingCents < 0 ? 0 : remainingCents) / 100;
+}
+
 bool validateSplitsEqualAmount(
   List<Map<String, dynamic>> splits,
   double total, {
