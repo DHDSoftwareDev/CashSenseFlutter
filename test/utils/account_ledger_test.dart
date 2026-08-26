@@ -100,6 +100,34 @@ void main() {
       expect(ledger.clearedRunningBalances['a'], 120);
       expect(ledger.clearedRunningBalances['b'], 110);
     });
+
+    test('same-day custom order recalculates running balances', () {
+      final ledger = AccountLedger.calculate(
+        initialBalance: 100,
+        transactions: [
+          transaction(
+            id: 'income',
+            amount: 20,
+            type: TransactionType.income,
+            date: DateTime(2026, 7, 1, 8),
+            cleared: true,
+            sortOrder: 2,
+          ),
+          transaction(
+            id: 'expense',
+            amount: 10,
+            type: TransactionType.expense,
+            date: DateTime(2026, 7, 1, 18),
+            cleared: true,
+            sortOrder: 1,
+          ),
+        ],
+      );
+
+      expect(ledger.clearedRunningBalances['expense'], 90);
+      expect(ledger.clearedRunningBalances['income'], 110);
+      expect(ledger.currentBalance, 110);
+    });
   });
 }
 
@@ -110,6 +138,7 @@ Transaction transaction({
   required DateTime date,
   required bool cleared,
   DateTime? createdAt,
+  int? sortOrder,
 }) {
   return Transaction(
     id: id,
@@ -120,5 +149,6 @@ Transaction transaction({
     date: date,
     createdAt: createdAt ?? date,
     cleared: cleared,
+    sortOrder: sortOrder,
   );
 }

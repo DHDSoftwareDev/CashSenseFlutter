@@ -2019,6 +2019,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           createdAt: txData['createdAt'] != null
               ? DateTime.parse(txData['createdAt'])
               : DateTime.now(),
+          sortOrder: txData['sortOrder'] is num
+              ? (txData['sortOrder'] as num).toInt()
+              : int.tryParse(txData['sortOrder']?.toString() ?? ''),
           isArchived: txData['isArchived'] ?? false,
         );
         await DatabaseService.addTransaction(transaction);

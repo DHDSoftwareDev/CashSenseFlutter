@@ -91,6 +91,10 @@ class Transaction extends HiveObject {
   @HiveField(22)
   String? paymentFor;
 
+  /// User-defined order for transactions on the same date and ledger.
+  @HiveField(23)
+  int? sortOrder;
+
   Transaction({
     String? id,
     required this.amount,
@@ -115,6 +119,7 @@ class Transaction extends HiveObject {
     this.payeeName,
     this.payerName,
     this.paymentFor,
+    this.sortOrder,
   }) : id = id ?? const Uuid().v4(),
        createdAt = createdAt ?? DateTime.now(),
        updatedAt = updatedAt ?? DateTime.now();
@@ -144,6 +149,7 @@ class Transaction extends HiveObject {
       'hideFromCalendarDashboard': hideFromCalendarDashboard,
       'updatedAt': updatedAt.toIso8601String(),
       'paymentFor': paymentFor,
+      'sortOrder': sortOrder,
     };
   }
 
@@ -179,6 +185,9 @@ class Transaction extends HiveObject {
           ? DateTime.parse(json['updatedAt'])
           : DateTime.now(),
       paymentFor: json['paymentFor'] as String?,
+      sortOrder: json['sortOrder'] is num
+          ? (json['sortOrder'] as num).toInt()
+          : int.tryParse(json['sortOrder']?.toString() ?? ''),
     );
   }
 
@@ -200,6 +209,7 @@ class Transaction extends HiveObject {
     Object? payerId = _unset,
     Object? payerName = _unset,
     Object? paymentFor = _unset,
+    Object? sortOrder = _unset,
     Object? billId = _unset,
     Object? occurrenceDate = _unset,
     Object? splitsJson = _unset,
@@ -234,6 +244,9 @@ class Transaction extends HiveObject {
       paymentFor: identical(paymentFor, _unset)
           ? this.paymentFor
           : paymentFor as String?,
+      sortOrder: identical(sortOrder, _unset)
+          ? this.sortOrder
+          : sortOrder as int?,
       billId: identical(billId, _unset) ? this.billId : billId as String?,
       occurrenceDate: identical(occurrenceDate, _unset)
           ? this.occurrenceDate

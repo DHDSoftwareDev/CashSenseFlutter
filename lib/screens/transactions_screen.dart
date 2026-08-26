@@ -41,6 +41,174 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
+  int _compareTransactionsForDisplay(Transaction a, Transaction b) {
+    return AccountLedger.compareTransactions(b, a);
+  }
+
+  String _reorderGroupKey(Transaction transaction) {
+    final date = DateFormat('yyyy-MM-dd').format(transaction.date);
+    final status = transaction.cleared == true ? 'cleared' : 'pending';
+    return '$date|$status';
+  }
+
+  String _reorderGroupLabel(String key) {
+    final parts = key.split('|');
+    final date = DateFormat('yyyy-MM-dd').parse(parts.first);
+    final status = parts.length > 1 && parts[1] == 'cleared'
+        ? 'Cleared'
+        : 'Pending';
+    return '${DateFormat.yMMMd().format(date)} · $status';
+  }
+
+  Future<void> _rearrangeTransactions() async {
+    final groups = <String, List<Transaction>>{};
+    for (final transaction in _transactions) {
+      final group = groups.putIfAbsent(
+        _reorderGroupKey(transaction),
+        () => <Transaction>[],
+      );
+      group.add(transaction);
+    }
+    groups.removeWhere((_, transactions) => transactions.length < 2);
+
+    if (groups.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Add at least two transactions on the same date to rearrange them.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    for (final transactions in groups.values) {
+      transactions.sort(_compareTransactionsForDisplay);
+    }
+    final groupKeys = groups.keys.toList()..sort((a, b) => b.compareTo(a));
+    var selectedGroup = groupKeys.first;
+
+    final reordered = await showDialog<Map<String, List<Transaction>>>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final selectedTransactions = groups[selectedGroup]!;
+          return AlertDialog(
+            title: const Text('Rearrange Transactions'),
+            content: SizedBox(
+              width: 480,
+              height: MediaQuery.sizeOf(context).height * 0.55,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedGroup,
+                    decoration: const InputDecoration(
+                      labelText: 'Date and status',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: groupKeys
+                        .map(
+                          (key) => DropdownMenuItem<String>(
+                            value: key,
+                            child: Text(_reorderGroupLabel(key)),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) {
+                      if (value == null) return;
+                      setDialogState(() => selectedGroup = value);
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Drag transactions into the order you want displayed. '
+                    'Running balances will be recalculated when you save.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: ReorderableListView.builder(
+                      buildDefaultDragHandles: false,
+                      itemCount: selectedTransactions.length,
+                      onReorder: (oldIndex, newIndex) {
+                        setDialogState(() {
+                          if (newIndex > oldIndex) newIndex--;
+                          final moved = selectedTransactions.removeAt(oldIndex);
+                          selectedTransactions.insert(newIndex, moved);
+                        });
+                      },
+                      itemBuilder: (context, index) {
+                        final transaction = selectedTransactions[index];
+                        final signedAmount =
+                            transaction.type == TransactionType.income
+                            ? transaction.amount
+                            : -transaction.amount;
+                        return Card(
+                          key: ValueKey(transaction.id),
+                          margin: const EdgeInsets.symmetric(vertical: 3),
+                          child: ListTile(
+                            dense: true,
+                            title: Text(transaction.description),
+                            subtitle: Text(
+                              _currencyFormat.format(signedAmount),
+                            ),
+                            trailing: ReorderableDragStartListener(
+                              index: index,
+                              child: const Padding(
+                                padding: EdgeInsets.all(8),
+                                child: Icon(Icons.drag_handle),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(dialogContext).pop(groups),
+                child: const Text('Save Order'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    if (reordered == null) return;
+
+    try {
+      for (final transactions in reordered.values) {
+        for (var index = 0; index < transactions.length; index++) {
+          final transaction = transactions[index];
+          final nextSortOrder = transactions.length - index;
+          if (transaction.sortOrder == nextSortOrder) continue;
+          await DatabaseService.updateTransaction(
+            transaction.copyWith(sortOrder: nextSortOrder),
+          );
+        }
+      }
+      if (!mounted) return;
+      _loadTransactions();
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Transaction order saved.')));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not save transaction order: $error')),
+      );
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -252,7 +420,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     final base = (widget.accountId != null && widget.accountId!.isNotEmpty)
         ? _transactions.where((t) => t.accountId == widget.accountId).toList()
         : List<Transaction>.from(_transactions);
-    final results = base.where((t) {
+    final results = base.where(_matchesSelectedFilter).where((t) {
       final desc = t.description.toLowerCase();
       if (desc.contains(q)) return true;
       if (t.note != null && t.note!.toLowerCase().contains(q)) return true;
@@ -262,13 +430,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       if (t.amount.toString().contains(q)) return true;
       return false;
     }).toList();
-    results.sort((a, b) {
-      final cmp = b.date.compareTo(a.date);
-      if (cmp != 0) return cmp;
-      final createdCmp = b.createdAt.compareTo(a.createdAt);
-      if (createdCmp != 0) return createdCmp;
-      return b.id.compareTo(a.id);
-    });
+    results.sort(_compareTransactionsForDisplay);
     return results;
   }
 
@@ -333,66 +495,44 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   }
 
   List<Transaction> get _filteredTransactions {
-    List<Transaction> filtered;
-    switch (_selectedFilter) {
-      case 'Income':
-        filtered = _transactions
-            .where((t) => t.type == TransactionType.income)
-            .toList();
-        break;
-      case 'Expense':
-        filtered = _transactions
-            .where((t) => t.type == TransactionType.expense)
-            .toList();
-        break;
-      case 'Transfers':
-        filtered = _transactions.where((t) {
-          try {
-            final cat = DatabaseService.getCategoryById(t.categoryId);
-            if (cat != null && cat.name.toLowerCase() == 'transfer') {
-              return true;
-            }
-          } catch (_) {}
-          final desc = t.description.toLowerCase();
-          if (desc.contains('transfer')) return true;
-          if (t.note != null && t.note!.toLowerCase().contains('transfer')) {
-            return true;
-          }
-          return false;
-        }).toList();
-        break;
-      case 'Custom Dates':
-        if (_customStartDate != null && _customEndDate != null) {
-          filtered = _transactions
-              .where(
-                (t) =>
-                    t.date.isAfter(
-                      _customStartDate!.subtract(const Duration(days: 1)),
-                    ) &&
-                    t.date.isBefore(
-                      _customEndDate!.add(const Duration(days: 1)),
-                    ),
-              )
-              .toList();
-        } else {
-          filtered = _transactions;
-        }
-        break;
-      default:
-        filtered = _transactions;
-    }
+    var filtered = _transactions.where(_matchesSelectedFilter).toList();
     if (!_showCleared) {
       filtered = filtered.where((t) => t.cleared != true).toList();
     }
-    // Sort newest to oldest (date descending, then createdAt descending, then id descending)
-    filtered.sort((a, b) {
-      final cmp = b.date.compareTo(a.date);
-      if (cmp != 0) return cmp;
-      final createdCmp = b.createdAt.compareTo(a.createdAt);
-      if (createdCmp != 0) return createdCmp;
-      return b.id.compareTo(a.id);
-    });
+    // Sort newest to oldest, honoring any saved same-day arrangement.
+    filtered.sort(_compareTransactionsForDisplay);
     return filtered;
+  }
+
+  bool _matchesSelectedFilter(Transaction transaction) {
+    switch (_selectedFilter) {
+      case 'Income':
+        return transaction.type == TransactionType.income;
+      case 'Expense':
+        return transaction.type == TransactionType.expense;
+      case 'Transfers':
+        try {
+          final category = DatabaseService.getCategoryById(
+            transaction.categoryId,
+          );
+          if (category != null && category.name.toLowerCase() == 'transfer') {
+            return true;
+          }
+        } catch (_) {}
+        return _isTransferTransaction(transaction);
+      case 'Custom Dates':
+        if (_customStartDate != null && _customEndDate != null) {
+          return transaction.date.isAfter(
+                _customStartDate!.subtract(const Duration(days: 1)),
+              ) &&
+              transaction.date.isBefore(
+                _customEndDate!.add(const Duration(days: 1)),
+              );
+        }
+        return true;
+      default:
+        return true;
+    }
   }
 
   @override
@@ -538,9 +678,32 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   }
 
   Widget _buildTransactionsList({bool showHeader = true}) {
-    // Group by all transactions so month headers always show.
+    final filteredTransactions = _transactions
+        .where(_matchesSelectedFilter)
+        .toList();
+
+    if (filteredTransactions.isEmpty) {
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          SizedBox(
+            height: MediaQuery.sizeOf(context).height * 0.45,
+            child: Center(
+              child: Text(
+                'No $_selectedFilter transactions',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyLarge?.copyWith(color: Colors.grey[600]),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    // Group only transactions matching the selected type filter.
     final groupedTransactions = <String, List<Transaction>>{};
-    for (final transaction in _transactions) {
+    for (final transaction in filteredTransactions) {
       final monthKey = DateFormat('yyyy-MM').format(transaction.date);
       groupedTransactions[monthKey] ??= [];
       groupedTransactions[monthKey]!.add(transaction);
@@ -551,15 +714,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     final showPendingSection =
         widget.accountId != null && widget.accountId!.isNotEmpty;
     final pendingTxs = showPendingSection
-        ? _transactions.where((t) => t.cleared != true).toList()
+        ? filteredTransactions.where((t) => t.cleared != true).toList()
         : <Transaction>[];
-    pendingTxs.sort((a, b) {
-      final cmp = b.date.compareTo(a.date);
-      if (cmp != 0) return cmp;
-      final createdCmp = b.createdAt.compareTo(a.createdAt);
-      if (createdCmp != 0) return createdCmp;
-      return b.id.compareTo(a.id);
-    });
+    pendingTxs.sort(_compareTransactionsForDisplay);
     final pendingTotal = pendingTxs.fold<double>(
       0.0,
       (sum, tx) =>
@@ -669,14 +826,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             final groupTxsForDisplay = showPendingSection
                 ? allGroupTxs.where((t) => t.cleared == true).toList()
                 : allGroupTxs;
-            // Sort transactions within month by date (newest first), then createdAt DESC for same date (newest first)
-            groupTxsForDisplay.sort((a, b) {
-              final cmp = b.date.compareTo(a.date);
-              if (cmp != 0) return cmp;
-              final createdCmp = b.createdAt.compareTo(a.createdAt);
-              if (createdCmp != 0) return createdCmp;
-              return b.id.compareTo(a.id);
-            });
+            // Sort newest first, honoring any saved same-day arrangement.
+            groupTxsForDisplay.sort(_compareTransactionsForDisplay);
             // Always build the month group, even if all transactions are cleared
             // Only show cleared transactions in the main list (pending are shown separately)
             var displayTxs = showPendingSection
@@ -783,24 +934,44 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               ],
             ),
           ),
-          // Add clickable Show/Hide Cleared text on the right
-          InkWell(
-            onTap: () {
-              setState(() {
-                _showCleared = !_showCleared;
-              });
-              DatabaseService.setSetting(
-                'transactionsShowCleared',
-                _showCleared,
-              );
-            },
-            child: Text(
-              _showCleared ? 'Hide Cleared' : 'Show Cleared',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.primary,
-                fontWeight: FontWeight.w500,
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              InkWell(
+                onTap: _rearrangeTransactions,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Text(
+                    'Rearrange',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
               ),
-            ),
+              InkWell(
+                onTap: () {
+                  setState(() {
+                    _showCleared = !_showCleared;
+                  });
+                  DatabaseService.setSetting(
+                    'transactionsShowCleared',
+                    _showCleared,
+                  );
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Text(
+                    _showCleared ? 'Hide Cleared' : 'Show Cleared',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -963,6 +1134,20 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     final trimmed = description.trim();
     if (!trimmed.toLowerCase().startsWith('payment for ')) return '';
     return trimmed.substring('payment for '.length).trim();
+  }
+
+  Widget _buildClearedStatusBadge(Transaction transaction) {
+    final isCleared = transaction.cleared == true;
+    final label = isCleared ? 'Cleared' : 'Uncleared';
+
+    return Tooltip(
+      message: label,
+      child: Icon(
+        isCleared ? Icons.check_circle : Icons.pending_outlined,
+        size: 12,
+        color: isCleared ? AppTheme.incomeGreen : Colors.red,
+      ),
+    );
   }
 
   Widget _buildTransactionItem(
@@ -1144,10 +1329,18 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                DateFormat('MM/dd/yy').format(transaction.date),
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(color: Colors.grey[600]),
+                              Row(
+                                children: [
+                                  _buildClearedStatusBadge(transaction),
+                                  const SizedBox(width: 5),
+                                  Text(
+                                    DateFormat(
+                                      'MM/dd/yy',
+                                    ).format(transaction.date),
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(color: Colors.grey[600]),
+                                  ),
+                                ],
                               ),
                               const SizedBox(height: 4),
                               // Extract clean payee/payer name for payment transactions,

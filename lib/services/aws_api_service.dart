@@ -354,6 +354,11 @@ class AwsApiService {
       payeeId: json['payeeId']?.toString(),
       paymentFor:
           json['paymentFor']?.toString() ?? json['payment_for']?.toString(),
+      sortOrder: json['sortOrder'] is num
+          ? (json['sortOrder'] as num).toInt()
+          : int.tryParse(
+              (json['sortOrder'] ?? json['sort_order'])?.toString() ?? '',
+            ),
       payeeName: (payeeNameRaw == null || payeeNameRaw.trim().isEmpty)
           ? null
           : payeeNameRaw.trim(),
@@ -958,6 +963,8 @@ class AwsApiService {
       'notes': transaction.note,
       'paymentFor': transaction.paymentFor,
       'payment_for': transaction.paymentFor,
+      'sortOrder': transaction.sortOrder,
+      'sort_order': transaction.sortOrder,
       'cleared': transaction.cleared,
       'isCleared': transaction.cleared,
       'splitsJson': transaction.splitsJson,

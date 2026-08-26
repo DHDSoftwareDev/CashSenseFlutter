@@ -53,8 +53,16 @@ class AccountLedger {
   }
 
   static int compareTransactions(Transaction a, Transaction b) {
-    final dateComparison = a.date.compareTo(b.date);
+    final aDate = DateTime(a.date.year, a.date.month, a.date.day);
+    final bDate = DateTime(b.date.year, b.date.month, b.date.day);
+    final dateComparison = aDate.compareTo(bDate);
     if (dateComparison != 0) return dateComparison;
+    final aSortOrder = a.sortOrder;
+    final bSortOrder = b.sortOrder;
+    if (aSortOrder != null || bSortOrder != null) {
+      final orderComparison = (aSortOrder ?? 0).compareTo(bSortOrder ?? 0);
+      if (orderComparison != 0) return orderComparison;
+    }
     final createdComparison = a.createdAt.compareTo(b.createdAt);
     if (createdComparison != 0) return createdComparison;
     return a.id.compareTo(b.id);

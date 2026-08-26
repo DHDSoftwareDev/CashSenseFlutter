@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../theme/app_theme.dart';
 import '../models/bill.dart';
+import '../utils/bill_note_utils.dart';
 import '../models/transaction.dart';
 import '../models/category.dart';
 import '../models/account.dart';
@@ -798,52 +799,29 @@ class _AddBillScreenState extends State<AddBillScreen> {
   }
 
   String _extractEditableNotes(Bill bill) {
-    final raw = (bill.description ?? '').trim();
-    if (raw.isEmpty) return '';
-
-    final lowerRaw = raw.toLowerCase();
-
-    // Never treat contact labels as notes.
-    final contactNames = _payees
-        .map((p) => (p['name'] ?? '').toString().trim().toLowerCase())
-        .where((name) => name.isNotEmpty)
-        .toSet();
-    if (contactNames.contains(lowerRaw)) {
-      return '';
-    }
-
-    if (lowerRaw.startsWith('payee:') || lowerRaw.startsWith('payer:')) {
-      return '';
-    }
-
+    String? payeeName;
     if (bill.payeeId != null && bill.payeeId!.isNotEmpty) {
       final payee = _payees.firstWhere(
         (p) => p['id'] == bill.payeeId,
         orElse: () => const <String, dynamic>{},
       );
-      final payeeName = (payee['name'] ?? '').toString().trim();
-      if (payeeName.isNotEmpty && lowerRaw == payeeName.toLowerCase()) {
-        return '';
-      }
+      payeeName = (payee['name'] ?? '').toString().trim();
     }
 
-    if (bill.type == BillType.transfer) {
-      final fromName =
-          (bill.fromAccountId != null && bill.fromAccountId!.isNotEmpty)
-          ? DatabaseService.getAccountById(bill.fromAccountId!)?.name
-          : null;
-      final toName = (bill.toAccountId != null && bill.toAccountId!.isNotEmpty)
-          ? DatabaseService.getAccountById(bill.toAccountId!)?.name
-          : null;
-      if (fromName != null && toName != null) {
-        final generated = 'transfer from $fromName to $toName'.toLowerCase();
-        if (lowerRaw == generated) {
-          return '';
-        }
-      }
-    }
+    final fromName =
+        (bill.fromAccountId != null && bill.fromAccountId!.isNotEmpty)
+        ? DatabaseService.getAccountById(bill.fromAccountId!)?.name
+        : null;
+    final toName = (bill.toAccountId != null && bill.toAccountId!.isNotEmpty)
+        ? DatabaseService.getAccountById(bill.toAccountId!)?.name
+        : null;
 
-    return raw;
+    return editableBillNote(
+      bill,
+      payeeName: payeeName,
+      fromAccountName: fromName,
+      toAccountName: toName,
+    );
   }
 
   List<Map<String, dynamic>> get _visiblePayees {
