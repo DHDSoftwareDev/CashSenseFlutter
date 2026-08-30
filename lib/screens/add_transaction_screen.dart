@@ -2326,13 +2326,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           if (cat != null) desc = cat.name;
         }
 
+        // The account is stored separately in accountId. Keep note limited to
+        // what the user entered; embedding the account name here causes edited
+        // notes to render as account metadata on transaction cards.
         String? finalNote = notes;
-        if (_selectedAccountId != null && notes != null) {
-          final a = DatabaseService.getAccountById(_selectedAccountId!);
-          if (a != null) {
-            finalNote = 'account: ${a.name} — $notes';
-          }
-        }
 
         if (_transactionType == TransactionScreenType.expense) {
           payeeId = _selectedPayeeId;

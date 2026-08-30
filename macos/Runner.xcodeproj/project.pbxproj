@@ -498,9 +498,9 @@
 			baseConfigurationReference = 9E093603A9180DA778FE5929 /* Pods-RunnerTests.debug.xcconfig */;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
-				CURRENT_PROJECT_VERSION = 21;
+				CURRENT_PROJECT_VERSION = 22;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 2.3.24;
+				MARKETING_VERSION = 2.3.25;
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.cashsenseflutter.RunnerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
@@ -513,9 +513,9 @@
 			baseConfigurationReference = 3D00B632BBF7F78A3572EBC2 /* Pods-RunnerTests.release.xcconfig */;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
-				CURRENT_PROJECT_VERSION = 21;
+				CURRENT_PROJECT_VERSION = 22;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 2.3.24;
+				MARKETING_VERSION = 2.3.25;
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.cashsenseflutter.RunnerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
@@ -528,9 +528,9 @@
 			baseConfigurationReference = 3D94C52DA21B5F2B5A2A8074 /* Pods-RunnerTests.profile.xcconfig */;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
-				CURRENT_PROJECT_VERSION = 21;
+				CURRENT_PROJECT_VERSION = 22;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 2.3.24;
+				MARKETING_VERSION = 2.3.25;
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.cashsenseflutter.RunnerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
