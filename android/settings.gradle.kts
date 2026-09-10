@@ -22,7 +22,6 @@ dependencyResolutionManagement {
         mavenCentral()
         // Required by background_fetch to resolve com.transistorsoft:tsbackgroundfetch
          maven { url = uri("https://storage.googleapis.com/download.flutter.io") }  // <-- needed for io.flutter artifacts
-        maven { url = uri("/Users/siler/.pub-cache/hosted/pub.dev/background_fetch-1.4.0/android/libs") }
     }
 }
 
