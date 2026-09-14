@@ -291,10 +291,11 @@
 				<string>Editor</string>
 				<key>CFBundleURLName</key>
 				<string>myapp</string>
-				<key>CFBundleURLSchemes</key>
-				<array>
-					<string>myapp</string>
-				</array>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>myapp</string>
+				<string>cashsense</string>
+			</array>
 			</dict>
 		</array>
 	</dict>

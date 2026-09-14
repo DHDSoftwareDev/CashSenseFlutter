@@ -5,7 +5,7 @@
   "packages": [
     {
       "name": "cashsenseflutter",
-      "version": "2.3.25+22",
+      "version": "2.3.26+23",
       "dependencies": [
         "amplify_api",
         "amplify_auth_cognito",
@@ -29,6 +29,7 @@
         "google_mobile_ads",
         "hive",
         "hive_flutter",
+        "home_widget",
         "http",
         "in_app_purchase",
         "intl",
@@ -186,6 +187,15 @@
         "stream_channel",
         "test_api",
         "vector_math"
+      ]
+    },
+    {
+      "name": "home_widget",
+      "version": "0.9.4",
+      "dependencies": [
+        "flutter",
+        "path_provider",
+        "path_provider_foundation"
       ]
     },
     {
@@ -1053,6 +1063,14 @@
       ]
     },
     {
+      "name": "path_provider_foundation",
+      "version": "2.5.1",
+      "dependencies": [
+        "flutter",
+        "path_provider_platform_interface"
+      ]
+    },
+    {
       "name": "local_auth_windows",
       "version": "1.0.11",
       "dependencies": [
@@ -1732,14 +1750,6 @@
         "path",
         "path_provider_platform_interface",
         "xdg_directories"
-      ]
-    },
-    {
-      "name": "path_provider_foundation",
-      "version": "2.5.1",
-      "dependencies": [
-        "flutter",
-        "path_provider_platform_interface"
       ]
     },
     {

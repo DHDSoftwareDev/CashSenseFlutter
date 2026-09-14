@@ -31,6 +31,7 @@ import 'edit_account_screen.dart';
 import '../services/auto_backup_service.dart';
 import 'package:amplify_flutter/amplify_flutter.dart' hide Category;
 import '../services/bill_reminder_service.dart';
+import '../services/home_screen_widget_service.dart';
 import '../utils/root_scaffold.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -71,6 +72,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   List<ReminderOffset> _billReminderOffsets = [];
   bool _syncingNotificationToken = false;
   bool _reschedulingBillReminders = false;
+  bool _hideAccountBalancesInWidgets = false;
+  bool _refreshingHomeWidgets = false;
 
   @override
   void initState() {
@@ -81,6 +84,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _loadAutoLogoutEnabledSetting();
     _loadAutoLogoutTimeoutSetting();
     _loadBillReminderSettings();
+    _hideAccountBalancesInWidgets =
+        DatabaseService.getSetting<bool>(
+          HomeScreenWidgetService.hideBalancesSettingKey,
+          false,
+        ) ??
+        false;
     _autoBackupEnabled =
         DatabaseService.getSetting<bool>('autoBackupEnabled', false) ?? false;
   }
@@ -751,6 +760,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ]),
           _buildBillNotificationsTile(),
+          _buildHomeScreenWidgetsSection(),
           // General section removed (notification options hidden)
           _buildSection('Data', [
             _buildSettingsTile(
@@ -1525,6 +1535,76 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onTap: _reschedulingBillReminders
                   ? null
                   : _rescheduleBillRemindersNow,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHomeScreenWidgetsSection() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 6.0),
+      child: Card(
+        elevation: 1,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(horizontal: 16),
+          title: Text(
+            'Home Screen Widgets',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: Theme.of(context).colorScheme.primary,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          subtitle: const Text('Upcoming bills and available balances'),
+          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          children: [
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Hide account balances'),
+              subtitle: const Text(
+                'Mask balances when the Accounts widget is visible',
+              ),
+              value: _hideAccountBalancesInWidgets,
+              onChanged: (value) async {
+                await DatabaseService.setSetting(
+                  HomeScreenWidgetService.hideBalancesSettingKey,
+                  value,
+                );
+                if (!mounted) return;
+                setState(() => _hideAccountBalancesInWidgets = value);
+                await HomeScreenWidgetService.syncNow();
+              },
+            ),
+            const Divider(height: 24),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.widgets_outlined),
+              title: const Text('Refresh widgets now'),
+              subtitle: const Text(
+                'Update the latest bills and account balances',
+              ),
+              trailing: _refreshingHomeWidgets
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.refresh),
+              onTap: _refreshingHomeWidgets
+                  ? null
+                  : () async {
+                      setState(() => _refreshingHomeWidgets = true);
+                      await HomeScreenWidgetService.syncNow();
+                      if (!mounted) return;
+                      setState(() => _refreshingHomeWidgets = false);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Home screen widgets refreshed.'),
+                        ),
+                      );
+                    },
             ),
           ],
         ),

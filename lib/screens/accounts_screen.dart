@@ -5,10 +5,13 @@ import '../widgets/banner_ad_widget.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
+import 'package:intl/intl.dart';
 import '../services/database_service.dart';
 import '../utils/formatters.dart';
 import '../models/account.dart';
+import '../models/transaction.dart';
 import 'add_account_screen.dart';
+import 'add_transaction_screen.dart';
 // Reordering is handled inline in this screen.
 import '../utils/root_scaffold.dart';
 
@@ -20,6 +23,9 @@ class AccountsScreen extends StatefulWidget {
 }
 
 class _AccountsScreenState extends State<AccountsScreen> {
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
   // Grouping state: 0 = type, 1 = institution
   int _groupByIndex = 0;
   // Track which account balances are hidden (local UI state)
@@ -446,38 +452,71 @@ class _AccountsScreenState extends State<AccountsScreen> {
           padding: const EdgeInsets.all(16),
           child: Column(
             children: [
-              // Group by toggle (centered)
-              Center(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text('Group by:'),
-                    const SizedBox(width: 8),
-                    ToggleButtons(
-                      isSelected: [_groupByIndex == 0, _groupByIndex == 1],
-                      onPressed: (i) async {
-                        setState(() => _groupByIndex = i);
-                        await DatabaseService.setSetting(
-                          'accountsGroupByIndex',
-                          i,
-                        );
-                      },
-                      children: const [
-                        Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 12),
-                          child: Text('Type'),
+              TextField(
+                key: const ValueKey('accounts_transaction_search'),
+                controller: _searchController,
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.search),
+                  hintText: 'Search transactions in all accounts',
+                  suffixIcon: _searchQuery.isEmpty
+                      ? null
+                      : IconButton(
+                          tooltip: 'Clear search',
+                          icon: const Icon(Icons.clear),
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() => _searchQuery = '');
+                          },
                         ),
-                        Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 12),
-                          child: Text('Institution'),
-                        ),
-                      ],
-                    ),
-                  ],
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  isDense: true,
                 ),
+                textInputAction: TextInputAction.search,
+                onChanged: (value) {
+                  setState(() => _searchQuery = value.trim());
+                },
               ),
               const SizedBox(height: 12),
-              Expanded(child: _buildGroupedAccountsList(accounts)),
+              // Group by toggle (centered)
+              if (_searchQuery.isEmpty) ...[
+                Center(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text('Group by:'),
+                      const SizedBox(width: 8),
+                      ToggleButtons(
+                        isSelected: [_groupByIndex == 0, _groupByIndex == 1],
+                        onPressed: (i) async {
+                          setState(() => _groupByIndex = i);
+                          await DatabaseService.setSetting(
+                            'accountsGroupByIndex',
+                            i,
+                          );
+                        },
+                        children: const [
+                          Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 12),
+                            child: Text('Type'),
+                          ),
+                          Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 12),
+                            child: Text('Institution'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+              Expanded(
+                child: _searchQuery.isEmpty
+                    ? _buildGroupedAccountsList(accounts)
+                    : _buildTransactionSearchResults(accounts),
+              ),
               const SizedBox(height: 16),
               // You can swap BannerAdWidget with NativeAdWidget if you want native ads
               const BannerAdWidget(),
@@ -492,7 +531,184 @@ class _AccountsScreenState extends State<AccountsScreen> {
   void dispose() {
     DatabaseService.accountsVersion.removeListener(_onAccountsChanged);
     DatabaseService.transactionsVersion.removeListener(_onAccountsChanged);
+    _searchController.dispose();
     super.dispose();
+  }
+
+  bool _matchesTransactionSearch(
+    Transaction transaction,
+    String query,
+    String accountName,
+  ) {
+    final categoryName =
+        DatabaseService.getCategoryById(transaction.categoryId)?.name ?? '';
+    final searchableValues = <String>[
+      transaction.description,
+      transaction.note ?? '',
+      transaction.paymentFor ?? '',
+      transaction.payeeName ?? '',
+      transaction.payerName ?? '',
+      transaction.categoryName ?? '',
+      categoryName,
+      accountName,
+      transaction.amount.toString(),
+      formatCurrency(transaction.amount),
+      DateFormat('MM/dd/yyyy').format(transaction.date),
+      DateFormat.yMMMd().format(transaction.date),
+    ];
+    return searchableValues.any((value) => value.toLowerCase().contains(query));
+  }
+
+  Widget _buildTransactionSearchResults(List<Account> accounts) {
+    final query = _searchQuery.toLowerCase();
+    final accountsById = <String, Account>{for (final a in accounts) a.id: a};
+    final grouped = <String, List<Transaction>>{};
+
+    for (final transaction in DatabaseService.getAllTransactions()) {
+      final accountId = transaction.accountId;
+      final account = accountId == null
+          ? null
+          : accountsById[accountId] ??
+                DatabaseService.getAccountById(accountId);
+      final accountName = account?.name ?? 'Unassigned';
+      if (_matchesTransactionSearch(transaction, query, accountName)) {
+        grouped
+            .putIfAbsent(accountId ?? '', () => <Transaction>[])
+            .add(transaction);
+      }
+    }
+
+    if (grouped.isEmpty) {
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          SizedBox(
+            height: MediaQuery.sizeOf(context).height * 0.4,
+            child: Center(
+              child: Text(
+                'No matching transactions',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyLarge?.copyWith(color: Colors.grey[600]),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    final accountIds = grouped.keys.toList()
+      ..sort((a, b) {
+        final aOrder = _accountOrder.indexOf(a);
+        final bOrder = _accountOrder.indexOf(b);
+        if (aOrder >= 0 && bOrder >= 0) return aOrder.compareTo(bOrder);
+        if (aOrder >= 0) return -1;
+        if (bOrder >= 0) return 1;
+        final aName =
+            accountsById[a]?.name ??
+            DatabaseService.getAccountById(a)?.name ??
+            'Unassigned';
+        final bName =
+            accountsById[b]?.name ??
+            DatabaseService.getAccountById(b)?.name ??
+            'Unassigned';
+        return aName.toLowerCase().compareTo(bName.toLowerCase());
+      });
+
+    return ListView.builder(
+      physics: const AlwaysScrollableScrollPhysics(),
+      itemCount: accountIds.length,
+      itemBuilder: (context, index) {
+        final accountId = accountIds[index];
+        final accountName =
+            accountsById[accountId]?.name ??
+            DatabaseService.getAccountById(accountId)?.name ??
+            'Unassigned';
+        final transactions = grouped[accountId]!
+          ..sort((a, b) => b.date.compareTo(a.date));
+        return _buildTransactionSearchGroup(accountName, transactions);
+      },
+    );
+  }
+
+  Widget _buildTransactionSearchGroup(
+    String accountName,
+    List<Transaction> transactions,
+  ) {
+    final colors = Theme.of(context).colorScheme;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            color: colors.primary,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Text(
+              accountName,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: colors.onPrimary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          for (var index = 0; index < transactions.length; index++) ...[
+            _buildTransactionSearchTile(transactions[index]),
+            if (index < transactions.length - 1)
+              const Divider(height: 1, indent: 16, endIndent: 16),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTransactionSearchTile(Transaction transaction) {
+    final category = DatabaseService.getCategoryById(transaction.categoryId);
+    final categoryName = category?.name ?? transaction.categoryName ?? '';
+    final signedAmount = transaction.type == TransactionType.income
+        ? transaction.amount
+        : -transaction.amount;
+    final amountColor = transaction.type == TransactionType.income
+        ? Colors.green
+        : Theme.of(context).colorScheme.error;
+
+    return ListTile(
+      key: ValueKey('account_search_transaction_${transaction.id}'),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      title: Text(
+        transaction.description.trim().isEmpty
+            ? 'Transaction'
+            : transaction.description,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
+      subtitle: Text(
+        [
+          DateFormat('MM/dd/yy').format(transaction.date),
+          if (categoryName.trim().isNotEmpty) categoryName,
+        ].join(' · '),
+      ),
+      trailing: Text(
+        formatCurrency(signedAmount),
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: amountColor,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      onTap: () async {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => AddTransactionScreen(
+              existingTransaction: transaction,
+              hideFromCalendarDashboard: true,
+            ),
+          ),
+        );
+        if (mounted) setState(() {});
+      },
+    );
   }
 
   // Attempt to extract a short account/card number from the freeform description.

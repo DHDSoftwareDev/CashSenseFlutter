@@ -524,6 +524,12 @@
       "languageVersion": "2.12"
     },
     {
+      "name": "home_widget",
+      "rootUri": "file:///Users/siler/.pub-cache/hosted/pub.dev/home_widget-0.9.4",
+      "packageUri": "lib/",
+      "languageVersion": "3.10"
+    },
+    {
       "name": "http",
       "rootUri": "file:///Users/siler/.pub-cache/hosted/pub.dev/http-1.6.0",
       "packageUri": "lib/",

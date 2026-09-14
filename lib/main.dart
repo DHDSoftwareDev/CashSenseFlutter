@@ -34,6 +34,7 @@ import 'services/lookups_repository.dart';
 import 'services/lookups_local_store.dart';
 import 'services/lookups_state.dart';
 import 'services/notification_handler_service.dart';
+import 'services/home_screen_widget_service.dart';
 // Auth screens temporarily hidden
 import 'utils/root_scaffold.dart';
 import 'theme/app_theme.dart';
@@ -127,6 +128,8 @@ void main() async {
       child: CashSenseApp(initialHome: initialHome),
     ),
   );
+
+  unawaited(HomeScreenWidgetService.initialize());
 
   // Kick off non-critical initializations after first frame so UI can render fast.
   WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -421,6 +424,7 @@ class _AppLifecycleBiometricLockState extends State<AppLifecycleBiometricLock>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       PushTokenService.resetBadgeCount();
+      unawaited(HomeScreenWidgetService.syncNow());
     }
 
     if (!_isAutoLogoutEnabled()) {

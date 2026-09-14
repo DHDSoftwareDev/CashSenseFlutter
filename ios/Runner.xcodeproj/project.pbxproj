@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		CA510001CA510001CA510001 /* CashSenseWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA510007CA510007CA510007 /* CashSenseWidgets.swift */; };
+		CA510002CA510002CA510002 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CA51000BCA51000BCA51000B /* WidgetKit.framework */; };
+		CA510003CA510003CA510003 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CA51000CCA51000CCA51000C /* SwiftUI.framework */; };
+		CA510004CA510004CA510004 /* CashSenseWidgets.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = CA51000ACA51000ACA51000A /* CashSenseWidgets.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		122241F2F307CBC3B47D9B09 /* Pods_RunnerTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 43274985E5F74BCCA38A9C63 /* Pods_RunnerTests.framework */; };
 		1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */ = {isa = PBXBuildFile; fileRef = 1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */; };
 		331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C807B294A618700263BE5 /* RunnerTests.swift */; };
@@ -20,6 +24,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		CA510005CA510005CA510005 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 97C146E61CF9000F007C117D /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = CA51000FCA51000FCA51000F;
+			remoteInfo = CashSenseWidgets;
+		};
 		331C8085294A63A400263BE5 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 97C146E61CF9000F007C117D /* Project object */;
@@ -30,6 +41,17 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
+		CA510006CA510006CA510006 /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				CA510004CA510004CA510004 /* CashSenseWidgets.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		9705A1C41CF9048500538489 /* Embed Frameworks */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -43,6 +65,12 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		CA510007CA510007CA510007 /* CashSenseWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CashSenseWidgets.swift; sourceTree = "<group>"; };
+		CA510008CA510008CA510008 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		CA510009CA510009CA510009 /* CashSenseWidgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CashSenseWidgets.entitlements; sourceTree = "<group>"; };
+		CA51000ACA51000ACA51000A /* CashSenseWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = CashSenseWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		CA51000BCA51000BCA51000B /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		CA51000CCA51000CCA51000C /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		0FD8297745F0AFBF509CEF02 /* Pods-RunnerTests.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.profile.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.profile.xcconfig"; sourceTree = "<group>"; };
 		100A1BCECD8F772FE17DB47E /* Pods-Runner.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.profile.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.profile.xcconfig"; sourceTree = "<group>"; };
 		12BA72D526F7B4CCB6ECEE76 /* Pods-RunnerTests.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.release.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.release.xcconfig"; sourceTree = "<group>"; };
@@ -71,6 +99,15 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		CA51000DCA51000DCA51000D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CA510002CA510002CA510002 /* WidgetKit.framework in Frameworks */,
+				CA510003CA510003CA510003 /* SwiftUI.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		97C146EB1CF9000F007C117D /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -90,6 +127,16 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		CA51000ECA51000ECA51000E /* CashSenseWidgets */ = {
+			isa = PBXGroup;
+			children = (
+				CA510007CA510007CA510007 /* CashSenseWidgets.swift */,
+				CA510008CA510008CA510008 /* Info.plist */,
+				CA510009CA510009CA510009 /* CashSenseWidgets.entitlements */,
+			);
+			path = CashSenseWidgets;
+			sourceTree = "<group>";
+		};
 		331C8082294A63A400263BE5 /* RunnerTests */ = {
 			isa = PBXGroup;
 			children = (
@@ -114,6 +161,7 @@
 			children = (
 				9740EEB11CF90186004384FC /* Flutter */,
 				97C146F01CF9000F007C117D /* Runner */,
+				CA51000ECA51000ECA51000E /* CashSenseWidgets */,
 				97C146EF1CF9000F007C117D /* Products */,
 				331C8082294A63A400263BE5 /* RunnerTests */,
 				E1109574CFC6BFE8E6389F46 /* Pods */,
@@ -125,6 +173,7 @@
 			isa = PBXGroup;
 			children = (
 				97C146EE1CF9000F007C117D /* Runner.app */,
+				CA51000ACA51000ACA51000A /* CashSenseWidgets.appex */,
 				331C8081294A63A400263BE5 /* RunnerTests.xctest */,
 			);
 			name = Products;
@@ -150,6 +199,8 @@
 		CAB8C1B7C6F64006A08866BF /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				CA51000BCA51000BCA51000B /* WidgetKit.framework */,
+				CA51000CCA51000CCA51000C /* SwiftUI.framework */,
 				156B7211CBA35E0A72B11BC3 /* Pods_Runner.framework */,
 				43274985E5F74BCCA38A9C63 /* Pods_RunnerTests.framework */,
 			);
@@ -172,6 +223,23 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		CA51000FCA51000FCA51000F /* CashSenseWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CA510016CA510016CA510016 /* Build configuration list for PBXNativeTarget "CashSenseWidgets" */;
+			buildPhases = (
+				CA510011CA510011CA510011 /* Sources */,
+				CA51000DCA51000DCA51000D /* Frameworks */,
+				CA510010CA510010CA510010 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = CashSenseWidgets;
+			productName = CashSenseWidgets;
+			productReference = CA51000ACA51000ACA51000A /* CashSenseWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		331C8080294A63A400263BE5 /* RunnerTests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 331C8087294A63A400263BE5 /* Build configuration list for PBXNativeTarget "RunnerTests" */;
@@ -201,12 +269,14 @@
 				97C146EB1CF9000F007C117D /* Frameworks */,
 				97C146EC1CF9000F007C117D /* Resources */,
 				9705A1C41CF9048500538489 /* Embed Frameworks */,
+				CA510006CA510006CA510006 /* Embed App Extensions */,
 				3B06AD1E1E4923F5004D2608 /* Thin Binary */,
 				D21EE25F05965C3B0E6ADB6F /* [CP] Copy Pods Resources */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				CA510012CA510012CA510012 /* PBXTargetDependency */,
 			);
 			name = Runner;
 			productName = Runner;
@@ -223,6 +293,9 @@
 				LastUpgradeCheck = 1510;
 				ORGANIZATIONNAME = "";
 				TargetAttributes = {
+					CA51000FCA51000FCA51000F = {
+						CreatedOnToolsVersion = 15.0;
+					};
 					331C8080294A63A400263BE5 = {
 						CreatedOnToolsVersion = 14.0;
 						TestTargetID = 97C146ED1CF9000F007C117D;
@@ -247,12 +320,20 @@
 			projectRoot = "";
 			targets = (
 				97C146ED1CF9000F007C117D /* Runner */,
+				CA51000FCA51000FCA51000F /* CashSenseWidgets */,
 				331C8080294A63A400263BE5 /* RunnerTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		CA510010CA510010CA510010 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		331C807F294A63A400263BE5 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -370,6 +451,14 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		CA510011CA510011CA510011 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CA510001CA510001CA510001 /* CashSenseWidgets.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		331C807D294A63A400263BE5 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -390,6 +479,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		CA510012CA510012CA510012 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = CA51000FCA51000FCA51000F /* CashSenseWidgets */;
+			targetProxy = CA510005CA510005CA510005 /* PBXContainerItemProxy */;
+		};
 		331C8086294A63A400263BE5 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 97C146ED1CF9000F007C117D /* Runner */;
@@ -417,6 +511,94 @@
 /* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
+		CA510013CA510013CA510013 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = CashSenseWidgets/CashSenseWidgets.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 23;
+				DEVELOPMENT_TEAM = Z9AGKHBN29;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = CashSenseWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = CashSense;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 2.3.26;
+				PRODUCT_BUNDLE_IDENTIFIER = name.dhdsoftware.cashsense.CashSenseMM.CashSenseWidgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		CA510014CA510014CA510014 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = CashSenseWidgets/CashSenseWidgets.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 23;
+				DEVELOPMENT_TEAM = Z9AGKHBN29;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = CashSenseWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = CashSense;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 2.3.26;
+				PRODUCT_BUNDLE_IDENTIFIER = name.dhdsoftware.cashsense.CashSenseMM.CashSenseWidgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		CA510015CA510015CA510015 /* Profile */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = CashSenseWidgets/CashSenseWidgets.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 23;
+				DEVELOPMENT_TEAM = Z9AGKHBN29;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = CashSenseWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = CashSense;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 2.3.26;
+				PRODUCT_BUNDLE_IDENTIFIER = name.dhdsoftware.cashsense.CashSenseMM.CashSenseWidgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Profile;
+		};
 		249021D3217E4FDB00AE95B9 /* Profile */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -479,7 +661,7 @@
 				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 22;
+				CURRENT_PROJECT_VERSION = 23;
 				DEVELOPMENT_TEAM = Z9AGKHBN29;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
@@ -489,7 +671,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.3.25;
+				MARKETING_VERSION = 2.3.26;
 				PRODUCT_BUNDLE_IDENTIFIER = name.dhdsoftware.cashsense.CashSenseMM;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -505,10 +687,10 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 22;
+				CURRENT_PROJECT_VERSION = 23;
 				DEVELOPMENT_TEAM = Z9AGKHBN29;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 2.3.25;
+				MARKETING_VERSION = 2.3.26;
 				PRODUCT_BUNDLE_IDENTIFIER = name.dhdsoftware.cashsense.CashSenseMM;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
@@ -524,10 +706,10 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 22;
+				CURRENT_PROJECT_VERSION = 23;
 				DEVELOPMENT_TEAM = Z9AGKHBN29;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 2.3.25;
+				MARKETING_VERSION = 2.3.26;
 				PRODUCT_BUNDLE_IDENTIFIER = name.dhdsoftware.cashsense.CashSenseMM;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
@@ -541,10 +723,10 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 22;
+				CURRENT_PROJECT_VERSION = 23;
 				DEVELOPMENT_TEAM = Z9AGKHBN29;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 2.3.25;
+				MARKETING_VERSION = 2.3.26;
 				PRODUCT_BUNDLE_IDENTIFIER = name.dhdsoftware.cashsense.CashSenseMM;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
@@ -674,7 +856,7 @@
 				CODE_SIGN_ENTITLEMENTS = "Runner/Runner-Debug.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 22;
+				CURRENT_PROJECT_VERSION = 23;
 				DEVELOPMENT_TEAM = Z9AGKHBN29;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
@@ -684,7 +866,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.3.25;
+				MARKETING_VERSION = 2.3.26;
 				PRODUCT_BUNDLE_IDENTIFIER = name.dhdsoftware.cashsense.CashSenseMM;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -704,7 +886,7 @@
 				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 22;
+				CURRENT_PROJECT_VERSION = 23;
 				DEVELOPMENT_TEAM = Z9AGKHBN29;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
@@ -714,7 +896,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.3.25;
+				MARKETING_VERSION = 2.3.26;
 				PRODUCT_BUNDLE_IDENTIFIER = name.dhdsoftware.cashsense.CashSenseMM;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -727,6 +909,16 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		CA510016CA510016CA510016 /* Build configuration list for PBXNativeTarget "CashSenseWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CA510013CA510013CA510013 /* Debug */,
+				CA510014CA510014CA510014 /* Release */,
+				CA510015CA510015CA510015 /* Profile */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		331C8087294A63A400263BE5 /* Build configuration list for PBXNativeTarget "RunnerTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

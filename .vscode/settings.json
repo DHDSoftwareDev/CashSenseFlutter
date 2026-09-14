@@ -9,5 +9,6 @@
     "third_party/**",
     "**/example/android/**",
     "**/build/**"
-  ]
+  ],
+  "cmake.sourceDirectory": "/Users/siler/Projects/CashSenseFlutter/windows"
 }

@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import '../services/database_service.dart';
+import '../services/home_screen_widget_service.dart';
 import '../theme/app_theme.dart';
 
 class ThemeProvider extends ChangeNotifier {
@@ -16,7 +17,10 @@ class ThemeProvider extends ChangeNotifier {
     final stored = DatabaseService.getSetting<String>(_settingKey, 'system');
     _themeMode = _themeModeFromString(stored);
     // Load persisted primary color (stored as int)
-    final storedColor = DatabaseService.getSetting<int>(_primaryColorKey, AppTheme.primaryGreen.value);
+    final storedColor = DatabaseService.getSetting<int>(
+      _primaryColorKey,
+      AppTheme.primaryGreen.value,
+    );
     _primaryColor = Color(storedColor ?? AppTheme.primaryGreen.value);
   }
 
@@ -33,6 +37,7 @@ class ThemeProvider extends ChangeNotifier {
   Future<void> setPrimaryColor(Color color) async {
     _primaryColor = color;
     await DatabaseService.setSetting(_primaryColorKey, color.value);
+    await HomeScreenWidgetService.syncNow();
     notifyListeners();
   }
 
