@@ -15,7 +15,7 @@
         android:background="#FF2E7D32"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingHorizontal="14dp"
+        android:paddingHorizontal="18dp"
         android:paddingVertical="12dp">
         <TextView
             android:id="@+id/widget_title"

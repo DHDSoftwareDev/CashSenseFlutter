@@ -9,6 +9,7 @@ private let snapshotKey = "cashsense_widget_snapshot"
 private struct BillItem: Codable, Identifiable {
     let id: String
     let name: String
+    let note: String?
     let amount: Double
     let dueMillis: Int64
     let type: String
@@ -367,11 +368,13 @@ private struct UpcomingBillsView: View {
         let start = calendar.startOfDay(for: entry.date)
         let end = calendar.date(byAdding: .month, value: 1, to: start) ??
             Date(timeInterval: 2_678_400, since: start)
-        return entry.snapshot.bills.filter {
-            $0.dueDate >= start &&
-                $0.dueDate <= end &&
-                (entry.showPaidBills || !$0.isPaid)
-        }
+        return entry.snapshot.bills
+            .filter {
+                $0.dueDate >= start &&
+                    $0.dueDate <= end &&
+                    (entry.showPaidBills || !$0.isPaid)
+            }
+            .sorted { $0.dueDate < $1.dueDate }
     }
 
     private var billSummary: String {
@@ -395,7 +398,7 @@ private struct UpcomingBillsView: View {
                 summary: billSummary,
                 foreground: entry.snapshot.widgetForegroundColor
             )
-            .padding(.horizontal, 10)
+            .padding(.horizontal, 14)
             .padding(.vertical, 8)
             .background(entry.snapshot.widgetColor)
 
@@ -408,26 +411,35 @@ private struct UpcomingBillsView: View {
                         .frame(maxWidth: .infinity, alignment: .center)
                     Spacer()
                 } else {
-                    ForEach(Array(visibleBills.prefix(rowLimit))) { bill in
+                    let displayedBills = Array(visibleBills.prefix(rowLimit))
+                    ForEach(Array(displayedBills.enumerated()), id: \.element.id) { index, bill in
                         Link(destination: billURL(bill)) {
                             HStack(spacing: 6) {
                                 VStack(alignment: .leading, spacing: 1) {
                                     Text(bill.name).font(.caption.bold()).lineLimit(1)
-                                    Text(
-                                        bill.isPaid
-                                            ? "Paid · \(dueText(bill.dueDate))"
-                                            : dueText(bill.dueDate)
-                                    )
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
+                                    if let note = bill.note, !note.isEmpty {
+                                        Text(note)
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(1)
+                                    }
                                 }
                                 Spacer(minLength: 4)
-                                Text(bill.amount, format: .currency(code: "USD"))
-                                    .font(.caption)
-                                    .lineLimit(1)
+                                VStack(alignment: .trailing, spacing: 1) {
+                                    Text(bill.amount, format: .currency(code: "USD"))
+                                        .font(.caption)
+                                        .lineLimit(1)
+                                    Text(bill.isPaid ? "Paid · \(dueText(bill.dueDate))" : dueText(bill.dueDate))
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
                             }
                         }
                         .foregroundStyle(.primary)
+                        if index < displayedBills.count - 1 {
+                            Divider()
+                        }
                     }
                     Spacer(minLength: 0)
                 }
@@ -436,7 +448,7 @@ private struct UpcomingBillsView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .cashSenseWidgetBackground(Color(.systemBackground))
-        .widgetURL(URL(string: "cashsense://bills"))
+        .widgetURL(visibleBills.first.map(billURL) ?? URL(string: "cashsense://bills")!)
     }
 
     private func billURL(_ bill: BillItem) -> URL {
@@ -517,7 +529,7 @@ private struct AccountBalancesView: View {
                 summary: summary,
                 foreground: entry.snapshot.widgetForegroundColor
             )
-            .padding(.horizontal, 10)
+            .padding(.horizontal, 14)
             .padding(.vertical, 8)
             .background(entry.snapshot.widgetColor)
 

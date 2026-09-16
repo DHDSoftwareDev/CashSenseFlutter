@@ -155,7 +155,7 @@ class UpcomingBillsWidgetProvider : HomeWidgetProvider() {
             dueMillis >= startOfToday &&
                 dueMillis <= oneMonthFromToday &&
                 bill.optString("paymentStatus") != "paid"
-        }
+        }.sortedBy { bill -> bill.optLong("dueMillis") }
         appWidgetIds.forEach { widgetId ->
             val views = widgetViews(context)
             views.applyTheme(data)
@@ -169,12 +169,17 @@ class UpcomingBillsWidgetProvider : HomeWidgetProvider() {
                 val bill = bills[index]
                 val dueMillis = bill.optLong("dueMillis")
                 val amount = currency(bill.optDouble("amount"))
+                val note = bill.optString("note").trim()
+                val name = bill.optString("name", "Bill")
+                val nameWithNote = if (note.isEmpty()) name else "$name\n$note"
+                val paidPrefix = if (bill.optString("paymentStatus") == "paid") "Paid · " else ""
                 views.showRow(
                     index,
-                    bill.optString("name", "Bill"),
-                    "${dueLabel(dueMillis)} · $amount",
+                    nameWithNote,
+                    "$paidPrefix${dueLabel(dueMillis)} · $amount",
                     context,
                     Uri.parse("cashsense://bills?date=$dueMillis"),
+                    showDivider = true,
                 )
             }
             views.setOnClickPendingIntent(

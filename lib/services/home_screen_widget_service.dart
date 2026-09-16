@@ -8,6 +8,7 @@ import 'package:home_widget/home_widget.dart';
 
 import '../models/bill.dart';
 import '../models/transaction.dart';
+import '../utils/bill_note_utils.dart';
 import '../utils/root_scaffold.dart';
 import 'database_service.dart';
 
@@ -139,6 +140,7 @@ class HomeScreenWidgetService {
       bills.add({
         'id': '${bill.id}:${dueDate.millisecondsSinceEpoch}',
         'name': _billDisplayName(bill),
+        'note': _billNote(bill),
         'amount': bill.amount,
         'dueMillis': dueDate.millisecondsSinceEpoch,
         'type': bill.type.name,
@@ -201,24 +203,45 @@ class HomeScreenWidgetService {
   }
 
   static String _billDisplayName(Bill bill) {
-    final description = (bill.description ?? '').trim();
-    if (description.isNotEmpty && description.toLowerCase() != 'bill') {
-      return description;
-    }
-    if (bill.payeeId != null) {
-      final payee = DatabaseService.getAllPayees().where(
-        (item) => item['id'] == bill.payeeId,
-      );
-      if (payee.isNotEmpty) {
-        final name = (payee.first['name'] ?? '').toString().trim();
-        if (name.isNotEmpty) return name;
+    final payeeName = _billPayeeName(bill);
+    if (payeeName.isNotEmpty) return payeeName;
+
+    if (bill.type == BillType.transfer) {
+      final fromName = _accountName(bill.fromAccountId);
+      final toName = _accountName(bill.toAccountId);
+      if (fromName.isNotEmpty && toName.isNotEmpty) {
+        return 'Transfer from $fromName to $toName';
       }
     }
+
     return switch (bill.type) {
       BillType.expense => 'Bill',
       BillType.income => 'Expected income',
       BillType.transfer => 'Scheduled transfer',
     };
+  }
+
+  static String _billNote(Bill bill) {
+    return editableBillNote(
+      bill,
+      payeeName: _billPayeeName(bill),
+      fromAccountName: _accountName(bill.fromAccountId),
+      toAccountName: _accountName(bill.toAccountId),
+    );
+  }
+
+  static String _billPayeeName(Bill bill) {
+    if (bill.payeeId == null || bill.payeeId!.isEmpty) return '';
+    final payee = DatabaseService.getAllPayees().where(
+      (item) => item['id'] == bill.payeeId,
+    );
+    if (payee.isEmpty) return '';
+    return (payee.first['name'] ?? '').toString().trim();
+  }
+
+  static String _accountName(String? accountId) {
+    if (accountId == null || accountId.isEmpty) return '';
+    return DatabaseService.getAccountById(accountId)?.name.trim() ?? '';
   }
 
   static PaymentStatus _occurrenceStatus(
