@@ -133,17 +133,33 @@ private struct CashSenseProvider: TimelineProvider {
 }
 
 @available(iOSApplicationExtension 17.0, *)
+enum UpcomingBillsFilter: String, AppEnum {
+    case all
+    case unpaid
+    case paid
+    case pastDue
+
+    static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Bills to Show")
+    static let caseDisplayRepresentations: [UpcomingBillsFilter: DisplayRepresentation] = [
+        .all: DisplayRepresentation(title: "Paid and Unpaid"),
+        .unpaid: DisplayRepresentation(title: "Unpaid Only"),
+        .paid: DisplayRepresentation(title: "Paid Only"),
+        .pastDue: DisplayRepresentation(title: "Past Due Only"),
+    ]
+}
+
+@available(iOSApplicationExtension 17.0, *)
 struct ConfigureUpcomingBillsIntent: WidgetConfigurationIntent {
     static let title: LocalizedStringResource = "Upcoming Bills"
     static let description = IntentDescription(
-        "Choose whether paid bills appear in the upcoming month."
+        "Choose which paid, unpaid, or past-due bills appear."
     )
 
-    @Parameter(title: "Show Paid Bills", default: false)
-    var showPaidBills: Bool
+    @Parameter(title: "Bills to Show", default: .unpaid)
+    var billFilter: UpcomingBillsFilter
 
     static var parameterSummary: some ParameterSummary {
-        Summary("Show paid bills: \(\.$showPaidBills)")
+        Summary("Show \(\.$billFilter)")
     }
 }
 
@@ -151,13 +167,13 @@ struct ConfigureUpcomingBillsIntent: WidgetConfigurationIntent {
 private struct UpcomingBillsEntry: TimelineEntry {
     let date: Date
     let snapshot: CashSenseSnapshot
-    let showPaidBills: Bool
+    let billFilter: UpcomingBillsFilter
 }
 
 @available(iOSApplicationExtension 17.0, *)
 private struct UpcomingBillsProvider: AppIntentTimelineProvider {
     func placeholder(in context: Context) -> UpcomingBillsEntry {
-        UpcomingBillsEntry(date: .now, snapshot: .empty, showPaidBills: false)
+        UpcomingBillsEntry(date: .now, snapshot: .empty, billFilter: .unpaid)
     }
 
     func snapshot(
@@ -191,7 +207,7 @@ private struct UpcomingBillsProvider: AppIntentTimelineProvider {
         UpcomingBillsEntry(
             date: date,
             snapshot: loadCashSenseSnapshot(),
-            showPaidBills: configuration.showPaidBills
+            billFilter: configuration.billFilter
         )
     }
 }
@@ -257,16 +273,16 @@ enum WidgetBalanceType: String, AppEnum {
 @available(iOSApplicationExtension 17.0, *)
 struct SelectBalanceAccountIntent: WidgetConfigurationIntent {
     static let title: LocalizedStringResource = "Account Balance"
-    static let description = IntentDescription("Choose the account and balance type shown in this widget.")
+    static let description = IntentDescription("Choose the accounts and balance type shown in this widget.")
 
-    @Parameter(title: "Account")
-    var account: WidgetAccount?
+    @Parameter(title: "Accounts")
+    var accounts: [WidgetAccount]?
 
     @Parameter(title: "Balance Type", default: .available)
     var balanceType: WidgetBalanceType
 
     static var parameterSummary: some ParameterSummary {
-        Summary("Show \(\.$balanceType) for \(\.$account)")
+        Summary("Show \(\.$balanceType) for \(\.$accounts)")
     }
 }
 
@@ -274,7 +290,7 @@ struct SelectBalanceAccountIntent: WidgetConfigurationIntent {
 private struct AccountBalancesEntry: TimelineEntry {
     let date: Date
     let snapshot: CashSenseSnapshot
-    let selectedAccountID: String?
+    let selectedAccountIDs: [String]?
     let balanceType: WidgetBalanceType
 }
 
@@ -284,7 +300,7 @@ private struct AccountBalancesProvider: AppIntentTimelineProvider {
         AccountBalancesEntry(
             date: .now,
             snapshot: .empty,
-            selectedAccountID: nil,
+            selectedAccountIDs: nil,
             balanceType: .available
         )
     }
@@ -317,11 +333,14 @@ private struct AccountBalancesProvider: AppIntentTimelineProvider {
         for configuration: SelectBalanceAccountIntent,
         date: Date
     ) -> AccountBalancesEntry {
-        let selectedID = configuration.account?.id
+        let selectedIDs = configuration.accounts?.map(\.id)
+        let showsAllAccounts = selectedIDs?.contains(WidgetAccount.allAccountsID) == true
         return AccountBalancesEntry(
             date: date,
             snapshot: loadCashSenseSnapshot(),
-            selectedAccountID: selectedID == WidgetAccount.allAccountsID ? nil : selectedID,
+            selectedAccountIDs: selectedIDs?.isEmpty == false && !showsAllAccounts
+                ? selectedIDs
+                : nil,
             balanceType: configuration.balanceType
         )
     }
@@ -342,19 +361,41 @@ private struct WidgetHeader: View {
     let title: String
     let summary: String
     let foreground: Color
+    var stacksVertically = false
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text(title)
-                .font(.headline)
-                .foregroundStyle(foreground)
-                .lineLimit(1)
-            Spacer(minLength: 4)
-            Text(summary)
-                .font(.caption.bold())
-                .foregroundStyle(foreground.opacity(0.78))
-                .lineLimit(1)
+        Group {
+            if stacksVertically {
+                VStack(alignment: .leading, spacing: 2) {
+                    titleText
+                    summaryText
+                }
+            } else {
+                HStack(alignment: .firstTextBaseline) {
+                    titleText
+                    Spacer(minLength: 4)
+                    summaryText
+                }
+            }
         }
+        // Bill rows can use two lines. Keep the header from being collapsed
+        // when their combined ideal height is taller than the widget.
+        .fixedSize(horizontal: false, vertical: true)
+        .layoutPriority(1)
+    }
+
+    private var titleText: some View {
+        Text(title)
+            .font(.headline)
+            .foregroundStyle(foreground)
+            .lineLimit(1)
+    }
+
+    private var summaryText: some View {
+        Text(summary)
+            .font(.caption.bold())
+            .foregroundStyle(foreground.opacity(0.78))
+            .lineLimit(1)
     }
 }
 
@@ -366,27 +407,53 @@ private struct UpcomingBillsView: View {
     private var visibleBills: [BillItem] {
         let calendar = Calendar.autoupdatingCurrent
         let start = calendar.startOfDay(for: entry.date)
-        let end = calendar.date(byAdding: .month, value: 1, to: start) ??
-            Date(timeInterval: 2_678_400, since: start)
         return entry.snapshot.bills
-            .filter {
-                $0.dueDate >= start &&
-                    $0.dueDate <= end &&
-                    (entry.showPaidBills || !$0.isPaid)
+            .filter { bill in
+                let due = calendar.startOfDay(for: bill.dueDate)
+                let isPastDue = due < start
+
+                switch entry.billFilter {
+                case .all:
+                    return !isPastDue
+                case .unpaid:
+                    return !isPastDue && !bill.isPaid
+                case .paid:
+                    return !isPastDue && bill.isPaid
+                case .pastDue:
+                    return isPastDue && !bill.isPaid
+                }
             }
             .sorted { $0.dueDate < $1.dueDate }
     }
 
+    private var billsDueThisMonth: Int {
+        let calendar = Calendar.autoupdatingCurrent
+        return visibleBills.filter { bill in
+            calendar.isDate(bill.dueDate, equalTo: entry.date, toGranularity: .month)
+        }.count
+    }
+
     private var billSummary: String {
-        entry.showPaidBills
-            ? "\(visibleBills.count) bills"
-            : "\(visibleBills.count) due"
+        if entry.billFilter == .pastDue {
+            return "Past due - \(visibleBills.count) bills"
+        }
+        let month = entry.date.formatted(.dateTime.month(.wide))
+        return "\(month) - \(billsDueThisMonth) bills due"
+    }
+
+    private var emptyMessage: String {
+        switch entry.billFilter {
+        case .all: return "No upcoming bills"
+        case .unpaid: return "No upcoming unpaid bills"
+        case .paid: return "No upcoming paid bills"
+        case .pastDue: return "No past-due bills"
+        }
     }
 
     private var rowLimit: Int {
         switch family {
         case .systemSmall: return 2
-        case .systemLarge: return 8
+        case .systemLarge: return 6
         default: return 4
         }
     }
@@ -396,7 +463,8 @@ private struct UpcomingBillsView: View {
             WidgetHeader(
                 title: "Upcoming Bills",
                 summary: billSummary,
-                foreground: entry.snapshot.widgetForegroundColor
+                foreground: entry.snapshot.widgetForegroundColor,
+                stacksVertically: family == .systemSmall
             )
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
@@ -405,7 +473,7 @@ private struct UpcomingBillsView: View {
             VStack(alignment: .leading, spacing: 8) {
                 if visibleBills.isEmpty {
                     Spacer()
-                    Text(entry.showPaidBills ? "No bills in the next month" : "No unpaid bills in the next month")
+                    Text(emptyMessage)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .center)
@@ -445,6 +513,8 @@ private struct UpcomingBillsView: View {
                 }
             }
             .padding(10)
+            .frame(maxHeight: .infinity, alignment: .topLeading)
+            .clipped()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .cashSenseWidgetBackground(Color(.systemBackground))
@@ -460,6 +530,9 @@ private struct UpcomingBillsView: View {
         let due = calendar.startOfDay(for: date)
         let current = calendar.startOfDay(for: entry.date)
         let days = calendar.dateComponents([.day], from: current, to: due).day ?? 0
+        if days < 0 {
+            return "Overdue · \(date.formatted(.dateTime.month(.abbreviated).day()))"
+        }
         if days == 0 { return "Due today" }
         if days == 1 { return "Due tomorrow" }
         return "Due \(date.formatted(.dateTime.month(.abbreviated).day()))"
@@ -471,14 +544,12 @@ private struct AccountBalancesView: View {
     @Environment(\.widgetFamily) private var family
     let entry: AccountBalancesEntry
 
-    private var selectedAccount: AccountItem? {
-        guard let selectedAccountID = entry.selectedAccountID else { return nil }
-        return entry.snapshot.accounts.first { $0.id == selectedAccountID }
-    }
-
     private var displayedAccounts: [AccountItem] {
-        guard entry.selectedAccountID != nil else { return entry.snapshot.accounts }
-        return selectedAccount.map { [$0] } ?? []
+        guard let selectedAccountIDs = entry.selectedAccountIDs else {
+            return entry.snapshot.accounts
+        }
+        let selectedIDs = Set(selectedAccountIDs)
+        return entry.snapshot.accounts.filter { selectedIDs.contains($0.id) }
     }
 
     private var rowLimit: Int {
@@ -489,36 +560,33 @@ private struct AccountBalancesView: View {
         }
     }
 
-    private var summary: String {
-        if entry.snapshot.hideBalances { return "••••" }
-        if let selectedAccount {
-            return money(balance(for: selectedAccount), selectedAccount.currency)
-        }
-        if entry.snapshot.hasMixedCurrencies == true {
-            return "\(entry.snapshot.accounts.count) accounts"
-        }
-        return money(totalBalance, entry.snapshot.totalCurrency ?? "USD")
+    private var visibleAccounts: [AccountItem] {
+        Array(displayedAccounts.prefix(rowLimit))
     }
 
-    private var totalBalance: Double {
-        switch entry.balanceType {
-        case .available:
-            return entry.snapshot.totalAvailable
-        case .current:
-            return entry.snapshot.totalCurrent ?? entry.snapshot.totalAvailable
+    private var summary: String {
+        if entry.snapshot.hideBalances { return "••••" }
+        let currencies = Set(visibleAccounts.map(\.currency))
+        if currencies.count > 1 {
+            return "\(visibleAccounts.count) accounts"
+        }
+        let currency = currencies.first ?? entry.snapshot.totalCurrency ?? "USD"
+        return money(visibleBalance, currency)
+    }
+
+    private var visibleBalance: Double {
+        visibleAccounts.reduce(0) { total, account in
+            total + balance(for: account)
         }
     }
 
     private var title: String {
-        switch (entry.balanceType, entry.selectedAccountID == nil) {
-        case (.available, true):
-            return "Available Balances"
-        case (.available, false):
-            return "Available Balance"
-        case (.current, true):
-            return "Current Balances"
-        case (.current, false):
-            return "Current Balance"
+        let plural = displayedAccounts.count != 1
+        switch (entry.balanceType, plural) {
+        case (.available, true): return "Available Balances"
+        case (.available, false): return "Available Balance"
+        case (.current, true): return "Current Balances"
+        case (.current, false): return "Current Balance"
         }
     }
 
@@ -536,13 +604,12 @@ private struct AccountBalancesView: View {
             VStack(alignment: .leading, spacing: 0) {
                 if displayedAccounts.isEmpty {
                     Spacer()
-                    Text(entry.selectedAccountID == nil ? "No active accounts" : "Selected account unavailable")
+                    Text(entry.selectedAccountIDs == nil ? "No active accounts" : "Selected accounts unavailable")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .center)
                     Spacer()
                 } else {
-                    let visibleAccounts = Array(displayedAccounts.prefix(rowLimit))
                     ForEach(Array(visibleAccounts.enumerated()), id: \.element.id) { index, account in
                         Link(destination: accountURL(account)) {
                             HStack(spacing: 6) {
@@ -606,7 +673,7 @@ private struct UpcomingBillsWidget: Widget {
             UpcomingBillsView(entry: entry)
         }
         .configurationDisplayName("Upcoming Bills")
-        .description("See bills due in the next month and optionally include paid bills.")
+        .description("See upcoming, paid, unpaid, or past-due bills.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
         .contentMarginsDisabled()
     }

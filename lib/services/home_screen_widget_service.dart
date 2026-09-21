@@ -127,17 +127,32 @@ class HomeScreenWidgetService {
 
   @visibleForTesting
   static Map<String, dynamic> buildSnapshot({required DateTime now}) {
-    final start = DateTime(now.year, now.month, now.day);
-    final end = DateTime(start.year + 1, start.month, start.day);
+    final today = DateTime(now.year, now.month, now.day);
+    final end = DateTime(today.year + 1, today.month, today.day);
+    final storedBills = DatabaseService.getAllBills();
+    final start = storedBills.isEmpty
+        ? today
+        : storedBills
+              .map(
+                (bill) => DateTime(
+                  bill.dueDate.year,
+                  bill.dueDate.month,
+                  bill.dueDate.day,
+                ),
+              )
+              .reduce(
+                (earliest, date) => date.isBefore(earliest) ? date : earliest,
+              );
     final transactions = DatabaseService.getAllTransactions();
     final occurrences = DatabaseService.getBillOccurrencesBetween(start, end);
-    final bills = <Map<String, dynamic>>[];
+    final pastDueBills = <Map<String, dynamic>>[];
+    final currentAndFutureBills = <Map<String, dynamic>>[];
 
     for (final occurrence in occurrences) {
       final bill = occurrence['bill'] as Bill;
       final dueDate = occurrence['date'] as DateTime;
       final paymentStatus = _occurrenceStatus(bill, dueDate, transactions);
-      bills.add({
+      final item = <String, dynamic>{
         'id': '${bill.id}:${dueDate.millisecondsSinceEpoch}',
         'name': _billDisplayName(bill),
         'note': _billNote(bill),
@@ -145,11 +160,27 @@ class HomeScreenWidgetService {
         'dueMillis': dueDate.millisecondsSinceEpoch,
         'type': bill.type.name,
         'paymentStatus': paymentStatus.name,
-      });
-      // Keep enough future occurrences for native timelines to advance even
-      // when the Flutter app has not been opened for several weeks.
-      if (bills.length >= 100) break;
+      };
+      if (dueDate.isBefore(today)) {
+        if (paymentStatus != PaymentStatus.paid) {
+          pastDueBills.add(item);
+        }
+      } else {
+        currentAndFutureBills.add(item);
+      }
     }
+
+    int compareByDueDate(Map<String, dynamic> a, Map<String, dynamic> b) =>
+        (a['dueMillis'] as int).compareTo(b['dueMillis'] as int);
+    pastDueBills.sort(compareByDueDate);
+    currentAndFutureBills.sort(compareByDueDate);
+
+    // Preserve overdue items for the overdue filters without letting a long
+    // payment history crowd future items out of the native widget timeline.
+    final bills = <Map<String, dynamic>>[
+      ...pastDueBills.take(50),
+      ...currentAndFutureBills.take(100),
+    ];
 
     final hideBalances =
         DatabaseService.getSetting<bool>(hideBalancesSettingKey, false) ??

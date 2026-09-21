@@ -209,19 +209,26 @@ class AccountBalancesWidgetProvider : HomeWidgetProvider() {
             val views = widgetViews(context)
             views.applyTheme(data)
             views.setTextViewText(R.id.widget_title, "Available Balances")
-            val mixedCurrencies = data?.optBoolean("hasMixedCurrencies", false) ?: false
+            val visibleAccounts = (0 until minOf(accounts.length(), rowIds.size)).mapNotNull { index ->
+                accounts.optJSONObject(index)
+            }
+            val visibleCurrencies = visibleAccounts.map { account ->
+                account.optString("currency", "USD")
+            }.toSet()
             val totalSummary = when {
                 hidden -> "••••"
-                mixedCurrencies -> if (accounts.length() == 1) "1 account" else "${accounts.length()} accounts"
+                visibleCurrencies.size > 1 ->
+                    if (visibleAccounts.size == 1) "1 account" else "${visibleAccounts.size} accounts"
                 else -> currency(
-                    data?.optDouble("totalAvailable") ?: 0.0,
-                    data?.optString("totalCurrency", "USD") ?: "USD",
+                    visibleAccounts.sumOf { account -> account.optDouble("balance") },
+                    visibleCurrencies.firstOrNull()
+                        ?: data?.optString("totalCurrency", "USD")
+                        ?: "USD",
                 )
             }
             views.setTextViewText(R.id.widget_summary, totalSummary)
             views.resetRows("No active accounts")
-            for (index in 0 until minOf(accounts.length(), rowIds.size)) {
-                val account = accounts.optJSONObject(index) ?: continue
+            for ((index, account) in visibleAccounts.withIndex()) {
                 val value = if (hidden) {
                     "••••"
                 } else {
