@@ -1,10 +1,12 @@
 package name.dhdsoftware.cashsenseflutter
 
 import android.appwidget.AppWidgetManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.SharedPreferences
 import android.graphics.Color
 import android.net.Uri
+import android.os.Bundle
 import android.view.View
 import android.widget.RemoteViews
 import es.antonborri.home_widget.HomeWidgetLaunchIntent
@@ -18,6 +20,24 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 private const val SNAPSHOT_KEY = "cashsense_widget_snapshot"
+internal const val HOME_WIDGET_PREFERENCES = "HomeWidgetPreferences"
+internal const val WIDGET_CONFIG_PREFERENCES = "CashSenseWidgetConfiguration"
+
+internal fun billsFilterKey(widgetId: Int) = "bills_filter_$widgetId"
+internal fun balanceTypeKey(widgetId: Int) = "balance_type_$widgetId"
+internal fun selectedAccountsKey(widgetId: Int) = "selected_accounts_$widgetId"
+
+private fun clearWidgetConfiguration(context: Context, widgetIds: IntArray) {
+    val editor = context
+        .getSharedPreferences(WIDGET_CONFIG_PREFERENCES, Context.MODE_PRIVATE)
+        .edit()
+    widgetIds.forEach { widgetId ->
+        editor.remove(billsFilterKey(widgetId))
+        editor.remove(balanceTypeKey(widgetId))
+        editor.remove(selectedAccountsKey(widgetId))
+    }
+    editor.apply()
+}
 
 private val rowIds = intArrayOf(
     R.id.widget_row_1,
@@ -110,6 +130,20 @@ private fun RemoteViews.showRow(
     )
 }
 
+private fun visibleRowLimit(
+    appWidgetManager: AppWidgetManager,
+    widgetId: Int,
+): Int {
+    val minHeight = appWidgetManager
+        .getAppWidgetOptions(widgetId)
+        .getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 110)
+    return when {
+        minHeight >= 170 -> 4
+        minHeight >= 140 -> 3
+        else -> 2
+    }
+}
+
 private fun currency(amount: Double, currencyCode: String = "USD"): String {
     val formatter = NumberFormat.getCurrencyInstance()
     runCatching { formatter.currency = Currency.getInstance(currencyCode) }
@@ -130,6 +164,40 @@ private fun dueLabel(dueMillis: Long): String {
 }
 
 class UpcomingBillsWidgetProvider : HomeWidgetProvider() {
+    override fun onEnabled(context: Context) {
+        super.onEnabled(context)
+        val manager = AppWidgetManager.getInstance(context)
+        val widgetIds = manager.getAppWidgetIds(ComponentName(context, javaClass))
+        if (widgetIds.isNotEmpty()) {
+            onUpdate(
+                context,
+                manager,
+                widgetIds,
+                context.getSharedPreferences(HOME_WIDGET_PREFERENCES, Context.MODE_PRIVATE),
+            )
+        }
+    }
+
+    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
+        clearWidgetConfiguration(context, appWidgetIds)
+        super.onDeleted(context, appWidgetIds)
+    }
+
+    override fun onAppWidgetOptionsChanged(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetId: Int,
+        newOptions: Bundle,
+    ) {
+        super.onAppWidgetOptionsChanged(context, appWidgetManager, appWidgetId, newOptions)
+        onUpdate(
+            context,
+            appWidgetManager,
+            intArrayOf(appWidgetId),
+            context.getSharedPreferences(HOME_WIDGET_PREFERENCES, Context.MODE_PRIVATE),
+        )
+    }
+
     override fun onUpdate(
         context: Context,
         appWidgetManager: AppWidgetManager,
@@ -145,18 +213,29 @@ class UpcomingBillsWidgetProvider : HomeWidgetProvider() {
             set(Calendar.MILLISECOND, 0)
         }
         val startOfToday = today.timeInMillis
-        val oneMonthFromToday = (today.clone() as Calendar).apply {
-            add(Calendar.MONTH, 1)
-        }.timeInMillis
-        val bills = (0 until storedBills.length()).mapNotNull { index ->
+        val allBills = (0 until storedBills.length()).mapNotNull { index ->
             storedBills.optJSONObject(index)
-        }.filter { bill ->
-            val dueMillis = bill.optLong("dueMillis")
-            dueMillis >= startOfToday &&
-                dueMillis <= oneMonthFromToday &&
-                bill.optString("paymentStatus") != "paid"
         }.sortedBy { bill -> bill.optLong("dueMillis") }
+        val config = context.getSharedPreferences(WIDGET_CONFIG_PREFERENCES, Context.MODE_PRIVATE)
         appWidgetIds.forEach { widgetId ->
+            val filter = config.getString(billsFilterKey(widgetId), "unpaid") ?: "unpaid"
+            val bills = allBills.filter { bill ->
+                val isPastDue = bill.optLong("dueMillis") < startOfToday
+                val isPaid = bill.optString("paymentStatus") == "paid"
+                when (filter) {
+                    "all" -> !isPastDue
+                    "paid" -> !isPastDue && isPaid
+                    "pastDue" -> isPastDue && !isPaid
+                    else -> !isPastDue && !isPaid
+                }
+            }
+            val emptyMessage = when (filter) {
+                "all" -> "No upcoming bills"
+                "paid" -> "No upcoming paid bills"
+                "pastDue" -> "No past-due bills"
+                else -> "No upcoming unpaid bills"
+            }
+            val maxRows = visibleRowLimit(appWidgetManager, widgetId)
             val views = widgetViews(context)
             views.applyTheme(data)
             views.setTextViewText(R.id.widget_title, "Upcoming Bills")
@@ -164,8 +243,8 @@ class UpcomingBillsWidgetProvider : HomeWidgetProvider() {
                 R.id.widget_summary,
                 if (bills.size == 1) "1 due" else "${bills.size} due",
             )
-            views.resetRows("No upcoming unpaid bills")
-            for (index in 0 until minOf(bills.size, rowIds.size)) {
+            views.resetRows(emptyMessage)
+            for (index in 0 until minOf(bills.size, maxRows)) {
                 val bill = bills[index]
                 val dueMillis = bill.optLong("dueMillis")
                 val amount = currency(bill.optDouble("amount"))
@@ -196,6 +275,40 @@ class UpcomingBillsWidgetProvider : HomeWidgetProvider() {
 }
 
 class AccountBalancesWidgetProvider : HomeWidgetProvider() {
+    override fun onEnabled(context: Context) {
+        super.onEnabled(context)
+        val manager = AppWidgetManager.getInstance(context)
+        val widgetIds = manager.getAppWidgetIds(ComponentName(context, javaClass))
+        if (widgetIds.isNotEmpty()) {
+            onUpdate(
+                context,
+                manager,
+                widgetIds,
+                context.getSharedPreferences(HOME_WIDGET_PREFERENCES, Context.MODE_PRIVATE),
+            )
+        }
+    }
+
+    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
+        clearWidgetConfiguration(context, appWidgetIds)
+        super.onDeleted(context, appWidgetIds)
+    }
+
+    override fun onAppWidgetOptionsChanged(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetId: Int,
+        newOptions: Bundle,
+    ) {
+        super.onAppWidgetOptionsChanged(context, appWidgetManager, appWidgetId, newOptions)
+        onUpdate(
+            context,
+            appWidgetManager,
+            intArrayOf(appWidgetId),
+            context.getSharedPreferences(HOME_WIDGET_PREFERENCES, Context.MODE_PRIVATE),
+        )
+    }
+
     override fun onUpdate(
         context: Context,
         appWidgetManager: AppWidgetManager,
@@ -205,13 +318,30 @@ class AccountBalancesWidgetProvider : HomeWidgetProvider() {
         val data = snapshot(widgetData)
         val accounts = data?.optJSONArray("accounts") ?: JSONArray()
         val hidden = data?.optBoolean("hideBalances", false) ?: false
+        val config = context.getSharedPreferences(WIDGET_CONFIG_PREFERENCES, Context.MODE_PRIVATE)
         appWidgetIds.forEach { widgetId ->
+            val selectedIds = config.getStringSet(selectedAccountsKey(widgetId), null)
+            val balanceType = config.getString(balanceTypeKey(widgetId), "available")
+                ?: "available"
+            val maxRows = visibleRowLimit(appWidgetManager, widgetId)
             val views = widgetViews(context)
             views.applyTheme(data)
-            views.setTextViewText(R.id.widget_title, "Available Balances")
-            val visibleAccounts = (0 until minOf(accounts.length(), rowIds.size)).mapNotNull { index ->
+            val configuredAccounts = (0 until accounts.length()).mapNotNull { index ->
                 accounts.optJSONObject(index)
+            }.filter { account ->
+                selectedIds == null || selectedIds.contains(account.optString("id"))
             }
+            val plural = configuredAccounts.size != 1
+            views.setTextViewText(
+                R.id.widget_title,
+                when {
+                    balanceType == "current" && plural -> "Current Balances"
+                    balanceType == "current" -> "Current Balance"
+                    plural -> "Available Balances"
+                    else -> "Available Balance"
+                },
+            )
+            val visibleAccounts = configuredAccounts.take(maxRows)
             val visibleCurrencies = visibleAccounts.map { account ->
                 account.optString("currency", "USD")
             }.toSet()
@@ -220,20 +350,32 @@ class AccountBalancesWidgetProvider : HomeWidgetProvider() {
                 visibleCurrencies.size > 1 ->
                     if (visibleAccounts.size == 1) "1 account" else "${visibleAccounts.size} accounts"
                 else -> currency(
-                    visibleAccounts.sumOf { account -> account.optDouble("balance") },
+                    visibleAccounts.sumOf { account ->
+                        if (balanceType == "current") {
+                            account.optDouble("currentBalance", account.optDouble("balance"))
+                        } else {
+                            account.optDouble("balance")
+                        }
+                    },
                     visibleCurrencies.firstOrNull()
                         ?: data?.optString("totalCurrency", "USD")
                         ?: "USD",
                 )
             }
             views.setTextViewText(R.id.widget_summary, totalSummary)
-            views.resetRows("No active accounts")
+            views.resetRows(
+                if (selectedIds == null) "No active accounts" else "Selected accounts unavailable",
+            )
             for ((index, account) in visibleAccounts.withIndex()) {
                 val value = if (hidden) {
                     "••••"
                 } else {
                     currency(
-                        account.optDouble("balance"),
+                        if (balanceType == "current") {
+                            account.optDouble("currentBalance", account.optDouble("balance"))
+                        } else {
+                            account.optDouble("balance")
+                        },
                         account.optString("currency", "USD"),
                     )
                 }

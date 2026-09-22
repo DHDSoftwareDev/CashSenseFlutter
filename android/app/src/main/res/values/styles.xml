@@ -13,4 +13,7 @@
     <style name="NormalTheme" parent="@style/Theme.Material3.DayNight.NoActionBar">
         <item name="android:windowBackground">@android:color/transparent</item>
     </style>
+    <style name="WidgetConfigurationTheme" parent="@style/Theme.Material3.DayNight.NoActionBar">
+        <item name="android:windowBackground">?android:colorBackground</item>
+    </style>
 </resources>

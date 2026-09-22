@@ -32,6 +32,14 @@
                 <action android:name="es.antonborri.home_widget.action.LAUNCH" />
             </intent-filter>
         </activity>
+        <activity
+            android:name=".CashSenseWidgetConfigureActivity"
+            android:exported="true"
+            android:theme="@style/WidgetConfigurationTheme">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
         <receiver
             android:name=".UpcomingBillsWidgetProvider"
             android:exported="true"
@@ -46,7 +54,7 @@
         <receiver
             android:name=".AccountBalancesWidgetProvider"
             android:exported="true"
-            android:label="Available Balances">
+            android:label="Account Balances">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>

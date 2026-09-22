@@ -844,7 +844,10 @@ class _AddBillScreenState extends State<AddBillScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final bottomClearance = MediaQuery.paddingOf(context).bottom + 96;
+
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         leading: const BackButton(),
         title: Text(
@@ -855,36 +858,40 @@ class _AddBillScreenState extends State<AddBillScreen> {
         backgroundColor: Theme.of(context).colorScheme.primary,
         foregroundColor: Colors.white,
       ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            _buildTypeToggle(),
-            const SizedBox(height: 12),
-            _buildAmountField(),
-            const SizedBox(height: 16),
-            if (_billType == BillType.transfer) ...[
-              _buildFromAccountSelector(),
+      body: SafeArea(
+        top: false,
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: EdgeInsets.fromLTRB(16, 16, 16, bottomClearance),
+            children: [
+              _buildTypeToggle(),
               const SizedBox(height: 12),
-              _buildToAccountSelector(),
-            ] else ...[
-              _buildPayeeSelector(),
+              _buildAmountField(),
+              const SizedBox(height: 16),
+              if (_billType == BillType.transfer) ...[
+                _buildFromAccountSelector(),
+                const SizedBox(height: 12),
+                _buildToAccountSelector(),
+              ] else ...[
+                _buildPayeeSelector(),
+                const SizedBox(height: 12),
+                _buildCategorySelector(),
+                const SizedBox(height: 12),
+                _buildAccountSelector(),
+              ],
+              const SizedBox(height: 8),
+              _buildDueDateSelector(),
+              const SizedBox(height: 16),
+              _buildRecurrenceField(),
               const SizedBox(height: 12),
-              _buildCategorySelector(),
-              const SizedBox(height: 12),
-              _buildAccountSelector(),
+              _buildNotesField(),
+              const SizedBox(height: 24),
+              _buildSaveButton(),
             ],
-            const SizedBox(height: 8),
-            _buildDueDateSelector(),
-            const SizedBox(height: 16),
-            _buildRecurrenceField(),
-            const SizedBox(height: 12),
-            _buildNotesField(),
-            const SizedBox(height: 16),
-            const SizedBox(height: 32),
-            _buildSaveButton(),
-          ],
+          ),
         ),
       ),
     );
@@ -1051,13 +1058,18 @@ class _AddBillScreenState extends State<AddBillScreen> {
 
               return StatefulBuilder(
                 builder: (ctx, setState) {
-                  return Padding(
-                    padding: EdgeInsets.only(
-                      bottom: MediaQuery.of(ctx).viewInsets.bottom,
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
+                  return SafeArea(
+                    top: false,
+                    child: FractionallySizedBox(
+                      heightFactor: 0.9,
+                      child: SingleChildScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: EdgeInsets.only(
+                          bottom: MediaQuery.viewInsetsOf(ctx).bottom + 16,
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
                         ListTile(title: const Text('Select recurrence')),
                         RadioListTile<Recurrence>(
                           value: Recurrence.none,
@@ -1258,57 +1270,52 @@ class _AddBillScreenState extends State<AddBillScreen> {
                             ),
                           ),
                         const Divider(),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16.0,
-                            vertical: 8,
+                        ListTile(
+                          leading: const Icon(Icons.event),
+                          title: const Text('End'),
+                          subtitle: Text(
+                            tempForever
+                                ? 'Forever'
+                                : tempEnd == null
+                                ? 'Select date'
+                                : DateFormat.yMMMd().format(tempEnd!),
                           ),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.event),
-                              const SizedBox(width: 12),
-                              const Text('End'),
-                              const Spacer(),
-                              Text(
-                                tempForever
-                                    ? 'Forever'
-                                    : (tempEnd == null
-                                          ? 'Select date'
-                                          : DateFormat.yMMMd().format(
-                                              tempEnd!,
-                                            )),
-                              ),
-                              const SizedBox(width: 8),
-                              TextButton(
-                                onPressed: () =>
-                                    setState(() => tempForever = !tempForever),
-                                child: Text(
-                                  tempForever ? 'End date' : 'Make forever',
-                                ),
-                              ),
-                              if (!tempForever)
-                                IconButton(
-                                  onPressed: () async {
-                                    final picked = await showDatePicker(
-                                      context: ctx,
-                                      initialDate:
-                                          tempEnd ??
-                                          DateTime.now().add(
-                                            const Duration(days: 30),
-                                          ),
-                                      firstDate: DateTime.now(),
-                                      lastDate: DateTime.now().add(
-                                        const Duration(days: 3650),
-                                      ),
-                                    );
-                                    if (picked != null)
-                                      setState(() => tempEnd = picked);
-                                  },
-                                  icon: const Icon(Icons.calendar_today),
-                                ),
-                            ],
+                          trailing: TextButton(
+                            onPressed: () =>
+                                setState(() => tempForever = !tempForever),
+                            child: Text(
+                              tempForever ? 'Set end date' : 'Make forever',
+                            ),
                           ),
                         ),
+                        if (!tempForever)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                onPressed: () async {
+                                  final picked = await showDatePicker(
+                                    context: ctx,
+                                    initialDate:
+                                        tempEnd ??
+                                        DateTime.now().add(
+                                          const Duration(days: 30),
+                                        ),
+                                    firstDate: DateTime.now(),
+                                    lastDate: DateTime.now().add(
+                                      const Duration(days: 3650),
+                                    ),
+                                  );
+                                  if (picked != null) {
+                                    setState(() => tempEnd = picked);
+                                  }
+                                },
+                                icon: const Icon(Icons.calendar_today),
+                                label: const Text('Choose end date'),
+                              ),
+                            ),
+                          ),
                         const SizedBox(height: 12),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -1356,7 +1363,9 @@ class _AddBillScreenState extends State<AddBillScreen> {
                           ],
                         ),
                         const SizedBox(height: 16),
-                      ],
+                          ],
+                        ),
+                      ),
                     ),
                   );
                 },

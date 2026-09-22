@@ -104,6 +104,12 @@
       "languageVersion": "3.0"
     },
     {
+      "name": "ansicolor",
+      "rootUri": "file:///Users/siler/.pub-cache/hosted/pub.dev/ansicolor-2.0.3",
+      "packageUri": "lib/",
+      "languageVersion": "3.0"
+    },
+    {
       "name": "archive",
       "rootUri": "file:///Users/siler/.pub-cache/hosted/pub.dev/archive-4.0.7",
       "packageUri": "lib/",
@@ -266,6 +272,12 @@
       "languageVersion": "3.4"
     },
     {
+      "name": "csslib",
+      "rootUri": "file:///Users/siler/.pub-cache/hosted/pub.dev/csslib-1.0.2",
+      "packageUri": "lib/",
+      "languageVersion": "3.1"
+    },
+    {
       "name": "cupertino_icons",
       "rootUri": "file:///Users/siler/.pub-cache/hosted/pub.dev/cupertino_icons-1.0.8",
       "packageUri": "lib/",
@@ -410,6 +422,12 @@
       "languageVersion": "3.5"
     },
     {
+      "name": "flutter_native_splash",
+      "rootUri": "file:///Users/siler/.pub-cache/hosted/pub.dev/flutter_native_splash-2.4.7",
+      "packageUri": "lib/",
+      "languageVersion": "3.0"
+    },
+    {
       "name": "flutter_native_timezone",
       "rootUri": "../third_party/flutter_native_timezone",
       "packageUri": "lib/",
@@ -528,6 +546,12 @@
       "rootUri": "file:///Users/siler/.pub-cache/hosted/pub.dev/home_widget-0.9.4",
       "packageUri": "lib/",
       "languageVersion": "3.10"
+    },
+    {
+      "name": "html",
+      "rootUri": "file:///Users/siler/.pub-cache/hosted/pub.dev/html-0.15.7",
+      "packageUri": "lib/",
+      "languageVersion": "3.6"
     },
     {
       "name": "http",
@@ -819,9 +843,9 @@
     },
     {
       "name": "petitparser",
-      "rootUri": "file:///Users/siler/.pub-cache/hosted/pub.dev/petitparser-6.1.0",
+      "rootUri": "file:///Users/siler/.pub-cache/hosted/pub.dev/petitparser-7.0.2",
       "packageUri": "lib/",
-      "languageVersion": "3.5"
+      "languageVersion": "3.8"
     },
     {
       "name": "platform",
@@ -1052,6 +1076,12 @@
       "languageVersion": "3.5"
     },
     {
+      "name": "universal_io",
+      "rootUri": "file:///Users/siler/.pub-cache/hosted/pub.dev/universal_io-2.3.1",
+      "packageUri": "lib/",
+      "languageVersion": "3.6"
+    },
+    {
       "name": "url_launcher",
       "rootUri": "file:///Users/siler/.pub-cache/hosted/pub.dev/url_launcher-6.3.2",
       "packageUri": "lib/",
@@ -1215,9 +1245,9 @@
     },
     {
       "name": "xml",
-      "rootUri": "file:///Users/siler/.pub-cache/hosted/pub.dev/xml-6.5.0",
+      "rootUri": "file:///Users/siler/.pub-cache/hosted/pub.dev/xml-6.6.1",
       "packageUri": "lib/",
-      "languageVersion": "3.2"
+      "languageVersion": "3.8"
     },
     {
       "name": "yaml",

@@ -38,7 +38,7 @@
             android:textStyle="bold" />
     </LinearLayout>
 
-    <View
+    <TextView
         android:id="@+id/widget_divider"
         android:layout_width="match_parent"
         android:layout_height="1dp"
@@ -60,7 +60,7 @@
         <TextView android:id="@+id/widget_row_1_name" style="@style/CashSenseWidgetName" />
         <TextView android:id="@+id/widget_row_1_value" style="@style/CashSenseWidgetValue" />
     </LinearLayout>
-    <View
+    <TextView
         android:id="@+id/widget_row_divider_1"
         android:layout_width="match_parent"
         android:layout_height="1dp"
@@ -69,7 +69,7 @@
         <TextView android:id="@+id/widget_row_2_name" style="@style/CashSenseWidgetName" />
         <TextView android:id="@+id/widget_row_2_value" style="@style/CashSenseWidgetValue" />
     </LinearLayout>
-    <View
+    <TextView
         android:id="@+id/widget_row_divider_2"
         android:layout_width="match_parent"
         android:layout_height="1dp"
@@ -78,7 +78,7 @@
         <TextView android:id="@+id/widget_row_3_name" style="@style/CashSenseWidgetName" />
         <TextView android:id="@+id/widget_row_3_value" style="@style/CashSenseWidgetValue" />
     </LinearLayout>
-    <View
+    <TextView
         android:id="@+id/widget_row_divider_3"
         android:layout_width="match_parent"
         android:layout_height="1dp"

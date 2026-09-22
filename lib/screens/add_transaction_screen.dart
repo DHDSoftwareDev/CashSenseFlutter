@@ -139,7 +139,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final bottomClearance = MediaQuery.paddingOf(context).bottom + 96;
+
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         leading: const BackButton(),
         title: Text(
@@ -151,50 +154,54 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         backgroundColor: Theme.of(context).colorScheme.primary,
         foregroundColor: Colors.white,
       ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            _buildTypeToggle(),
-            const SizedBox(height: 12),
-            _buildAmountField(),
-            const SizedBox(height: 16),
-            if (_transactionType == TransactionScreenType.transfer) ...[
-              _buildFromAccountSelector(),
+      body: SafeArea(
+        top: false,
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: EdgeInsets.fromLTRB(16, 16, 16, bottomClearance),
+            children: [
+              _buildTypeToggle(),
               const SizedBox(height: 12),
-              _buildToAccountSelector(),
-            ] else ...[
-              _buildPayeeSelector(),
+              _buildAmountField(),
+              const SizedBox(height: 16),
+              if (_transactionType == TransactionScreenType.transfer) ...[
+                _buildFromAccountSelector(),
+                const SizedBox(height: 12),
+                _buildToAccountSelector(),
+              ] else ...[
+                _buildPayeeSelector(),
+                const SizedBox(height: 12),
+                _buildCategorySelector(),
+                const SizedBox(height: 12),
+                if (_useSplits)
+                  SplitsEditor(
+                    initialSplits: _splits,
+                    transactionAmount:
+                        double.tryParse(_amountController.text) ?? null,
+                    onChanged: (s) => _splits = s,
+                    categoryTypeFilter:
+                        _transactionType == TransactionScreenType.income
+                        ? CategoryType.income
+                        : CategoryType.expense,
+                  ),
+                const SizedBox(height: 12),
+                _buildAccountSelector(),
+              ],
+              const SizedBox(height: 8),
+              if (_transactionType != TransactionScreenType.transfer)
+                _buildClearedToggle(),
+              const SizedBox(height: 8),
+              _buildShowInReportsToggle(),
+              _buildDateSelector(),
               const SizedBox(height: 12),
-              _buildCategorySelector(),
-              const SizedBox(height: 12),
-              if (_useSplits)
-                SplitsEditor(
-                  initialSplits: _splits,
-                  transactionAmount:
-                      double.tryParse(_amountController.text) ?? null,
-                  onChanged: (s) => _splits = s,
-                  categoryTypeFilter:
-                      _transactionType == TransactionScreenType.income
-                      ? CategoryType.income
-                      : CategoryType.expense,
-                ),
-              const SizedBox(height: 12),
-              _buildAccountSelector(),
+              _buildNotesField(),
+              const SizedBox(height: 24),
+              _buildSaveButton(),
             ],
-            const SizedBox(height: 8),
-            if (_transactionType != TransactionScreenType.transfer)
-              _buildClearedToggle(),
-            const SizedBox(height: 8),
-            _buildShowInReportsToggle(),
-            _buildDateSelector(),
-            const SizedBox(height: 12),
-            _buildNotesField(),
-            const SizedBox(height: 16),
-            const SizedBox(height: 32),
-            _buildSaveButton(),
-          ],
+          ),
         ),
       ),
     );
