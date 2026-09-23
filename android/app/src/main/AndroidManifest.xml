@@ -12,7 +12,7 @@
         <!-- AdMob App ID (Android) -->
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-3193820644001678~8680139984"/>
+            android:value="ca-app-pub-3193820644001678~1753068626"/>
         <!-- Firebase Messaging defaults: use launcher icon and default channel id -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"

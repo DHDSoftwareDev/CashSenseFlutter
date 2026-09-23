@@ -1,6 +1,16 @@
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../services/database_service.dart';
+
+const _androidBannerAdUnitId = 'ca-app-pub-3193820644001678/1636980832';
+const _iosBannerAdUnitId = 'ca-app-pub-3193820644001678/9448428184';
+
+String? get _bannerAdUnitId => switch (defaultTargetPlatform) {
+  TargetPlatform.android => _androidBannerAdUnitId,
+  TargetPlatform.iOS => _iosBannerAdUnitId,
+  _ => null,
+};
 
 class BannerAdWidget extends StatefulWidget {
   const BannerAdWidget({super.key});
@@ -34,8 +44,11 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
     }
     if (_ad != null) return;
 
+    final adUnitId = _bannerAdUnitId;
+    if (adUnitId == null) return;
+
     _ad = BannerAd(
-      adUnitId: 'ca-app-pub-3193820644001678/9448428184', // iOS banner ID
+      adUnitId: adUnitId,
       size: AdSize.banner,
       request: const AdRequest(),
       listener: BannerAdListener(
