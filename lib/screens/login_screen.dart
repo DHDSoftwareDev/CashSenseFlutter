@@ -10,8 +10,6 @@ import '../services/aws_api_service.dart';
 import '../services/biometric_auth_service.dart';
 import '../services/push_token_service.dart';
 import '../services/remote_sync_service.dart';
-import '../services/session_cleanup_service.dart';
-import '../services/user_api_service.dart';
 import '../providers/user_session_controller.dart';
 import '../services/lookups_state.dart';
 import 'verification_screen.dart';
@@ -75,9 +73,6 @@ class _LoginScreenState extends State<LoginScreen> {
             idToken: idToken,
           );
         }
-      } on BackendUserInvalidatedException {
-        await _handleBackendUserInvalidated();
-        return;
       } catch (_) {}
 
       final lookupsState = context.read<LookupsState>();
@@ -93,26 +88,6 @@ class _LoginScreenState extends State<LoginScreen> {
       );
       lookupsState.syncRemote().catchError((_) {});
     } catch (_) {}
-  }
-
-  Future<void> _handleBackendUserInvalidated() async {
-    UserSessionController? userSession;
-    try {
-      userSession = context.read<UserSessionController>();
-    } catch (_) {}
-
-    await SessionCleanupService.clearInvalidatedBackendUser(
-      userSession: userSession,
-    );
-
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Your account is no longer available. Please sign in again.',
-        ),
-      ),
-    );
   }
 
   @override
@@ -151,9 +126,6 @@ class _LoginScreenState extends State<LoginScreen> {
               idToken: idToken,
             );
           }
-        } on BackendUserInvalidatedException {
-          await _handleBackendUserInvalidated();
-          return;
         } catch (_) {}
         try {
           await PushTokenService.registerDeviceOnLogin();
@@ -190,8 +162,6 @@ class _LoginScreenState extends State<LoginScreen> {
           SnackBar(content: Text('Next step: ${result.nextStep.signInStep}')),
         );
       }
-    } on BackendUserInvalidatedException {
-      await _handleBackendUserInvalidated();
     } on AuthException catch (e) {
       if (!mounted) return;
       final msg = CognitoService.getErrorMessage(e);

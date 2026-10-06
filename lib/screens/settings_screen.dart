@@ -54,9 +54,6 @@ enum _ClearDataOption {
 class _SettingsScreenState extends State<SettingsScreen> {
   static const String _developerUnlockPassword = 'dev2026';
   static const String _testerUnlockPassword = 'tester30days';
-  static const String _autoLogoutEnabledKey = 'biometricAutoLogoutEnabled';
-  static const String _autoLogoutTimeoutKey = 'biometricAutoLogoutSeconds';
-  static const List<int> _autoLogoutTimeoutOptions = <int>[30, 60, 90];
 
   String _userEmail = '';
   bool _isLoggedIn = false;
@@ -66,8 +63,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _biometricEnabled = false;
   bool _biometricAvailable = false;
   String _biometricLabel = 'Biometrics';
-  bool _autoLogoutEnabled = true;
-  int _autoLogoutTimeoutSeconds = 60;
   bool _billRemindersEnabled = false;
   List<ReminderOffset> _billReminderOffsets = [];
   bool _syncingNotificationToken = false;
@@ -81,8 +76,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _loadUserInfo();
     _loadVersion();
     _loadBiometricSettings();
-    _loadAutoLogoutEnabledSetting();
-    _loadAutoLogoutTimeoutSetting();
     _loadBillReminderSettings();
     _hideAccountBalancesInWidgets =
         DatabaseService.getSetting<bool>(
@@ -92,42 +85,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         false;
     _autoBackupEnabled =
         DatabaseService.getSetting<bool>('autoBackupEnabled', false) ?? false;
-  }
-
-  void _loadAutoLogoutEnabledSetting() {
-    final enabled =
-        DatabaseService.getSetting<bool>(_autoLogoutEnabledKey, true) ?? true;
-    if (!mounted) return;
-    setState(() {
-      _autoLogoutEnabled = enabled;
-    });
-  }
-
-  Future<void> _setAutoLogoutEnabled(bool enabled) async {
-    await DatabaseService.setSetting(_autoLogoutEnabledKey, enabled);
-    if (!mounted) return;
-    setState(() {
-      _autoLogoutEnabled = enabled;
-    });
-  }
-
-  void _loadAutoLogoutTimeoutSetting() {
-    final saved =
-        DatabaseService.getSetting<int>(_autoLogoutTimeoutKey, 60) ?? 60;
-    final selected = _autoLogoutTimeoutOptions.contains(saved) ? saved : 60;
-    if (!mounted) return;
-    setState(() {
-      _autoLogoutTimeoutSeconds = selected;
-    });
-  }
-
-  Future<void> _setAutoLogoutTimeoutSeconds(int seconds) async {
-    if (!_autoLogoutTimeoutOptions.contains(seconds)) return;
-    await DatabaseService.setSetting(_autoLogoutTimeoutKey, seconds);
-    if (!mounted) return;
-    setState(() {
-      _autoLogoutTimeoutSeconds = seconds;
-    });
   }
 
   void _loadBillReminderSettings() {
@@ -1710,50 +1667,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onChanged: _biometricAvailable
                     ? (value) => _setBiometricEnabled(value)
                     : null,
-              ),
-            ),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.lock_clock_outlined),
-              title: const Text('Auto Logout'),
-              subtitle: Text(
-                _autoLogoutEnabled
-                    ? 'Require unlock after time away from app'
-                    : 'Disabled',
-              ),
-              trailing: Switch(
-                value: _autoLogoutEnabled,
-                onChanged: (value) => _setAutoLogoutEnabled(value),
-              ),
-              onTap: () => _setAutoLogoutEnabled(!_autoLogoutEnabled),
-            ),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.timer_outlined),
-              title: const Text('Auto Logout Timeout'),
-              subtitle: Text(
-                _autoLogoutEnabled
-                    ? 'Log out after app is in background for:'
-                    : 'Enable Auto Logout to set timeout',
-              ),
-              trailing: DropdownButtonHideUnderline(
-                child: DropdownButton<int>(
-                  value: _autoLogoutTimeoutSeconds,
-                  items: _autoLogoutTimeoutOptions
-                      .map(
-                        (seconds) => DropdownMenuItem<int>(
-                          value: seconds,
-                          child: Text('$seconds sec'),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: _autoLogoutEnabled
-                      ? (value) {
-                          if (value == null) return;
-                          _setAutoLogoutTimeoutSeconds(value);
-                        }
-                      : null,
-                ),
               ),
             ),
             const SizedBox(height: 8),

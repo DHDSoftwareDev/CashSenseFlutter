@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 // import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
@@ -21,7 +22,6 @@ import 'services/bill_reminder_service.dart';
 import 'services/push_token_service.dart';
 import 'services/biometric_auth_service.dart';
 import 'services/remote_sync_service.dart';
-import 'services/session_cleanup_service.dart';
 import 'timezone_init.dart';
 import 'screens/main_navigation_screen.dart';
 import 'screens/login_screen.dart';
@@ -35,6 +35,7 @@ import 'services/lookups_local_store.dart';
 import 'services/lookups_state.dart';
 import 'services/notification_handler_service.dart';
 import 'services/home_screen_widget_service.dart';
+import 'widgets/app_system_insets.dart';
 // Auth screens temporarily hidden
 import 'utils/root_scaffold.dart';
 import 'theme/app_theme.dart';
@@ -42,10 +43,9 @@ import 'package:provider/provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/user_session_controller.dart';
 
-bool _isHandlingBackendUserInvalidation = false;
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   await _safeInitStep(
     'Timezone initialization',
     () => TimezoneInit.ensureInitialized(),
@@ -189,9 +189,6 @@ Future<void> _startDeferredInits(
       }),
     if (isSignedIn)
       _refreshCurrentUserSession(userSession).catchError((e) {
-        if (e is BackendUserInvalidatedException) {
-          return _handleBackendUserInvalidated(userSession);
-        }
         debugPrint('Refresh current user session failed: $e');
         return null;
       }),
@@ -202,9 +199,6 @@ Future<void> _startDeferredInits(
   if (isSignedIn) {
     try {
       await RemoteSyncService.syncUserDataOnLogin();
-    } on BackendUserInvalidatedException {
-      await _handleBackendUserInvalidated(userSession);
-      return;
     } catch (e) {
       debugPrint('Remote data sync failed: $e');
     }
@@ -222,24 +216,6 @@ Future<void> _refreshCurrentUserSession(
   final idToken = await AwsApiService.getIdToken();
   if (idToken.isEmpty) return;
   await userSession.refreshUser(idToken: idToken);
-}
-
-Future<void> _handleBackendUserInvalidated(
-  UserSessionController userSession,
-) async {
-  if (_isHandlingBackendUserInvalidation) return;
-  _isHandlingBackendUserInvalidation = true;
-  try {
-    await SessionCleanupService.clearInvalidatedBackendUser(
-      userSession: userSession,
-    );
-    navigatorKey.currentState?.pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
-      (route) => false,
-    );
-  } finally {
-    _isHandlingBackendUserInvalidation = false;
-  }
 }
 
 Future<void> _initDatabase() async {
@@ -362,6 +338,8 @@ class CashSenseApp extends StatelessWidget {
           theme: AppTheme.lightThemeFor(themeProvider.primaryColor),
           darkTheme: AppTheme.darkThemeFor(themeProvider.primaryColor),
           themeMode: themeProvider.themeMode,
+          builder: (context, child) =>
+              AppSystemInsets(child: child ?? const SizedBox.shrink()),
           home: AppLifecycleBiometricLock(child: initialHome),
           debugShowCheckedModeBanner: false,
         );
@@ -382,14 +360,7 @@ class AppLifecycleBiometricLock extends StatefulWidget {
 
 class _AppLifecycleBiometricLockState extends State<AppLifecycleBiometricLock>
     with WidgetsBindingObserver {
-  static const String _autoLogoutEnabledKey = 'biometricAutoLogoutEnabled';
-  static const String _autoLogoutTimeoutKey = 'biometricAutoLogoutSeconds';
-  static const int _defaultAutoLogoutSeconds = 60;
-  static const List<int> _allowedAutoLogoutSeconds = <int>[30, 60, 90];
-
   bool _isAuthenticating = false;
-  bool _shouldAuthenticateOnResume = false;
-  DateTime? _backgroundedAt;
   bool _showBiometricLockOverlay = false;
   bool _isStartupAuthCheckPending = true;
 
@@ -425,38 +396,6 @@ class _AppLifecycleBiometricLockState extends State<AppLifecycleBiometricLock>
     if (state == AppLifecycleState.resumed) {
       PushTokenService.resetBadgeCount();
       unawaited(HomeScreenWidgetService.syncNow());
-    }
-
-    if (!_isAutoLogoutEnabled()) {
-      _shouldAuthenticateOnResume = false;
-      _backgroundedAt = null;
-      return;
-    }
-
-    if (state == AppLifecycleState.resumed) {
-      if (!_shouldAuthenticateOnResume) return;
-      final backgroundedAt = _backgroundedAt;
-      _shouldAuthenticateOnResume = false;
-      _backgroundedAt = null;
-      if (backgroundedAt == null) return;
-
-      final elapsed = DateTime.now().difference(backgroundedAt);
-      final autoLogoutThreshold = Duration(seconds: _getAutoLogoutSeconds());
-      if (elapsed < autoLogoutThreshold) {
-        return;
-      }
-
-      _showLockOverlayOnResumeIfNeeded();
-      return;
-    }
-
-    if (_isAuthenticating) return;
-
-    if (state == AppLifecycleState.inactive ||
-        state == AppLifecycleState.paused ||
-        state == AppLifecycleState.detached) {
-      _shouldAuthenticateOnResume = true;
-      _backgroundedAt ??= DateTime.now();
     }
   }
 
@@ -526,49 +465,6 @@ class _AppLifecycleBiometricLockState extends State<AppLifecycleBiometricLock>
     }
   }
 
-  Future<void> _showLockOverlayOnResumeIfNeeded() async {
-    try {
-      final biometricEnabled = await BiometricAuthService.isBiometricEnabled();
-      if (!biometricEnabled) {
-        if (mounted && _showBiometricLockOverlay) {
-          setState(() {
-            _showBiometricLockOverlay = false;
-          });
-        }
-        return;
-      }
-
-      final signedIn = await CognitoService.isSignedIn();
-      if (!signedIn) {
-        if (mounted && _showBiometricLockOverlay) {
-          setState(() {
-            _showBiometricLockOverlay = false;
-          });
-        }
-        return;
-      }
-
-      final canUseBiometrics = await BiometricAuthService.canUseBiometrics();
-      if (!canUseBiometrics) {
-        await BiometricAuthService.setBiometricEnabled(false);
-        if (mounted && _showBiometricLockOverlay) {
-          setState(() {
-            _showBiometricLockOverlay = false;
-          });
-        }
-        return;
-      }
-
-      if (mounted && !_showBiometricLockOverlay) {
-        setState(() {
-          _showBiometricLockOverlay = true;
-        });
-      }
-    } catch (e) {
-      debugPrint('Biometric lock overlay on resume failed: $e');
-    }
-  }
-
   Future<void> _authenticateOnAppOpen() async {
     await _authenticateOnResume();
   }
@@ -576,23 +472,6 @@ class _AppLifecycleBiometricLockState extends State<AppLifecycleBiometricLock>
   Future<void> _unlockFromOverlay() async {
     if (_isAuthenticating) return;
     await _authenticateOnResume();
-  }
-
-  int _getAutoLogoutSeconds() {
-    final raw = DatabaseService.getSetting<int>(
-      _autoLogoutTimeoutKey,
-      _defaultAutoLogoutSeconds,
-    );
-    final seconds = raw ?? _defaultAutoLogoutSeconds;
-    if (_allowedAutoLogoutSeconds.contains(seconds)) {
-      return seconds;
-    }
-    return _defaultAutoLogoutSeconds;
-  }
-
-  bool _isAutoLogoutEnabled() {
-    return DatabaseService.getSetting<bool>(_autoLogoutEnabledKey, true) ??
-        true;
   }
 
   @override

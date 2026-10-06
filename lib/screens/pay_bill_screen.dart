@@ -958,56 +958,62 @@ class _PayBillScreenState extends State<PayBillScreen> {
                           child: Padding(
                             padding: const EdgeInsets.all(12),
                             child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      DateFormat('MM/dd/yyyy').format(tx.date),
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodyMedium
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    if (subtitleText.isNotEmpty)
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
                                       Text(
-                                        subtitleText,
+                                        DateFormat(
+                                          'MM/dd/yyyy',
+                                        ).format(tx.date),
                                         style: Theme.of(context)
                                             .textTheme
-                                            .bodySmall
-                                            ?.copyWith(color: Colors.grey[600]),
+                                            .bodyMedium
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w500,
+                                            ),
                                       ),
-                                    // Note is shown under the amount column now (right side)
-                                  ],
+                                      const SizedBox(height: 4),
+                                      if (subtitleText.isNotEmpty)
+                                        Text(
+                                          subtitleText,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.copyWith(
+                                                color: Colors.grey[600],
+                                              ),
+                                        ),
+                                    ],
+                                  ),
                                 ),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: [
-                                    Text(
-                                      NumberFormat.currency(
-                                        symbol: '\$',
-                                      ).format(tx.amount),
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodyMedium
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.w600,
-                                            color:
-                                                tx.type ==
-                                                    TransactionType.income
-                                                ? AppTheme.incomeGreen
-                                                : AppTheme.expenseRed,
-                                          ),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    if (displayPaymentFor.isNotEmpty) ...[
-                                      SizedBox(
-                                        width: 180,
-                                        child: Text(
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      Text(
+                                        NumberFormat.currency(
+                                          symbol: '\$',
+                                        ).format(tx.amount),
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodyMedium
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w600,
+                                              color:
+                                                  tx.type ==
+                                                      TransactionType.income
+                                                  ? AppTheme.incomeGreen
+                                                  : AppTheme.expenseRed,
+                                            ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      if (displayPaymentFor.isNotEmpty) ...[
+                                        Text(
                                           'Payment for $displayPaymentFor',
                                           style: Theme.of(context)
                                               .textTheme
@@ -1016,15 +1022,12 @@ class _PayBillScreenState extends State<PayBillScreen> {
                                                 color: Colors.grey[700],
                                               ),
                                           textAlign: TextAlign.right,
-                                          overflow: TextOverflow.ellipsis,
+                                          softWrap: true,
                                         ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                    ],
-                                    if (displayNote.isNotEmpty) ...[
-                                      SizedBox(
-                                        width: 160,
-                                        child: Text(
+                                        const SizedBox(height: 4),
+                                      ],
+                                      if (displayNote.isNotEmpty) ...[
+                                        Text(
                                           displayNote,
                                           style: Theme.of(context)
                                               .textTheme
@@ -1033,11 +1036,11 @@ class _PayBillScreenState extends State<PayBillScreen> {
                                                 color: Colors.grey[700],
                                               ),
                                           textAlign: TextAlign.right,
-                                          overflow: TextOverflow.ellipsis,
+                                          softWrap: true,
                                         ),
-                                      ),
+                                      ],
                                     ],
-                                  ],
+                                  ),
                                 ),
                               ],
                             ),

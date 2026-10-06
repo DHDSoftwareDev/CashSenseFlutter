@@ -13,7 +13,6 @@ import 'cognito_service.dart';
 import 'database_service.dart';
 import 'amplify_service.dart';
 import 'cloud_sync_policy.dart';
-import 'session_cleanup_service.dart';
 import 'user_api_service.dart';
 import 'user_auth_service.dart';
 
@@ -44,9 +43,6 @@ class RemoteSyncService {
         await _restoreLatestCloudBackupIfLocalDataEmpty();
         return;
       }
-    } on BackendUserInvalidatedException {
-      await SessionCleanupService.clearInvalidatedBackendUser();
-      rethrow;
     } catch (e) {
       debugPrint('Remote sync failed: $e');
     } finally {
@@ -75,8 +71,6 @@ class RemoteSyncService {
         await DatabaseService.setSubscriptionPlan(resolvedPlan);
         debugPrint('Subscription synced from /users/me: $resolvedPlan');
       }
-    } on BackendUserInvalidatedException {
-      rethrow;
     } catch (e) {
       debugPrint('Failed to refresh subscription from /users/me: $e');
     }

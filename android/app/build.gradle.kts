@@ -62,8 +62,9 @@ android {
 }
 
 dependencies {
+    implementation("androidx.activity:activity-ktx:1.9.0")
     // Needed if your styles.xml uses Theme.Material3.*
-    implementation("com.google.android.material:material:1.12.0")
+    implementation("com.google.android.material:material:1.13.0")
 
     // Google Mobile Ads SDK (18.1.0 or later)
     implementation("com.google.android.gms:play-services-ads:22.6.0")

@@ -8,17 +8,6 @@ import 'aws_api_service.dart';
 import 'http_service.dart';
 import 'user_auth_service.dart';
 
-class BackendUserInvalidatedException implements Exception {
-  final int statusCode;
-  final String body;
-
-  const BackendUserInvalidatedException(this.statusCode, this.body);
-
-  @override
-  String toString() =>
-      'Backend user invalidated: $statusCode${body.isEmpty ? '' : ' $body'}';
-}
-
 class CashSenseUserApi {
   final String baseUrl;
 
@@ -41,12 +30,6 @@ class CashSenseUserApi {
       maxAttempts: 2,
       retryOnFailure: true,
     );
-
-    if (res.statusCode == 401 ||
-        res.statusCode == 403 ||
-        res.statusCode == 404) {
-      throw BackendUserInvalidatedException(res.statusCode, res.body);
-    }
 
     if (res.statusCode != 200) {
       throw Exception('Failed to load user: ${res.statusCode} ${res.body}');
