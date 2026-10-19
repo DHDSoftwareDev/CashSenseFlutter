@@ -5,7 +5,7 @@
   "packages": [
     {
       "name": "cashsenseflutter",
-      "version": "2.3.29+60",
+      "version": "2.3.30+61",
       "dependencies": [
         "amplify_api",
         "amplify_auth_cognito",

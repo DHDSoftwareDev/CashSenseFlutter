@@ -675,94 +675,75 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   // Search bills by description, payee name, or notes
   void _performSearch(String query) {
-    final normalizedQuery = query.toLowerCase().trim();
-    if (normalizedQuery.isEmpty) {
-      setState(() {
-        _searchQuery = '';
-        _searchResults.clear();
-        _matchedSearchBillIds.clear();
-      });
-      _removeSearchDropdown();
-      return;
-    }
+  final normalizedQuery = query.toLowerCase().trim();
 
-    final allBills = _allBillsCache;
-    final allPayees = _allPayeesCache;
-
-    final payeeNameById = <String, String>{};
-    for (final payee in allPayees) {
-      final id = payee['id']?.toString();
-      final name = payee['name']?.toString();
-      if (id == null || id.isEmpty || name == null) continue;
-      payeeNameById[id] = name;
-    }
-
-    final matchedBillIds = <String>{};
-    final displayByBillId = <String, String>{};
-    for (final bill in allBills) {
-      final billDescription = _visibleBillText(bill.description);
-      final payeeName = (bill.payeeId != null && bill.payeeId!.isNotEmpty)
-          ? (payeeNameById[bill.payeeId!] ?? '')
-          : '';
-      final searchText = '$billDescription $payeeName'.toLowerCase();
-      if (!searchText.contains(normalizedQuery)) continue;
-      matchedBillIds.add(bill.id);
-      displayByBillId[bill.id] = payeeName.isNotEmpty
-          ? payeeName
-          : billDescription;
-    }
-
-    final results = <Map<String, dynamic>>[];
-    if (matchedBillIds.isNotEmpty) {
-      final now = DateTime.now();
-      final startDate = DateTime(now.year - 1, now.month, now.day);
-      final endDate = DateTime(now.year + 10, now.month, now.day);
-
-      final allOccurrences = _dedupeBillOccurrences(
-        DatabaseService.getBillOccurrencesBetween(startDate, endDate),
-      );
-
-      for (final occ in allOccurrences) {
-        final bill = occ['bill'];
-        final date = occ['date'];
-        if (bill is! Bill || date is! DateTime) continue;
-        if (!matchedBillIds.contains(bill.id)) continue;
-        if (!_showPaidBills) {
-          if (_getOccurrencePaymentStatus(bill, date) == PaymentStatus.paid) {
-            continue;
-          }
-        }
-        results.add({
-          'bill': bill,
-          'date': date,
-          'description':
-              displayByBillId[bill.id] ?? _visibleBillText(bill.description),
-        });
-      }
-    }
-
-    results.sort(
-      (a, b) => (a['date'] as DateTime).compareTo(b['date'] as DateTime),
-    );
+  if (normalizedQuery.isEmpty) {
+    if (!mounted) return;
 
     setState(() {
-      _searchQuery = normalizedQuery;
-      _searchResults
-        ..clear()
-        ..addAll(results);
-      _matchedSearchBillIds
-        ..clear()
-        ..addAll(matchedBillIds);
-      _positionSearchResultsAtToday();
+      _searchQuery = '';
+      _searchResults.clear();
+      _matchedSearchBillIds.clear();
     });
 
-    if (_searchResults.isNotEmpty && _searchFocusNode.hasFocus) {
-      _showSearchDropdown();
-    } else {
-      _removeSearchDropdown();
+    _removeSearchDropdown();
+    return;
+  }
+
+  final payeeNameById = <String, String>{};
+
+  for (final payee in _allPayeesCache) {
+    final id = payee['id']?.toString();
+    final name = payee['name']?.toString();
+
+    if (id == null ||
+        id.isEmpty ||
+        name == null ||
+        name.isEmpty) {
+      continue;
+    }
+
+    payeeNameById[id] = name;
+  }
+
+  final matchedBillIds = <String>{};
+
+  for (final bill in _allBillsCache) {
+    final billDescription =
+        _visibleBillText(bill.description);
+
+    final payeeName =
+        bill.payeeId != null &&
+                bill.payeeId!.isNotEmpty
+            ? (payeeNameById[bill.payeeId!] ?? '')
+            : '';
+
+    final searchText =
+        '$billDescription $payeeName'
+            .toLowerCase();
+
+    if (searchText.contains(normalizedQuery)) {
+      matchedBillIds.add(bill.id);
     }
   }
 
+  if (!mounted) return;
+
+  setState(() {
+    _searchQuery = normalizedQuery;
+
+    _matchedSearchBillIds
+      ..clear()
+      ..addAll(matchedBillIds);
+
+    // Do not generate years of bill occurrences while typing.
+    _searchResults.clear();
+  });
+
+  // The calendar and selected-day bill list already use
+  // _matchedSearchBillIds, so they update automatically.
+  _removeSearchDropdown();
+}
   void _scheduleSearch(String query) {
     _searchDebounceTimer?.cancel();
 
@@ -772,7 +753,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return;
     }
 
-    _searchDebounceTimer = Timer(const Duration(milliseconds: 300), () {
+    _searchDebounceTimer = Timer(
+  const Duration(milliseconds: 450), () {
       if (!mounted) return;
       if (_searchController.text.toLowerCase().trim() != normalizedQuery) {
         return;
@@ -790,9 +772,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
             icon: const Icon(Icons.menu),
             onPressed: openRootDrawer,
           ),
-          title: const DashboardTitleInline(),
-          titleSpacing: 0,
-          centerTitle: true,
+        title: const Text(
+  'CashSense',
+  style: TextStyle(
+    fontSize: 22,
+    fontWeight: FontWeight.w700,
+    letterSpacing: -0.3,
+  ),
+),
+titleSpacing: 0,
+centerTitle: true,
           actions: [
             IconButton(
               icon: const Icon(Icons.add),
@@ -845,9 +834,43 @@ class _DashboardScreenState extends State<DashboardScreen> {
               padding: const EdgeInsets.all(16),
               child: _buildCalendarCard(),
             ),
-            const SizedBox(height: 16),
-            Center(child: _buildFilterChips()),
-            const SizedBox(height: 12),
+            Padding(
+  padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+  child: Row(
+    children: [
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              _selectedDay != null
+                  ? DateFormat('MMMM d').format(_selectedDay!)
+                  : 'Bills',
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              _selectedDay != null
+                  ? 'Bills scheduled for this day'
+                  : 'Upcoming bills',
+              style: TextStyle(
+                fontSize: 14,
+                color: Theme.of(context)
+                    .colorScheme
+                    .onSurface
+                    .withAlpha(150),
+              ),
+            ),
+          ],
+        ),
+      ),
+      _buildFilterChips(),
+    ],
+  ),
+),
             // The scrolling content (recent transactions, ad, divider) lives
             // inside the Expanded ListView so the calendar remains fixed.
             Expanded(
@@ -864,7 +887,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     _buildRecentTransactionsCard(),
                     const SizedBox(height: 8),
                     const BannerAdWidget(),
-                    const Divider(height: 1),
                     const SizedBox(height: 12),
                   ],
                 ),
@@ -876,52 +898,96 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildCalendarCard() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
+Widget _buildCalendarCard() {
+  final colorScheme = Theme.of(context).colorScheme;
+
+  return GestureDetector(
+    behavior: HitTestBehavior.translucent,
+    onTap: () {
+      FocusScope.of(context).unfocus();
+    },
+    child: Card(
+    margin: EdgeInsets.zero,
+    elevation: 0,
+    color: colorScheme.surface,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(18),
+      side: BorderSide(
+        color: colorScheme.outlineVariant.withValues(
+          alpha: 0.35,
+        ),
+      ),
+    ),
+    clipBehavior: Clip.antiAlias,
+    child: Padding(
+      padding: const EdgeInsets.all(16),
         child: Column(
           children: [
             // Search bar
             Padding(
               padding: const EdgeInsets.only(bottom: 8.0),
-              child: SizedBox(
-                height: 40,
+             child: SizedBox(
+  height: 48,
                 child: TextField(
                   controller: _searchController,
                   focusNode: _searchFocusNode,
                   style: const TextStyle(fontSize: 14),
-                  decoration: InputDecoration(
-                    hintText: 'Search bills...',
-                    hintStyle: const TextStyle(fontSize: 14),
-                    prefixIcon: const Icon(Icons.search, size: 18),
-                    suffixIcon: _searchQuery.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.clear, size: 18),
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                            onPressed: () {
-                              _searchController.clear();
-                              _performSearch('');
-                              _closeSearchInteraction();
-                            },
-                          )
-                        : null,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 0,
-                    ),
-                    isDense: true,
-                  ),
+                decoration: InputDecoration(
+  hintText: 'Search bills...',
+  hintStyle: TextStyle(
+    fontSize: 15,
+    color: Theme.of(context)
+        .colorScheme
+        .onSurfaceVariant,
+  ),
+  prefixIcon: Icon(
+    Icons.search_rounded,
+    size: 21,
+    color: Theme.of(context)
+        .colorScheme
+        .onSurfaceVariant,
+  ),
+  suffixIcon: _searchQuery.isNotEmpty
+      ? IconButton(
+          icon: const Icon(
+            Icons.close_rounded,
+            size: 20,
+          ),
+          onPressed: () {
+            _searchController.clear();
+            _performSearch('');
+            _closeSearchInteraction();
+          },
+        )
+      : null,
+  filled: true,
+  fillColor: Theme.of(context)
+      .colorScheme
+      .surfaceContainerHighest
+      .withValues(alpha: 0.45),
+  border: OutlineInputBorder(
+    borderRadius: BorderRadius.circular(14),
+    borderSide: BorderSide.none,
+  ),
+  enabledBorder: OutlineInputBorder(
+    borderRadius: BorderRadius.circular(14),
+    borderSide: BorderSide.none,
+  ),
+  focusedBorder: OutlineInputBorder(
+    borderRadius: BorderRadius.circular(14),
+    borderSide: BorderSide(
+      color: Theme.of(context).colorScheme.primary,
+      width: 1.5,
+    ),
+  ),
+  contentPadding: const EdgeInsets.symmetric(
+    horizontal: 14,
+    vertical: 12,
+  ),
+  isDense: true,
+),
                   onChanged: _scheduleSearch,
-                  onTap: () {
-                    if (_searchQuery.isNotEmpty && _searchResults.isNotEmpty) {
-                      _showSearchDropdown();
-                    }
-                  },
+                  onTap: () {},
                   onEditingComplete: _closeSearchInteraction,
                   onSubmitted: (_) => _closeSearchInteraction(),
                 ),
@@ -1031,74 +1097,45 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         }
                         return updatedBillOcc;
                       },
-                      calendarBuilders: CalendarBuilders(
-                        defaultBuilder: (context, day, focusedDay) {
-                          // Color dates that have bill occurrences visible under the active filters.
-                          final hasVisibleBills = _visibleBillOccurrencesForDay(
-                            day,
-                          ).isNotEmpty;
-                          final textStyle = hasVisibleBills
-                              ? Theme.of(
-                                  context,
-                                ).textTheme.bodyMedium?.copyWith(
-                                  color: Theme.of(context).colorScheme.primary,
-                                )
-                              : Theme.of(context).textTheme.bodyMedium;
-                          return Center(
-                            child: Text('${day.day}', style: textStyle),
-                          );
-                        },
-                        todayBuilder: (context, day, focusedDay) {
-                          final hasVisibleBills = _visibleBillOccurrencesForDay(
-                            day,
-                          ).isNotEmpty;
-                          final base = BoxDecoration(
-                            color: Theme.of(context).colorScheme.primary
-                                .withAlpha((0.2 * 255).round()),
-                            shape: BoxShape.circle,
-                          );
-                          final textStyle = hasVisibleBills
-                              ? Theme.of(
-                                  context,
-                                ).textTheme.bodyMedium?.copyWith(
-                                  color: Theme.of(context).colorScheme.primary,
-                                )
-                              : Theme.of(context).textTheme.bodyMedium;
-                          return Center(
-                            child: Container(
-                              width: 32,
-                              height: 32,
-                              decoration: base,
-                              alignment: Alignment.center,
-                              child: Text('${day.day}', style: textStyle),
-                            ),
-                          );
-                        },
-                        selectedBuilder: (context, day, focusedDay) {
-                          // Selected day should still stand out; use onPrimary color for contrast
-                          return Center(
-                            child: Container(
-                              width: 32,
-                              height: 32,
-                              decoration: BoxDecoration(
-                                color: Theme.of(context).colorScheme.primary,
-                                shape: BoxShape.circle,
-                              ),
-                              alignment: Alignment.center,
-                              child: Text(
-                                '${day.day}',
-                                style: Theme.of(context).textTheme.bodyMedium
-                                    ?.copyWith(
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.onPrimary,
-                                    ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
+                  calendarBuilders: CalendarBuilders(
+  defaultBuilder: (context, day, focusedDay) {
+    final occurrences =
+        _visibleBillOccurrencesForDay(day);
+
+    return _buildCalendarDay(
+      day: day,
+      occurrences: occurrences,
+      isSelected: false,
+      isToday: false,
+    );
+  },
+
+  todayBuilder: (context, day, focusedDay) {
+    final occurrences =
+        _visibleBillOccurrencesForDay(day);
+
+    return _buildCalendarDay(
+      day: day,
+      occurrences: occurrences,
+      isSelected: false,
+      isToday: true,
+    );
+  },
+
+  selectedBuilder: (context, day, focusedDay) {
+    final occurrences =
+        _visibleBillOccurrencesForDay(day);
+
+    return _buildCalendarDay(
+      day: day,
+      occurrences: occurrences,
+      isSelected: true,
+      isToday: isSameDay(day, DateTime.now()),
+    );
+  },
+),
                       onDaySelected: (selectedDay, focusedDay) {
+                        FocusScope.of(context).unfocus();
                         setState(() {
                           _selectedDay = selectedDay;
                           _focusedDay =
@@ -1130,9 +1167,106 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ],
         ),
       ),
+    ),
     );
   }
+Widget _buildCalendarDay({
+  required DateTime day,
+  required List<Map<String, dynamic>> occurrences,
+  required bool isSelected,
+  required bool isToday,
+}) {
+  final colorScheme = Theme.of(context).colorScheme;
 
+  Color? markerColor;
+
+  if (occurrences.isNotEmpty) {
+    bool allPaid = true;
+
+    for (final occurrence in occurrences) {
+      final bill = occurrence['bill'] as Bill;
+      final occurrenceDate =
+          occurrence['date'] as DateTime;
+
+      final status = _getOccurrencePaymentStatus(
+        bill,
+        occurrenceDate,
+      );
+
+      if (status != PaymentStatus.paid) {
+        allPaid = false;
+        break;
+      }
+    }
+
+    markerColor = allPaid
+        ? AppTheme.incomeGreen
+        : AppTheme.expenseRed;
+  }
+
+  return Center(
+    child: SizedBox(
+      width: 38,
+      height: 42,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? colorScheme.primary
+                  : isToday
+                      ? colorScheme.primary.withValues(
+                          alpha: 0.14,
+                        )
+                      : Colors.transparent,
+              shape: BoxShape.circle,
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              '${day.day}',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyMedium
+                  ?.copyWith(
+                    color: isSelected
+                        ? colorScheme.onPrimary
+                        : isToday
+                            ? colorScheme.primary
+                            : colorScheme.onSurface,
+                    fontWeight:
+                        isSelected || isToday
+                            ? FontWeight.w600
+                            : FontWeight.normal,
+                  ),
+            ),
+          ),
+
+          if (markerColor != null)
+            Positioned(
+              bottom: 0,
+              child: Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: markerColor,
+                  shape: BoxShape.circle,
+                  border: isSelected
+                      ? Border.all(
+                          color: colorScheme.surface,
+                          width: 1,
+                        )
+                      : null,
+                ),
+              ),
+            ),
+        ],
+      ),
+    ),
+  );
+}
   Future<void> _refreshData() async {
     _refreshCachedData();
     _scheduleOccurrenceStatusBackgroundSync();
@@ -1234,24 +1368,63 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   // ignore: unused_element
-  Widget _buildFilterChips() {
-    final theme = Theme.of(context);
+Widget _buildFilterChips() {
+  final colorScheme = Theme.of(context).colorScheme;
 
-    return FilterChip(
-      label: Text(_showPaidBills ? 'Hide Paid Bills' : 'Show Paid Bills'),
-      selected: _showPaidBills,
-      onSelected: (_) {
-        setState(() {
-          _showPaidBills = !_showPaidBills;
-        });
-        DatabaseService.setSetting(_showPaidBillsSettingKey, _showPaidBills);
-        _scheduleOccurrenceStatusBackgroundSync();
-      },
-      selectedColor: theme.colorScheme.primary.withAlpha((0.18 * 255).round()),
-      checkmarkColor: theme.colorScheme.primary,
-      side: BorderSide(color: theme.colorScheme.outline),
-    );
-  }
+  return FilterChip(
+    label: Text(
+      _showPaidBills ? 'Paid shown' : 'Show paid',
+      style: TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w500,
+        color: _showPaidBills
+            ? colorScheme.primary
+            : colorScheme.onSurfaceVariant,
+      ),
+    ),
+    selected: _showPaidBills,
+    onSelected: (_) {
+      setState(() {
+        _showPaidBills = !_showPaidBills;
+      });
+
+      DatabaseService.setSetting(
+        _showPaidBillsSettingKey,
+        _showPaidBills,
+      );
+
+      _scheduleOccurrenceStatusBackgroundSync();
+    },
+    avatar: Icon(
+      _showPaidBills
+          ? Icons.visibility_rounded
+          : Icons.visibility_off_outlined,
+      size: 17,
+      color: _showPaidBills
+          ? colorScheme.primary
+          : colorScheme.onSurfaceVariant,
+    ),
+    showCheckmark: false,
+    visualDensity: VisualDensity.compact,
+    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    padding: const EdgeInsets.symmetric(
+      horizontal: 4,
+      vertical: 2,
+    ),
+    backgroundColor:
+        colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
+    selectedColor:
+        colorScheme.primary.withValues(alpha: 0.12),
+    side: BorderSide(
+      color: _showPaidBills
+          ? colorScheme.primary.withValues(alpha: 0.35)
+          : colorScheme.outlineVariant.withValues(alpha: 0.5),
+    ),
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(10),
+    ),
+  );
+}
 
   // _buildStatCard removed because quick stats are no longer shown on the dashboard.
 
@@ -1754,230 +1927,343 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
 
     final cardContent = Card(
-      margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 0),
-      child: InkWell(
-        onTap: () async {
-          await _handleEdit(transaction, sourceBill);
-        },
-        child: Padding(
-          padding: const EdgeInsets.all(12.0),
-          child: Column(
+  margin: const EdgeInsets.symmetric(
+    vertical: 6,
+    horizontal: 0,
+  ),
+  elevation: 0,
+  color: Theme.of(context).colorScheme.surface,
+  shape: RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(16),
+    side: BorderSide(
+      color: Theme.of(context)
+          .colorScheme
+          .outlineVariant
+          .withValues(alpha: 0.35),
+    ),
+  ),
+  clipBehavior: Clip.antiAlias,
+  child: InkWell(
+    onTap: () async {
+      await _handleEdit(transaction, sourceBill);
+    },
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  // Left column: date, name (description), category
-                  Expanded(
-                    child: Row(
-                      children: [
-                        SizedBox(
-                          width: 36,
-                          height: 36,
-                          child: Center(child: safeCategoryIcon()),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                DateFormat(
-                                  'MM/dd/yyyy',
-                                ).format(transaction.date),
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                displayTitle,
-                                style: Theme.of(context).textTheme.bodyMedium
-                                    ?.copyWith(fontSize: 12.5),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                categoryDisplay,
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(color: Colors.grey[600]),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  // Right column: amount, optional note, payment status
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        '${transaction.type == TransactionType.income ? '+' : '-'}${_currencyFormat.format(transaction.amount)}',
-                        style: sourceBill != null
-                            ? Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                color:
-                                    transaction.type == TransactionType.income
-                                    ? AppTheme.incomeGreen.withValues(
-                                        alpha: 0.9,
-                                      )
-                                    : AppTheme.expenseRed.withValues(
-                                        alpha: 0.9,
-                                      ),
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
-                              )
-                            : Theme.of(context).textTheme.titleMedium?.copyWith(
-                                color:
-                                    transaction.type == TransactionType.income
-                                    ? AppTheme.incomeGreen
-                                    : AppTheme.expenseRed,
-                                fontWeight: FontWeight.bold,
-                              ),
-                      ),
-                      const SizedBox(height: 6),
-                      if (sourceBill != null &&
-                          accountDisplayName != null &&
-                          accountDisplayName.trim().isNotEmpty) ...[
-                        SizedBox(
-                          width: 160,
-                          child: Text(
-                            accountDisplayName,
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onSurface,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                            textAlign: TextAlign.right,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                      ],
-                      if (plainNote != null && plainNote.trim().isNotEmpty)
-                        SizedBox(
-                          width: 160,
-                          child: Text(
-                            plainNote,
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(color: Colors.grey[600]),
-                            textAlign: TextAlign.right,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      const SizedBox(height: 6),
-                      // Payment status (for bills) — compute from transactions at display time
-                      if (sourceBill != null) ...[
-                        Builder(
-                          builder: (ctx) {
-                            final occDate = _transactionOccurrenceDate(
-                              transaction,
-                            );
-                            final status = _getOccurrencePaymentStatus(
-                              sourceBill,
-                              occDate,
-                            );
-                            String label;
-                            Color color;
-                            if (status == PaymentStatus.paid) {
-                              label = 'Paid';
-                              color = AppTheme.incomeGreen;
-                            } else if (status == PaymentStatus.partial) {
-                              label = 'Partial';
-                              color = Colors.orange;
-                            } else {
-                              label = 'Unpaid';
-                              color = AppTheme.expenseRed;
-                            }
-                            return Text(
-                              label,
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(
-                                    color: color,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                            );
-                          },
-                        ),
-                      ],
-                    ],
-                  ),
-                  // Add menu button for edit, delete, pay options
-                ],
+              // Category icon
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: Theme.of(context)
+                      .colorScheme
+                      .surfaceContainerHighest
+                      .withValues(alpha: 0.55),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                alignment: Alignment.center,
+                child: safeCategoryIcon(),
               ),
-              // Payment Progress Bar (only show for bills when expanded)
-              if (isExpanded &&
-                  paymentProgress != null &&
-                  sourceBill != null) ...[
-                const SizedBox(height: 12),
-                Column(
+
+              const SizedBox(width: 12),
+
+              // Bill information
+              Expanded(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Text(
+                      displayTitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleMedium
+                          ?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+
+                    const SizedBox(height: 3),
+
+                    Text(
+                      categoryDisplay,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant,
+                          ),
+                    ),
+
+                    const SizedBox(height: 5),
+
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          'Payment Progress',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                fontWeight: FontWeight.w600,
-                                color: Colors.grey[700],
-                              ),
+                        Icon(
+                          Icons.calendar_today_outlined,
+                          size: 13,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onSurfaceVariant,
                         ),
+                        const SizedBox(width: 5),
                         Text(
-                          '${(paymentProgress * 100).toStringAsFixed(0)}%',
-                          style: Theme.of(context).textTheme.bodySmall
+                          DateFormat('MMM d, yyyy')
+                              .format(transaction.date),
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
                               ?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: paymentProgress >= 1.0
-                                    ? AppTheme.incomeGreen
-                                    : AppTheme.expenseRed,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
                               ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 6),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: LinearProgressIndicator(
-                        value: paymentProgress,
-                        minHeight: 8,
-                        backgroundColor: Colors.grey[300],
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          paymentProgress >= 1.0
-                              ? AppTheme.incomeGreen
-                              : AppTheme.expenseRed,
-                        ),
+
+                    if (plainNote != null &&
+                        plainNote.trim().isNotEmpty) ...[
+                      const SizedBox(height: 5),
+                      Text(
+                        plainNote,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                            ),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Paid: ${_currencyFormat.format(amountPaid)}',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: Colors.grey[600]),
-                        ),
-                        Text(
-                          'Due: ${_currencyFormat.format(amountDue != null && amountDue > 0 ? amountDue : 0)}',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: amountDue != null && amountDue > 0
-                                    ? AppTheme.expenseRed
-                                    : AppTheme.incomeGreen,
-                                fontWeight: FontWeight.w600,
-                              ),
-                        ),
-                      ],
-                    ),
+                    ],
                   ],
                 ),
-              ],
+              ),
+
+              const SizedBox(width: 12),
+
+              // Amount, status and account
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    '${transaction.type == TransactionType.income ? '+' : '-'}${_currencyFormat.format(transaction.amount)}',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(
+                          color:
+                              transaction.type ==
+                                  TransactionType.income
+                              ? AppTheme.incomeGreen
+                              : AppTheme.expenseRed,
+                          fontWeight: FontWeight.w700,
+                        ),
+                  ),
+
+                  if (sourceBill != null) ...[
+                    const SizedBox(height: 7),
+
+                    Builder(
+                      builder: (ctx) {
+                        final occDate =
+                            _transactionOccurrenceDate(
+                          transaction,
+                        );
+
+                        final status =
+                            _getOccurrencePaymentStatus(
+                          sourceBill,
+                          occDate,
+                        );
+
+                        String label;
+                        Color color;
+
+                        if (status == PaymentStatus.paid) {
+                          label = 'Paid';
+                          color = AppTheme.incomeGreen;
+                        } else if (status ==
+                            PaymentStatus.partial) {
+                          label = 'Partial';
+                          color = Colors.orange;
+                        } else {
+                          label = 'Unpaid';
+                          color = AppTheme.expenseRed;
+                        }
+
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 9,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: color.withValues(
+                              alpha: 0.10,
+                            ),
+                            borderRadius:
+                                BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            label,
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(
+                                  color: color,
+                                  fontWeight:
+                                      FontWeight.w700,
+                                  fontSize: 11,
+                                ),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+
+                  if (sourceBill != null &&
+                      accountDisplayName != null &&
+                      accountDisplayName
+                          .trim()
+                          .isNotEmpty) ...[
+                    const SizedBox(height: 7),
+
+                    SizedBox(
+                      width: 100,
+                      child: Text(
+                        accountDisplayName,
+                        textAlign: TextAlign.right,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                              fontWeight: FontWeight.w500,
+                            ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ],
           ),
-        ),
+
+          // Keep existing expandable payment progress.
+          if (isExpanded &&
+              paymentProgress != null &&
+              sourceBill != null) ...[
+            const SizedBox(height: 16),
+
+            Divider(
+              height: 1,
+              color: Theme.of(context)
+                  .colorScheme
+                  .outlineVariant,
+            ),
+
+            const SizedBox(height: 14),
+
+            Row(
+              mainAxisAlignment:
+                  MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Payment Progress',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+                Text(
+                  '${(paymentProgress * 100).toStringAsFixed(0)}%',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: paymentProgress >= 1
+                            ? AppTheme.incomeGreen
+                            : AppTheme.expenseRed,
+                      ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 8),
+
+            ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: LinearProgressIndicator(
+                value: paymentProgress,
+                minHeight: 7,
+                backgroundColor: Theme.of(context)
+                    .colorScheme
+                    .surfaceContainerHighest,
+                valueColor:
+                    AlwaysStoppedAnimation<Color>(
+                  paymentProgress >= 1
+                      ? AppTheme.incomeGreen
+                      : AppTheme.expenseRed,
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 7),
+
+            Row(
+              mainAxisAlignment:
+                  MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Paid: ${_currencyFormat.format(amountPaid)}',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall,
+                ),
+                Text(
+                  'Due: ${_currencyFormat.format(
+                    amountDue != null && amountDue > 0
+                        ? amountDue
+                        : 0,
+                  )}',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color:
+                            amountDue != null &&
+                                amountDue > 0
+                            ? AppTheme.expenseRed
+                            : AppTheme.incomeGreen,
+                      ),
+                ),
+              ],
+            ),
+          ],
+        ],
       ),
-    );
+    ),
+  ),
+);
 
     if (sourceBill == null) {
       return cardContent;

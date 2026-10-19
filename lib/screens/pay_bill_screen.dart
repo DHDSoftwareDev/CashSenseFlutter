@@ -536,36 +536,41 @@ class _PayBillScreenState extends State<PayBillScreen> {
             _buildPaymentDetailsCard(),
             const SizedBox(height: 32),
 
-            // Save Payment Button - Clickable Text
-            Center(
-              child: SizedBox(
-                width: 180,
-                height: 48,
-                child: ElevatedButton(
-                  onPressed: _isSaving ? null : _handlePay,
-                  style: ElevatedButton.styleFrom(
-                    textStyle: const TextStyle(fontSize: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child: _isSaving
-                      ? Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: const [
-                            SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                            SizedBox(width: 8),
-                            Text('Saving...'),
-                          ],
-                        )
-                      : const Text('Save Payment'),
+           SizedBox(
+  width: double.infinity,
+  child: ElevatedButton(
+    onPressed: _isSaving ? null : _handlePay,
+    style: ElevatedButton.styleFrom(
+      minimumSize: const Size.fromHeight(52),
+      backgroundColor: Theme.of(context).colorScheme.primary,
+      foregroundColor: Theme.of(context).colorScheme.onPrimary,
+      textStyle: const TextStyle(
+        fontSize: 16,
+        fontWeight: FontWeight.w600,
+      ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+    ),
+    child: _isSaving
+        ? Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Theme.of(context).colorScheme.onPrimary,
                 ),
               ),
-            ),
+              const SizedBox(width: 8),
+              const Text('Saving...'),
+            ],
+          )
+        : const Text('Save Payment'),
+  ),
+),
           ],
         ),
       ),
@@ -588,57 +593,98 @@ class _PayBillScreenState extends State<PayBillScreen> {
     );
   }
 
-  Widget _buildTransactionDetailsCard(category) {
-    // Calculate total amount paid from payment history
-    final totalPaid = _computeSignedTotalPaidForBill(_paymentHistory);
-    // Calculate amount due (remaining balance)
-    final amountDue = widget.bill.amount - totalPaid;
+ Widget _buildTransactionDetailsCard(category) {
+  final colorScheme = Theme.of(context).colorScheme;
 
-    // Get payee name if available
-    String billName = _visibleBillText(widget.bill.description);
-    if (widget.bill.payeeId != null) {
-      final payees = DatabaseService.getAllPayees();
-      final p = payees.firstWhere(
-        (p) => p['id'] == widget.bill.payeeId,
-        orElse: () => <String, dynamic>{},
-      );
-      if (p.containsKey('name')) {
-        billName = p['name'] as String;
-      }
+  // Calculate total amount paid from payment history.
+  final totalPaid = _computeSignedTotalPaidForBill(_paymentHistory);
+
+  // Calculate remaining balance.
+  final amountDue = widget.bill.amount - totalPaid;
+  final displayAmountDue = amountDue > 0 ? amountDue : 0.0;
+
+  // Resolve payee/payer name.
+  String billName = _visibleBillText(widget.bill.description);
+
+  if (widget.bill.payeeId != null) {
+    final payees = DatabaseService.getAllPayees();
+
+    final p = payees.firstWhere(
+      (p) => p['id'] == widget.bill.payeeId,
+      orElse: () => <String, dynamic>{},
+    );
+
+    if (p.containsKey('name')) {
+      billName = p['name'] as String;
     }
+  }
 
-    // Payment status display removed here; the displayed status below is
-    // computed from the actual payments for the bill occurrence so the
-    // dashboard reflects the same computed state.
+  if (billName.isEmpty) {
+    billName = 'Payment';
+  }
 
-    if (billName.isEmpty) {
-      billName = 'Payment';
-    }
+  final categoryName = category?.name ?? 'Uncategorized';
 
-    return Card(
-      elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Top status row removed per UI change request. Status is shown
-            // further down and dashboard/bill state is updated from the
-            // computed status below when payments change.
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                if (category != null)
-                  CircleAvatar(
-                    radius: 24,
-                    backgroundColor: category.color.withAlpha(0x33),
-                    child: category.displayEmoji != null
+  final String statusText;
+  final Color statusColor;
+  final Color statusBackground;
+
+  if (amountDue <= 0.01) {
+    statusText = 'Paid';
+    statusColor = AppTheme.incomeGreen;
+    statusBackground =
+        AppTheme.incomeGreen.withValues(alpha: 0.12);
+  } else if (totalPaid > 0) {
+    statusText = 'Partially Paid';
+    statusColor = Colors.orange;
+    statusBackground =
+        Colors.orange.withValues(alpha: 0.12);
+  } else {
+    statusText = 'Unpaid';
+    statusColor = AppTheme.expenseRed;
+    statusBackground =
+        AppTheme.expenseRed.withValues(alpha: 0.10);
+  }
+
+  final typeText = widget.bill.type == BillType.expense
+      ? 'Expense'
+      : widget.bill.type == BillType.income
+          ? 'Income'
+          : 'Transfer';
+
+  return Card(
+    margin: EdgeInsets.zero,
+    elevation: 0,
+    color: colorScheme.surface,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(18),
+      side: BorderSide(
+        color: colorScheme.outlineVariant.withValues(alpha: 0.35),
+      ),
+    ),
+    child: Padding(
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: category != null
+                      ? category.color.withValues(alpha: 0.14)
+                      : colorScheme.surfaceContainerHighest,
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
+                child: category != null
+                    ? category.displayEmoji != null
                         ? Text(
                             category.displayEmoji!,
-                            style: TextStyle(
-                              fontSize: 24,
-                              color: category.color,
-                            ),
+                            style: const TextStyle(fontSize: 24),
                           )
                         : Container(
                             width: 12,
@@ -647,129 +693,223 @@ class _PayBillScreenState extends State<PayBillScreen> {
                               color: category.color,
                               shape: BoxShape.circle,
                             ),
+                          )
+                    : Icon(
+                        Icons.receipt_long_outlined,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      billName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleLarge
+                          ?.copyWith(
+                            fontWeight: FontWeight.w700,
                           ),
-                  )
-                else
-                  CircleAvatar(
-                    radius: 24,
-                    backgroundColor: Colors.grey.withAlpha(0x33),
-                    child: const Icon(Icons.help, color: Colors.grey, size: 24),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      categoryName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodyMedium
+                          ?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: statusBackground,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  statusText,
+                  style: TextStyle(
+                    color: statusColor,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
                   ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        billName,
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        category?.name ?? 'Uncategorized',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                    ],
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 20),
+
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: colorScheme.surfaceContainerHighest
+                  .withValues(alpha: 0.38),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'AMOUNT DUE',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.8,
+                    color: colorScheme.onSurfaceVariant,
                   ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  NumberFormat.currency(
+                    symbol: '\$',
+                  ).format(displayAmountDue),
+                  style: Theme.of(context)
+                      .textTheme
+                      .headlineSmall
+                      ?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: amountDue > 0
+                            ? AppTheme.expenseRed
+                            : AppTheme.incomeGreen,
+                      ),
                 ),
               ],
             ),
-            const Divider(height: 24),
+          ),
 
-            // Name/Description
-            _buildDetailRow('Name:', billName),
-            const SizedBox(height: 8),
+          const SizedBox(height: 18),
 
-            // Category
-            _buildDetailRow('Category:', category?.name ?? 'Uncategorized'),
-            const SizedBox(height: 8),
+          _buildDetailRow(
+            'Original amount',
+            NumberFormat.currency(
+              symbol: '\$',
+            ).format(widget.bill.amount),
+          ),
 
-            // Original Amount
-            _buildDetailRow(
-              'Original Amount:',
-              NumberFormat.currency(symbol: '\$').format(widget.bill.amount),
+          const SizedBox(height: 10),
+
+          _buildDetailRow(
+            'Amount paid',
+            NumberFormat.currency(
+              symbol: '\$',
+            ).format(totalPaid),
+            valueColor:
+                totalPaid > 0 ? AppTheme.incomeGreen : null,
+          ),
+
+          const SizedBox(height: 16),
+
+          Divider(
+            height: 1,
+            color: colorScheme.outlineVariant
+                .withValues(alpha: 0.45),
+          ),
+
+          const SizedBox(height: 16),
+
+          _buildDetailRow(
+            'Due date',
+            DateFormat.yMMMd().format(widget.occurrenceDate),
+          ),
+
+          const SizedBox(height: 10),
+
+          _buildDetailRow(
+            'Type',
+            typeText,
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+  Widget _buildPaymentHistoryCard() {
+    final colorScheme = Theme.of(context).colorScheme;
+
+return Card(
+  margin: EdgeInsets.zero,
+  elevation: 0,
+  color: colorScheme.surface,
+  shape: RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(18),
+    side: BorderSide(
+      color: colorScheme.outlineVariant.withValues(alpha: 0.35),
+    ),
+  ),
+  child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: _paymentHistory.isEmpty
+    ? Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: Theme.of(context)
+                    .colorScheme
+                    .surfaceContainerHighest
+                    .withValues(alpha: 0.55),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.receipt_long_outlined,
+                size: 19,
+                color: Theme.of(context)
+                    .colorScheme
+                    .onSurfaceVariant,
+              ),
             ),
-            const SizedBox(height: 8),
-
-            // Amount Paid
-            _buildDetailRow(
-              'Amount Paid:',
-              NumberFormat.currency(symbol: '\$').format(totalPaid),
-              valueColor: totalPaid > 0 ? AppTheme.incomeGreen : null,
-            ),
-            const SizedBox(height: 8),
-
-            // Amount Due
-            _buildDetailRow(
-              'Amount Due:',
-              NumberFormat.currency(
-                symbol: '\$',
-              ).format(amountDue > 0 ? amountDue : 0),
-              valueColor: amountDue > 0
-                  ? AppTheme.expenseRed
-                  : AppTheme.incomeGreen,
-              valueBold: true,
-            ),
-            const SizedBox(height: 8),
-
-            const Divider(height: 16),
-            const SizedBox(height: 8),
-
-            // Due Date
-            _buildDetailRow(
-              'Due Date:',
-              DateFormat.yMMMd().format(widget.occurrenceDate),
-            ),
-            const SizedBox(height: 8),
-
-            // Type
-            _buildDetailRow(
-              'Type:',
-              widget.bill.type == BillType.expense
-                  ? 'Expense'
-                  : widget.bill.type == BillType.income
-                  ? 'Income'
-                  : 'Transfer',
-            ),
-            const SizedBox(height: 8),
-
-            // Status
-            _buildDetailRow(
-              'Status:',
-              amountDue <= 0.01
-                  ? 'Paid'
-                  : (totalPaid > 0 ? 'Partially Paid' : 'Unpaid'),
-              valueColor: amountDue <= 0.01
-                  ? AppTheme.incomeGreen
-                  : (totalPaid > 0 ? Colors.orange : AppTheme.expenseRed),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'No payments yet',
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodyMedium
+                        ?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Payments for this bill will appear here.',
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onSurfaceVariant,
+                        ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildPaymentHistoryCard() {
-    return Card(
-      elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: _paymentHistory.isEmpty
-            ? Center(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  child: Text(
-                    'No payment history available',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
-                  ),
-                ),
-              )
+      )
             : Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -953,99 +1093,121 @@ class _PayBillScreenState extends State<PayBillScreen> {
                             }
                           }
                         },
-                        child: Card(
-                          elevation: 1,
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        DateFormat(
-                                          'MM/dd/yyyy',
-                                        ).format(tx.date),
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodyMedium
-                                            ?.copyWith(
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      if (subtitleText.isNotEmpty)
-                                        Text(
-                                          subtitleText,
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .bodySmall
-                                              ?.copyWith(
-                                                color: Colors.grey[600],
-                                              ),
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.end,
-                                    children: [
-                                      Text(
-                                        NumberFormat.currency(
-                                          symbol: '\$',
-                                        ).format(tx.amount),
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodyMedium
-                                            ?.copyWith(
-                                              fontWeight: FontWeight.w600,
-                                              color:
-                                                  tx.type ==
-                                                      TransactionType.income
-                                                  ? AppTheme.incomeGreen
-                                                  : AppTheme.expenseRed,
-                                            ),
-                                      ),
-                                      const SizedBox(height: 6),
-                                      if (displayPaymentFor.isNotEmpty) ...[
-                                        Text(
-                                          'Payment for $displayPaymentFor',
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .bodySmall
-                                              ?.copyWith(
-                                                color: Colors.grey[700],
-                                              ),
-                                          textAlign: TextAlign.right,
-                                          softWrap: true,
-                                        ),
-                                        const SizedBox(height: 4),
-                                      ],
-                                      if (displayNote.isNotEmpty) ...[
-                                        Text(
-                                          displayNote,
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .bodySmall
-                                              ?.copyWith(
-                                                color: Colors.grey[700],
-                                              ),
-                                          textAlign: TextAlign.right,
-                                          softWrap: true,
-                                        ),
-                                      ],
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
+                        child: Container(
+  padding: const EdgeInsets.symmetric(
+    horizontal: 4,
+    vertical: 10,
+  ),
+  child: Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Container(
+        width: 38,
+        height: 38,
+        decoration: BoxDecoration(
+          color: colorScheme.primary.withValues(alpha: 0.10),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(
+          Icons.receipt_long_outlined,
+          size: 19,
+          color: colorScheme.primary,
+        ),
+      ),
+
+      const SizedBox(width: 12),
+
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              DateFormat.yMMMd().format(tx.date),
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyMedium
+                  ?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+
+            if (subtitleText.isNotEmpty) ...[
+              const SizedBox(height: 3),
+              Text(
+                subtitleText,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+              ),
+            ],
+
+            if (displayPaymentFor.isNotEmpty) ...[
+              const SizedBox(height: 7),
+              Text(
+                'Payment for $displayPaymentFor',
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+
+            if (displayNote.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                displayNote,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                      fontStyle: FontStyle.italic,
+                    ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ],
+        ),
+      ),
+
+      const SizedBox(width: 12),
+
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Text(
+            NumberFormat.currency(
+              symbol: '\$',
+            ).format(tx.amount),
+            style: Theme.of(context)
+                .textTheme
+                .bodyLarge
+                ?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: tx.type == TransactionType.income
+                      ? AppTheme.incomeGreen
+                      : AppTheme.expenseRed,
+                ),
+          ),
+          const SizedBox(height: 8),
+          Icon(
+            Icons.chevron_right_rounded,
+            size: 20,
+            color: colorScheme.onSurfaceVariant,
+          ),
+        ],
+      ),
+    ],
+  ),
+),
                       ),
                     );
                   })),
@@ -1067,64 +1229,118 @@ class _PayBillScreenState extends State<PayBillScreen> {
   }
 
   Widget _buildPaymentDetailsCard() {
-    return Card(
-      elevation: 2,
-      child: Padding(
+  final colorScheme = Theme.of(context).colorScheme;
+
+  return Card(
+    margin: EdgeInsets.zero,
+    elevation: 0,
+    color: colorScheme.surface,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(18),
+      side: BorderSide(
+        color: colorScheme.outlineVariant.withValues(alpha: 0.35),
+      ),
+    ),
+    clipBehavior: Clip.antiAlias,
+    child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Amount Field
-            TextFormField(
-              controller: _amountController,
-              keyboardType: TextInputType.numberWithOptions(decimal: true),
-              inputFormatters: [
-                // Allow only digits and decimal point; block currency symbols or letters
-                FilteringTextInputFormatter.allow(RegExp(r'[0-9\.]')),
-              ],
-              decoration: InputDecoration(
-                labelText: 'Amount',
-                // Use a plain dollar sign prefix so the input value remains parseable
-                prefixText: '\$ ',
-                border: const OutlineInputBorder(),
-                // Show a nicely formatted currency hint for the original bill amount
-                hintText: NumberFormat.currency(
-                  symbol: '\$',
-                ).format(widget.bill.amount),
-                suffixIcon: IconButton(
-                  icon: const Icon(Icons.calculate),
-                  onPressed: () async {
-                    final result = await showModalBottomSheet<double?>(
-                      context: context,
-                      isScrollControlled: true,
-                      builder: (_) => FractionallySizedBox(
-                        heightFactor: 0.6,
-                        child: _CalculatorSheet(
-                          initialValue: _amountController.text,
-                        ),
-                      ),
-                    );
-                    if (result != null) {
-                      setState(() {
-                        _amountController.text = result.toStringAsFixed(2);
-                      });
-                    }
-                  },
-                ),
-              ),
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Please enter an amount';
-                }
-                final cleaned = value.replaceAll(RegExp(r'[^0-9\.]'), '');
-                final amount = double.tryParse(cleaned);
-                if (amount == null || amount <= 0) {
-                  return 'Please enter a valid amount';
-                }
-                return null;
-              },
-              onChanged: (_) => setState(() {}),
+           TextFormField(
+  controller: _amountController,
+  keyboardType: const TextInputType.numberWithOptions(
+    decimal: true,
+  ),
+  inputFormatters: [
+    FilteringTextInputFormatter.allow(
+      RegExp(r'[0-9\.]'),
+    ),
+  ],
+  style: const TextStyle(
+    fontSize: 18,
+    fontWeight: FontWeight.w600,
+  ),
+  decoration: InputDecoration(
+    labelText: 'Payment Amount',
+    hintText: NumberFormat.currency(
+      symbol: '\$',
+    ).format(widget.bill.amount),
+    prefixText: '\$ ',
+    prefixStyle: const TextStyle(
+      fontSize: 18,
+      fontWeight: FontWeight.w600,
+    ),
+    suffixIcon: IconButton(
+      tooltip: 'Calculator',
+      icon: const Icon(
+        Icons.calculate_outlined,
+        size: 22,
+      ),
+      onPressed: () async {
+        final result = await showModalBottomSheet<double?>(
+          context: context,
+          isScrollControlled: true,
+          builder: (_) => FractionallySizedBox(
+            heightFactor: 0.6,
+            child: _CalculatorSheet(
+              initialValue: _amountController.text,
             ),
+          ),
+        );
+
+        if (result != null) {
+          setState(() {
+            _amountController.text =
+                result.toStringAsFixed(2);
+          });
+        }
+      },
+    ),
+    filled: true,
+    fillColor: Theme.of(context)
+        .colorScheme
+        .surfaceContainerHighest
+        .withValues(alpha: 0.35),
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide.none,
+    ),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide.none,
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide(
+        color: Theme.of(context).colorScheme.primary,
+        width: 1.5,
+      ),
+    ),
+    contentPadding: const EdgeInsets.symmetric(
+      horizontal: 16,
+      vertical: 16,
+    ),
+  ),
+  validator: (value) {
+    if (value == null || value.isEmpty) {
+      return 'Please enter an amount';
+    }
+
+    final cleaned =
+        value.replaceAll(RegExp(r'[^0-9\.]'), '');
+
+    final amount = double.tryParse(cleaned);
+
+    if (amount == null || amount <= 0) {
+      return 'Please enter a valid amount';
+    }
+
+    return null;
+  },
+  onChanged: (_) => setState(() {}),
+),
             const SizedBox(height: 16),
 
             // Optional splits editor for payment allocations - clickable text to toggle
@@ -1173,126 +1389,352 @@ class _PayBillScreenState extends State<PayBillScreen> {
                     : CategoryType.expense,
               ),
 
-            // Payment Date
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.calendar_today),
-              title: const Text('Payment Date'),
-              trailing: Text(
-                DateFormat.yMMMd().format(_paymentDate),
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              onTap: () async {
-                final picked = await showDatePicker(
-                  context: context,
-                  initialDate: _paymentDate,
-                  firstDate: DateTime(2000),
-                  lastDate: DateTime(2100),
-                );
-                if (picked != null) {
-                  setState(() => _paymentDate = picked);
-                }
-              },
-            ),
-            const Divider(),
+// Payment Date
+InkWell(
+  borderRadius: BorderRadius.circular(12),
+  onTap: () async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _paymentDate,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
 
-            // Account Selector
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.account_balance_wallet),
-              title: const Text('Pay From Account'),
-              subtitle: Text(
+    if (picked != null) {
+      setState(() => _paymentDate = picked);
+    }
+  },
+  child: Padding(
+    padding: const EdgeInsets.symmetric(
+      vertical: 14,
+    ),
+    child: Row(
+      children: [
+        Icon(
+          Icons.calendar_today_outlined,
+          size: 21,
+          color: Theme.of(context)
+              .colorScheme
+              .onSurfaceVariant,
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Text(
+            'Payment Date',
+            style: Theme.of(context)
+                .textTheme
+                .bodyLarge
+                ?.copyWith(
+                  fontWeight: FontWeight.w500,
+                ),
+          ),
+        ),
+        Text(
+          DateFormat.yMMMd().format(_paymentDate),
+          style: Theme.of(context)
+              .textTheme
+              .bodyLarge
+              ?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+        ),
+        const SizedBox(width: 6),
+        Icon(
+          Icons.chevron_right_rounded,
+          size: 20,
+          color: Theme.of(context)
+              .colorScheme
+              .onSurfaceVariant,
+        ),
+      ],
+    ),
+  ),
+),
+          Divider(
+  height: 1,
+  color: Theme.of(context)
+      .colorScheme
+      .outlineVariant
+      .withValues(alpha: 0.45),
+),
+
+// Account Selector
+InkWell(
+  borderRadius: BorderRadius.circular(12),
+  onTap: () async {
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      builder: (context) => ListView(
+        shrinkWrap: true,
+        children: _accounts.map((account) {
+          return ListTile(
+            leading: Icon(
+              account.type == AccountType.bank
+                  ? Icons.account_balance
+                  : account.type == AccountType.card
+                      ? Icons.credit_card
+                      : Icons.money,
+            ),
+            title: Text(account.name),
+            selected: _selectedAccountId == account.id,
+            onTap: () =>
+                Navigator.pop(context, account.id),
+          );
+        }).toList(),
+      ),
+    );
+
+    if (selected != null) {
+      setState(() => _selectedAccountId = selected);
+    }
+  },
+  child: Padding(
+    padding: const EdgeInsets.symmetric(
+      vertical: 14,
+    ),
+    child: Row(
+      children: [
+        Icon(
+          Icons.account_balance_wallet_outlined,
+          size: 21,
+          color: Theme.of(context)
+              .colorScheme
+              .onSurfaceVariant,
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Pay From Account',
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyLarge
+                    ?.copyWith(
+                      fontWeight: FontWeight.w500,
+                    ),
+              ),
+              const SizedBox(height: 2),
+              Text(
                 _selectedAccountId != null
                     ? _accounts
-                          .firstWhere(
-                            (a) => a.id == _selectedAccountId,
-                            orElse: () => Account(
-                              name: 'Unknown',
-                              type: AccountType.cash,
-                              balance: 0,
-                            ),
-                          )
-                          .name
+                        .firstWhere(
+                          (a) => a.id == _selectedAccountId,
+                          orElse: () => Account(
+                            name: 'Unknown',
+                            type: AccountType.cash,
+                            balance: 0,
+                          ),
+                        )
+                        .name
                     : 'Select account',
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurfaceVariant,
+                    ),
               ),
-              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-              onTap: () async {
-                final selected = await showModalBottomSheet<String>(
-                  context: context,
-                  builder: (context) => ListView(
-                    shrinkWrap: true,
-                    children: _accounts.map((account) {
-                      return ListTile(
-                        leading: Icon(
-                          account.type == AccountType.bank
-                              ? Icons.account_balance
-                              : account.type == AccountType.card
-                              ? Icons.credit_card
-                              : Icons.money,
-                        ),
-                        title: Text(account.name),
-                        // Amounts removed from the account list per UI request
-                        selected: _selectedAccountId == account.id,
-                        onTap: () => Navigator.pop(context, account.id),
-                      );
-                    }).toList(),
-                  ),
-                );
-                if (selected != null) {
-                  setState(() => _selectedAccountId = selected);
-                }
-              },
-            ),
+            ],
+          ),
+        ),
+        Icon(
+          Icons.chevron_right_rounded,
+          size: 20,
+          color: Theme.of(context)
+              .colorScheme
+              .onSurfaceVariant,
+        ),
+      ],
+    ),
+  ),
+),
             const Divider(),
             const SizedBox(height: 8),
 
-            TextFormField(
-              controller: _paymentForController,
-              textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(
-                labelText: 'Payment for',
-                hintText: 'Ex: 1/1/25 Aloe Road rent',
-                border: OutlineInputBorder(),
-                alignLabelWithHint: true,
-              ),
-              maxLines: 2,
-            ),
+          TextFormField(
+  controller: _paymentForController,
+  textCapitalization: TextCapitalization.sentences,
+  readOnly: true,
+enableInteractiveSelection: false,
+  maxLines: 2,
+  decoration: InputDecoration(
+    labelText: 'Payment for',
+    hintText: 'Ex: 1/1/25 Aloe Road rent',
+    alignLabelWithHint: true,
+    filled: true,
+    fillColor: Theme.of(context)
+        .colorScheme
+        .surfaceContainerHighest
+        .withValues(alpha: 0.35),
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide.none,
+    ),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide.none,
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide(
+        color: Theme.of(context).colorScheme.primary,
+        width: 1.5,
+      ),
+    ),
+    contentPadding: const EdgeInsets.symmetric(
+      horizontal: 16,
+      vertical: 16,
+    ),
+  ),
+),
             const SizedBox(height: 12),
 
             // Notes Field
-            TextFormField(
-              controller: _notesController,
-              textCapitalization: TextCapitalization.sentences,
-              decoration: InputDecoration(
-                labelText: 'Notes (optional)',
-                hintText: 'Payment for ${widget.bill.description ?? "bill"}',
-                border: const OutlineInputBorder(),
-                alignLabelWithHint: true,
-              ),
-              maxLines: 3,
-            ),
+          TextFormField(
+  controller: _notesController,
+  textCapitalization: TextCapitalization.sentences,
+  minLines: 2,
+maxLines: 2,
+  decoration: InputDecoration(
+    labelText: 'Notes (optional)',
+    hintText: 'Add a note about this payment',
+    alignLabelWithHint: true,
+    filled: true,
+    fillColor: Theme.of(context)
+        .colorScheme
+        .surfaceContainerHighest
+        .withValues(alpha: 0.35),
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide.none,
+    ),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide.none,
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide(
+        color: Theme.of(context).colorScheme.primary,
+        width: 1.5,
+      ),
+    ),
+    contentPadding: const EdgeInsets.symmetric(
+      horizontal: 16,
+      vertical: 16,
+    ),
+  ),
+),
             const SizedBox(height: 12),
             // Refund toggle: record this payment as an income (refund) which
             // will be treated as reducing the paid total for expense bills.
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Refund (money received)'),
-              subtitle: const Text(
-                'Record this as income (refund) instead of a payment',
+          Container(
+  padding: const EdgeInsets.symmetric(
+    horizontal: 12,
+    vertical: 8,
+  ),
+  decoration: BoxDecoration(
+    color: colorScheme.surfaceContainerHighest.withValues(
+      alpha: 0.30,
+    ),
+    borderRadius: BorderRadius.circular(12),
+  ),
+  child: Row(
+    children: [
+      Icon(
+        Icons.currency_exchange_rounded,
+        size: 21,
+        color: colorScheme.onSurfaceVariant,
+      ),
+      const SizedBox(width: 12),
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Refund (money received)',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
               ),
-              value: _isRefund,
-              onChanged: (v) => setState(() => _isRefund = v),
             ),
-            const SizedBox(height: 4),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Show in reports'),
-              subtitle: const Text(
-                'Include this payment in report totals and charts',
+            const SizedBox(height: 2),
+            Text(
+              'Record this as income instead of a payment',
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.3,
+                color: colorScheme.onSurfaceVariant,
               ),
-              value: _showInReports,
-              onChanged: (v) => setState(() => _showInReports = v),
             ),
+          ],
+        ),
+      ),
+      const SizedBox(width: 8),
+      Switch(
+        value: _isRefund,
+        onChanged: (v) => setState(() => _isRefund = v),
+      ),
+    ],
+  ),
+),
+
+const SizedBox(height: 10),
+
+Container(
+  padding: const EdgeInsets.symmetric(
+    horizontal: 12,
+    vertical: 8,
+  ),
+  decoration: BoxDecoration(
+    color: colorScheme.surfaceContainerHighest.withValues(
+      alpha: 0.30,
+    ),
+    borderRadius: BorderRadius.circular(12),
+  ),
+  child: Row(
+    children: [
+      Icon(
+        Icons.bar_chart_rounded,
+        size: 21,
+        color: colorScheme.onSurfaceVariant,
+      ),
+      const SizedBox(width: 12),
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Show in reports',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              'Include this payment in report totals and charts',
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.3,
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
+      const SizedBox(width: 8),
+      Switch(
+        value: _showInReports,
+        onChanged: (v) => setState(() => _showInReports = v),
+      ),
+    ],
+  ),
+),
           ],
         ),
       ),
