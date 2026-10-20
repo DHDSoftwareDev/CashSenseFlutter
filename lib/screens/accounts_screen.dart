@@ -269,20 +269,20 @@ class _AccountsScreenState extends State<AccountsScreen> {
                       style: TextStyle(color: Colors.white),
                     ),
                   ),
-                  // Toggle between reordering groups (headers) and accounts within groups
-                  IconButton(
-                    icon: Icon(
-                      _reorderGroupsOnly ? Icons.view_module : Icons.list,
-                    ),
-                    tooltip: _reorderGroupsOnly
-                        ? 'Reorder groups'
-                        : 'Reorder accounts',
-                    onPressed: () {
-                      setState(() {
-                        _reorderGroupsOnly = !_reorderGroupsOnly;
-                      });
-                    },
-                  ),
+               TextButton(
+  onPressed: () {
+    setState(() {
+      _reorderGroupsOnly = !_reorderGroupsOnly;
+    });
+  },
+  child: Text(
+    _reorderGroupsOnly ? 'Groups' : 'Accounts',
+    style: const TextStyle(
+      color: Colors.white,
+      fontWeight: FontWeight.w500,
+    ),
+  ),
+),
                   TextButton(
                     onPressed: () async {
                       // Save reorder: reconstruct accountOrder from per-group orders in current group ordering
@@ -448,70 +448,108 @@ class _AccountsScreenState extends State<AccountsScreen> {
           backgroundColor: Theme.of(context).colorScheme.primary,
           foregroundColor: Colors.white,
         ),
-        body: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
+        body: GestureDetector(
+  behavior: HitTestBehavior.translucent,
+  onTap: () {
+    FocusManager.instance.primaryFocus?.unfocus();
+  },
+  child: Padding(
+    padding: const EdgeInsets.all(16),
+    child: Column(
             children: [
               TextField(
-                key: const ValueKey('accounts_transaction_search'),
-                controller: _searchController,
-                decoration: InputDecoration(
-                  prefixIcon: const Icon(Icons.search),
-                  hintText: 'Search transactions in all accounts',
-                  suffixIcon: _searchQuery.isEmpty
-                      ? null
-                      : IconButton(
-                          tooltip: 'Clear search',
-                          icon: const Icon(Icons.clear),
-                          onPressed: () {
-                            _searchController.clear();
-                            setState(() => _searchQuery = '');
-                          },
-                        ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  isDense: true,
-                ),
-                textInputAction: TextInputAction.search,
-                onChanged: (value) {
-                  setState(() => _searchQuery = value.trim());
-                },
-              ),
+  key: const ValueKey('accounts_transaction_search'),
+  controller: _searchController,
+  textInputAction: TextInputAction.search,
+  decoration: InputDecoration(
+    hintText: 'Search transactions in all accounts',
+    prefixIcon: Icon(
+      Icons.search_rounded,
+      color: Theme.of(context).colorScheme.onSurfaceVariant,
+    ),
+    suffixIcon: _searchQuery.isEmpty
+        ? null
+        : IconButton(
+            tooltip: 'Clear search',
+            icon: const Icon(Icons.close_rounded),
+            onPressed: () {
+              _searchController.clear();
+              setState(() => _searchQuery = '');
+            },
+          ),
+    filled: true,
+    fillColor: Theme.of(context)
+        .colorScheme
+        .surfaceContainerHighest
+        .withValues(alpha: 0.35),
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(14),
+      borderSide: BorderSide.none,
+    ),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(14),
+      borderSide: BorderSide.none,
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(14),
+      borderSide: BorderSide(
+        color: Theme.of(context).colorScheme.primary,
+        width: 1.5,
+      ),
+    ),
+    contentPadding: const EdgeInsets.symmetric(
+      horizontal: 16,
+      vertical: 15,
+    ),
+  ),
+  onChanged: (value) {
+    setState(() => _searchQuery = value.trim());
+  },
+),
               const SizedBox(height: 12),
-              // Group by toggle (centered)
-              if (_searchQuery.isEmpty) ...[
-                Center(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text('Group by:'),
-                      const SizedBox(width: 8),
-                      ToggleButtons(
-                        isSelected: [_groupByIndex == 0, _groupByIndex == 1],
-                        onPressed: (i) async {
-                          setState(() => _groupByIndex = i);
-                          await DatabaseService.setSetting(
-                            'accountsGroupByIndex',
-                            i,
-                          );
-                        },
-                        children: const [
-                          Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 12),
-                            child: Text('Type'),
-                          ),
-                          Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 12),
-                            child: Text('Institution'),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-              ],
+             // Group by toggle (centered)
+if (_searchQuery.isEmpty) ...[
+  Center(
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          'Group by',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w500,
+              ),
+        ),
+
+        const SizedBox(width: 10),
+
+        Container(
+          padding: const EdgeInsets.all(3),
+          decoration: BoxDecoration(
+            color: Theme.of(context)
+                .colorScheme
+                .surfaceContainerHighest
+                .withValues(alpha: 0.45),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildGroupByOption(
+                label: 'Type',
+                index: 0,
+              ),
+              _buildGroupByOption(
+                label: 'Institution',
+                index: 1,
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  ),
+],
               Expanded(
                 child: _searchQuery.isEmpty
                     ? _buildGroupedAccountsList(accounts)
@@ -522,6 +560,54 @@ class _AccountsScreenState extends State<AccountsScreen> {
               const BannerAdWidget(),
             ],
           ),
+        ),
+      ),
+    ),
+    );
+  }
+
+  Widget _buildGroupByOption({
+    required String label,
+    required int index,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isSelected = _groupByIndex == index;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: () async {
+        if (_groupByIndex == index) return;
+
+        setState(() {
+          _groupByIndex = index;
+        });
+
+        await DatabaseService.setSetting(
+          'accountsGroupByIndex',
+          index,
+        );
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 8,
+        ),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? colorScheme.primary.withValues(alpha: 0.12)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          label,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: isSelected
+                    ? colorScheme.primary
+                    : colorScheme.onSurfaceVariant,
+                fontWeight:
+                    isSelected ? FontWeight.w600 : FontWeight.w500,
+              ),
         ),
       ),
     );

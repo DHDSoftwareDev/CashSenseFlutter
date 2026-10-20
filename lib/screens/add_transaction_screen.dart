@@ -1,4 +1,4 @@
-// ignore_for_file: curly_braces_in_flow_control_structures, deprecated_member_use, unused_element, unused_local_variable, unnecessary_null_comparison, unused_field, use_build_context_synchronously, prefer_conditional_assignment, unrelated_type_equality_checks, prefer_null_aware_operators, prefer_interpolation_to_compose_strings, dead_code, unnecessary_null_in_if_null_operators
+// ignore_for_file: prefer_collection_literals, curly_braces_in_flow_control_structures, deprecated_member_use, unused_element, unused_local_variable, unnecessary_null_comparison, unused_field, use_build_context_synchronously, prefer_conditional_assignment, unrelated_type_equality_checks, prefer_null_aware_operators, prefer_interpolation_to_compose_strings, dead_code, unnecessary_null_in_if_null_operators
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -164,18 +164,18 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             padding: EdgeInsets.fromLTRB(16, 16, 16, bottomClearance),
             children: [
               _buildTypeToggle(),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               _buildAmountField(),
               const SizedBox(height: 16),
               if (_transactionType == TransactionScreenType.transfer) ...[
                 _buildFromAccountSelector(),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 _buildToAccountSelector(),
               ] else ...[
                 _buildPayeeSelector(),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 _buildCategorySelector(),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 if (_useSplits)
                   SplitsEditor(
                     initialSplits: _splits,
@@ -187,14 +187,16 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                         ? CategoryType.income
                         : CategoryType.expense,
                   ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 _buildAccountSelector(),
               ],
-              const SizedBox(height: 8),
-              if (_transactionType != TransactionScreenType.transfer)
+              const SizedBox(height: 10),
+              if (_transactionType != TransactionScreenType.transfer) ...[
                 _buildClearedToggle(),
-              const SizedBox(height: 8),
+                const SizedBox(height: 10),
+              ],
               _buildShowInReportsToggle(),
+              const SizedBox(height: 10),
               _buildDateSelector(),
               const SizedBox(height: 12),
               _buildNotesField(),
@@ -217,73 +219,97 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   }
 
   Widget _buildTypeToggle() {
-    return Card(
-      child: ListTile(
-        title: Center(
-          child: ToggleButtons(
-            isSelected: [
-              _transactionType == TransactionScreenType.expense,
-              _transactionType == TransactionScreenType.income,
-              _transactionType == TransactionScreenType.transfer,
-            ],
-            onPressed: (index) {
-              setState(() {
-                if (_transactionType != TransactionScreenType.values[index]) {
-                  _didUserSelectPayee = true;
-                }
-                _transactionType = TransactionScreenType.values[index];
-                _selectedPayeeId = null;
-                _selectedCategoryId = null;
-                // Only clear account selections when switching to/from transfer
-                if (_transactionType == TransactionScreenType.transfer) {
-                  _showInReports = false;
-                  _selectedAccountId = null;
-                  _fromAccountId = null;
-                  _toAccountId = null;
-                }
-                // Otherwise, preserve _selectedAccountId for expense/income
-              });
-            },
-            children: const [
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16),
-                child: Text('Expense'),
+    final colorScheme = Theme.of(context).colorScheme;
+
+    Widget option(TransactionScreenType type, String label) {
+      final selected = _transactionType == type;
+      return Expanded(
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: () {
+            final index = TransactionScreenType.values.indexOf(type);
+            setState(() {
+              if (_transactionType != TransactionScreenType.values[index]) {
+                _didUserSelectPayee = true;
+              }
+              _transactionType = TransactionScreenType.values[index];
+              _selectedPayeeId = null;
+              _selectedCategoryId = null;
+              if (_transactionType == TransactionScreenType.transfer) {
+                _showInReports = false;
+                _selectedAccountId = null;
+                _fromAccountId = null;
+                _toAccountId = null;
+              }
+            });
+          },
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              color: selected
+                  ? colorScheme.primary.withValues(alpha: 0.12)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: selected
+                    ? colorScheme.primary
+                    : colorScheme.onSurfaceVariant,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
               ),
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16),
-                child: Text('Income'),
-              ),
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16),
-                child: Text('Transfer'),
-              ),
-            ],
+            ),
           ),
         ),
-        onTap: () {
-          // No-op tap so it visually behaves like other list tiles
-        },
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          option(TransactionScreenType.expense, 'Expense'),
+          option(TransactionScreenType.income, 'Income'),
+          option(TransactionScreenType.transfer, 'Transfer'),
+        ],
       ),
     );
   }
 
   Widget _buildAmountField() {
+    final colorScheme = Theme.of(context).colorScheme;
     return TextFormField(
       controller: _amountController,
+      onTapOutside: (_) => FocusScope.of(context).unfocus(),
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
       decoration: InputDecoration(
         labelText: 'Amount',
         prefixText: '\$ ',
         hintText: '0.00',
+        filled: true,
+        fillColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
         prefixStyle: TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.w600,
           color: _transactionType == TransactionScreenType.income
               ? AppTheme.incomeGreen
               : (_transactionType == TransactionScreenType.expense
                     ? AppTheme.expenseRed
-                    : null),
+                    : colorScheme.primary),
         ),
         suffixIcon: IconButton(
-          icon: const Icon(Icons.calculate),
+          icon: const Icon(Icons.calculate_outlined),
+          tooltip: 'Calculator',
           onPressed: () async {
             final result = await showModalBottomSheet<double?>(
               context: context,
@@ -300,6 +326,19 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             }
           },
         ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: colorScheme.primary, width: 1.5),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       ),
       validator: (value) {
         if (value == null || value.isEmpty) return 'Please enter an amount';
@@ -312,7 +351,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   }
 
   Widget _buildPayeeSelector() {
-    // Always refresh payees before showing selector
     List<Map<String, dynamic>> payees = DatabaseService.getAllPayees();
     final payeeName = _selectedPayeeId != null
         ? payees.firstWhere(
@@ -322,8 +360,20 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         : null;
 
     return Card(
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: Theme.of(context)
+              .colorScheme
+              .outlineVariant
+              .withValues(alpha: 0.22),
+        ),
+      ),
       child: ListTile(
-        leading: const Icon(Icons.person),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 3),
+        leading: const Icon(Icons.person_outline_rounded),
         title: Text(
           _transactionType == TransactionScreenType.expense ? 'Payee' : 'Payer',
         ),
@@ -333,403 +383,50 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   ? 'Select payee'
                   : 'Select payer'),
         ),
-        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+        trailing: const Icon(Icons.chevron_right_rounded),
         onTap: () async {
-          // Always refresh payees before showing selector
+          FocusScope.of(context).unfocus();
           payees = DatabaseService.getAllPayees();
-          final selected = await showModalBottomSheet<String?>(
-            context: context,
-            isScrollControlled: true,
-            builder: (_) => FractionallySizedBox(
-              heightFactor: 0.85,
-              child: Scaffold(
-                appBar: AppBar(
-                  leading: IconButton(
-                    icon: const Icon(Icons.arrow_back),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                  title: Text(
-                    'Select ${_transactionType == TransactionScreenType.expense ? 'Payee' : 'Payer'}',
-                  ),
-                  backgroundColor: Theme.of(context).colorScheme.primary,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  actions: [
-                    IconButton(
-                      icon: const Icon(Icons.add),
-                      tooltip: 'Add',
-                      onPressed: () async {
-                        final nameController = TextEditingController();
-                        String? selectedCatId;
-                        final categories =
-                            _transactionType == TransactionScreenType.expense
-                            ? DatabaseService.getAllCategories()
-                                  .where(
-                                    (cat) => cat.type == CategoryType.expense,
-                                  )
-                                  .toList()
-                            : DatabaseService.getAllCategories()
-                                  .where(
-                                    (cat) => cat.type == CategoryType.income,
-                                  )
-                                  .toList();
-                        final result = await showDialog<Map<String, dynamic>?>(
-                          context: context,
-                          builder: (ctx) {
-                            String? dialogCatId = selectedCatId;
-                            return StatefulBuilder(
-                              builder: (ctx, setState) => AlertDialog(
-                                title: Text(
-                                  'Add ${_transactionType == TransactionScreenType.expense ? 'Payee' : 'Payer'}',
-                                ),
-                                content: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    TextField(
-                                      controller: nameController,
-                                      textCapitalization:
-                                          TextCapitalization.sentences,
-                                      decoration: const InputDecoration(
-                                        labelText: 'Name',
-                                      ),
-                                    ),
-                                    const SizedBox(height: 12),
-                                    InkWell(
-                                      onTap: () async {
-                                        final allCategories =
-                                            DatabaseService.getAllCategories();
-                                        final filteredCats =
-                                            _transactionType ==
-                                                TransactionScreenType.expense
-                                            ? allCategories
-                                                  .where(
-                                                    (c) =>
-                                                        c.type ==
-                                                        CategoryType.expense,
-                                                  )
-                                                  .toList()
-                                            : allCategories
-                                                  .where(
-                                                    (c) =>
-                                                        c.type ==
-                                                        CategoryType.income,
-                                                  )
-                                                  .toList();
-                                        final picked = await showModalBottomSheet<String?>(
-                                          context: ctx,
-                                          isScrollControlled: true,
-                                          builder: (_) => FractionallySizedBox(
-                                            heightFactor: 0.85,
-                                            child: Scaffold(
-                                              appBar: AppBar(
-                                                leading: IconButton(
-                                                  icon: const Icon(
-                                                    Icons.arrow_back,
-                                                  ),
-                                                  onPressed: () =>
-                                                      Navigator.pop(ctx),
-                                                ),
-                                                title: const Text(
-                                                  'Select Category',
-                                                ),
-                                                backgroundColor: Theme.of(
-                                                  ctx,
-                                                ).colorScheme.primary,
-                                                foregroundColor: Colors.white,
-                                                elevation: 0,
-                                                actions: [
-                                                  IconButton(
-                                                    icon: const Icon(Icons.add),
-                                                    tooltip: 'Add',
-                                                    onPressed: () async {
-                                                      final nameController =
-                                                          TextEditingController();
-                                                      Color selectedColor =
-                                                          const Color(
-                                                            0xFF607D8B,
-                                                          );
-                                                      final result = await showDialog<Category?>(
-                                                        context: ctx,
-                                                        builder: (dctx) => StatefulBuilder(
-                                                          builder: (dctx, setState) => AlertDialog(
-                                                            title: const Text(
-                                                              'Add Category',
-                                                            ),
-                                                            content: Column(
-                                                              mainAxisSize:
-                                                                  MainAxisSize
-                                                                      .min,
-                                                              children: [
-                                                                TextField(
-                                                                  controller:
-                                                                      nameController,
-                                                                  textCapitalization:
-                                                                      TextCapitalization
-                                                                          .sentences,
-                                                                  decoration:
-                                                                      const InputDecoration(
-                                                                        labelText:
-                                                                            'Name',
-                                                                      ),
-                                                                ),
-                                                                const SizedBox(
-                                                                  height: 8,
-                                                                ),
-                                                                GestureDetector(
-                                                                  onTap: () async {
-                                                                    final picked = await showAppColorPicker(
-                                                                      context:
-                                                                          dctx,
-                                                                      initialColor:
-                                                                          selectedColor,
-                                                                      title:
-                                                                          'Pick Category Color',
-                                                                    );
-                                                                    if (picked !=
-                                                                        null)
-                                                                      setState(
-                                                                        () => selectedColor =
-                                                                            picked,
-                                                                      );
-                                                                  },
-                                                                  child: Row(
-                                                                    children: [
-                                                                      Container(
-                                                                        width:
-                                                                            20,
-                                                                        height:
-                                                                            20,
-                                                                        decoration: BoxDecoration(
-                                                                          color:
-                                                                              selectedColor,
-                                                                          borderRadius:
-                                                                              BorderRadius.circular(
-                                                                                4,
-                                                                              ),
-                                                                          border: Border.all(
-                                                                            color:
-                                                                                Colors.black26,
-                                                                          ),
-                                                                        ),
-                                                                      ),
-                                                                      const SizedBox(
-                                                                        width:
-                                                                            12,
-                                                                      ),
-                                                                      const Text(
-                                                                        'Color',
-                                                                      ),
-                                                                      const Spacer(),
-                                                                      const Icon(
-                                                                        Icons
-                                                                            .color_lens_outlined,
-                                                                        size:
-                                                                            20,
-                                                                      ),
-                                                                    ],
-                                                                  ),
-                                                                ),
-                                                              ],
-                                                            ),
-                                                            actions: [
-                                                              TextButton(
-                                                                onPressed: () =>
-                                                                    Navigator.pop(
-                                                                      dctx,
-                                                                    ),
-                                                                child:
-                                                                    const Text(
-                                                                      'Cancel',
-                                                                    ),
-                                                              ),
-                                                              TextButton(
-                                                                onPressed: () {
-                                                                  final name =
-                                                                      nameController
-                                                                          .text
-                                                                          .trim();
-                                                                  if (name
-                                                                      .isEmpty)
-                                                                    return;
-                                                                  final newCat = Category(
-                                                                    name: name,
-                                                                    iconCodePoint:
-                                                                        '0xe85d',
-                                                                    colorValue:
-                                                                        selectedColor
-                                                                            .value
-                                                                            .toString(),
-                                                                    type:
-                                                                        _transactionType ==
-                                                                            TransactionScreenType.expense
-                                                                        ? CategoryType
-                                                                              .expense
-                                                                        : CategoryType
-                                                                              .income,
-                                                                  );
-                                                                  Navigator.pop(
-                                                                    dctx,
-                                                                    newCat,
-                                                                  );
-                                                                },
-                                                                child:
-                                                                    const Text(
-                                                                      'Add',
-                                                                    ),
-                                                              ),
-                                                            ],
-                                                          ),
-                                                        ),
-                                                      );
-                                                      if (result != null) {
-                                                        await DatabaseService.addCategory(
-                                                          result,
-                                                        );
-                                                        try {
-                                                          await LookupsSyncHelper.syncCategory(
-                                                            result,
-                                                          );
-                                                        } catch (_) {}
-                                                        setState(() {});
-                                                      }
-                                                    },
-                                                  ),
-                                                ],
-                                              ),
-                                              body: _CategorySelectorSheet(
-                                                categories: filteredCats,
-                                                hideAddButton: true,
-                                                allowedTypes: {
-                                                  _transactionType ==
-                                                          TransactionScreenType
-                                                              .expense
-                                                      ? CategoryType.expense
-                                                      : CategoryType.income,
-                                                },
-                                              ),
-                                            ),
-                                          ),
-                                        );
-                                        if (picked != null)
-                                          setState(() => dialogCatId = picked);
-                                      },
-                                      child: InputDecorator(
-                                        decoration: const InputDecoration(
-                                          labelText: 'Category',
-                                        ),
-                                        child: Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            Expanded(
-                                              child: Text(
-                                                dialogCatId == null
-                                                    ? 'Select Category'
-                                                    : (DatabaseService.getCategoryById(
-                                                            dialogCatId ?? '',
-                                                          )?.name ??
-                                                          ''),
-                                              ),
-                                            ),
-                                            const Icon(Icons.arrow_drop_down),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(ctx),
-                                    child: const Text('Cancel'),
-                                  ),
-                                  TextButton(
-                                    onPressed: () {
-                                      final name = nameController.text.trim();
-                                      if (name.isEmpty) return;
-                                      final newId = DateTime.now()
-                                          .millisecondsSinceEpoch
-                                          .toString();
-                                      Navigator.pop(ctx, {
-                                        'id': newId,
-                                        'name': nameController.text.trim(),
-                                        'type':
-                                            _transactionType ==
-                                                TransactionScreenType.expense
-                                            ? 'payee'
-                                            : 'payer',
-                                        'categoryId': dialogCatId,
-                                      });
-                                    },
-                                    child: const Text('Add'),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                        );
-                        if (result != null) {
-                          final payeeToAdd = {...result};
-                          await DatabaseService.addPayee(payeeToAdd);
-                          try {
-                            await LookupsSyncHelper.syncPayeeOrPayer(
-                              payeeToAdd,
-                            );
-                          } catch (_) {}
-                          // Refresh payees after adding
-                          payees = DatabaseService.getAllPayees();
-                          Navigator.pop(context, result['id'] as String?);
-                        }
-                      },
-                    ),
-                  ],
-                ),
-                body: _PayeeSelectorSheet(
-                  payees: _transactionType == TransactionScreenType.expense
-                      ? payees
-                            .where((p) => (p['type'] as String?) == 'payee')
-                            .toList()
-                      : payees
-                            .where((p) => (p['type'] as String?) == 'payer')
-                            .toList(),
-                  type: _transactionType == TransactionScreenType.expense
-                      ? 'payee'
-                      : 'payer',
-                ),
+          final type = _transactionType;
+          final visible = type == TransactionScreenType.expense
+              ? payees.where((p) => (p['type'] as String?) == 'payee').toList()
+              : payees.where((p) => (p['type'] as String?) == 'payer').toList();
+
+          final selected = await Navigator.of(context).push<String>(
+            MaterialPageRoute(
+              fullscreenDialog: true,
+              builder: (_) => _TransactionPayeeSelectorPage(
+                payees: visible,
+                initialSelectedId: _selectedPayeeId,
+                transactionType: type,
               ),
             ),
           );
-          // Always refresh payees in case user added one. If a payee id was returned, select it and autofill category.
-          if (mounted) {
-            setState(() {
-              // Force re-evaluation of getters that read DatabaseService
-              payees = DatabaseService.getAllPayees();
-            });
-          }
+
+          if (!mounted) return;
+          payees = DatabaseService.getAllPayees();
+
           if (selected != null) {
-            // selected may be the id of a newly added payee or an existing id returned from the sheet
             final payee = payees.firstWhere(
               (p) => p['id'].toString() == selected,
               orElse: () => <String, dynamic>{},
             );
             String? rawCatId;
-            if (payee.isNotEmpty && payee.containsKey('categoryId'))
+            if (payee.isNotEmpty && payee.containsKey('categoryId')) {
               rawCatId = payee['categoryId'] as String?;
+            }
             String? catId;
             if (rawCatId != null) {
               final lower = rawCatId.toLowerCase();
               if (lower != 'null' && rawCatId.isNotEmpty) catId = rawCatId;
             }
-            final hasValidCategory =
-                catId != null &&
+            final hasValidCategory = catId != null &&
                 DatabaseService.getAllCategories().any((c) => c.id == catId);
+
             setState(() {
               _didUserSelectPayee = true;
               _selectedPayeeId = selected.isEmpty ? null : selected;
-              // If we're editing/duplicating a transaction that already has a category,
-              // preserve the transaction's category instead of using the payee's default category
               if (_originalCategoryId == null && hasValidCategory) {
-                // Only auto-select payee's category when creating a new transaction
                 _selectedCategoryId = catId;
               }
             });
@@ -740,36 +437,45 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   }
 
   Widget _buildCategorySelector() {
-    Category? selectedCategory = _findCategoryById(
+    final selectedCategory = _findCategoryById(
       _categories,
       _selectedCategoryId,
     );
-    String? categoryName = _transactionType == TransactionScreenType.transfer
+    final categoryName = _transactionType == TransactionScreenType.transfer
         ? 'Transfer'
         : selectedCategory?.name;
 
-    Widget leadingWidget;
-    if (selectedCategory != null) {
-      leadingWidget = SizedBox(
-        width: 24,
-        height: 24,
-        child: Center(
-          child: Container(
-            width: 10,
-            height: 10,
-            decoration: BoxDecoration(
-              color: selectedCategory.color,
-              shape: BoxShape.circle,
+    final Widget leadingWidget = selectedCategory != null
+        ? SizedBox(
+            width: 24,
+            height: 24,
+            child: Center(
+              child: Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  color: selectedCategory.color,
+                  shape: BoxShape.circle,
+                ),
+              ),
             ),
-          ),
-        ),
-      );
-    } else {
-      leadingWidget = const Icon(Icons.label);
-    }
+          )
+        : const Icon(Icons.category_outlined);
 
     return Card(
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: Theme.of(context)
+              .colorScheme
+              .outlineVariant
+              .withValues(alpha: 0.22),
+        ),
+      ),
       child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 3),
         leading: leadingWidget,
         title: const Text('Category'),
         subtitle: Column(
@@ -797,157 +503,27 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             ),
           ],
         ),
-        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+        trailing: const Icon(Icons.chevron_right_rounded),
         onTap: () async {
+          FocusScope.of(context).unfocus();
           final allCategories = DatabaseService.getAllCategories();
-          final filteredCats = _transactionType == TransactionScreenType.expense
-              ? allCategories
-                    .where((c) => c.type == CategoryType.expense)
-                    .toList()
-              : _transactionType == TransactionScreenType.income
-              ? allCategories
-                    .where((c) => c.type == CategoryType.income)
-                    .toList()
-              : allCategories;
-          final selected = await showModalBottomSheet<String?>(
-            context: context,
-            isScrollControlled: true,
-            builder: (_) => FractionallySizedBox(
-              heightFactor: 0.85,
-              child: Scaffold(
-                appBar: AppBar(
-                  leading: IconButton(
-                    icon: const Icon(Icons.arrow_back),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                  title: const Text('Select Category'),
-                  backgroundColor: Theme.of(context).colorScheme.primary,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  actions: [
-                    IconButton(
-                      icon: const Icon(Icons.add),
-                      tooltip: 'Add',
-                      onPressed: () async {
-                        final nameController = TextEditingController();
-                        Color selectedColor = const Color(0xFF607D8B);
-                        final result = await showDialog<Category?>(
-                          context: context,
-                          builder: (ctx) => StatefulBuilder(
-                            builder: (ctx, setState) => AlertDialog(
-                              title: const Text('Add Category'),
-                              content: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  TextField(
-                                    controller: nameController,
-                                    textCapitalization:
-                                        TextCapitalization.sentences,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Name',
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  GestureDetector(
-                                    onTap: () async {
-                                      final picked = await showAppColorPicker(
-                                        context: context,
-                                        initialColor: selectedColor,
-                                        title: 'Pick Category Color',
-                                      );
-                                      if (picked != null)
-                                        setState(() => selectedColor = picked);
-                                    },
-                                    child: Row(
-                                      children: [
-                                        Container(
-                                          width: 20,
-                                          height: 20,
-                                          decoration: BoxDecoration(
-                                            color: selectedColor,
-                                            borderRadius: BorderRadius.circular(
-                                              4,
-                                            ),
-                                            border: Border.all(
-                                              color: Colors.black26,
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        const Text('Category Color'),
-                                        const Spacer(),
-                                        const Icon(
-                                          Icons.color_lens_outlined,
-                                          size: 20,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                ],
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(ctx),
-                                  child: const Text('Cancel'),
-                                ),
-                                ElevatedButton(
-                                  onPressed: () {
-                                    if (nameController.text.trim().isNotEmpty) {
-                                      final newCat = Category(
-                                        name: nameController.text.trim(),
-                                        iconCodePoint: '0xe85d',
-                                        colorValue: selectedColor.value
-                                            .toString(),
-                                        type:
-                                            (_transactionType ==
-                                                TransactionScreenType.expense)
-                                            ? CategoryType.expense
-                                            : CategoryType.income,
-                                      );
-                                      Navigator.pop(ctx, newCat);
-                                    }
-                                  },
-                                  child: const Text('Add'),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                        if (result != null) {
-                          final newCatId = await DatabaseService.addCategory(
-                            result,
-                          );
-                          try {
-                            await LookupsSyncHelper.syncCategory(
-                              result.copyWith(id: newCatId),
-                            );
-                          } catch (_) {}
-                          Navigator.pop(
-                            context,
-                            newCatId,
-                          ); // Return new category id so it can be auto-selected
-                        }
-                      },
-                    ),
-                  ],
-                ),
-                body: _CategorySelectorSheet(
-                  categories: filteredCats,
-                  hideAddButton: true,
-                  allowedTypes: {
-                    _transactionType == TransactionScreenType.expense
-                        ? CategoryType.expense
-                        : CategoryType.income,
-                  },
-                ),
+          final filtered = _transactionType == TransactionScreenType.expense
+              ? allCategories.where((c) => c.type == CategoryType.expense).toList()
+              : allCategories.where((c) => c.type == CategoryType.income).toList();
+
+          final selected = await Navigator.of(context).push<String>(
+            MaterialPageRoute(
+              fullscreenDialog: true,
+              builder: (_) => _TransactionCategorySelectorPage(
+                categories: filtered,
+                initialSelectedId: _selectedCategoryId,
+                transactionType: _transactionType,
               ),
             ),
           );
-          if (selected != null) {
-            setState(() {
-              _selectedCategoryId = selected;
-            });
+
+          if (selected != null && mounted) {
+            setState(() => _selectedCategoryId = selected);
           }
         },
       ),
@@ -968,8 +544,16 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               .name
         : null;
     return Card(
-      elevation: 1,
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.22),
+        ),
+      ),
       child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 3),
         leading: const Icon(Icons.account_balance_wallet),
         title: const Text('Account'),
         subtitle: Text(accountName ?? 'Select'),
@@ -1029,275 +613,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                               text: '0.0',
                             );
                             String? customType;
-                            final res = await showDialog<Account?>(
-                              context: ctx2,
-                              builder: (dctx) => StatefulBuilder(
-                                builder: (dctx, dset) {
-                                  return AlertDialog(
-                                    title: const Center(
-                                      child: Text('Add Account'),
-                                    ),
-                                    content: SingleChildScrollView(
-                                      child: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Row(
-                                            children: [
-                                              const Text('Type:'),
-                                              const SizedBox(width: 12),
-                                              DropdownButton<String>(
-                                                value:
-                                                    customType ??
-                                                    selectedType.name,
-                                                onChanged: (v) {
-                                                  if (v == null) return;
-                                                  final match = AccountType
-                                                      .values
-                                                      .firstWhere(
-                                                        (t) =>
-                                                            t.name
-                                                                .toLowerCase() ==
-                                                            v.toLowerCase(),
-                                                        orElse: () =>
-                                                            AccountType.cash,
-                                                      );
-                                                  if (AccountType.values
-                                                      .map(
-                                                        (t) => t.name
-                                                            .toLowerCase(),
-                                                      )
-                                                      .contains(
-                                                        v.toLowerCase(),
-                                                      )) {
-                                                    dset(() {
-                                                      selectedType = match;
-                                                      customType = null;
-                                                    });
-                                                  } else {
-                                                    dset(() => customType = v);
-                                                  }
-                                                },
-                                                items:
-                                                    ([
-                                                          ...AccountType.values
-                                                              .map(
-                                                                (t) => t.name,
-                                                              ),
-                                                          ...DatabaseService.getAllCustomAccountTypes(),
-                                                        ])
-                                                        .toSet()
-                                                        .map(
-                                                          (
-                                                            type,
-                                                          ) => DropdownMenuItem(
-                                                            value: type,
-                                                            child: Text(
-                                                              type.isNotEmpty
-                                                                  ? type[0]
-                                                                            .toUpperCase() +
-                                                                        type.substring(
-                                                                          1,
-                                                                        )
-                                                                  : type,
-                                                            ),
-                                                          ),
-                                                        )
-                                                        .toList(),
-                                              ),
-                                              IconButton(
-                                                icon: const Icon(
-                                                  Icons.add_circle_outline,
-                                                ),
-                                                tooltip: 'Add custom type',
-                                                onPressed: () async {
-                                                  final textCtrl =
-                                                      TextEditingController();
-                                                  final res = await showDialog<String?>(
-                                                    context: dctx,
-                                                    builder: (tctx) => AlertDialog(
-                                                      title: const Text(
-                                                        'Add account type',
-                                                      ),
-                                                      content: TextField(
-                                                        controller: textCtrl,
-                                                        textCapitalization:
-                                                            TextCapitalization
-                                                                .sentences,
-                                                        decoration:
-                                                            const InputDecoration(
-                                                              labelText:
-                                                                  'Type name',
-                                                            ),
-                                                      ),
-                                                      actions: [
-                                                        TextButton(
-                                                          onPressed: () =>
-                                                              Navigator.pop(
-                                                                tctx,
-                                                              ),
-                                                          child: const Text(
-                                                            'Cancel',
-                                                          ),
-                                                        ),
-                                                        TextButton(
-                                                          onPressed: () {
-                                                            final v = textCtrl
-                                                                .text
-                                                                .trim();
-                                                            if (v.isEmpty)
-                                                              return;
-                                                            Navigator.pop(
-                                                              tctx,
-                                                              v,
-                                                            );
-                                                          },
-                                                          child: const Text(
-                                                            'Add',
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  );
-                                                  if (res != null)
-                                                    dset(
-                                                      () => customType = res,
-                                                    );
-                                                },
-                                              ),
-                                              if (customType != null)
-                                                Padding(
-                                                  padding:
-                                                      const EdgeInsets.only(
-                                                        left: 8.0,
-                                                      ),
-                                                  child: Text(
-                                                    '($customType)',
-                                                    style: const TextStyle(
-                                                      fontStyle:
-                                                          FontStyle.italic,
-                                                    ),
-                                                  ),
-                                                ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 8),
-                                          TextField(
-                                            controller: nameCtrl,
-                                            textCapitalization:
-                                                TextCapitalization.words,
-                                            autofillHints: const [
-                                              AutofillHints.organizationName,
-                                            ],
-                                            decoration: const InputDecoration(
-                                              labelText: 'Account',
-                                            ),
-                                          ),
-                                          const SizedBox(height: 8),
-                                          TextField(
-                                            controller: institutionCtrl,
-                                            textCapitalization:
-                                                TextCapitalization.words,
-                                            autofillHints: const [
-                                              AutofillHints.organizationName,
-                                            ],
-                                            decoration: const InputDecoration(
-                                              labelText: 'Institution',
-                                            ),
-                                          ),
-                                          const SizedBox(height: 8),
-                                          TextField(
-                                            controller: accNumCtrl,
-                                            autofillHints: const [
-                                              AutofillHints.username,
-                                            ],
-                                            decoration: const InputDecoration(
-                                              labelText: 'Account number',
-                                            ),
-                                          ),
-                                          const SizedBox(height: 8),
-                                          TextField(
-                                            controller: cardNumCtrl,
-                                            decoration: const InputDecoration(
-                                              labelText: 'Card number',
-                                            ),
-                                          ),
-                                          const SizedBox(height: 8),
-                                          const SizedBox(height: 8),
-                                          TextField(
-                                            controller: balCtrl,
-                                            keyboardType:
-                                                const TextInputType.numberWithOptions(
-                                                  decimal: true,
-                                                ),
-                                            decoration: const InputDecoration(
-                                              labelText: 'Initial balance',
-                                            ),
-                                          ),
-                                          const SizedBox(height: 8),
-                                          TextField(
-                                            controller: availCtrl,
-                                            keyboardType:
-                                                const TextInputType.numberWithOptions(
-                                                  decimal: true,
-                                                ),
-                                            decoration: const InputDecoration(
-                                              labelText: 'Available balance',
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () => Navigator.pop(dctx),
-                                        child: const Text('Cancel'),
-                                      ),
-                                      TextButton(
-                                        onPressed: () {
-                                          final name = nameCtrl.text.trim();
-                                          if (name.isEmpty) return;
-                                          final institution = institutionCtrl
-                                              .text
-                                              .trim();
-                                          final accNum =
-                                              accNumCtrl.text.trim().isEmpty
-                                              ? null
-                                              : accNumCtrl.text.trim();
-                                          final cardNum =
-                                              cardNumCtrl.text.trim().isEmpty
-                                              ? null
-                                              : cardNumCtrl.text.trim();
-                                          final bal =
-                                              double.tryParse(balCtrl.text) ??
-                                              0.0;
-                                          final avail = double.tryParse(
-                                            availCtrl.text,
-                                          );
-                                          if (customType != null &&
-                                              customType!.isNotEmpty) {
-                                            DatabaseService.addCustomAccountType(
-                                              customType!,
-                                            );
-                                          }
-                                          final acc = Account(
-                                            name: name,
-                                            type: selectedType,
-                                            institution: institution.isEmpty
-                                                ? null
-                                                : institution,
-                                            accountNumber: accNum,
-                                            cardNumber: cardNum,
-                                            balance: bal,
-                                            availableBalance: avail,
-                                            customType: customType,
-                                          );
-                                          Navigator.pop(dctx, acc);
-                                        },
-                                        child: const Text('Add'),
-                                      ),
-                                    ],
-                                  );
-                                },
+                            final res = await Navigator.of(ctx2).push<Account>(
+                              MaterialPageRoute(
+                                fullscreenDialog: true,
+                                builder: (_) => const _TransactionAddAccountPage(),
                               ),
                             );
                             if (res != null) {
@@ -1350,8 +669,16 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               .name
         : null;
     return Card(
-      elevation: 1,
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.22),
+        ),
+      ),
       child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 3),
         leading: const Icon(Icons.account_balance_wallet),
         title: const Text('From Account'),
         subtitle: Text(accountName ?? 'Select account'),
@@ -1411,275 +738,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                               text: '0.0',
                             );
                             String? customType;
-                            final res = await showDialog<Account?>(
-                              context: ctx2,
-                              builder: (dctx) => StatefulBuilder(
-                                builder: (dctx, dset) {
-                                  return AlertDialog(
-                                    title: const Center(
-                                      child: Text('Add Account'),
-                                    ),
-                                    content: SingleChildScrollView(
-                                      child: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Row(
-                                            children: [
-                                              const Text('Type:'),
-                                              const SizedBox(width: 12),
-                                              DropdownButton<String>(
-                                                value:
-                                                    customType ??
-                                                    selectedType.name,
-                                                onChanged: (v) {
-                                                  if (v == null) return;
-                                                  final match = AccountType
-                                                      .values
-                                                      .firstWhere(
-                                                        (t) =>
-                                                            t.name
-                                                                .toLowerCase() ==
-                                                            v.toLowerCase(),
-                                                        orElse: () =>
-                                                            AccountType.cash,
-                                                      );
-                                                  if (AccountType.values
-                                                      .map(
-                                                        (t) => t.name
-                                                            .toLowerCase(),
-                                                      )
-                                                      .contains(
-                                                        v.toLowerCase(),
-                                                      )) {
-                                                    dset(() {
-                                                      selectedType = match;
-                                                      customType = null;
-                                                    });
-                                                  } else {
-                                                    dset(() => customType = v);
-                                                  }
-                                                },
-                                                items:
-                                                    ([
-                                                          ...AccountType.values
-                                                              .map(
-                                                                (t) => t.name,
-                                                              ),
-                                                          ...DatabaseService.getAllCustomAccountTypes(),
-                                                        ])
-                                                        .toSet()
-                                                        .map(
-                                                          (
-                                                            type,
-                                                          ) => DropdownMenuItem(
-                                                            value: type,
-                                                            child: Text(
-                                                              type.isNotEmpty
-                                                                  ? type[0]
-                                                                            .toUpperCase() +
-                                                                        type.substring(
-                                                                          1,
-                                                                        )
-                                                                  : type,
-                                                            ),
-                                                          ),
-                                                        )
-                                                        .toList(),
-                                              ),
-                                              IconButton(
-                                                icon: const Icon(
-                                                  Icons.add_circle_outline,
-                                                ),
-                                                tooltip: 'Add custom type',
-                                                onPressed: () async {
-                                                  final textCtrl =
-                                                      TextEditingController();
-                                                  final res = await showDialog<String?>(
-                                                    context: dctx,
-                                                    builder: (tctx) => AlertDialog(
-                                                      title: const Text(
-                                                        'Add account type',
-                                                      ),
-                                                      content: TextField(
-                                                        controller: textCtrl,
-                                                        textCapitalization:
-                                                            TextCapitalization
-                                                                .sentences,
-                                                        decoration:
-                                                            const InputDecoration(
-                                                              labelText:
-                                                                  'Type name',
-                                                            ),
-                                                      ),
-                                                      actions: [
-                                                        TextButton(
-                                                          onPressed: () =>
-                                                              Navigator.pop(
-                                                                tctx,
-                                                              ),
-                                                          child: const Text(
-                                                            'Cancel',
-                                                          ),
-                                                        ),
-                                                        TextButton(
-                                                          onPressed: () {
-                                                            final v = textCtrl
-                                                                .text
-                                                                .trim();
-                                                            if (v.isEmpty)
-                                                              return;
-                                                            Navigator.pop(
-                                                              tctx,
-                                                              v,
-                                                            );
-                                                          },
-                                                          child: const Text(
-                                                            'Add',
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  );
-                                                  if (res != null)
-                                                    dset(
-                                                      () => customType = res,
-                                                    );
-                                                },
-                                              ),
-                                              if (customType != null)
-                                                Padding(
-                                                  padding:
-                                                      const EdgeInsets.only(
-                                                        left: 8.0,
-                                                      ),
-                                                  child: Text(
-                                                    '($customType)',
-                                                    style: const TextStyle(
-                                                      fontStyle:
-                                                          FontStyle.italic,
-                                                    ),
-                                                  ),
-                                                ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 8),
-                                          TextField(
-                                            controller: nameCtrl,
-                                            textCapitalization:
-                                                TextCapitalization.words,
-                                            autofillHints: const [
-                                              AutofillHints.organizationName,
-                                            ],
-                                            decoration: const InputDecoration(
-                                              labelText: 'Account',
-                                            ),
-                                          ),
-                                          const SizedBox(height: 8),
-                                          TextField(
-                                            controller: institutionCtrl,
-                                            textCapitalization:
-                                                TextCapitalization.words,
-                                            autofillHints: const [
-                                              AutofillHints.organizationName,
-                                            ],
-                                            decoration: const InputDecoration(
-                                              labelText: 'Institution',
-                                            ),
-                                          ),
-                                          const SizedBox(height: 8),
-                                          TextField(
-                                            controller: accNumCtrl,
-                                            autofillHints: const [
-                                              AutofillHints.username,
-                                            ],
-                                            decoration: const InputDecoration(
-                                              labelText: 'Account number',
-                                            ),
-                                          ),
-                                          const SizedBox(height: 8),
-                                          TextField(
-                                            controller: cardNumCtrl,
-                                            decoration: const InputDecoration(
-                                              labelText: 'Card number',
-                                            ),
-                                          ),
-                                          const SizedBox(height: 8),
-                                          const SizedBox(height: 8),
-                                          TextField(
-                                            controller: balCtrl,
-                                            keyboardType:
-                                                const TextInputType.numberWithOptions(
-                                                  decimal: true,
-                                                ),
-                                            decoration: const InputDecoration(
-                                              labelText: 'Initial balance',
-                                            ),
-                                          ),
-                                          const SizedBox(height: 8),
-                                          TextField(
-                                            controller: availCtrl,
-                                            keyboardType:
-                                                const TextInputType.numberWithOptions(
-                                                  decimal: true,
-                                                ),
-                                            decoration: const InputDecoration(
-                                              labelText: 'Available balance',
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () => Navigator.pop(dctx),
-                                        child: const Text('Cancel'),
-                                      ),
-                                      TextButton(
-                                        onPressed: () {
-                                          final name = nameCtrl.text.trim();
-                                          if (name.isEmpty) return;
-                                          final institution = institutionCtrl
-                                              .text
-                                              .trim();
-                                          final accNum =
-                                              accNumCtrl.text.trim().isEmpty
-                                              ? null
-                                              : accNumCtrl.text.trim();
-                                          final cardNum =
-                                              cardNumCtrl.text.trim().isEmpty
-                                              ? null
-                                              : cardNumCtrl.text.trim();
-                                          final bal =
-                                              double.tryParse(balCtrl.text) ??
-                                              0.0;
-                                          final avail = double.tryParse(
-                                            availCtrl.text,
-                                          );
-                                          if (customType != null &&
-                                              customType!.isNotEmpty) {
-                                            DatabaseService.addCustomAccountType(
-                                              customType!,
-                                            );
-                                          }
-                                          final acc = Account(
-                                            name: name,
-                                            type: selectedType,
-                                            institution: institution.isEmpty
-                                                ? null
-                                                : institution,
-                                            accountNumber: accNum,
-                                            cardNumber: cardNum,
-                                            balance: bal,
-                                            availableBalance: avail,
-                                            customType: customType,
-                                          );
-                                          Navigator.pop(dctx, acc);
-                                        },
-                                        child: const Text('Add'),
-                                      ),
-                                    ],
-                                  );
-                                },
+                            final res = await Navigator.of(ctx2).push<Account>(
+                              MaterialPageRoute(
+                                fullscreenDialog: true,
+                                builder: (_) => const _TransactionAddAccountPage(),
                               ),
                             );
                             if (res != null) {
@@ -1733,8 +795,16 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         : null;
 
     return Card(
-      elevation: 1,
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.22),
+        ),
+      ),
       child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 3),
         leading: const Icon(Icons.account_balance_wallet),
         title: const Text('To Account'),
         subtitle: Text(accountName ?? 'Select account'),
@@ -1794,275 +864,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                               text: '0.0',
                             );
                             String? customType;
-                            final res = await showDialog<Account?>(
-                              context: ctx2,
-                              builder: (dctx) => StatefulBuilder(
-                                builder: (dctx, dset) {
-                                  return AlertDialog(
-                                    title: const Center(
-                                      child: Text('Add Account'),
-                                    ),
-                                    content: SingleChildScrollView(
-                                      child: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Row(
-                                            children: [
-                                              const Text('Type:'),
-                                              const SizedBox(width: 12),
-                                              DropdownButton<String>(
-                                                value:
-                                                    customType ??
-                                                    selectedType.name,
-                                                onChanged: (v) {
-                                                  if (v == null) return;
-                                                  final match = AccountType
-                                                      .values
-                                                      .firstWhere(
-                                                        (t) =>
-                                                            t.name
-                                                                .toLowerCase() ==
-                                                            v.toLowerCase(),
-                                                        orElse: () =>
-                                                            AccountType.cash,
-                                                      );
-                                                  if (AccountType.values
-                                                      .map(
-                                                        (t) => t.name
-                                                            .toLowerCase(),
-                                                      )
-                                                      .contains(
-                                                        v.toLowerCase(),
-                                                      )) {
-                                                    dset(() {
-                                                      selectedType = match;
-                                                      customType = null;
-                                                    });
-                                                  } else {
-                                                    dset(() => customType = v);
-                                                  }
-                                                },
-                                                items:
-                                                    ([
-                                                          ...AccountType.values
-                                                              .map(
-                                                                (t) => t.name,
-                                                              ),
-                                                          ...DatabaseService.getAllCustomAccountTypes(),
-                                                        ])
-                                                        .toSet()
-                                                        .map(
-                                                          (
-                                                            type,
-                                                          ) => DropdownMenuItem(
-                                                            value: type,
-                                                            child: Text(
-                                                              type.isNotEmpty
-                                                                  ? type[0]
-                                                                            .toUpperCase() +
-                                                                        type.substring(
-                                                                          1,
-                                                                        )
-                                                                  : type,
-                                                            ),
-                                                          ),
-                                                        )
-                                                        .toList(),
-                                              ),
-                                              IconButton(
-                                                icon: const Icon(
-                                                  Icons.add_circle_outline,
-                                                ),
-                                                tooltip: 'Add custom type',
-                                                onPressed: () async {
-                                                  final textCtrl =
-                                                      TextEditingController();
-                                                  final res = await showDialog<String?>(
-                                                    context: dctx,
-                                                    builder: (tctx) => AlertDialog(
-                                                      title: const Text(
-                                                        'Add account type',
-                                                      ),
-                                                      content: TextField(
-                                                        controller: textCtrl,
-                                                        textCapitalization:
-                                                            TextCapitalization
-                                                                .sentences,
-                                                        decoration:
-                                                            const InputDecoration(
-                                                              labelText:
-                                                                  'Type name',
-                                                            ),
-                                                      ),
-                                                      actions: [
-                                                        TextButton(
-                                                          onPressed: () =>
-                                                              Navigator.pop(
-                                                                tctx,
-                                                              ),
-                                                          child: const Text(
-                                                            'Cancel',
-                                                          ),
-                                                        ),
-                                                        TextButton(
-                                                          onPressed: () {
-                                                            final v = textCtrl
-                                                                .text
-                                                                .trim();
-                                                            if (v.isEmpty)
-                                                              return;
-                                                            Navigator.pop(
-                                                              tctx,
-                                                              v,
-                                                            );
-                                                          },
-                                                          child: const Text(
-                                                            'Add',
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  );
-                                                  if (res != null)
-                                                    dset(
-                                                      () => customType = res,
-                                                    );
-                                                },
-                                              ),
-                                              if (customType != null)
-                                                Padding(
-                                                  padding:
-                                                      const EdgeInsets.only(
-                                                        left: 8.0,
-                                                      ),
-                                                  child: Text(
-                                                    '($customType)',
-                                                    style: const TextStyle(
-                                                      fontStyle:
-                                                          FontStyle.italic,
-                                                    ),
-                                                  ),
-                                                ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 8),
-                                          TextField(
-                                            controller: nameCtrl,
-                                            textCapitalization:
-                                                TextCapitalization.words,
-                                            autofillHints: const [
-                                              AutofillHints.organizationName,
-                                            ],
-                                            decoration: const InputDecoration(
-                                              labelText: 'Account',
-                                            ),
-                                          ),
-                                          const SizedBox(height: 8),
-                                          TextField(
-                                            controller: institutionCtrl,
-                                            textCapitalization:
-                                                TextCapitalization.words,
-                                            autofillHints: const [
-                                              AutofillHints.organizationName,
-                                            ],
-                                            decoration: const InputDecoration(
-                                              labelText: 'Institution',
-                                            ),
-                                          ),
-                                          const SizedBox(height: 8),
-                                          TextField(
-                                            controller: accNumCtrl,
-                                            autofillHints: const [
-                                              AutofillHints.username,
-                                            ],
-                                            decoration: const InputDecoration(
-                                              labelText: 'Account number',
-                                            ),
-                                          ),
-                                          const SizedBox(height: 8),
-                                          TextField(
-                                            controller: cardNumCtrl,
-                                            decoration: const InputDecoration(
-                                              labelText: 'Card number',
-                                            ),
-                                          ),
-                                          const SizedBox(height: 8),
-                                          const SizedBox(height: 8),
-                                          TextField(
-                                            controller: balCtrl,
-                                            keyboardType:
-                                                const TextInputType.numberWithOptions(
-                                                  decimal: true,
-                                                ),
-                                            decoration: const InputDecoration(
-                                              labelText: 'Initial balance',
-                                            ),
-                                          ),
-                                          const SizedBox(height: 8),
-                                          TextField(
-                                            controller: availCtrl,
-                                            keyboardType:
-                                                const TextInputType.numberWithOptions(
-                                                  decimal: true,
-                                                ),
-                                            decoration: const InputDecoration(
-                                              labelText: 'Available balance',
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () => Navigator.pop(dctx),
-                                        child: const Text('Cancel'),
-                                      ),
-                                      TextButton(
-                                        onPressed: () {
-                                          final name = nameCtrl.text.trim();
-                                          if (name.isEmpty) return;
-                                          final institution = institutionCtrl
-                                              .text
-                                              .trim();
-                                          final accNum =
-                                              accNumCtrl.text.trim().isEmpty
-                                              ? null
-                                              : accNumCtrl.text.trim();
-                                          final cardNum =
-                                              cardNumCtrl.text.trim().isEmpty
-                                              ? null
-                                              : cardNumCtrl.text.trim();
-                                          final bal =
-                                              double.tryParse(balCtrl.text) ??
-                                              0.0;
-                                          final avail = double.tryParse(
-                                            availCtrl.text,
-                                          );
-                                          if (customType != null &&
-                                              customType!.isNotEmpty) {
-                                            DatabaseService.addCustomAccountType(
-                                              customType!,
-                                            );
-                                          }
-                                          final acc = Account(
-                                            name: name,
-                                            type: selectedType,
-                                            institution: institution.isEmpty
-                                                ? null
-                                                : institution,
-                                            accountNumber: accNum,
-                                            cardNumber: cardNum,
-                                            balance: bal,
-                                            availableBalance: avail,
-                                            customType: customType,
-                                          );
-                                          Navigator.pop(dctx, acc);
-                                        },
-                                        child: const Text('Add'),
-                                      ),
-                                    ],
-                                  );
-                                },
+                            final res = await Navigator.of(ctx2).push<Account>(
+                              MaterialPageRoute(
+                                fullscreenDialog: true,
+                                builder: (_) => const _TransactionAddAccountPage(),
                               ),
                             );
                             if (res != null) {
@@ -2104,8 +909,16 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
   Widget _buildDateSelector() {
     return Card(
-      elevation: 1,
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.22),
+        ),
+      ),
       child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 3),
         leading: const Icon(Icons.calendar_today),
         title: const Text('Date'),
         subtitle: Text(DateFormat.yMMMd().format(_transactionDate)),
@@ -2126,25 +939,51 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   }
 
   Widget _buildNotesField() {
+    final colorScheme = Theme.of(context).colorScheme;
     return TextFormField(
       controller: _notesController,
+      onTapOutside: (_) => FocusScope.of(context).unfocus(),
       onChanged: (_) {
         if (!_didUserEditNotes) {
           setState(() => _didUserEditNotes = true);
         }
       },
-      decoration: const InputDecoration(
+      decoration: InputDecoration(
         labelText: 'Notes',
         hintText: 'Optional notes',
-        border: OutlineInputBorder(),
+        filled: true,
+        fillColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: colorScheme.primary, width: 1.5),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       ),
-      maxLines: 2,
+      minLines: 2,
+      maxLines: 3,
     );
   }
 
   Widget _buildClearedToggle() {
     return Card(
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.22),
+        ),
+      ),
       child: SwitchListTile.adaptive(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 2),
         title: const Text('Cleared'),
         subtitle: const Text('Mark transaction as cleared'),
         value: _cleared,
@@ -2157,7 +996,16 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   Widget _buildShowInReportsToggle() {
     final isTransfer = _transactionType == TransactionScreenType.transfer;
     return Card(
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.22),
+        ),
+      ),
       child: SwitchListTile.adaptive(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 2),
         title: const Text('Show in reports'),
         subtitle: Text(
           isTransfer
@@ -2174,30 +1022,40 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   }
 
   Widget _buildSaveButton() {
-    return ElevatedButton(
-      onPressed: _isSaving ? null : _saveTransaction,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: Theme.of(context).colorScheme.primary,
-        foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(vertical: 16),
-      ),
-      child: _isSaving
-          ? Row(
-              mainAxisSize: MainAxisSize.min,
-              children: const [
-                SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+    return SizedBox(
+      width: double.infinity,
+      height: 52,
+      child: ElevatedButton(
+        onPressed: _isSaving ? null : _saveTransaction,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Theme.of(context).colorScheme.primary,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        child: _isSaving
+            ? const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
                   ),
-                ),
-                SizedBox(width: 8),
-                Text('Saving...'),
-              ],
-            )
-          : const Text('Save Transaction'),
+                  SizedBox(width: 8),
+                  Text('Saving...'),
+                ],
+              )
+            : const Text(
+                'Save Transaction',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+      ),
     );
   }
 
@@ -3197,6 +2055,338 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   }
 }
 
+class _TransactionAddAccountPage extends StatefulWidget {
+  const _TransactionAddAccountPage();
+
+  @override
+  State<_TransactionAddAccountPage> createState() =>
+      _TransactionAddAccountPageState();
+}
+
+class _TransactionAddAccountPageState
+    extends State<_TransactionAddAccountPage> {
+  final _nameController = TextEditingController();
+  final _institutionController = TextEditingController();
+  final _accountNumberController = TextEditingController();
+  final _cardNumberController = TextEditingController();
+  final _balanceController = TextEditingController(text: '0.0');
+  final _availableController = TextEditingController(text: '0.0');
+
+  AccountType _selectedType = AccountType.cash;
+  String? _customType;
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _institutionController.dispose();
+    _accountNumberController.dispose();
+    _cardNumberController.dispose();
+    _balanceController.dispose();
+    _availableController.dispose();
+    super.dispose();
+  }
+
+  String _displayType(String value) {
+    if (value.isEmpty) return value;
+    return '${value[0].toUpperCase()}${value.substring(1)}';
+  }
+
+  InputDecoration _fieldDecoration(BuildContext context, String label) {
+    final colors = Theme.of(context).colorScheme;
+    return InputDecoration(
+      labelText: label,
+      filled: true,
+      fillColor: colors.surfaceContainerHighest.withValues(alpha: 0.35),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide.none,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide.none,
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide(color: colors.primary, width: 1.5),
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+    );
+  }
+
+  Future<void> _pickType() async {
+    final builtIn = AccountType.values.map((t) => t.name).toList();
+    final custom = DatabaseService.getAllCustomAccountTypes();
+    final types = [...builtIn, ...custom].toSet().toList();
+    final current = _customType ?? _selectedType.name;
+
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          padding: const EdgeInsets.only(bottom: 12),
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 12, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Account Type',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Add custom type',
+                    icon: const Icon(Icons.add_rounded),
+                    onPressed: () async {
+                      final controller = TextEditingController();
+                      final value = await showDialog<String>(
+                        context: sheetContext,
+                        builder: (dialogContext) => AlertDialog(
+                          title: const Text('Add account type'),
+                          content: TextField(
+                            controller: controller,
+                            autofocus: true,
+                            textCapitalization: TextCapitalization.sentences,
+                            decoration: const InputDecoration(
+                              labelText: 'Type name',
+                            ),
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(dialogContext),
+                              child: const Text('Cancel'),
+                            ),
+                            TextButton(
+                              onPressed: () {
+                                final text = controller.text.trim();
+                                if (text.isNotEmpty) {
+                                  Navigator.pop(dialogContext, text);
+                                }
+                              },
+                              child: const Text('Add'),
+                            ),
+                          ],
+                        ),
+                      );
+                      controller.dispose();
+                      if (value != null && value.isNotEmpty) {
+                        if (sheetContext.mounted) Navigator.pop(sheetContext, value);
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+            ...types.map(
+              (type) => ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+                title: Text(_displayType(type)),
+                trailing: type.toLowerCase() == current.toLowerCase()
+                    ? Icon(Icons.check_rounded,
+                        color: Theme.of(context).colorScheme.primary)
+                    : null,
+                onTap: () => Navigator.pop(sheetContext, type),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (picked == null || !mounted) return;
+    final match = AccountType.values.where(
+      (type) => type.name.toLowerCase() == picked.toLowerCase(),
+    );
+    setState(() {
+      if (match.isNotEmpty) {
+        _selectedType = match.first;
+        _customType = null;
+      } else {
+        _customType = picked;
+      }
+    });
+  }
+
+  void _save() {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter an account name')),
+      );
+      return;
+    }
+
+    if (_customType != null && _customType!.isNotEmpty) {
+      DatabaseService.addCustomAccountType(_customType!);
+    }
+
+    Navigator.pop(
+      context,
+      Account(
+        name: name,
+        type: _selectedType,
+        institution: _institutionController.text.trim().isEmpty
+            ? null
+            : _institutionController.text.trim(),
+        accountNumber: _accountNumberController.text.trim().isEmpty
+            ? null
+            : _accountNumberController.text.trim(),
+        cardNumber: _cardNumberController.text.trim().isEmpty
+            ? null
+            : _cardNumberController.text.trim(),
+        balance: double.tryParse(_balanceController.text) ?? 0.0,
+        availableBalance: double.tryParse(_availableController.text),
+        customType: _customType,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final outline = colors.outlineVariant.withValues(alpha: 0.35);
+
+    Widget sectionLabel(String text) => Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Text(
+            text,
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: colors.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.5,
+                ),
+          ),
+        );
+
+    return Scaffold(
+      appBar: AppBar(
+        leading: const BackButton(),
+        title: const Text('Add Account'),
+        centerTitle: true,
+        backgroundColor: colors.primary,
+        foregroundColor: Colors.white,
+      ),
+      body: SafeArea(
+        top: false,
+        child: ListView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
+          children: [
+            sectionLabel('ACCOUNT DETAILS'),
+            Card(
+              elevation: 0,
+              margin: EdgeInsets.zero,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+                side: BorderSide(color: outline),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    TextField(
+                      controller: _nameController,
+                      textCapitalization: TextCapitalization.words,
+                      decoration: _fieldDecoration(context, 'Account name'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _institutionController,
+                      textCapitalization: TextCapitalization.words,
+                      decoration: _fieldDecoration(context, 'Institution'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _accountNumberController,
+                      decoration: _fieldDecoration(context, 'Account number'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _cardNumberController,
+                      decoration: _fieldDecoration(context, 'Card number'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 22),
+            sectionLabel('ACCOUNT SETTINGS'),
+            Card(
+              elevation: 0,
+              margin: EdgeInsets.zero,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+                side: BorderSide(color: outline),
+              ),
+              child: Column(
+                children: [
+                  ListTile(
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 4,
+                    ),
+                    leading: const Icon(Icons.account_balance_wallet_outlined),
+                    title: const Text('Type'),
+                    subtitle: Text(
+                      _displayType(_customType ?? _selectedType.name),
+                    ),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: _pickType,
+                  ),
+                  Divider(height: 1, indent: 18, endIndent: 18, color: outline),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+                    child: TextField(
+                      controller: _balanceController,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      decoration: _fieldDecoration(context, 'Initial balance'),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                    child: TextField(
+                      controller: _availableController,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      decoration:
+                          _fieldDecoration(context, 'Available balance'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              height: 52,
+              child: ElevatedButton(
+                onPressed: _save,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: colors.primary,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  'Save Account',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 // Calculator sheet widget
 class _CalculatorSheet extends StatefulWidget {
   final String? initialValue;
@@ -3391,319 +2581,779 @@ class _CalculatorSheetState extends State<_CalculatorSheet> {
 }
 
 // Payee selector bottom sheet
-class _PayeeSelectorSheet extends StatelessWidget {
-  final List<Map<String, dynamic>> payees;
-  final String type;
+class _TransactionCategorySelectorPage extends StatefulWidget {
+  final List<Category> categories;
+  final String? initialSelectedId;
+  final TransactionScreenType transactionType;
 
-  const _PayeeSelectorSheet({required this.payees, required this.type});
-
-  @override
-  Widget build(BuildContext context) {
-    return _PayeeSelectorSheetWithSearch(payees: payees, type: type);
-  }
-}
-
-class _PayeeSelectorSheetWithSearch extends StatefulWidget {
-  final List<Map<String, dynamic>> payees;
-  final String type;
-  const _PayeeSelectorSheetWithSearch({
-    required this.payees,
-    required this.type,
+  const _TransactionCategorySelectorPage({
+    required this.categories,
+    this.initialSelectedId,
+    required this.transactionType,
   });
 
   @override
-  State<_PayeeSelectorSheetWithSearch> createState() =>
-      _PayeeSelectorSheetWithSearchState();
+  State<_TransactionCategorySelectorPage> createState() =>
+      _TransactionCategorySelectorPageState();
 }
 
-class _PayeeSelectorSheetWithSearchState
-    extends State<_PayeeSelectorSheetWithSearch> {
+class _TransactionCategorySelectorPageState
+    extends State<_TransactionCategorySelectorPage> {
+  late List<Category> _all;
+  late List<Category> _filtered;
   String _query = '';
-  String? _selectedCategoryId;
-  List<Category> _categories = [];
-
-  VoidCallback? _categoriesListener;
+  String? _selectedId;
 
   @override
   void initState() {
     super.initState();
-    // Show expense categories for payee, income categories for payer
-    if (widget.type == 'payee') {
-      _categories = DatabaseService.getAllCategories()
-          .where((cat) => cat.type == CategoryType.expense)
-          .toList();
-    } else if (widget.type == 'payer') {
-      _categories = DatabaseService.getAllCategories()
-          .where((cat) => cat.type == CategoryType.income)
-          .toList();
-    } else {
-      _categories = DatabaseService.getAllCategories();
-    }
-    _categoriesListener = () {
-      if (!mounted) return;
-      setState(() {});
-    };
-    DatabaseService.categoriesVersion.addListener(_categoriesListener!);
+    _selectedId = widget.initialSelectedId;
+    _reload(initial: true);
   }
 
-  @override
-  void dispose() {
-    if (_categoriesListener != null) {
-      DatabaseService.categoriesVersion.removeListener(_categoriesListener!);
+  void _reload({bool initial = false}) {
+    final expectedType = widget.transactionType == TransactionScreenType.income
+        ? CategoryType.income
+        : CategoryType.expense;
+    final updated = DatabaseService.getAllCategories()
+        .where((c) => c.type == expectedType)
+        .toList()
+      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    if (initial) {
+      _all = updated;
+      _filtered = List<Category>.from(updated);
+    } else if (mounted) {
+      setState(() {
+        _all = updated;
+        _filtered = _all
+            .where((c) => c.name.toLowerCase().contains(_query))
+            .toList();
+      });
     }
-    super.dispose();
+  }
+
+  void _onSearch(String value) {
+    final query = value.trim().toLowerCase();
+    setState(() {
+      _query = query;
+      _filtered = _all
+          .where((c) => c.name.toLowerCase().contains(query))
+          .toList();
+    });
+  }
+
+  Future<void> _addCategory() async {
+    FocusScope.of(context).unfocus();
+    final result = await Navigator.of(context).push<Category>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => _TransactionAddCategoryPage(
+          transactionType: widget.transactionType,
+        ),
+      ),
+    );
+    if (result == null) return;
+    try {
+      final newId = await DatabaseService.addCategory(result);
+      try {
+        await LookupsSyncHelper.syncCategory(result.copyWith(id: newId));
+      } catch (_) {}
+      if (!mounted) return;
+      _selectedId = newId;
+      _reload();
+      if (!mounted) return;
+      Navigator.pop(context, newId);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Unable to save category: $e')),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final filtered =
-        (_query.isEmpty
-              ? List<Map<String, dynamic>>.from(widget.payees)
-              : widget.payees
-                    .where(
-                      (p) => (p['name'] as String).toLowerCase().contains(
-                        _query.toLowerCase(),
-                      ),
-                    )
-                    .toList())
-          ..sort((a, b) {
-            final an = (a['name'] ?? '').toString().toLowerCase();
-            final bn = (b['name'] ?? '').toString().toLowerCase();
-            return an.compareTo(bn);
-          });
-    return Container(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // ... AppBar now handles the title and add button ...
-          const SizedBox(height: 8),
-          TextField(
-            textCapitalization: TextCapitalization.sentences,
-            decoration: const InputDecoration(
-              prefixIcon: Icon(Icons.search),
-              hintText: 'Search',
-            ),
-            onChanged: (q) => setState(() => _query = q),
-          ),
-          const SizedBox(height: 8),
-          Expanded(
-            child: ListView(
-              shrinkWrap: true,
-              children: [
-                ...filtered.map(
-                  (payee) => ListTile(
-                    title: Text(payee['name'] as String),
-                    onTap: () => Navigator.pop(context, payee['id'] as String),
-                  ),
-                ),
-              ],
-            ),
+    final colorScheme = Theme.of(context).colorScheme;
+    final hint = widget.transactionType == TransactionScreenType.income
+        ? 'Search income categories'
+        : 'Search expense categories';
+    return Scaffold(
+      backgroundColor: colorScheme.surface,
+      appBar: AppBar(
+        title: const Text('Select Category'),
+        centerTitle: true,
+        actions: [
+          IconButton(
+            tooltip: 'Add category',
+            icon: const Icon(Icons.add_rounded),
+            onPressed: _addCategory,
           ),
         ],
+      ),
+      body: SafeArea(
+        top: false,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
+              child: TextField(
+                onTapOutside: (_) => FocusScope.of(context).unfocus(),
+                onChanged: _onSearch,
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.search_rounded),
+                  hintText: hint,
+                  filled: true,
+                  fillColor: colorScheme.surfaceContainerLow,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide.none,
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide(
+                      color: colorScheme.outlineVariant.withValues(alpha: 0.45),
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide(color: colorScheme.primary, width: 1.5),
+                  ),
+                ),
+              ),
+            ),
+            Expanded(
+              child: _filtered.isEmpty
+                  ? Center(
+                      child: Text(
+                        _query.isEmpty ? 'No categories yet' : 'No categories found',
+                        style: TextStyle(color: colorScheme.onSurfaceVariant),
+                      ),
+                    )
+                  : ListView.separated(
+                      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                      padding: const EdgeInsets.fromLTRB(16, 6, 16, 24),
+                      itemCount: _filtered.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      itemBuilder: (context, index) {
+                        final category = _filtered[index];
+                        final selected = _selectedId == category.id;
+                        return Material(
+                          color: selected
+                              ? colorScheme.primaryContainer.withValues(alpha: 0.45)
+                              : colorScheme.surfaceContainerLow,
+                          borderRadius: BorderRadius.circular(14),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(14),
+                            onTap: () => Navigator.pop(context, category.id),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: selected
+                                      ? colorScheme.primary.withValues(alpha: 0.55)
+                                      : colorScheme.outlineVariant.withValues(alpha: 0.4),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 42,
+                                    height: 42,
+                                    decoration: BoxDecoration(
+                                      color: category.color.withValues(alpha: 0.14),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    alignment: Alignment.center,
+                                    child: Container(
+                                      width: 14,
+                                      height: 14,
+                                      decoration: BoxDecoration(
+                                        color: category.color,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 14),
+                                  Expanded(
+                                    child: Text(
+                                      category.name,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                                    ),
+                                  ),
+                                  if (selected)
+                                    Icon(Icons.check_circle_rounded, color: colorScheme.primary)
+                                  else
+                                    Icon(Icons.chevron_right_rounded, color: colorScheme.onSurfaceVariant),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-// Category selector bottom sheet
-class _CategorySelectorSheet extends StatefulWidget {
-  final List<Category> categories;
-  final bool hideAddButton;
-  final Set<CategoryType>? allowedTypes;
-
-  const _CategorySelectorSheet({
-    required this.categories,
-    this.hideAddButton = false,
-    this.allowedTypes,
-  });
+class _TransactionAddCategoryPage extends StatefulWidget {
+  final TransactionScreenType transactionType;
+  const _TransactionAddCategoryPage({required this.transactionType});
 
   @override
-  State<_CategorySelectorSheet> createState() => _CategorySelectorSheetState();
+  State<_TransactionAddCategoryPage> createState() => _TransactionAddCategoryPageState();
 }
 
-class _CategorySelectorSheetState extends State<_CategorySelectorSheet> {
-  String _searchText = '';
-  late List<Category> _allCategories;
-  late Set<CategoryType> _allowedTypes;
-  VoidCallback? _categoriesListener;
-
-  bool _isDisplayableCategory(Category category) {
-    final name = category.name.trim();
-    if (name.isEmpty) return false;
-
-    final normalized = name.toLowerCase();
-    if (normalized == 'unknown' || normalized == 'unknown category') {
-      return false;
-    }
-
-    final uuid = RegExp(
-      r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
-    );
-    if (uuid.hasMatch(name)) return false;
-
-    final longToken = RegExp(r'^[A-Za-z0-9_-]{16,}$');
-    if (longToken.hasMatch(name)) return false;
-
-    return true;
-  }
-
-  List<Category> _filteredByAllowedTypes(List<Category> source) {
-    if (_allowedTypes.isEmpty) return source;
-    return source
-        .where((c) => _allowedTypes.contains(c.type))
-        .where(_isDisplayableCategory)
-        .toList();
-  }
-
-  CategoryType _defaultCategoryTypeForAdd() {
-    if (_allowedTypes.length == 1) return _allowedTypes.first;
-    return CategoryType.expense;
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _allowedTypes =
-        widget.allowedTypes ?? widget.categories.map((c) => c.type).toSet();
-    _allCategories = _filteredByAllowedTypes(widget.categories)
-      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-    _categoriesListener = () {
-      setState(() {
-        _allCategories = _filteredByAllowedTypes(
-          DatabaseService.getAllCategories(),
-        )..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-      });
-    };
-    DatabaseService.categoriesVersion.addListener(_categoriesListener!);
-  }
+class _TransactionAddCategoryPageState extends State<_TransactionAddCategoryPage> {
+  final _nameController = TextEditingController();
+  Color _selectedColor = const Color(0xFF607D8B);
 
   @override
   void dispose() {
-    if (_categoriesListener != null) {
-      DatabaseService.categoriesVersion.removeListener(_categoriesListener!);
-    }
+    _nameController.dispose();
     super.dispose();
+  }
+
+  void _cancel() {
+    FocusScope.of(context).unfocus();
+    Navigator.pop(context);
+  }
+
+  void _save() {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a category name')),
+      );
+      return;
+    }
+    final type = widget.transactionType == TransactionScreenType.income
+        ? CategoryType.income
+        : CategoryType.expense;
+    Navigator.pop(
+      context,
+      Category(
+        name: name,
+        iconCodePoint: '0xe85d',
+        colorValue: _selectedColor.value.toString(),
+        type: type,
+      ),
+    );
+  }
+
+  Future<void> _pickColor() async {
+    FocusScope.of(context).unfocus();
+    final picked = await showAppColorPicker(
+      context: context,
+      initialColor: _selectedColor,
+      title: 'Pick Category Color',
+    );
+    if (picked != null && mounted) setState(() => _selectedColor = picked);
   }
 
   @override
   Widget build(BuildContext context) {
-    List<Category> filteredCategories = _searchText.isEmpty
-        ? _allCategories
-        : _allCategories
-              .where(
-                (cat) =>
-                    cat.name.toLowerCase().contains(_searchText.toLowerCase()),
-              )
-              .toList();
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (!widget.hideAddButton) ...[
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Select Category',
-                  style: Theme.of(context).textTheme.titleLarge,
+    final colorScheme = Theme.of(context).colorScheme;
+    final isIncome = widget.transactionType == TransactionScreenType.income;
+    return Scaffold(
+      backgroundColor: colorScheme.surface,
+      appBar: AppBar(
+        leading: IconButton(
+          tooltip: 'Cancel',
+          onPressed: _cancel,
+          icon: const Icon(Icons.close_rounded),
+        ),
+        title: const Text('Add Category'),
+        centerTitle: true,
+      ),
+      body: SafeArea(
+        top: false,
+        child: ListView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
+          children: [
+            Text(
+              isIncome
+                  ? 'Create a category for your income.'
+                  : 'Create a category for your expenses.',
+              style: TextStyle(fontSize: 15, color: colorScheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 28),
+            Text('NAME', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.8, color: colorScheme.onSurfaceVariant)),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _nameController,
+              autofocus: true,
+              onTapOutside: (_) => FocusScope.of(context).unfocus(),
+              textCapitalization: TextCapitalization.sentences,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => _save(),
+              decoration: InputDecoration(
+                hintText: 'Category name',
+                prefixIcon: const Icon(Icons.category_outlined),
+                filled: true,
+                fillColor: colorScheme.surfaceContainerLow,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.45)),
                 ),
-                TextButton(
-                  onPressed: () async {
-                    final nameController = TextEditingController();
-                    final result = await showDialog<Category?>(
-                      context: context,
-                      builder: (ctx) => AlertDialog(
-                        title: const Text('Add Category'),
-                        content: TextField(
-                          controller: nameController,
-                          textCapitalization: TextCapitalization.sentences,
-                          decoration: const InputDecoration(labelText: 'Name'),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide(color: colorScheme.primary, width: 1.5),
+                ),
+              ),
+            ),
+            const SizedBox(height: 28),
+            Text('COLOR', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.8, color: colorScheme.onSurfaceVariant)),
+            const SizedBox(height: 8),
+            Material(
+              color: colorScheme.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(14),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: _pickColor,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.45)),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: _selectedColor,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.black12),
                         ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(ctx),
-                            child: const Text('Cancel'),
-                          ),
-                          ElevatedButton(
-                            onPressed: () {
-                              if (nameController.text.trim().isNotEmpty) {
-                                final newCat = Category(
-                                  name: nameController.text.trim(),
-                                  iconCodePoint: '0xe85d',
-                                  colorValue: '0xFF607D8B',
-                                  type: _defaultCategoryTypeForAdd(),
-                                );
-                                Navigator.pop(ctx, newCat);
-                              }
-                            },
-                            child: const Text('Add'),
-                          ),
-                        ],
                       ),
-                    );
-                    if (result != null) {
-                      await DatabaseService.addCategory(result);
-                      try {
-                        await LookupsSyncHelper.syncCategory(result);
-                      } catch (_) {}
-                      Navigator.pop(
-                        context,
-                        null,
-                      ); // Close sheet so parent can refresh
-                    }
-                  },
-                  child: const Text('Add'),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Category Color', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                            const SizedBox(height: 3),
+                            Text('Tap to choose a color', style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant)),
+                          ],
+                        ),
+                      ),
+                      Icon(Icons.color_lens_outlined, color: colorScheme.primary),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 36),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _cancel,
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(52),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: const Text('Cancel'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: _save,
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(52),
+                      backgroundColor: colorScheme.primary,
+                      foregroundColor: colorScheme.onPrimary,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: const Text('Add Category'),
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
           ],
-          // Search bar
-          TextField(
-            decoration: const InputDecoration(
-              labelText: 'Search categories',
-              prefixIcon: Icon(Icons.search),
-            ),
-            onChanged: (value) {
-              setState(() {
-                _searchText = value;
-              });
-            },
+        ),
+      ),
+    );
+  }
+}
+
+class _TransactionPayeeSelectorPage extends StatefulWidget {
+  final List<Map<String, dynamic>> payees;
+  final String? initialSelectedId;
+  final TransactionScreenType transactionType;
+
+  const _TransactionPayeeSelectorPage({
+    required this.payees,
+    this.initialSelectedId,
+    required this.transactionType,
+  });
+
+  @override
+  State<_TransactionPayeeSelectorPage> createState() => _TransactionPayeeSelectorPageState();
+}
+
+class _TransactionPayeeSelectorPageState extends State<_TransactionPayeeSelectorPage> {
+  late List<Map<String, dynamic>> _all;
+  late List<Map<String, dynamic>> _filtered;
+  String _query = '';
+  String? _selectedId;
+
+  bool get _isIncome => widget.transactionType == TransactionScreenType.income;
+  String get _type => _isIncome ? 'payer' : 'payee';
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedId = widget.initialSelectedId;
+    _all = List<Map<String, dynamic>>.from(widget.payees)
+      ..sort((a, b) => (a['name'] ?? '').toString().toLowerCase().compareTo((b['name'] ?? '').toString().toLowerCase()));
+    _filtered = List<Map<String, dynamic>>.from(_all);
+  }
+
+  void _onSearch(String value) {
+    final q = value.trim().toLowerCase();
+    setState(() {
+      _query = q;
+      _filtered = _all.where((p) => (p['name'] ?? '').toString().toLowerCase().contains(q)).toList();
+    });
+  }
+
+  Future<void> _addPayee() async {
+    FocusScope.of(context).unfocus();
+    final result = await Navigator.of(context).push<Map<String, dynamic>>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => _TransactionAddPayeePage(transactionType: widget.transactionType),
+      ),
+    );
+    if (result == null) return;
+    final newPayee = <String, dynamic>{
+      'id': DateTime.now().microsecondsSinceEpoch.toString(),
+      'name': result['name'],
+      'type': _type,
+      'categoryId': result['categoryId'],
+    };
+    try {
+      await DatabaseService.addPayee(newPayee);
+      try {
+        await LookupsSyncHelper.syncPayeeOrPayer(newPayee);
+      } catch (_) {}
+      await DatabaseService.updatePayeeReferences(newPayee);
+      if (!mounted) return;
+      Navigator.pop(context, newPayee['id'] as String);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_isIncome ? 'Unable to save payer: $e' : 'Unable to save payee: $e')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Scaffold(
+      backgroundColor: colorScheme.surface,
+      appBar: AppBar(
+        title: Text(_isIncome ? 'Select Payer' : 'Select Payee'),
+        centerTitle: true,
+        actions: [
+          IconButton(
+            tooltip: _isIncome ? 'Add payer' : 'Add payee',
+            icon: const Icon(Icons.add_rounded),
+            onPressed: _addPayee,
           ),
-          const SizedBox(height: 12),
-          Expanded(
-            child: filteredCategories.isEmpty
-                ? Center(child: Text('No categories found'))
-                : ListView(
-                    shrinkWrap: true,
-                    children: filteredCategories.map((category) {
-                      // Use const IconData if possible, otherwise fallback to default
-                      final color = Color(int.parse(category.colorValue));
-                      return ListTile(
-                        leading: SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: Center(
+        ],
+      ),
+      body: SafeArea(
+        top: false,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
+              child: TextField(
+                onTapOutside: (_) => FocusScope.of(context).unfocus(),
+                onChanged: _onSearch,
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.search_rounded),
+                  hintText: _isIncome ? 'Search payers' : 'Search payees',
+                  filled: true,
+                  fillColor: colorScheme.surfaceContainerLow,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.45)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide(color: colorScheme.primary, width: 1.5),
+                  ),
+                ),
+              ),
+            ),
+            Expanded(
+              child: _filtered.isEmpty
+                  ? Center(
+                      child: Text(
+                        _query.isEmpty
+                            ? (_isIncome ? 'No payers yet' : 'No payees yet')
+                            : (_isIncome ? 'No payers found' : 'No payees found'),
+                        style: TextStyle(color: colorScheme.onSurfaceVariant),
+                      ),
+                    )
+                  : ListView.separated(
+                      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                      padding: const EdgeInsets.fromLTRB(16, 6, 16, 24),
+                      itemCount: _filtered.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      itemBuilder: (context, index) {
+                        final item = _filtered[index];
+                        final id = item['id']?.toString() ?? '';
+                        final selected = _selectedId == id;
+                        final category = DatabaseService.getCategoryById((item['categoryId'] ?? '').toString());
+                        return Material(
+                          color: selected
+                              ? colorScheme.primaryContainer.withValues(alpha: 0.45)
+                              : colorScheme.surfaceContainerLow,
+                          borderRadius: BorderRadius.circular(14),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(14),
+                            onTap: () => Navigator.pop(context, id),
                             child: Container(
-                              width: 10,
-                              height: 10,
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
                               decoration: BoxDecoration(
-                                color: color,
-                                shape: BoxShape.circle,
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: selected
+                                      ? colorScheme.primary.withValues(alpha: 0.55)
+                                      : colorScheme.outlineVariant.withValues(alpha: 0.4),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 42,
+                                    height: 42,
+                                    decoration: BoxDecoration(
+                                      color: colorScheme.primary.withValues(alpha: 0.10),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Icon(Icons.person_outline_rounded, color: colorScheme.primary),
+                                  ),
+                                  const SizedBox(width: 14),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text((item['name'] ?? '').toString(), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                                        if (category != null) ...[
+                                          const SizedBox(height: 3),
+                                          Text(category.name, style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant)),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                  if (selected)
+                                    Icon(Icons.check_circle_rounded, color: colorScheme.primary)
+                                  else
+                                    Icon(Icons.chevron_right_rounded, color: colorScheme.onSurfaceVariant),
+                                ],
                               ),
                             ),
                           ),
-                        ),
-                        title: Text(category.name),
-                        onTap: () => Navigator.pop(context, category.id),
-                      );
-                    }).toList(),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TransactionAddPayeePage extends StatefulWidget {
+  final TransactionScreenType transactionType;
+  const _TransactionAddPayeePage({required this.transactionType});
+
+  @override
+  State<_TransactionAddPayeePage> createState() => _TransactionAddPayeePageState();
+}
+
+class _TransactionAddPayeePageState extends State<_TransactionAddPayeePage> {
+  final _nameController = TextEditingController();
+  String? _categoryId;
+  bool get _isIncome => widget.transactionType == TransactionScreenType.income;
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _selectCategory() async {
+    FocusScope.of(context).unfocus();
+    final type = _isIncome ? CategoryType.income : CategoryType.expense;
+    final categories = DatabaseService.getAllCategories().where((c) => c.type == type).toList();
+    final selected = await Navigator.of(context).push<String>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => _TransactionCategorySelectorPage(
+          categories: categories,
+          initialSelectedId: _categoryId,
+          transactionType: widget.transactionType,
+        ),
+      ),
+    );
+    if (selected != null && mounted) setState(() => _categoryId = selected);
+  }
+
+  void _save() {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_isIncome ? 'Please enter a payer name' : 'Please enter a payee name')),
+      );
+      return;
+    }
+    FocusScope.of(context).unfocus();
+    Navigator.pop(context, <String, dynamic>{'name': name, 'categoryId': _categoryId});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final selectedCategory = _findCategoryById(DatabaseService.getAllCategories(), _categoryId);
+    return Scaffold(
+      backgroundColor: colorScheme.surface,
+      appBar: AppBar(
+        leading: IconButton(
+          tooltip: 'Cancel',
+          onPressed: () => Navigator.pop(context),
+          icon: const Icon(Icons.close_rounded),
+        ),
+        title: Text(_isIncome ? 'Add Payer' : 'Add Payee'),
+        centerTitle: true,
+      ),
+      body: SafeArea(
+        top: false,
+        child: ListView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
+          children: [
+            Text(
+              _isIncome
+                  ? 'Create a payer and optionally choose a default category.'
+                  : 'Create a payee and optionally choose a default category.',
+              style: TextStyle(fontSize: 15, color: colorScheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 28),
+            Text('NAME', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.8, color: colorScheme.onSurfaceVariant)),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _nameController,
+              autofocus: true,
+              onTapOutside: (_) => FocusScope.of(context).unfocus(),
+              textCapitalization: TextCapitalization.sentences,
+              decoration: InputDecoration(
+                hintText: _isIncome ? 'Payer name' : 'Payee name',
+                prefixIcon: const Icon(Icons.person_outline_rounded),
+                filled: true,
+                fillColor: colorScheme.surfaceContainerLow,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.45)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide(color: colorScheme.primary, width: 1.5),
+                ),
+              ),
+            ),
+            const SizedBox(height: 28),
+            Text('DEFAULT CATEGORY', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.8, color: colorScheme.onSurfaceVariant)),
+            const SizedBox(height: 8),
+            Material(
+              color: colorScheme.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(14),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: _selectCategory,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.45)),
                   ),
-          ),
-        ],
+                  child: Row(
+                    children: [
+                      if (selectedCategory != null)
+                        Container(
+                          width: 12,
+                          height: 12,
+                          decoration: BoxDecoration(color: selectedCategory.color, shape: BoxShape.circle),
+                        )
+                      else
+                        Icon(Icons.category_outlined, color: colorScheme.onSurfaceVariant),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Category', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                            const SizedBox(height: 3),
+                            Text(selectedCategory?.name ?? 'Select category', style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant)),
+                          ],
+                        ),
+                      ),
+                      Icon(Icons.chevron_right_rounded, color: colorScheme.onSurfaceVariant),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 36),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(52),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: const Text('Cancel'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: _save,
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(52),
+                      backgroundColor: colorScheme.primary,
+                      foregroundColor: colorScheme.onPrimary,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: Text(_isIncome ? 'Add Payer' : 'Add Payee'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -1,4 +1,4 @@
-// ignore_for_file: annotate_overrides, valid_regexps, unnecessary_brace_in_string_interps
+// ignore_for_file: unnecessary_non_null_assertion, duplicate_ignore, unused_field, unused_element, annotate_overrides, valid_regexps, unnecessary_brace_in_string_interps
 // ignore_for_file: no_leading_underscores_for_local_identifiers, use_build_context_synchronously
 
 import 'package:flutter/material.dart';
@@ -1808,7 +1808,7 @@ Widget _buildFilterChips() {
         '${transaction.date.millisecondsSinceEpoch}_${transaction.description}_${transaction.amount}';
     final isExpanded = _expandedTransactionIds.contains(cardId);
 
-    // Calculate payment progress if this is a bill
+    // Calculate  if this is a bill
     double? paymentProgress;
     double? amountPaid;
     double? amountDue;
@@ -1823,39 +1823,38 @@ Widget _buildFilterChips() {
       }
     }
 
-    if (sourceBill != null) {
-      // Only count payments for this bill occurrence (billId + occurrence date)
-      final allTransactions = _visibleTransactionsCache;
-      final occDate = _transactionOccurrenceDate(transaction);
-      final occDateStr = DateFormat('MM/dd/yyyy').format(occDate);
-      final paymentHistory = allTransactions
-          .where(
-            (tx) =>
-                tx.billId == sourceBill.id &&
-                ((tx.occurrenceDate != null
-                    ? (tx.occurrenceDate!.year == occDate.year &&
-                          tx.occurrenceDate!.month == occDate.month &&
-                          tx.occurrenceDate!.day == occDate.day)
-                    : ((tx.date.year == occDate.year &&
-                              tx.date.month == occDate.month &&
-                              tx.date.day == occDate.day) ||
-                          tx.description.contains(occDateStr)))),
-          )
-          .toList();
-      final totalPaid = paymentHistory.fold<double>(
-        0.0,
-        (sum, tx) => sum + tx.amount,
-      );
-      amountPaid = totalPaid;
-      amountDue = sourceBill.amount - totalPaid;
+   if (sourceBill != null) {
+  final occDate = _transactionOccurrenceDate(transaction);
 
-      // Calculate progress (0.0 to 1.0)
-      if (sourceBill.amount > 0) {
-        paymentProgress = (totalPaid / sourceBill.amount).clamp(0.0, 1.0);
-      }
+  // Use the same occurrence-matching logic as the rest of the dashboard.
+  final paymentHistory = _allTransactionsCache
+      .where(
+        (tx) => _matchesBillOccurrenceForStatus(
+          sourceBill!,
+          tx,
+          occDate,
+        ),
+      )
+      .toList();
 
-      // Status is now tracked in sourceBill.paymentStatus
-    }
+  // Use the same signed-payment calculation used for bill status.
+  final totalPaid = _computeSignedTotalPaid(
+    sourceBill,
+    paymentHistory,
+  );
+
+  amountPaid = totalPaid < 0 ? 0 : totalPaid;
+
+  final remaining = sourceBill.amount - totalPaid;
+  amountDue = remaining > 0 ? remaining : 0;
+
+  if (sourceBill.amount > 0) {
+    paymentProgress =
+        (totalPaid / sourceBill.amount).clamp(0.0, 1.0);
+  } else {
+    paymentProgress = 0.0;
+  }
+}
 
     // Extract account/name metadata from notes when present.
     String? accountNameFromNote;

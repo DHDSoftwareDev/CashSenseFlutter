@@ -153,129 +153,572 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
             children: [
               // Form fields
 
-              TextFormField(
-                controller: _nameController,
-                textCapitalization: TextCapitalization.words,
-                decoration: const InputDecoration(labelText: 'Account name'),
-                validator: (v) => (v == null || v.trim().isEmpty) ? 'Enter a name' : null,
+           Align(
+  alignment: Alignment.centerLeft,
+  child: Text(
+    'ACCOUNT DETAILS',
+    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+      color: Theme.of(context).colorScheme.primary,
+      fontWeight: FontWeight.w700,
+      letterSpacing: 0.7,
+    ),
+  ),
+),
+
+const SizedBox(height: 8),
+
+Card(
+  margin: EdgeInsets.zero,
+  elevation: 0,
+  color: Theme.of(context).colorScheme.surface,
+  shape: RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(18),
+    side: BorderSide(
+      color: Theme.of(context)
+          .colorScheme
+          .outlineVariant
+          .withValues(alpha: 0.35),
+    ),
+  ),
+  child: Padding(
+    padding: const EdgeInsets.all(16),
+    child: Column(
+      children: [
+        TextFormField(
+          controller: _nameController,
+          textCapitalization: TextCapitalization.words,
+          decoration: InputDecoration(
+            labelText: 'Account name',
+            filled: true,
+            fillColor: Theme.of(context)
+                .colorScheme
+                .surfaceContainerHighest
+                .withValues(alpha: 0.35),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: Theme.of(context).colorScheme.primary,
+                width: 1.5,
               ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _institutionController,
-                textCapitalization: TextCapitalization.sentences,
-                decoration: const InputDecoration(labelText: 'Institution'),
+            ),
+          ),
+          validator: (v) =>
+              (v == null || v.trim().isEmpty)
+                  ? 'Enter a name'
+                  : null,
+        ),
+
+        const SizedBox(height: 12),
+
+        TextFormField(
+          controller: _institutionController,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: InputDecoration(
+            labelText: 'Institution',
+            filled: true,
+            fillColor: Theme.of(context)
+                .colorScheme
+                .surfaceContainerHighest
+                .withValues(alpha: 0.35),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: Theme.of(context).colorScheme.primary,
+                width: 1.5,
               ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _accountNumberController,
-                decoration: const InputDecoration(
-                  labelText: 'Account number (optional)',
-                  border: OutlineInputBorder(),
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 12),
+
+        TextFormField(
+          controller: _accountNumberController,
+          keyboardType: TextInputType.text,
+          decoration: InputDecoration(
+            labelText: 'Account number',
+            hintText: 'Optional',
+            filled: true,
+            fillColor: Theme.of(context)
+                .colorScheme
+                .surfaceContainerHighest
+                .withValues(alpha: 0.35),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: Theme.of(context).colorScheme.primary,
+                width: 1.5,
+              ),
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 12),
+
+        TextFormField(
+          controller: _cardNumberController,
+          keyboardType: TextInputType.text,
+          decoration: InputDecoration(
+            labelText: 'Card number',
+            hintText: 'Optional',
+            filled: true,
+            fillColor: Theme.of(context)
+                .colorScheme
+                .surfaceContainerHighest
+                .withValues(alpha: 0.35),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: Theme.of(context).colorScheme.primary,
+                width: 1.5,
+              ),
+            ),
+          ),
+        ),
+      ],
+    ),
+  ),
+),
+
+const SizedBox(height: 20),
+Align(
+  alignment: Alignment.centerLeft,
+  child: Text(
+    'ACCOUNT SETTINGS',
+    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+      color: Theme.of(context).colorScheme.primary,
+      fontWeight: FontWeight.w700,
+      letterSpacing: 0.7,
+    ),
+  ),
+),
+
+const SizedBox(height: 8),
+
+Card(
+  margin: EdgeInsets.zero,
+  elevation: 0,
+  color: Theme.of(context).colorScheme.surface,
+  shape: RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(18),
+    side: BorderSide(
+      color: Theme.of(context)
+          .colorScheme
+          .outlineVariant
+          .withValues(alpha: 0.35),
+    ),
+  ),
+  child: Padding(
+    padding: const EdgeInsets.all(16),
+    child: Column(
+      children: [
+       InkWell(
+  borderRadius: BorderRadius.circular(12),
+  onTap: () async {
+    FocusScope.of(context).unfocus();
+
+    final customTypes =
+        DatabaseService.getAllCustomAccountTypes();
+
+    final selectedValue = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor:
+          Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(24),
+        ),
+      ),
+      builder: (sheetContext) {
+        final colorScheme =
+            Theme.of(sheetContext).colorScheme;
+
+        String? currentValue;
+
+        if (_customTypeInput != null &&
+            _customTypeInput!.isNotEmpty) {
+          currentValue = _customTypeInput;
+        } else if (widget.account != null ||
+            _customTypeInput == null) {
+          currentValue = _type.name;
+        }
+
+        Widget option({
+          required String value,
+          required String label,
+          required IconData icon,
+        }) {
+          final isSelected = currentValue == value;
+
+          return ListTile(
+            leading: Icon(
+              icon,
+              color: isSelected
+                  ? colorScheme.primary
+                  : colorScheme.onSurfaceVariant,
+            ),
+            title: Text(
+              label,
+              style: TextStyle(
+                fontWeight: isSelected
+                    ? FontWeight.w600
+                    : FontWeight.normal,
+              ),
+            ),
+            trailing: isSelected
+                ? Icon(
+                    Icons.check_rounded,
+                    color: colorScheme.primary,
+                  )
+                : null,
+            onTap: () {
+              Navigator.pop(sheetContext, value);
+            },
+          );
+        }
+
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              12,
+              0,
+              12,
+              12,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    12,
+                    4,
+                    12,
+                    12,
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Select Account Type',
+                          style: Theme.of(sheetContext)
+                              .textTheme
+                              .titleMedium
+                              ?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                keyboardType: TextInputType.text,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _cardNumberController,
-                decoration: const InputDecoration(
-                  labelText: 'Card number (optional)',
-                  border: OutlineInputBorder(),
+
+                option(
+                  value: AccountType.cash.name,
+                  label: 'Cash',
+                  icon: Icons.account_balance_wallet_outlined,
                 ),
-                keyboardType: TextInputType.text,
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String?>(
-                // When creating a new account don't preselect a built-in type so
-                // the field shows the 'Type' placeholder instead of defaulting
-                // to 'Bank'. When editing an existing account, preserve the
-                // saved type selection.
-                initialValue: widget.account != null
-                    ? (_customTypeInput != null
-                        ? (_customTypeInput!.isEmpty ? null : _customTypeInput)
-                        : _type.name)
-                    : null,
-                hint: const Text('Select Account Type'),
-                items: [
-                  ...AccountType.values.map((t) {
-                    String label;
-                    switch (t) {
-                      case AccountType.cash:
-                        label = 'Cash';
-                        break;
-                      case AccountType.bank:
-                        label = 'Checking';
-                        break;
-                      case AccountType.card:
-                        label = 'Card';
-                        break;
-                      case AccountType.investment:
-                        label = 'Savings';
-                        break;
-                    }
-                    return DropdownMenuItem(value: t.name, child: Text(label));
-                  }),
-                  // Add a sentinel menu item to allow adding a new custom type
-                  const DropdownMenuItem(value: '__add_custom__', child: Text('Add custom type...')),
-                  // Add custom account types from the list (shown after built-in types and the add action)
-                  ...DatabaseService.getAllCustomAccountTypes().map((customTypeName) {
-                    return DropdownMenuItem(value: customTypeName, child: Text(customTypeName));
-                  }),
+                option(
+                  value: AccountType.bank.name,
+                  label: 'Checking',
+                  icon: Icons.account_balance_outlined,
+                ),
+                option(
+                  value: AccountType.card.name,
+                  label: 'Card',
+                  icon: Icons.credit_card_outlined,
+                ),
+                option(
+                  value: AccountType.investment.name,
+                  label: 'Savings',
+                  icon: Icons.savings_outlined,
+                ),
+
+                if (customTypes.isNotEmpty) ...[
+                  const Divider(height: 16),
+
+                  ...customTypes.map(
+                    (customTypeName) => option(
+                      value: customTypeName,
+                      label: customTypeName,
+                      icon: Icons.account_balance_wallet_outlined,
+                    ),
+                  ),
                 ],
-                onChanged: (v) {
-                  if (v == '__add_custom__') {
-                    // user chose Add custom type...
-                    setState(() {
-                      _customTypeInput = '';
-                      _customTypeController.clear();
-                    });
-                    return;
-                  } else if (v == null) {
-                    // no-op: user cleared selection
-                    return;
-                  } else {
-                    // Check if it's a built-in type or custom type
-                    final builtInType = AccountType.values.where((t) => t.name == v).firstOrNull;
-                    if (builtInType != null) {
-                      setState(() {
-                        _type = builtInType;
-                        _customTypeInput = null;
-                      });
-                    } else {
-                      // It's an existing custom type
-                      setState(() {
-                        _customTypeInput = v;
-                        _customTypeController.text = v;
-                      });
-                    }
-                  }
-                },
-                decoration: const InputDecoration(labelText: 'Type'),
-              ),
+
+                const Divider(height: 16),
+
+                ListTile(
+                  leading: Icon(
+                    Icons.add_rounded,
+                    color: colorScheme.primary,
+                  ),
+                  title: Text(
+                    'Add custom type',
+                    style: TextStyle(
+                      color: colorScheme.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  onTap: () {
+                    Navigator.pop(
+                      sheetContext,
+                      '__add_custom__',
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (selectedValue == null || !mounted) return;
+
+    if (selectedValue == '__add_custom__') {
+      setState(() {
+        _customTypeInput = '';
+        _customTypeController.clear();
+      });
+      return;
+    }
+
+    final builtInType = AccountType.values
+        .where((t) => t.name == selectedValue)
+        .firstOrNull;
+
+    if (builtInType != null) {
+      setState(() {
+        _type = builtInType;
+        _customTypeInput = null;
+        _customTypeController.clear();
+      });
+    } else {
+      setState(() {
+        _customTypeInput = selectedValue;
+        _customTypeController.text = selectedValue;
+      });
+    }
+  },
+
+  child: InputDecorator(
+    decoration: InputDecoration(
+      labelText: 'Type',
+      filled: true,
+      fillColor: Theme.of(context)
+          .colorScheme
+          .surfaceContainerHighest
+          .withValues(alpha: 0.35),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide.none,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide.none,
+      ),
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: 16,
+        vertical: 16,
+      ),
+    ),
+    child: Row(
+      children: [
+        Expanded(
+          child: Text(
+            _customTypeInput != null &&
+                    _customTypeInput!.isNotEmpty
+                ? _customTypeInput!
+                : widget.account != null ||
+                        _customTypeInput == null &&
+                            _type != AccountType.bank
+                    ? switch (_type) {
+                        AccountType.cash => 'Cash',
+                        AccountType.bank => 'Checking',
+                        AccountType.card => 'Card',
+                        AccountType.investment => 'Savings',
+                      }
+                    : 'Select Account Type',
+            style: TextStyle(
+              fontSize: 16,
+              color: widget.account == null &&
+                      _type == AccountType.bank &&
+                      _customTypeInput == null
+                  ? Theme.of(context)
+                      .colorScheme
+                      .onSurfaceVariant
+                  : Theme.of(context)
+                      .colorScheme
+                      .onSurface,
+            ),
+          ),
+        ),
+        Icon(
+          Icons.keyboard_arrow_down_rounded,
+          color: Theme.of(context)
+              .colorScheme
+              .onSurfaceVariant,
+        ),
+      ],
+    ),
+  ),
+),
               if (_customTypeInput != null) ...[
                 const SizedBox(height: 12),
                 TextFormField(
-                  controller: _customTypeController,
-                  decoration: const InputDecoration(labelText: 'Custom type'),
-                  textCapitalization: TextCapitalization.words,
-                ),
+  controller: _customTypeController,
+  textCapitalization: TextCapitalization.words,
+  onTapOutside: (_) {
+    FocusScope.of(context).unfocus();
+  },
+  decoration: InputDecoration(
+    labelText: 'Custom type',
+    filled: true,
+    fillColor: Theme.of(context)
+        .colorScheme
+        .surfaceContainerHighest
+        .withValues(alpha: 0.35),
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide.none,
+    ),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide.none,
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide(
+        color: Theme.of(context).colorScheme.primary,
+        width: 1.5,
+      ),
+    ),
+    contentPadding: const EdgeInsets.symmetric(
+      horizontal: 16,
+      vertical: 16,
+    ),
+  ),
+),
               ],
               const SizedBox(height: 12),
-              TextFormField(
-                controller: _balanceController,
-                decoration: const InputDecoration(labelText: 'Initial balance'),
-                keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
-                focusNode: _balanceFocusNode,
-                validator: (v) => (v != null && double.tryParse(v) == null) ? 'Invalid number' : null,
-              ),
+           TextFormField(
+  controller: _balanceController,
+  keyboardType: const TextInputType.numberWithOptions(
+    decimal: true,
+    signed: true,
+  ),
+  focusNode: _balanceFocusNode,
+  decoration: InputDecoration(
+    labelText: 'Initial balance',
+    prefixText: '\$ ',
+    filled: true,
+    fillColor: Theme.of(context)
+        .colorScheme
+        .surfaceContainerHighest
+        .withValues(alpha: 0.35),
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide.none,
+    ),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide.none,
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide(
+        color: Theme.of(context).colorScheme.primary,
+        width: 1.5,
+      ),
+    ),
+    contentPadding: const EdgeInsets.symmetric(
+      horizontal: 16,
+      vertical: 16,
+    ),
+  ),
+  validator: (v) => (v != null && double.tryParse(v) == null)
+      ? 'Invalid number'
+      : null,
+),
               const SizedBox(height: 12),
-              TextFormField(
-                controller: _availableBalanceController,
-                decoration: const InputDecoration(labelText: 'Available balance'),
-                keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
-                focusNode: _availableBalanceFocusNode,
-                validator: (v) => (v != null && double.tryParse(v) == null) ? 'Invalid number' : null,
-              ),
-              const SizedBox(height: 12),
+            TextFormField(
+  controller: _availableBalanceController,
+  keyboardType: const TextInputType.numberWithOptions(
+    decimal: true,
+    signed: true,
+  ),
+  focusNode: _availableBalanceFocusNode,
+  decoration: InputDecoration(
+    labelText: 'Available balance',
+    prefixText: '\$ ',
+    filled: true,
+    fillColor: Theme.of(context)
+        .colorScheme
+        .surfaceContainerHighest
+        .withValues(alpha: 0.35),
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide.none,
+    ),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide.none,
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide(
+        color: Theme.of(context).colorScheme.primary,
+        width: 1.5,
+      ),
+    ),
+    contentPadding: const EdgeInsets.symmetric(
+      horizontal: 16,
+      vertical: 16,
+    ),
+  ),
+  validator: (v) => (v != null && double.tryParse(v) == null)
+      ? 'Invalid number'
+      : null,
+),
+                    ],
+    ),
+  ),
+),
+
+const SizedBox(height: 20),
               Row(
                 children: [
                   Expanded(

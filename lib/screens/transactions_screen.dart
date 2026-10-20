@@ -1,4 +1,4 @@
-// ignore_for_file: deprecated_member_use, unused_element, use_build_context_synchronously, dead_code, unnecessary_brace_in_string_interps
+// ignore_for_file: unused_local_variable, deprecated_member_use, unused_element, use_build_context_synchronously, dead_code, unnecessary_brace_in_string_interps
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -555,41 +555,176 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               const Text('Transactions'),
               if (_accountName != null) ...[
                 const SizedBox(height: 2),
-                Text(
-                  _accountName!,
-                  style: Theme.of(context).textTheme.bodyLarge,
-                ),
+              Text(
+  _accountName!,
+  style: Theme.of(context)
+      .textTheme
+      .bodyMedium
+      ?.copyWith(
+        color: Colors.white.withValues(alpha: 0.85),
+        fontWeight: FontWeight.w400,
+      ),
+),
               ],
             ],
           ),
           backgroundColor: Theme.of(context).colorScheme.primary,
           foregroundColor: Colors.white,
           actions: [
-            PopupMenuButton<String>(
-              onSelected: (value) {
-                setState(() {
-                  _selectedFilter = value;
-                  // Persist selection
-                  DatabaseService.setSetting('transactionsFilter', value);
-                });
-              },
-              itemBuilder: (context) => [
-                const PopupMenuItem(value: 'All', child: Text('All')),
-                const PopupMenuItem(value: 'Income', child: Text('Income')),
-                const PopupMenuItem(value: 'Expense', child: Text('Expense')),
-                const PopupMenuItem(
-                  value: 'Transfers',
-                  child: Text('Transfers'),
-                ),
-              ],
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(_selectedFilter),
-                  const Icon(Icons.arrow_drop_down),
-                ],
+     TextButton(
+  onPressed: () async {
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(24),
+        ),
+      ),
+      builder: (sheetContext) {
+        final colorScheme =
+            Theme.of(sheetContext).colorScheme;
+
+        Widget option({
+          required String value,
+          required String label,
+          required IconData icon,
+        }) {
+          final isSelected = _selectedFilter == value;
+
+          return ListTile(
+            leading: Icon(
+              icon,
+              color: isSelected
+                  ? colorScheme.primary
+                  : colorScheme.onSurfaceVariant,
+            ),
+            title: Text(
+              label,
+              style: TextStyle(
+                fontWeight: isSelected
+                    ? FontWeight.w600
+                    : FontWeight.normal,
               ),
             ),
+            trailing: isSelected
+                ? Icon(
+                    Icons.check_rounded,
+                    color: colorScheme.primary,
+                  )
+                : null,
+            onTap: () {
+              Navigator.pop(sheetContext, value);
+            },
+          );
+        }
+
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              12,
+              0,
+              12,
+              12,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    12,
+                    4,
+                    12,
+                    12,
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Filter Transactions',
+                          style: Theme.of(sheetContext)
+                              .textTheme
+                              .titleMedium
+                              ?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                option(
+                  value: 'All',
+                  label: 'All',
+                  icon: Icons.list_alt_rounded,
+                ),
+
+                option(
+                  value: 'Income',
+                  label: 'Income',
+                  icon: Icons.arrow_downward_rounded,
+                ),
+
+                option(
+                  value: 'Expense',
+                  label: 'Expense',
+                  icon: Icons.arrow_upward_rounded,
+                ),
+
+                option(
+                  value: 'Transfers',
+                  label: 'Transfers',
+                  icon: Icons.swap_horiz_rounded,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (selected == null || !mounted) return;
+
+    setState(() {
+      _selectedFilter = selected;
+    });
+  },
+
+  style: TextButton.styleFrom(
+    foregroundColor: Colors.white,
+    padding: const EdgeInsets.symmetric(
+      horizontal: 8,
+      vertical: 4,
+    ),
+  ),
+
+  child: Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Text(
+        switch (_selectedFilter) {
+          'Income' => 'Income',
+          'Expense' => 'Expense',
+          'Transfers' => 'Transfers',
+          _ => 'All',
+        },
+        style: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+
+      const SizedBox(width: 2),
+
+      const Icon(
+        Icons.keyboard_arrow_down_rounded,
+        size: 20,
+      ),
+    ],
+  ),
+),
             IconButton(
               icon: const Icon(Icons.add),
               onPressed: _addTransaction,
@@ -608,35 +743,78 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               // we show a flat list of matching transactions (includes cleared),
               // otherwise we show the normal grouped transactions list which
               // respects the Show/Hide Cleared toggle.
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16.0,
-                  vertical: 8.0,
-                ),
-                child: TextField(
-                  controller: _searchController,
-                  decoration: InputDecoration(
-                    prefixIcon: const Icon(Icons.search),
-                    hintText: 'Search',
-                    suffixIcon: _searchController.text.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.clear),
-                            onPressed: () {
-                              setState(() {
-                                _searchController.clear();
-                                _searchQuery = '';
-                              });
-                            },
-                          )
-                        : null,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8.0),
-                    ),
-                    isDense: true,
-                  ),
-                  onChanged: (v) => setState(() => _searchQuery = v.trim()),
-                ),
-              ),
+            Padding(
+  padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+  child: TextField(
+    controller: _searchController,
+
+    onTapOutside: (_) {
+      FocusScope.of(context).unfocus();
+    },
+
+    onChanged: (value) {
+      setState(() {
+        _searchQuery = value.trim();
+      });
+    },
+
+    decoration: InputDecoration(
+      hintText: 'Search transactions',
+      hintStyle: TextStyle(
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      ),
+
+      prefixIcon: Icon(
+        Icons.search_rounded,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      ),
+
+      suffixIcon: _searchController.text.isNotEmpty
+          ? IconButton(
+              tooltip: 'Clear search',
+              icon: const Icon(Icons.close_rounded),
+              onPressed: () {
+                setState(() {
+                  _searchController.clear();
+                  _searchQuery = '';
+                });
+
+                FocusScope.of(context).unfocus();
+              },
+            )
+          : null,
+
+      filled: true,
+      fillColor: Theme.of(context)
+          .colorScheme
+          .surfaceContainerHighest
+          .withValues(alpha: 0.35),
+
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide.none,
+      ),
+
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide.none,
+      ),
+
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(
+          color: Theme.of(context).colorScheme.primary,
+          width: 1.5,
+        ),
+      ),
+
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: 16,
+        vertical: 15,
+      ),
+    ),
+  ),
+),
               Expanded(
                 child: _searchQuery.isNotEmpty
                     ? _buildSearchResults()
@@ -764,62 +942,101 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
     return ListView(
       children: [
-        if (showPendingSection && pendingTxs.isNotEmpty) ...[
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-            child: Text(
-              'Pending',
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-            ),
-          ),
-          Card(
-            margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'Pending',
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(fontWeight: FontWeight.bold),
-                        ),
+      if (showPendingSection && pendingTxs.isNotEmpty) ...[
+  Container(
+    margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+    decoration: BoxDecoration(
+      color: Theme.of(context).colorScheme.surface,
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(
+        color: Theme.of(context)
+            .colorScheme
+            .outlineVariant
+            .withValues(alpha: 0.35),
+      ),
+    ),
+    clipBehavior: Clip.antiAlias,
+    child: Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Pending',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(
+                        fontWeight: FontWeight.w700,
                       ),
-                      Text(
-                        '${pendingTxs.length} transaction${pendingTxs.length != 1 ? 's' : ''}',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        _currencyFormat.format(pendingTotal),
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: pendingTotal >= 0
-                              ? AppTheme.incomeGreen
-                              : AppTheme.expenseRed,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
                 ),
-                const Divider(height: 1),
-                for (var i = 0; i < pendingTxs.length; i++) ...[
-                  _buildTransactionItem(
-                    pendingTxs[i],
-                    runningBalance: pendingRunningMap?[pendingTxs[i].id],
-                  ),
-                  if (i != pendingTxs.length - 1) const Divider(height: 1),
-                ],
-              ],
-            ),
+              ),
+
+              Text(
+                '${pendingTxs.length} transaction${pendingTxs.length != 1 ? 's' : ''}',
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurfaceVariant,
+                    ),
+              ),
+
+              const SizedBox(width: 10),
+
+              Text(
+                _currencyFormat.format(pendingTotal),
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyMedium
+                    ?.copyWith(
+                      color: pendingTotal >= 0
+                          ? AppTheme.incomeGreen
+                          : AppTheme.expenseRed,
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+            ],
           ),
+        ),
+
+        Divider(
+          height: 1,
+          thickness: 1,
+          color: Theme.of(context)
+              .colorScheme
+              .outlineVariant
+              .withValues(alpha: 0.35),
+        ),
+
+        for (var i = 0; i < pendingTxs.length; i++) ...[
+          _buildTransactionItem(
+            pendingTxs[i],
+            runningBalance:
+                pendingRunningMap?[pendingTxs[i].id],
+          ),
+
+          if (i != pendingTxs.length - 1)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Divider(
+                height: 1,
+                thickness: 1,
+                color: Theme.of(context)
+                    .colorScheme
+                    .outlineVariant
+                    .withValues(alpha: 0.25),
+              ),
+            ),
         ],
+      ],
+    ),
+  ),
+],
         for (final monthKey in sortedMonths) ...[
           () {
             List<Transaction> allGroupTxs = groupedTransactions[monthKey]!;
@@ -879,103 +1096,132 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         ? 'Available Balance'
         : 'Current Balance';
 
-    return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
-        ),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                InkWell(
-                  onTap: () {
-                    setState(() {
-                      _showAvailableBalance = !_showAvailableBalance;
-                    });
-                  },
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        balanceLabel,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Colors.grey[700],
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      Icon(
-                        Icons.swap_horiz,
-                        size: 18,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                    ],
-                  ),
+    final colorScheme = Theme.of(context).colorScheme;
+
+return Container(
+  margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+  padding: const EdgeInsets.all(16),
+  decoration: BoxDecoration(
+    color: colorScheme.surface,
+    borderRadius: BorderRadius.circular(18),
+    border: Border.all(
+      color: colorScheme.outlineVariant.withValues(alpha: 0.35),
+    ),
+  ),
+  child: Row(
+    crossAxisAlignment: CrossAxisAlignment.center,
+    children: [
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: () {
+                setState(() {
+                  _showAvailableBalance = !_showAvailableBalance;
+                });
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      balanceLabel,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodyMedium
+                          ?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w500,
+                          ),
+                    ),
+                    const SizedBox(width: 5),
+                    Icon(
+                      Icons.swap_horiz_rounded,
+                      size: 18,
+                      color: colorScheme.primary,
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  _currencyFormat.format(displayBalance),
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
+              ),
+            ),
+
+            const SizedBox(height: 6),
+
+            Text(
+              _currencyFormat.format(displayBalance),
+              style: Theme.of(context)
+                  .textTheme
+                  .titleLarge
+                  ?.copyWith(
+                    fontWeight: FontWeight.w700,
                     color: displayBalance >= 0
                         ? AppTheme.incomeGreen
                         : AppTheme.expenseRed,
-                    fontSize: 15,
                   ),
-                ),
-              ],
             ),
+          ],
+        ),
+      ),
+
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          TextButton.icon(
+            onPressed: _rearrangeTransactions,
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 4,
+              ),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            icon: const Icon(
+              Icons.swap_vert_rounded,
+              size: 17,
+            ),
+            label: const Text('Rearrange'),
           ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              InkWell(
-                onTap: _rearrangeTransactions,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Text(
-                    'Rearrange',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.primary,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
+
+          const SizedBox(height: 4),
+
+          TextButton.icon(
+            onPressed: () {
+              setState(() {
+                _showCleared = !_showCleared;
+              });
+
+              DatabaseService.setSetting(
+                'transactionsShowCleared',
+                _showCleared,
+              );
+            },
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 4,
               ),
-              InkWell(
-                onTap: () {
-                  setState(() {
-                    _showCleared = !_showCleared;
-                  });
-                  DatabaseService.setSetting(
-                    'transactionsShowCleared',
-                    _showCleared,
-                  );
-                },
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Text(
-                    _showCleared ? 'Hide Cleared' : 'Show Cleared',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.primary,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-              ),
-            ],
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            icon: Icon(
+              _showCleared
+                  ? Icons.visibility_off_outlined
+                  : Icons.visibility_outlined,
+              size: 17,
+            ),
+            label: Text(
+              _showCleared ? 'Hide Cleared' : 'Show Cleared',
+            ),
           ),
         ],
       ),
-    );
+    ],
+  ),
+);
   }
 
   Widget _buildMonthGroup(
@@ -1028,40 +1274,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       final visibleTxs = transactions
           .where((t) => DateFormat('MM/dd/yyyy').format(t.date) == dateStr)
           .toList();
-      children.add(
-        Padding(
-          padding: const EdgeInsets.only(
-            left: 12,
-            right: 12,
-            bottom: 4,
-            top: 4,
-          ),
-          child: Row(
-            children: [
-              // Left: date
-              Text(
-                dateStr,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Colors.grey[600],
-                  fontWeight: FontWeight.w500,
-                  fontSize: 12,
-                ),
-              ),
-              const Spacer(),
-              // Right: running balance
-              if (lastRunning != null)
-                Text(
-                  _currencyFormat.format(lastRunning),
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.grey[600],
-                    fontWeight: FontWeight.w500,
-                    fontSize: 12,
-                  ),
-                ),
-            ],
-          ),
-        ),
-      );
+      
       if (visibleTxs.isNotEmpty) {
         children.addAll(
           visibleTxs.map(
@@ -1075,46 +1288,91 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         );
       }
     }
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: ExpansionTile(
-        key: PageStorageKey<String>('transactions_month_$monthKey'),
-        initiallyExpanded: _expandedMonths.contains(monthKey),
-        onExpansionChanged: (expanded) {
-          setState(() {
-            if (expanded) {
-              _expandedMonths.add(monthKey);
-            } else {
-              _expandedMonths.remove(monthKey);
-            }
-            if (_autoExpandedMonthKey == monthKey) {
-              _autoExpandedMonthKey = null;
-            }
-          });
-        },
-        maintainState: true,
-        title: Row(
-          children: [
-            Expanded(
-              child: Text(
-                monthName,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-              ),
-            ),
-            Text(
-              // Show count and amount for all transactions in group, not just visible
-              '${txsForHeader.length} transaction${txsForHeader.length != 1 ? 's' : ''}',
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
-            ),
-          ],
-        ),
-        children: children.isNotEmpty ? children : const [],
+    return Container(
+  margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+  decoration: BoxDecoration(
+    color: Theme.of(context).colorScheme.surface,
+    borderRadius: BorderRadius.circular(18),
+    border: Border.all(
+      color: Theme.of(context)
+          .colorScheme
+          .outlineVariant
+          .withValues(alpha: 0.35),
+    ),
+  ),
+  clipBehavior: Clip.antiAlias,
+  child: Theme(
+    data: Theme.of(context).copyWith(
+      dividerColor: Colors.transparent,
+    ),
+    child: ExpansionTile(
+      key: PageStorageKey<String>(
+        'transactions_month_$monthKey',
       ),
-    );
+      initiallyExpanded: _expandedMonths.contains(monthKey),
+
+      onExpansionChanged: (expanded) {
+        setState(() {
+          if (expanded) {
+            _expandedMonths.add(monthKey);
+          } else {
+            _expandedMonths.remove(monthKey);
+          }
+
+          if (_autoExpandedMonthKey == monthKey) {
+            _autoExpandedMonthKey = null;
+          }
+        });
+      },
+
+      maintainState: true,
+
+      tilePadding: const EdgeInsets.symmetric(
+        horizontal: 16,
+        vertical: 4,
+      ),
+
+      childrenPadding: const EdgeInsets.only(
+        bottom: 8,
+      ),
+
+      iconColor: Theme.of(context).colorScheme.primary,
+      collapsedIconColor:
+          Theme.of(context).colorScheme.onSurfaceVariant,
+
+      title: Row(
+        children: [
+          Expanded(
+            child: Text(
+              monthName,
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium
+                  ?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+          ),
+
+          Text(
+            '${txsForHeader.length} transaction${txsForHeader.length != 1 ? 's' : ''}',
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(
+                  color: Theme.of(context)
+                      .colorScheme
+                      .onSurfaceVariant,
+                ),
+          ),
+        ],
+      ),
+
+      children:
+          children.isNotEmpty ? children : const [],
+    ),
+  ),
+);
   }
 
   // Extract a normalized payee/payer name from a transaction description by
@@ -1306,17 +1564,17 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       _loadTransactions();
     }
 
-    final card = Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: InkWell(
-        onTap: () async {
-          await openEditTransaction();
-        },
-        child: ListTile(
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 8,
-          ),
+final card = Material(
+  color: Colors.transparent,
+  child: InkWell(
+    onTap: () async {
+      await openEditTransaction();
+    },
+    child: ListTile(
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: 16,
+        vertical: 12,
+      ),
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1337,8 +1595,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                     DateFormat(
                                       'MM/dd/yy',
                                     ).format(transaction.date),
-                                    style: Theme.of(context).textTheme.bodySmall
-                                        ?.copyWith(color: Colors.grey[600]),
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+  color: Theme.of(context).colorScheme.onSurfaceVariant,
+  fontWeight: FontWeight.w500,
+),
                                   ),
                                 ],
                               ),
@@ -1402,8 +1662,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                               // show each category and allocated amount in-line.
                               Text(
                                 categoryDisplay,
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(color: Colors.grey[700]),
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+  color: Theme.of(context).colorScheme.onSurfaceVariant,
+),
                               ),
                             ],
                           ),

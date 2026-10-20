@@ -533,10 +533,10 @@ class _PayBillScreenState extends State<PayBillScreen> {
             // SECTION 3: Payment Details
             _buildSectionHeader('Payment Details', Icons.payment),
             const SizedBox(height: 12),
-            _buildPaymentDetailsCard(),
-            const SizedBox(height: 32),
+           _buildPaymentDetailsCard(),
+const SizedBox(height: 24),
 
-           SizedBox(
+SizedBox(
   width: double.infinity,
   child: ElevatedButton(
     onPressed: _isSaving ? null : _handlePay,
