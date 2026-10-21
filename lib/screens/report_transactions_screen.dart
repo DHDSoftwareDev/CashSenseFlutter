@@ -228,67 +228,111 @@ class _ReportTransactionsScreenState extends State<ReportTransactionsScreen> {
   }
 
   Widget _buildTxRow(Transaction t) {
-    // Show date in MM/DD/YYYY for reports transactions list
-    final dateStr = DateFormat('MM/dd/yyyy').format(t.date);
-    // Category/account not shown in reports transactions list per UX request.
-    // Keep lookup removed to avoid unused variable warnings.
-    // final category = DatabaseService.getCategoryById(t.categoryId);
-    // final catName = category?.name ?? '';
+    final cs = Theme.of(context).colorScheme;
+    final dateStr = DateFormat('MMM d, yyyy').format(t.date);
     var displayedAmount = t.amount;
     final exactCategoryId = widget.filterId?.trim();
-    if ((widget.filterType == 'category' ||
-            widget.filterType == 'category_both') &&
+    if ((widget.filterType == 'category' || widget.filterType == 'category_both') &&
         exactCategoryId != null &&
         exactCategoryId.isNotEmpty) {
-      displayedAmount =
-          categoryAllocations(
+      displayedAmount = categoryAllocations(
             primaryCategoryId: t.categoryId,
             total: t.amount,
             splitsJson: t.splitsJson,
           )[exactCategoryId] ??
           t.amount;
     }
-    final amountStr = _currencyFormat.format(
-      displayedAmount * (t.type == TransactionType.expense ? -1 : 1),
-    );
-    final color = t.type == TransactionType.income ? Colors.green : Colors.red;
+
+    final signedAmount = displayedAmount *
+        (t.type == TransactionType.expense ? -1 : 1);
+    final amountStr = _currencyFormat.format(signedAmount);
+    final amountColor =
+        t.type == TransactionType.income ? Colors.green : cs.error;
     final visibleNote = _stripAccountPrefix(t.note);
-    // For transactions created by the Pay Bill flow the description often
-    // follows the pattern "Payment for {PayeeName} (MM/DD/YYYY)". Extract
-    // a clean payee/payer name and, when a payment-style description is
-    // detected, show only that name and hide the redundant date line.
     final extracted = _extractPayeeName(t.description);
     final isPayment = t.description.toLowerCase().startsWith('payment for ');
     final displayTitle = (isPayment && extracted.isNotEmpty)
         ? extracted
         : (t.description.isNotEmpty ? t.description : '(No description)');
-    final showDate = !isPayment;
 
-    return ListTile(
-      title: Text(displayTitle),
-      subtitle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Show date except for payment transactions where date is embedded
-          // in the description and should be omitted from the subtitle.
-          if (showDate) Text(dateStr),
-          if ((visibleNote ?? '').trim().isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text(
-              visibleNote!,
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+    return Card(
+      elevation: 0,
+      margin: const EdgeInsets.only(bottom: 10),
+      color: cs.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: cs.outlineVariant.withValues(alpha: 0.35),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: amountColor.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                t.type == TransactionType.income
+                    ? Icons.south_west_rounded
+                    : Icons.north_east_rounded,
+                color: amountColor,
+                size: 21,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    displayTitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    dateStr,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
+                  if ((visibleNote ?? '').trim().isNotEmpty) ...[
+                    const SizedBox(height: 5),
+                    Text(
+                      visibleNote!,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                amountStr,
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: amountColor,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           ],
-        ],
+        ),
       ),
-      trailing: Text(amountStr, style: TextStyle(color: color)),
-      onTap: () {
-        // Navigate to the main Transactions screen focused on this account if desired.
-        // For now, do nothing or could open transaction detail in future.
-      },
     );
   }
 
@@ -325,33 +369,54 @@ class _ReportTransactionsScreenState extends State<ReportTransactionsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
+      backgroundColor: cs.surfaceContainerLowest,
       appBar: AppBar(
+        backgroundColor: cs.primary,
+        foregroundColor: Colors.white,
+        centerTitle: true,
         title: Text(
           '${widget.label} — Transactions',
-          style: Theme.of(context).textTheme.titleSmall?.copyWith(fontSize: 14),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
       body: _transactions.isEmpty
           ? Center(
               child: Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: Text(
-                  'No transactions for this selection',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyLarge?.copyWith(color: Colors.grey[600]),
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.receipt_long_outlined,
+                      size: 42,
+                      color: cs.onSurfaceVariant,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'No transactions for this selection',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             )
-          : ListView.separated(
-              itemCount: _transactions.length,
+          : ListView.builder(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
               physics: const AlwaysScrollableScrollPhysics(),
-              separatorBuilder: (_, __) => const Divider(height: 1),
+              itemCount: _transactions.length,
               itemBuilder: (ctx, i) => _buildTxRow(_transactions[i]),
             ),
     );
   }
+
 }

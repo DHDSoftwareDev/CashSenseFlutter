@@ -357,7 +357,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
             // scrollable details list. Keep similar vertical space so cards
             // maintain consistent height.
             SizedBox(
-              height: 200,
+              height: slices.isEmpty ? 60 : (slices.length.clamp(1, 6) * 42.0),
               child: slices.isEmpty
                   ? const Center(child: Text('No data'))
                   : ReportDetailsList(
@@ -422,7 +422,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   child: const Text('See more'),
                 ),
               ),
-            const SizedBox(height: 24),
           ],
         ),
       ),
@@ -857,6 +856,12 @@ class _ReportsScreenState extends State<ReportsScreen> {
         foregroundColor: Colors.white,
         actions: [
           PopupMenuButton<String>(
+            color: Theme.of(context).colorScheme.surface,
+            surfaceTintColor: Colors.transparent,
+            elevation: 6,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
             onSelected: (value) async {
               if (value == 'ManageCards') {
                 // Navigate to the Manage Cards screen and refresh on return
@@ -987,23 +992,42 @@ class _ReportsScreenState extends State<ReportsScreen> {
           ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: _refreshReports,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _buildCategoryFilterSection(),
-                const SizedBox(height: 8),
-                _buildPayeeFilterSection(),
-                const SizedBox(height: 12),
-                _buildSummaryCards(),
-                const SizedBox(height: 24),
-                BannerAdWidget(),
-              ],
+      backgroundColor: Theme.of(context).colorScheme.surfaceContainerLowest,
+      body: Theme(
+        data: Theme.of(context).copyWith(
+          cardTheme: CardThemeData(
+            elevation: 0,
+            margin: EdgeInsets.zero,
+            color: Theme.of(context).colorScheme.surface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+              side: BorderSide(
+                color: Theme.of(
+                  context,
+                ).colorScheme.outlineVariant.withValues(alpha: 0.35),
+              ),
+            ),
+          ),
+        ),
+        child: RefreshIndicator(
+          onRefresh: _refreshReports,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildCategoryFilterSection(),
+                  const SizedBox(height: 12),
+                  _buildPayeeFilterSection(),
+                  const SizedBox(height: 16),
+                  _buildSummaryCards(),
+                  const SizedBox(height: 24),
+                  BannerAdWidget(),
+                ],
+              ),
             ),
           ),
         ),
@@ -1353,7 +1377,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
             const SizedBox(height: 12),
             SizedBox(
               // keep a reasonable fixed inline height and let the inner list scroll
-              height: results.isEmpty ? 60 : 200,
+              height: results.isEmpty
+                  ? 60
+                  : (results.length.clamp(1, 6) * 42.0),
               child: results.isEmpty
                   ? const Center(child: Text('No matching payee/payer names'))
                   : ListView.separated(
@@ -1545,7 +1571,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   child: const Text('See more'),
                 ),
               ),
-            const SizedBox(height: 24),
           ],
         ),
       ),
@@ -1681,7 +1706,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
             const SizedBox(height: 12),
             SizedBox(
               // keep a reasonable fixed inline height and let the inner list scroll
-              height: results.isEmpty ? 60 : 200,
+              height: results.isEmpty
+                  ? 60
+                  : (results.length.clamp(1, 6) * 42.0),
               child: results.isEmpty
                   ? const Center(child: Text('No category activity'))
                   : ListView.separated(
@@ -1866,7 +1893,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   child: const Text('See more'),
                 ),
               ),
-            const SizedBox(height: 24),
           ],
         ),
       ),
@@ -1924,7 +1950,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
             ),
             const SizedBox(height: 16),
             SizedBox(
-              height: 200,
+              height: slices.isEmpty ? 60 : (slices.length.clamp(1, 6) * 42.0),
               child: slices.isEmpty
                   ? const Center(child: Text('No data'))
                   : ReportDetailsList(
@@ -2068,7 +2094,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
       children.add(
         Card(
           child: Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
@@ -2186,11 +2212,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
     }
 
     if (pageChildren.isNotEmpty) {
-      final screenHeight = MediaQuery.of(context).size.height;
       children.add(
         SizedBox(
-          height: screenHeight * 0.45, // ~45% of screen height
-          child: PageView(children: pageChildren),
+          height: 190,
+          child: PageView(padEnds: false, children: pageChildren),
         ),
       );
       children.add(const SizedBox(height: 14));
@@ -2318,9 +2343,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
               '6-Month Trend',
               style: Theme.of(context).textTheme.titleLarge,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 10),
             SizedBox(
-              height: 200,
+              height: 155,
               child: BarChart(
                 BarChartData(
                   alignment: BarChartAlignment.spaceAround,
@@ -2381,7 +2406,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 10),
             Builder(
               builder: (context) {
                 final totalIncome = incomeData.fold<double>(0, (s, v) => s + v);
@@ -2473,6 +2498,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
   Widget _buildCategoryFilterSection() {
     final isSubscriber = DatabaseService.subscriptionVersion.value != 'Free';
     final filterableCategories = _filterableCategories;
+
     if (!isSubscriber) {
       return Card(
         color: Colors.blueGrey[50],
@@ -2491,13 +2517,18 @@ class _ReportsScreenState extends State<ReportsScreen> {
         ),
       );
     }
-    if (filterableCategories.isEmpty) return const SizedBox.shrink();
+
+    if (filterableCategories.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
     String subtitle;
+
     if (_selectedCategoryIds.isEmpty) {
       subtitle = 'All categories';
     } else if (_selectedCategoryIds.length == 1) {
       final id = _selectedCategoryIds.first;
+
       subtitle = filterableCategories
           .firstWhere(
             (c) => c.id == id,
@@ -2510,6 +2541,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
     return Card(
       child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
+        visualDensity: const VisualDensity(vertical: -1),
         title: Text(
           'Filter by Categories',
           style: Theme.of(context).textTheme.titleMedium,
@@ -2528,164 +2561,432 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   });
                 },
               ),
-            const Icon(Icons.arrow_drop_down),
+            const Icon(Icons.keyboard_arrow_down_rounded),
           ],
         ),
+
         onTap: () async {
           bool changed = false;
+
           await showModalBottomSheet<void>(
             context: context,
             isScrollControlled: true,
+            backgroundColor: Colors.transparent,
             builder: (ctx) {
               final tempSelected = Set<String>.from(_selectedCategoryIds);
+
               var showIncome = false;
+
               return StatefulBuilder(
                 builder: (context, sb) {
+                  final colorScheme = Theme.of(context).colorScheme;
+
+                  final filteredCategories = filterableCategories
+                      .where(
+                        (c) => showIncome
+                            ? c.type == CategoryType.income
+                            : c.type == CategoryType.expense,
+                      )
+                      .toList();
+
                   void saveAndClose() {
                     setState(() {
                       _selectedCategoryIds
                         ..clear()
                         ..addAll(tempSelected);
                     });
+
                     changed = true;
                     Navigator.of(ctx).pop();
                   }
 
-                  void clearAndClose() {
-                    setState(() {
-                      _selectedCategoryIds.clear();
+                  void clearSelection() {
+                    sb(() {
+                      tempSelected.clear();
                     });
-                    changed = true;
-                    Navigator.of(ctx).pop();
                   }
 
                   return FractionallySizedBox(
-                    heightFactor: 0.75,
-                    child: Column(
-                      children: [
-                        AppBar(
-                          automaticallyImplyLeading: false,
-                          title: const Text('Select categories'),
-                          backgroundColor: Theme.of(
-                            context,
-                          ).colorScheme.primary,
-                          foregroundColor: Colors.white,
-                          actions: [
-                            IconButton(
-                              tooltip: 'Clear selection',
-                              icon: const Icon(Icons.clear),
-                              onPressed: clearAndClose,
-                            ),
-                          ],
+                    heightFactor: 0.82,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: colorScheme.surface,
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(24),
                         ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                          child: Column(
-                            children: [
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  ChoiceChip(
-                                    label: const Text('Expenses'),
-                                    selected: !showIncome,
-                                    onSelected: (s) {
-                                      sb(() {
-                                        showIncome = false;
-                                      });
-                                    },
-                                  ),
-                                  const SizedBox(width: 8),
-                                  ChoiceChip(
-                                    label: const Text('Income'),
-                                    selected: showIncome,
-                                    onSelected: (s) {
-                                      sb(() {
-                                        showIncome = true;
-                                      });
-                                    },
-                                  ),
-                                ],
+                      ),
+                      child: SafeArea(
+                        top: false,
+                        child: Column(
+                          children: [
+                            // HEADER
+                            Container(
+                              decoration: BoxDecoration(
+                                color: colorScheme.primary,
+                                borderRadius: const BorderRadius.vertical(
+                                  top: Radius.circular(24),
+                                ),
                               ),
-                              const SizedBox(height: 8),
-                              Align(
+                              child: SafeArea(
+                                bottom: false,
+                                child: SizedBox(
+                                  height: 64,
+                                  child: Stack(
+                                    alignment: Alignment.center,
+                                    children: [
+                                      Text(
+                                        'Select categories',
+                                        textAlign: TextAlign.center,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleLarge
+                                            ?.copyWith(
+                                              color: colorScheme.onPrimary,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                      ),
+                                      Positioned(
+                                        right: 8,
+                                        child: IconButton(
+                                          tooltip: 'Close',
+                                          onPressed: () =>
+                                              Navigator.of(ctx).pop(),
+                                          icon: Icon(
+                                            Icons.close_rounded,
+                                            color: colorScheme.onPrimary,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+
+                            // EXPENSE / INCOME SELECTOR
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  color: colorScheme.surfaceContainerHighest,
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: InkWell(
+                                        borderRadius: BorderRadius.circular(11),
+                                        onTap: () {
+                                          sb(() {
+                                            showIncome = false;
+                                          });
+                                        },
+                                        child: AnimatedContainer(
+                                          duration: const Duration(
+                                            milliseconds: 150,
+                                          ),
+                                          height: 46,
+                                          decoration: BoxDecoration(
+                                            color: !showIncome
+                                                ? colorScheme.primary
+                                                : Colors.transparent,
+                                            borderRadius: BorderRadius.circular(
+                                              11,
+                                            ),
+                                          ),
+                                          alignment: Alignment.center,
+                                          child: Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              if (!showIncome) ...[
+                                                Icon(
+                                                  Icons.check_rounded,
+                                                  size: 19,
+                                                  color: colorScheme.onPrimary,
+                                                ),
+                                                const SizedBox(width: 6),
+                                              ],
+                                              Text(
+                                                'Expenses',
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.w600,
+                                                  color: !showIncome
+                                                      ? colorScheme.onPrimary
+                                                      : colorScheme.onSurface,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Expanded(
+                                      child: InkWell(
+                                        borderRadius: BorderRadius.circular(11),
+                                        onTap: () {
+                                          sb(() {
+                                            showIncome = true;
+                                          });
+                                        },
+                                        child: AnimatedContainer(
+                                          duration: const Duration(
+                                            milliseconds: 150,
+                                          ),
+                                          height: 46,
+                                          decoration: BoxDecoration(
+                                            color: showIncome
+                                                ? colorScheme.primary
+                                                : Colors.transparent,
+                                            borderRadius: BorderRadius.circular(
+                                              11,
+                                            ),
+                                          ),
+                                          alignment: Alignment.center,
+                                          child: Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              if (showIncome) ...[
+                                                Icon(
+                                                  Icons.check_rounded,
+                                                  size: 19,
+                                                  color: colorScheme.onPrimary,
+                                                ),
+                                                const SizedBox(width: 6),
+                                              ],
+                                              Text(
+                                                'Income',
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.w600,
+                                                  color: showIncome
+                                                      ? colorScheme.onPrimary
+                                                      : colorScheme.onSurface,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                              ),
+                              child: Align(
                                 alignment: Alignment.centerRight,
                                 child: TextButton.icon(
-                                  onPressed: clearAndClose,
-                                  icon: const Icon(Icons.clear, size: 18),
+                                  onPressed: clearSelection,
+                                  icon: const Icon(
+                                    Icons.close_rounded,
+                                    size: 18,
+                                  ),
                                   label: const Text('Clear selection'),
                                 ),
                               ),
-                            ],
-                          ),
-                        ),
-                        Expanded(
-                          child: ListView.builder(
-                            itemCount: filterableCategories
-                                .where(
-                                  (c) => showIncome
-                                      ? c.type == CategoryType.income
-                                      : c.type == CategoryType.expense,
-                                )
-                                .length,
-                            itemBuilder: (context, index) {
-                              final filtered = filterableCategories
-                                  .where(
-                                    (c) => showIncome
-                                        ? c.type == CategoryType.income
-                                        : c.type == CategoryType.expense,
-                                  )
-                                  .toList();
-                              final c = filtered[index];
-                              final selected = tempSelected.contains(c.id);
-                              return CheckboxListTile(
-                                title: Text(c.name),
-                                value: selected,
-                                onChanged: (v) {
-                                  sb(() {
-                                    if (v == true) {
-                                      tempSelected.add(c.id);
-                                    } else {
-                                      tempSelected.remove(c.id);
-                                    }
-                                  });
-                                },
-                              );
-                            },
-                          ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: TextButton(
-                                  onPressed: () {
-                                    Navigator.of(ctx).pop();
-                                  },
-                                  child: const Text('Cancel'),
+                            ),
+
+                            const SizedBox(height: 4),
+
+                            // CATEGORY LIST
+                            Expanded(
+                              child: filteredCategories.isEmpty
+                                  ? Center(
+                                      child: Text(
+                                        showIncome
+                                            ? 'No income categories'
+                                            : 'No expense categories',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodyMedium
+                                            ?.copyWith(
+                                              color:
+                                                  colorScheme.onSurfaceVariant,
+                                            ),
+                                      ),
+                                    )
+                                  : ListView.separated(
+                                      padding: const EdgeInsets.fromLTRB(
+                                        20,
+                                        4,
+                                        20,
+                                        16,
+                                      ),
+                                      itemCount: filteredCategories.length,
+                                      separatorBuilder: (_, __) =>
+                                          const SizedBox(height: 8),
+                                      itemBuilder: (context, index) {
+                                        final category =
+                                            filteredCategories[index];
+
+                                        final selected = tempSelected.contains(
+                                          category.id,
+                                        );
+
+                                        return Material(
+                                          color: selected
+                                              ? colorScheme.primaryContainer
+                                                    .withValues(alpha: 0.45)
+                                              : colorScheme.surface,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              14,
+                                            ),
+                                            side: BorderSide(
+                                              color: selected
+                                                  ? colorScheme.primary
+                                                        .withValues(alpha: 0.55)
+                                                  : colorScheme.outlineVariant
+                                                        .withValues(
+                                                          alpha: 0.35,
+                                                        ),
+                                            ),
+                                          ),
+                                          clipBehavior: Clip.antiAlias,
+                                          child: InkWell(
+                                            onTap: () {
+                                              sb(() {
+                                                if (selected) {
+                                                  tempSelected.remove(
+                                                    category.id,
+                                                  );
+                                                } else {
+                                                  tempSelected.add(category.id);
+                                                }
+                                              });
+                                            },
+                                            child: Padding(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 16,
+                                                    vertical: 14,
+                                                  ),
+                                              child: Row(
+                                                children: [
+                                                  Expanded(
+                                                    child: Text(
+                                                      category.name,
+                                                      style: Theme.of(context)
+                                                          .textTheme
+                                                          .bodyLarge
+                                                          ?.copyWith(
+                                                            fontWeight:
+                                                                FontWeight.w500,
+                                                          ),
+                                                    ),
+                                                  ),
+                                                  AnimatedContainer(
+                                                    duration: const Duration(
+                                                      milliseconds: 150,
+                                                    ),
+                                                    width: 26,
+                                                    height: 26,
+                                                    decoration: BoxDecoration(
+                                                      color: selected
+                                                          ? colorScheme.primary
+                                                          : Colors.transparent,
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            8,
+                                                          ),
+                                                      border: Border.all(
+                                                        color: selected
+                                                            ? colorScheme
+                                                                  .primary
+                                                            : colorScheme
+                                                                  .outline,
+                                                        width: 1.5,
+                                                      ),
+                                                    ),
+                                                    child: selected
+                                                        ? Icon(
+                                                            Icons.check_rounded,
+                                                            size: 18,
+                                                            color: colorScheme
+                                                                .onPrimary,
+                                                          )
+                                                        : null,
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                            ),
+
+                            // BOTTOM BUTTONS
+                            Container(
+                              padding: const EdgeInsets.fromLTRB(
+                                20,
+                                12,
+                                20,
+                                12,
+                              ),
+                              decoration: BoxDecoration(
+                                color: colorScheme.surface,
+                                border: Border(
+                                  top: BorderSide(
+                                    color: colorScheme.outlineVariant
+                                        .withValues(alpha: 0.25),
+                                  ),
                                 ),
                               ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: TextButton(
-                                  onPressed: saveAndClose,
-                                  child: const Text('Done'),
-                                ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: OutlinedButton(
+                                      onPressed: () => Navigator.of(ctx).pop(),
+                                      style: OutlinedButton.styleFrom(
+                                        minimumSize: const Size.fromHeight(50),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                        ),
+                                      ),
+                                      child: const Text('Cancel'),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: FilledButton(
+                                      onPressed: saveAndClose,
+                                      style: FilledButton.styleFrom(
+                                        minimumSize: const Size.fromHeight(50),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                        ),
+                                      ),
+                                      child: const Text('Done'),
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
                   );
                 },
               );
             },
           );
-          if (changed) setState(() {});
+
+          if (changed) {
+            setState(() {});
+          }
         },
       ),
     );
@@ -2694,6 +2995,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
   /// Payee/Payer selector below categories. Multi-select to mirror categories.
   Widget _buildPayeeFilterSection() {
     final isSubscriber = DatabaseService.subscriptionVersion.value != 'Free';
+
     if (!isSubscriber) {
       return Card(
         color: Colors.blueGrey[50],
@@ -2712,18 +3014,21 @@ class _ReportsScreenState extends State<ReportsScreen> {
         ),
       );
     }
-    // Compute subtitle
+
     String subtitle;
+
     if (_payees.isEmpty) {
       subtitle = 'No payees';
     } else if (_selectedPayeeIds.isEmpty) {
       subtitle = _showPayers ? 'All payers' : 'All payees';
     } else if (_selectedPayeeIds.length == 1) {
       final id = _selectedPayeeIds.first;
+
       final found = _payees.firstWhere(
         (p) => p['id'] == id && p['type'] == (_showPayers ? 'payer' : 'payee'),
         orElse: () => <String, dynamic>{},
       );
+
       subtitle = (found['name'] ?? 'Unknown') as String;
     } else {
       subtitle = '${_selectedPayeeIds.length} selected';
@@ -2731,6 +3036,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
     return Card(
       child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
+        visualDensity: const VisualDensity(vertical: -1),
         title: Text(
           'Filter by Payee/Payer',
           style: Theme.of(context).textTheme.titleMedium,
@@ -2749,170 +3056,429 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   });
                 },
               ),
-            const Icon(Icons.arrow_drop_down),
+            const Icon(Icons.keyboard_arrow_down_rounded),
           ],
         ),
+
         onTap: () async {
           bool changed = false;
+
           await showModalBottomSheet<void>(
             context: context,
             isScrollControlled: true,
+            backgroundColor: Colors.transparent,
             builder: (ctx) {
               final tempSelected = Set<String>.from(_selectedPayeeIds);
+
               bool showPayers = _showPayers;
+
               return StatefulBuilder(
                 builder: (context, sb) {
+                  final colorScheme = Theme.of(context).colorScheme;
+
+                  final filteredPayees = _payees
+                      .where(
+                        (p) =>
+                            (p['type'] as String?) ==
+                            (showPayers ? 'payer' : 'payee'),
+                      )
+                      .toList();
+
                   void saveAndClose() {
                     setState(() {
                       _selectedPayeeIds
                         ..clear()
                         ..addAll(tempSelected);
+
                       _showPayers = showPayers;
                     });
+
                     changed = true;
                     Navigator.of(ctx).pop();
                   }
 
-                  void clearAndClose() {
-                    setState(() {
-                      _selectedPayeeIds.clear();
+                  void clearSelection() {
+                    sb(() {
+                      tempSelected.clear();
                     });
-                    changed = true;
-                    Navigator.of(ctx).pop();
                   }
 
                   return FractionallySizedBox(
-                    heightFactor: 0.75,
-                    child: Column(
-                      children: [
-                        AppBar(
-                          automaticallyImplyLeading: false,
-                          title: const Text('Select payees/payers'),
-                          backgroundColor: Theme.of(
-                            context,
-                          ).colorScheme.primary,
-                          foregroundColor: Colors.white,
-                          actions: [
-                            IconButton(
-                              tooltip: 'Clear selection',
-                              icon: const Icon(Icons.clear),
-                              onPressed: clearAndClose,
-                            ),
-                          ],
+                    heightFactor: 0.82,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: colorScheme.surface,
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(24),
                         ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: Column(
+                        children: [
+                          // HEADER
+                          Container(
+                            width: double.infinity,
+                            color: colorScheme.primary,
+                            child: SafeArea(
+                              bottom: false,
+                              child: SizedBox(
+                                height: 64,
+                                child: Stack(
+                                  alignment: Alignment.center,
+                                  children: [
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 64,
+                                      ),
+                                      child: Text(
+                                        'Select payees/payers',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        textAlign: TextAlign.center,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleLarge
+                                            ?.copyWith(
+                                              color: colorScheme.onPrimary,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                      ),
+                                    ),
+                                    Positioned(
+                                      right: 8,
+                                      child: IconButton(
+                                        tooltip: 'Close',
+                                        onPressed: () =>
+                                            Navigator.of(ctx).pop(),
+                                        icon: Icon(
+                                          Icons.close_rounded,
+                                          color: colorScheme.onPrimary,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
                           ),
-                          child: Column(
-                            children: [
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
+
+                          // PAYEE / PAYER SELECTOR
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: colorScheme.surfaceContainerHighest,
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Row(
                                 children: [
-                                  ChoiceChip(
-                                    label: const Text('Payees'),
-                                    selected: !showPayers,
-                                    onSelected: (s) {
-                                      sb(() {
-                                        showPayers = false;
-                                      });
-                                    },
+                                  Expanded(
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(11),
+                                      onTap: () {
+                                        sb(() {
+                                          showPayers = false;
+                                        });
+                                      },
+                                      child: AnimatedContainer(
+                                        duration: const Duration(
+                                          milliseconds: 150,
+                                        ),
+                                        height: 46,
+                                        decoration: BoxDecoration(
+                                          color: !showPayers
+                                              ? colorScheme.primary
+                                              : Colors.transparent,
+                                          borderRadius: BorderRadius.circular(
+                                            11,
+                                          ),
+                                        ),
+                                        alignment: Alignment.center,
+                                        child: Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            if (!showPayers) ...[
+                                              Icon(
+                                                Icons.check_rounded,
+                                                size: 19,
+                                                color: colorScheme.onPrimary,
+                                              ),
+                                              const SizedBox(width: 6),
+                                            ],
+                                            Text(
+                                              'Payees',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w600,
+                                                color: !showPayers
+                                                    ? colorScheme.onPrimary
+                                                    : colorScheme.onSurface,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
                                   ),
-                                  const SizedBox(width: 8),
-                                  ChoiceChip(
-                                    label: const Text('Payers'),
-                                    selected: showPayers,
-                                    onSelected: (s) {
-                                      sb(() {
-                                        showPayers = true;
-                                      });
-                                    },
+                                  const SizedBox(width: 4),
+                                  Expanded(
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(11),
+                                      onTap: () {
+                                        sb(() {
+                                          showPayers = true;
+                                        });
+                                      },
+                                      child: AnimatedContainer(
+                                        duration: const Duration(
+                                          milliseconds: 150,
+                                        ),
+                                        height: 46,
+                                        decoration: BoxDecoration(
+                                          color: showPayers
+                                              ? colorScheme.primary
+                                              : Colors.transparent,
+                                          borderRadius: BorderRadius.circular(
+                                            11,
+                                          ),
+                                        ),
+                                        alignment: Alignment.center,
+                                        child: Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            if (showPayers) ...[
+                                              Icon(
+                                                Icons.check_rounded,
+                                                size: 19,
+                                                color: colorScheme.onPrimary,
+                                              ),
+                                              const SizedBox(width: 6),
+                                            ],
+                                            Text(
+                                              'Payers',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w600,
+                                                color: showPayers
+                                                    ? colorScheme.onPrimary
+                                                    : colorScheme.onSurface,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 8),
-                              Align(
-                                alignment: Alignment.centerRight,
-                                child: TextButton.icon(
-                                  onPressed: clearAndClose,
-                                  icon: const Icon(Icons.clear, size: 18),
-                                  label: const Text('Clear selection'),
-                                ),
-                              ),
-                            ],
+                            ),
                           ),
-                        ),
-                        Expanded(
-                          child: ListView.builder(
-                            itemCount: _payees
-                                .where(
-                                  (p) =>
-                                      (p['type'] as String?) ==
-                                      (showPayers ? 'payer' : 'payee'),
-                                )
-                                .length,
-                            itemBuilder: (context, index) {
-                              final filtered = _payees
-                                  .where(
-                                    (p) =>
-                                        (p['type'] as String?) ==
-                                        (showPayers ? 'payer' : 'payee'),
+
+                          // CLEAR SELECTION
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                            child: Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton.icon(
+                                onPressed: clearSelection,
+                                icon: const Icon(Icons.close_rounded, size: 18),
+                                label: const Text('Clear selection'),
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(height: 4),
+
+                          // PAYEE / PAYER LIST
+                          Expanded(
+                            child: filteredPayees.isEmpty
+                                ? Center(
+                                    child: Text(
+                                      showPayers
+                                          ? 'No payers available'
+                                          : 'No payees available',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium
+                                          ?.copyWith(
+                                            color: colorScheme.onSurfaceVariant,
+                                          ),
+                                    ),
                                   )
-                                  .toList();
-                              final p = filtered[index];
-                              final id = p['id'] as String?;
-                              final name = p['name'] as String? ?? 'Unknown';
-                              final selected =
-                                  id != null && tempSelected.contains(id);
-                              return CheckboxListTile(
-                                title: Text(name),
-                                value: selected,
-                                onChanged: id == null
-                                    ? null
-                                    : (v) {
-                                        sb(() {
-                                          if (v == true) {
-                                            tempSelected.add(id);
-                                          } else {
-                                            tempSelected.remove(id);
-                                          }
-                                        });
-                                      },
-                              );
-                            },
+                                : ListView.separated(
+                                    padding: const EdgeInsets.fromLTRB(
+                                      20,
+                                      4,
+                                      20,
+                                      16,
+                                    ),
+                                    itemCount: filteredPayees.length,
+                                    separatorBuilder: (_, __) =>
+                                        const SizedBox(height: 8),
+                                    itemBuilder: (context, index) {
+                                      final payee = filteredPayees[index];
+
+                                      final id = payee['id'] as String?;
+
+                                      final name =
+                                          payee['name'] as String? ?? 'Unknown';
+
+                                      final selected =
+                                          id != null &&
+                                          tempSelected.contains(id);
+
+                                      return Material(
+                                        color: selected
+                                            ? colorScheme.primaryContainer
+                                                  .withValues(alpha: 0.45)
+                                            : colorScheme.surface,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            14,
+                                          ),
+                                          side: BorderSide(
+                                            color: selected
+                                                ? colorScheme.primary
+                                                      .withValues(alpha: 0.55)
+                                                : colorScheme.outlineVariant
+                                                      .withValues(alpha: 0.35),
+                                          ),
+                                        ),
+                                        clipBehavior: Clip.antiAlias,
+                                        child: InkWell(
+                                          onTap: id == null
+                                              ? null
+                                              : () {
+                                                  sb(() {
+                                                    if (selected) {
+                                                      tempSelected.remove(id);
+                                                    } else {
+                                                      tempSelected.add(id);
+                                                    }
+                                                  });
+                                                },
+                                          child: Padding(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 16,
+                                              vertical: 14,
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                Expanded(
+                                                  child: Text(
+                                                    name,
+                                                    style: Theme.of(context)
+                                                        .textTheme
+                                                        .bodyLarge
+                                                        ?.copyWith(
+                                                          fontWeight:
+                                                              FontWeight.w500,
+                                                        ),
+                                                  ),
+                                                ),
+                                                AnimatedContainer(
+                                                  duration: const Duration(
+                                                    milliseconds: 150,
+                                                  ),
+                                                  width: 26,
+                                                  height: 26,
+                                                  decoration: BoxDecoration(
+                                                    color: selected
+                                                        ? colorScheme.primary
+                                                        : Colors.transparent,
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          8,
+                                                        ),
+                                                    border: Border.all(
+                                                      color: selected
+                                                          ? colorScheme.primary
+                                                          : colorScheme.outline,
+                                                      width: 1.5,
+                                                    ),
+                                                  ),
+                                                  child: selected
+                                                      ? Icon(
+                                                          Icons.check_rounded,
+                                                          size: 18,
+                                                          color: colorScheme
+                                                              .onPrimary,
+                                                        )
+                                                      : null,
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
                           ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: TextButton(
-                                  onPressed: () {
-                                    Navigator.of(ctx).pop();
-                                  },
-                                  child: const Text('Cancel'),
+
+                          // BOTTOM BUTTONS
+                          Container(
+                            padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+                            decoration: BoxDecoration(
+                              color: colorScheme.surface,
+                              border: Border(
+                                top: BorderSide(
+                                  color: colorScheme.outlineVariant.withValues(
+                                    alpha: 0.25,
+                                  ),
                                 ),
                               ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: TextButton(
-                                  onPressed: saveAndClose,
-                                  child: const Text('Done'),
-                                ),
+                            ),
+                            child: SafeArea(
+                              top: false,
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: OutlinedButton(
+                                      onPressed: () => Navigator.of(ctx).pop(),
+                                      style: OutlinedButton.styleFrom(
+                                        minimumSize: const Size.fromHeight(50),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                        ),
+                                      ),
+                                      child: const Text('Cancel'),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: FilledButton(
+                                      onPressed: saveAndClose,
+                                      style: FilledButton.styleFrom(
+                                        minimumSize: const Size.fromHeight(50),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                        ),
+                                      ),
+                                      child: const Text('Done'),
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ],
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   );
                 },
               );
             },
           );
-          if (changed) setState(() {});
+
+          if (changed) {
+            setState(() {});
+          }
         },
       ),
     );

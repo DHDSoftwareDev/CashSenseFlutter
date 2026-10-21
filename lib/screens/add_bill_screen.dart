@@ -2912,24 +2912,129 @@ Widget _buildNotesField() {
                             ),
                           ),
                         )
-                      : ListView.builder(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
+                      : ListView.separated(
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
                           itemCount: currentAccounts.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 10),
                           itemBuilder: (context, index) {
                             final account = currentAccounts[index];
                             final accountName = account.name;
                             final accountId = account.id;
+                            final isSelected = accountId == _selectedAccountId;
 
-                            return ListTile(
-                              leading: const Icon(
-                                Icons.account_balance_wallet_outlined,
+                            final rawType =
+                                (account.customType != null &&
+                                        account.customType!.trim().isNotEmpty)
+                                    ? account.customType!.trim()
+                                    : account.type.name;
+                            final accountType = rawType.isEmpty
+                                ? ''
+                                : rawType[0].toUpperCase() +
+                                    rawType.substring(1);
+
+                            final colorScheme =
+                                Theme.of(selectorContext).colorScheme;
+                            final primary = colorScheme.primary;
+
+                            return Material(
+                              color: isSelected
+                                  ? Colors.green.withValues(alpha: 0.28)
+                                  : colorScheme.surface,
+                              borderRadius: BorderRadius.circular(16),
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(16),
+                                onTap: () => Navigator.pop(
+                                  selectorContext,
+                                  accountId,
+                                ),
+                                child: Container(
+                                  constraints: const BoxConstraints(
+                                    minHeight: 68,
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 12,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: isSelected
+                                          ? primary.withValues(alpha: 0.75)
+                                          : colorScheme.outlineVariant
+                                              .withValues(alpha: 0.75),
+                                      width: isSelected ? 1.2 : 1,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        width: 42,
+                                        height: 42,
+                                        decoration: BoxDecoration(
+                                          color: isSelected
+                                              ? colorScheme.surface
+                                              : Colors.transparent,
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                        ),
+                                        alignment: Alignment.center,
+                                        child: Icon(
+                                          Icons.account_balance_wallet_outlined,
+                                          color: primary,
+                                          size: 24,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 14),
+                                      Expanded(
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              accountName,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: Theme.of(selectorContext)
+                                                  .textTheme
+                                                  .titleMedium
+                                                  ?.copyWith(
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                            ),
+                                            if (accountType.isNotEmpty) ...[
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                accountType,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: Theme.of(selectorContext)
+                                                    .textTheme
+                                                    .bodyMedium
+                                                    ?.copyWith(
+                                                      color: colorScheme
+                                                          .onSurfaceVariant,
+                                                    ),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Icon(
+                                        isSelected
+                                            ? Icons.check_circle_rounded
+                                            : Icons.chevron_right_rounded,
+                                        color: isSelected
+                                            ? primary
+                                            : colorScheme.onSurface,
+                                        size: isSelected ? 26 : 24,
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ),
-                              title: Text(accountName),
-                              trailing: const Icon(
-                                Icons.chevron_right_rounded,
-                              ),
-                              onTap: () =>
-                                  Navigator.pop(selectorContext, accountId),
                             );
                           },
                         ),

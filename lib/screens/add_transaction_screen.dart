@@ -531,380 +531,273 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   }
 
   Widget _buildAccountSelector() {
-    final accountName = _selectedAccountId != null
-        ? accountList
-              .firstWhere(
-                (a) => a.id == _selectedAccountId,
-                orElse: () => Account(
-                  name: 'Unknown',
-                  type: AccountType.bank,
-                  balance: 0,
-                ),
-              )
-              .name
-        : null;
-    return Card(
-      elevation: 0,
-      margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(
-          color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.22),
-        ),
-      ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 3),
-        leading: const Icon(Icons.account_balance_wallet),
-        title: const Text('Account'),
-        subtitle: Text(accountName ?? 'Select'),
-        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-        onTap: () async {
-          final selected = await showModalBottomSheet<String?>(
-            context: context,
-            isScrollControlled: true,
-            builder: (ctx) => FractionallySizedBox(
-              heightFactor: 0.85,
-              child: StatefulBuilder(
-                builder: (ctx2, setState2) {
-                  List<Account> liveAccounts = DatabaseService.getAllAccounts();
-                  return Scaffold(
-                    appBar: AppBar(
-                      title: const Text('Select Account'),
-                      backgroundColor: Theme.of(ctx2).colorScheme.primary,
-                      foregroundColor: Colors.white,
-                      actions: [
-                        IconButton(
-                          icon: Icon(Icons.add),
-                          onPressed: () async {
-                            final plan =
-                                DatabaseService.getSetting<String>(
-                                  'subscriptionPlan',
-                                  'Free',
-                                ) ??
-                                'Free';
-                            final accounts = DatabaseService.getAllAccounts();
-                            if (plan == 'Free' && accounts.length >= 3) {
-                              await showDialog(
-                                context: ctx2,
-                                builder: (dialogContext) => AlertDialog(
-                                  title: const Text('Account Limit Reached'),
-                                  content: const Text(
-                                    'Free users can create up to 3 accounts. Subscribe for unlimited accounts.',
-                                  ),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () =>
-                                          Navigator.pop(dialogContext),
-                                      child: const Text('OK'),
-                                    ),
-                                  ],
-                                ),
-                              );
-                              return;
-                            }
-                            // Show add account dialog
-                            final nameCtrl = TextEditingController();
-                            final institutionCtrl = TextEditingController();
-                            final accNumCtrl = TextEditingController();
-                            final cardNumCtrl = TextEditingController();
-                            AccountType selectedType = AccountType.cash;
-                            final balCtrl = TextEditingController(text: '0.0');
-                            final availCtrl = TextEditingController(
-                              text: '0.0',
-                            );
-                            String? customType;
-                            final res = await Navigator.of(ctx2).push<Account>(
-                              MaterialPageRoute(
-                                fullscreenDialog: true,
-                                builder: (_) => const _TransactionAddAccountPage(),
-                              ),
-                            );
-                            if (res != null) {
-                              await DatabaseService.addAccount(res);
-                              final updated = DatabaseService.getAllAccounts();
-                              setState2(() {});
-                              setState(() {
-                                _selectedAccountId = res.id;
-                              });
-                            }
-                          },
-                        ),
-                      ],
-                    ),
-                    body: ListView.builder(
-                      itemCount: liveAccounts.length,
-                      itemBuilder: (context, idx) {
-                        final a = liveAccounts[idx];
-                        return ListTile(
-                          title: Text(a.name),
-                          selected: _selectedAccountId == a.id,
-                          onTap: () => Navigator.pop(context, a.id),
-                        );
-                      },
-                    ),
-                  );
-                },
-              ),
-            ),
-          );
-          if (selected != null) {
-            setState(() => _selectedAccountId = selected);
-          }
-        },
-      ),
+    return _buildAccountTile(
+      title: 'Account',
+      selectedId: _selectedAccountId,
+      emptyText: 'Select',
+      onSelected: (id) => setState(() => _selectedAccountId = id),
     );
   }
 
   Widget _buildFromAccountSelector() {
-    final accountName = _fromAccountId != null
-        ? accountList
-              .firstWhere(
-                (a) => a.id == _fromAccountId,
-                orElse: () => Account(
-                  name: 'Unknown',
-                  type: AccountType.bank,
-                  balance: 0,
-                ),
-              )
-              .name
-        : null;
+    return _buildAccountTile(
+      title: 'From Account',
+      selectedId: _fromAccountId,
+      emptyText: 'Select account',
+      onSelected: (id) => setState(() => _fromAccountId = id),
+    );
+  }
+
+  Widget _buildToAccountSelector() {
+    return _buildAccountTile(
+      title: 'To Account',
+      selectedId: _toAccountId,
+      emptyText: 'Select account',
+      onSelected: (id) => setState(() => _toAccountId = id),
+    );
+  }
+
+  Widget _buildAccountTile({
+    required String title,
+    required String? selectedId,
+    required String emptyText,
+    required ValueChanged<String> onSelected,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    String? accountName;
+    if (selectedId != null) {
+      try {
+        accountName = accountList.firstWhere((a) => a.id == selectedId).name;
+      } catch (_) {
+        accountName = 'Unknown';
+      }
+    }
+
     return Card(
       elevation: 0,
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(
-          color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.22),
+          color: colorScheme.outlineVariant.withValues(alpha: 0.22),
         ),
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 3),
-        leading: const Icon(Icons.account_balance_wallet),
-        title: const Text('From Account'),
-        subtitle: Text(accountName ?? 'Select account'),
-        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+        leading: const Icon(Icons.account_balance_wallet_outlined),
+        title: Text(title),
+        subtitle: Text(accountName ?? emptyText),
+        trailing: const Icon(Icons.chevron_right_rounded),
         onTap: () async {
-          final selected = await showModalBottomSheet<String?>(
-            context: context,
-            isScrollControlled: true,
-            builder: (ctx) => FractionallySizedBox(
-              heightFactor: 0.85,
-              child: StatefulBuilder(
-                builder: (ctx2, setState2) {
-                  List<Account> liveAccounts = DatabaseService.getAllAccounts();
-                  return Scaffold(
-                    appBar: AppBar(
-                      title: const Text('Select Account'),
-                      backgroundColor: Theme.of(ctx2).colorScheme.primary,
-                      foregroundColor: Colors.white,
-                      actions: [
-                        IconButton(
-                          icon: Icon(Icons.add),
-                          onPressed: () async {
-                            final plan =
-                                DatabaseService.getSetting<String>(
-                                  'subscriptionPlan',
-                                  'Free',
-                                ) ??
-                                'Free';
-                            final accounts = DatabaseService.getAllAccounts();
-                            if (plan == 'Free' && accounts.length >= 3) {
-                              await showDialog(
-                                context: ctx2,
-                                builder: (dialogContext) => AlertDialog(
-                                  title: const Text('Account Limit Reached'),
-                                  content: const Text(
-                                    'Free users can create up to 3 accounts. Subscribe for unlimited accounts.',
-                                  ),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () =>
-                                          Navigator.pop(dialogContext),
-                                      child: const Text('OK'),
-                                    ),
-                                  ],
-                                ),
-                              );
-                              return;
-                            }
-                            // Show add account dialog
-                            final nameCtrl = TextEditingController();
-                            final institutionCtrl = TextEditingController();
-                            final accNumCtrl = TextEditingController();
-                            final cardNumCtrl = TextEditingController();
-                            AccountType selectedType = AccountType.cash;
-                            final balCtrl = TextEditingController(text: '0.0');
-                            final availCtrl = TextEditingController(
-                              text: '0.0',
-                            );
-                            String? customType;
-                            final res = await Navigator.of(ctx2).push<Account>(
-                              MaterialPageRoute(
-                                fullscreenDialog: true,
-                                builder: (_) => const _TransactionAddAccountPage(),
-                              ),
-                            );
-                            if (res != null) {
-                              await DatabaseService.addAccount(res);
-                              final updated = DatabaseService.getAllAccounts();
-                              setState2(() {});
-                              setState(() {
-                                _fromAccountId = res.id;
-                              });
-                            }
-                          },
-                        ),
-                      ],
-                    ),
-                    body: ListView.builder(
-                      itemCount: liveAccounts.length,
-                      itemBuilder: (context, idx) {
-                        final a = liveAccounts[idx];
-                        return ListTile(
-                          title: Text(a.name),
-                          selected: _fromAccountId == a.id,
-                          onTap: () => Navigator.pop(context, a.id),
-                        );
-                      },
-                    ),
-                  );
-                },
-              ),
-            ),
-          );
-          if (selected != null) {
-            setState(() => _fromAccountId = selected);
-          }
+          FocusScope.of(context).unfocus();
+          final selected = await _showAccountSelectorPage(selectedId);
+          if (selected != null && mounted) onSelected(selected);
         },
       ),
     );
   }
 
-  Widget _buildToAccountSelector() {
-    final accountName = _toAccountId != null
-        ? accountList
-              .firstWhere(
-                (a) => a.id == _toAccountId,
-                orElse: () => Account(
-                  name: 'Unknown',
-                  type: AccountType.bank,
-                  balance: 0,
-                ),
-              )
-              .name
-        : null;
+  Future<String?> _showAccountSelectorPage(String? selectedId) async {
+    return Navigator.of(context).push<String>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (pageContext) => StatefulBuilder(
+          builder: (pageContext, refreshPage) {
+            final colorScheme = Theme.of(pageContext).colorScheme;
+            final liveAccounts = DatabaseService.getAllAccounts();
 
-    return Card(
-      elevation: 0,
-      margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(
-          color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.22),
-        ),
-      ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 3),
-        leading: const Icon(Icons.account_balance_wallet),
-        title: const Text('To Account'),
-        subtitle: Text(accountName ?? 'Select account'),
-        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-        onTap: () async {
-          final selected = await showModalBottomSheet<String?>(
-            context: context,
-            isScrollControlled: true,
-            builder: (ctx) => FractionallySizedBox(
-              heightFactor: 0.85,
-              child: StatefulBuilder(
-                builder: (ctx2, setState2) {
-                  List<Account> liveAccounts = DatabaseService.getAllAccounts();
-                  return Scaffold(
-                    appBar: AppBar(
-                      title: const Text('Select Account'),
-                      backgroundColor: Theme.of(ctx2).colorScheme.primary,
-                      foregroundColor: Colors.white,
-                      actions: [
-                        IconButton(
-                          icon: Icon(Icons.add),
-                          onPressed: () async {
-                            final plan =
-                                DatabaseService.getSetting<String>(
-                                  'subscriptionPlan',
-                                  'Free',
-                                ) ??
-                                'Free';
-                            final accounts = DatabaseService.getAllAccounts();
-                            if (plan == 'Free' && accounts.length >= 3) {
-                              await showDialog(
-                                context: ctx2,
-                                builder: (dialogContext) => AlertDialog(
-                                  title: const Text('Account Limit Reached'),
-                                  content: const Text(
-                                    'Free users can create up to 3 accounts. Subscribe for unlimited accounts.',
-                                  ),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () =>
-                                          Navigator.pop(dialogContext),
-                                      child: const Text('OK'),
+            Future<void> addAccount() async {
+              final plan = DatabaseService.getSetting<String>(
+                    'subscriptionPlan',
+                    'Free',
+                  ) ??
+                  'Free';
+              final accounts = DatabaseService.getAllAccounts();
+
+              if (plan == 'Free' && accounts.length >= 3) {
+                await showDialog<void>(
+                  context: pageContext,
+                  builder: (dialogContext) => AlertDialog(
+                    title: const Text('Account Limit Reached'),
+                    content: const Text(
+                      'Free users can create up to 3 accounts. Subscribe for unlimited accounts.',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(dialogContext),
+                        child: const Text('OK'),
+                      ),
+                    ],
+                  ),
+                );
+                return;
+              }
+
+              final res = await Navigator.of(pageContext).push<Account>(
+                MaterialPageRoute(
+                  fullscreenDialog: true,
+                  builder: (_) => const _TransactionAddAccountPage(),
+                ),
+              );
+
+              if (res != null) {
+                await DatabaseService.addAccount(res);
+                refreshPage(() {});
+                if (pageContext.mounted) Navigator.pop(pageContext, res.id);
+              }
+            }
+
+            return Scaffold(
+              backgroundColor: colorScheme.surface,
+              appBar: AppBar(
+                leading: const BackButton(),
+                title: const Text('Select Account'),
+                centerTitle: true,
+                backgroundColor: colorScheme.primary,
+                foregroundColor: colorScheme.onPrimary,
+                elevation: 0,
+                actions: [
+                  IconButton(
+                    tooltip: 'Add Account',
+                    icon: const Icon(Icons.add_rounded),
+                    onPressed: addAccount,
+                  ),
+                ],
+              ),
+              body: SafeArea(
+                top: false,
+                child: liveAccounts.isEmpty
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(32),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.account_balance_wallet_outlined,
+                                size: 48,
+                                color: colorScheme.onSurfaceVariant,
+                              ),
+                              const SizedBox(height: 14),
+                              Text(
+                                'No accounts yet',
+                                style: Theme.of(pageContext)
+                                    .textTheme
+                                    .titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.w600),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                'Add an account to continue.',
+                                style: Theme.of(pageContext)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.copyWith(color: colorScheme.onSurfaceVariant),
+                              ),
+                              const SizedBox(height: 20),
+                              FilledButton.icon(
+                                onPressed: addAccount,
+                                icon: const Icon(Icons.add_rounded),
+                                label: const Text('Add Account'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    : ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+                        itemCount: liveAccounts.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 10),
+                        itemBuilder: (context, index) {
+                          final account = liveAccounts[index];
+                          final isSelected = account.id == selectedId;
+                          final typeName = account.type.name;
+                          final typeLabel = typeName.isEmpty
+                              ? 'Account'
+                              : '${typeName[0].toUpperCase()}${typeName.substring(1)}';
+
+                          return Material(
+                            color: isSelected
+                                ? colorScheme.primaryContainer.withValues(alpha: 0.45)
+                                : colorScheme.surface,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              side: BorderSide(
+                                color: isSelected
+                                    ? colorScheme.primary.withValues(alpha: 0.55)
+                                    : colorScheme.outlineVariant.withValues(alpha: 0.35),
+                              ),
+                            ),
+                            clipBehavior: Clip.antiAlias,
+                            child: InkWell(
+                              onTap: () => Navigator.pop(pageContext, account.id),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 14,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 42,
+                                      height: 42,
+                                      decoration: BoxDecoration(
+                                        color: colorScheme.surfaceContainerHighest,
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Icon(
+                                        Icons.account_balance_wallet_outlined,
+                                        color: colorScheme.primary,
+                                      ),
                                     ),
+                                    const SizedBox(width: 14),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            account.name,
+                                            style: Theme.of(pageContext)
+                                                .textTheme
+                                                .titleSmall
+                                                ?.copyWith(fontWeight: FontWeight.w600),
+                                          ),
+                                          const SizedBox(height: 3),
+                                          Text(
+                                            typeLabel,
+                                            style: Theme.of(pageContext)
+                                                .textTheme
+                                                .bodySmall
+                                                ?.copyWith(
+                                                  color: colorScheme.onSurfaceVariant,
+                                                ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    if (isSelected)
+                                      Icon(
+                                        Icons.check_circle_rounded,
+                                        color: colorScheme.primary,
+                                      )
+                                    else
+                                      Icon(
+                                        Icons.chevron_right_rounded,
+                                        color: colorScheme.onSurfaceVariant,
+                                      ),
                                   ],
                                 ),
-                              );
-                              return;
-                            }
-                            // Show add account dialog
-                            final nameCtrl = TextEditingController();
-                            final institutionCtrl = TextEditingController();
-                            final accNumCtrl = TextEditingController();
-                            final cardNumCtrl = TextEditingController();
-                            AccountType selectedType = AccountType.cash;
-                            final balCtrl = TextEditingController(text: '0.0');
-                            final availCtrl = TextEditingController(
-                              text: '0.0',
-                            );
-                            String? customType;
-                            final res = await Navigator.of(ctx2).push<Account>(
-                              MaterialPageRoute(
-                                fullscreenDialog: true,
-                                builder: (_) => const _TransactionAddAccountPage(),
                               ),
-                            );
-                            if (res != null) {
-                              await DatabaseService.addAccount(res);
-                              final updated = DatabaseService.getAllAccounts();
-                              setState2(() {});
-                              setState(() {
-                                _toAccountId = res.id;
-                              });
-                            }
-                          },
-                        ),
-                      ],
-                    ),
-                    body: ListView.builder(
-                      itemCount: liveAccounts.length,
-                      itemBuilder: (context, idx) {
-                        final a = liveAccounts[idx];
-                        return ListTile(
-                          title: Text(a.name),
-                          selected: _toAccountId == a.id,
-                          onTap: () => Navigator.pop(context, a.id),
-                        );
-                      },
-                    ),
-                  );
-                },
+                            ),
+                          );
+                        },
+                      ),
               ),
-            ),
-          );
-          if (selected != null) {
-            setState(() => _toAccountId = selected);
-          }
-        },
+            );
+          },
+        ),
       ),
     );
-    // Removed unused variables after refactor
   }
 
   Widget _buildDateSelector() {
