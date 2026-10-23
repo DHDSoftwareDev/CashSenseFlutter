@@ -634,16 +634,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
         backgroundColor: Theme.of(context).colorScheme.primary,
         foregroundColor: Colors.white,
       ),
-      body: ListView(
-        children: [
+      body: Container(
+        color: Theme.of(context).colorScheme.surfaceContainerLowest,
+        child: ListView(
+          padding: const EdgeInsets.only(bottom: 24),
+          children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
             child: Column(
               children: [
                 Card(
-                  elevation: 2,
+                  elevation: 0,
+                  margin: EdgeInsets.zero,
+                  color: Theme.of(context).colorScheme.surface,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(18),
+                    side: BorderSide(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .outlineVariant
+                          .withValues(alpha: 0.35),
+                    ),
                   ),
                   child: ValueListenableBuilder<String>(
                     valueListenable: DatabaseService.subscriptionVersion,
@@ -665,10 +676,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
                 // Authentication card — render unconditionally (show status and actions)
                 _buildAuthCard(context),
-                const SizedBox(height: 12),
+                const SizedBox(height: 4),
               ],
             ),
           ),
@@ -768,9 +779,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
             child: Card(
-              elevation: 1,
+              elevation: 0,
+              color: Theme.of(context).colorScheme.surface,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(18),
+                side: BorderSide(
+                  color: Theme.of(context)
+                      .colorScheme
+                      .outlineVariant
+                      .withValues(alpha: 0.35),
+                ),
               ),
               child: ListTile(
                 leading: const Icon(Icons.help_outline),
@@ -784,9 +802,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
             child: Card(
-              elevation: 1,
+              elevation: 0,
+              color: Theme.of(context).colorScheme.surface,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(18),
+                side: BorderSide(
+                  color: Theme.of(context)
+                      .colorScheme
+                      .outlineVariant
+                      .withValues(alpha: 0.35),
+                ),
               ),
               child: ListTile(
                 leading: const Icon(Icons.star_rate, color: Colors.amber),
@@ -796,7 +821,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
           ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1402,22 +1428,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _buildSection(String title, List<Widget> tiles) {
+    final colors = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       child: Card(
-        elevation: 1,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        child: ExpansionTile(
-          tilePadding: const EdgeInsets.symmetric(horizontal: 16.0),
-          childrenPadding: const EdgeInsets.only(bottom: 12.0),
-          title: Text(
-            title,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: Theme.of(context).colorScheme.primary,
-              fontWeight: FontWeight.bold,
-            ),
+        elevation: 0,
+        margin: EdgeInsets.zero,
+        color: colors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: BorderSide(
+            color: colors.outlineVariant.withValues(alpha: 0.35),
           ),
-          children: [...tiles],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Theme(
+          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+          child: ExpansionTile(
+            tilePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+            childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            iconColor: colors.primary,
+            collapsedIconColor: colors.onSurfaceVariant,
+            title: Text(
+              title,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: colors.primary,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            children: tiles,
+          ),
         ),
       ),
     );
@@ -1434,12 +1474,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildBillNotificationsTile() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 6.0),
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
       child: Card(
-        elevation: 1,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        elevation: 0,
+        margin: EdgeInsets.zero,
+        color: Theme.of(context).colorScheme.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: BorderSide(
+            color: Theme.of(context)
+                .colorScheme
+                .outlineVariant
+                .withValues(alpha: 0.35),
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
         child: ExpansionTile(
-          tilePadding: const EdgeInsets.symmetric(horizontal: 16.0),
+          tilePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
           title: Text(
             'Notifications',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -1501,12 +1552,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildHomeScreenWidgetsSection() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 6.0),
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
       child: Card(
-        elevation: 1,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        elevation: 0,
+        margin: EdgeInsets.zero,
+        color: Theme.of(context).colorScheme.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: BorderSide(
+            color: Theme.of(context)
+                .colorScheme
+                .outlineVariant
+                .withValues(alpha: 0.35),
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
         child: ExpansionTile(
-          tilePadding: const EdgeInsets.symmetric(horizontal: 16),
+          tilePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
           title: Text(
             'Home Screen Widgets',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -1576,16 +1638,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
     VoidCallback onTap, {
     Widget? trailing,
   }) {
+    final colors = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 6.0),
-      child: Card(
-        elevation: 1,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Material(
+        color: colors.surfaceContainerLowest.withValues(alpha: 0.65),
+        borderRadius: BorderRadius.circular(14),
         child: ListTile(
-          leading: Icon(icon),
+          minVerticalPadding: 12,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          leading: Icon(icon, color: colors.onSurfaceVariant),
           title: Text(title),
           subtitle: Text(subtitle),
-          trailing: trailing ?? const Icon(Icons.chevron_right),
+          trailing: trailing ?? Icon(Icons.chevron_right, color: colors.onSurfaceVariant),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           onTap: onTap,
           onLongPress: title == 'Version'
               ? () => _showSubscriptionModeDialog()
@@ -1632,10 +1698,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildAuthCard(BuildContext context) {
     return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      color: Theme.of(context).colorScheme.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(
+          color: Theme.of(context)
+              .colorScheme
+              .outlineVariant
+              .withValues(alpha: 0.35),
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
       child: ExpansionTile(
         initiallyExpanded: false,
+        tilePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+        childrenPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
         leading: const Icon(Icons.person_outline),
         title: const Text(
           'Account',
@@ -1646,7 +1725,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ? 'Signed in as ${_userEmail.isEmpty ? 'your account' : _userEmail}'
               : 'You are not signed in.',
         ),
-        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         children: [
           const SizedBox(height: 8),
           if (_isLoggedIn) ...[

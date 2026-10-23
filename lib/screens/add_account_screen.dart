@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/database_service.dart';
 import '../models/account.dart';
+import '../widgets/account_type_icon.dart';
 
 class AddAccountScreen extends StatefulWidget {
   final Account? account;
@@ -379,17 +380,22 @@ Card(
         Widget option({
           required String value,
           required String label,
-          required IconData icon,
+          AccountType? accountType,
+          IconData? icon,
         }) {
           final isSelected = currentValue == value;
+          final iconColor = isSelected
+              ? colorScheme.primary
+              : colorScheme.onSurfaceVariant;
 
           return ListTile(
-            leading: Icon(
-              icon,
-              color: isSelected
-                  ? colorScheme.primary
-                  : colorScheme.onSurfaceVariant,
-            ),
+            leading: accountType != null
+                ? AccountTypeIcon(
+                    type: accountType,
+                    displayName: label,
+                    color: iconColor,
+                  )
+                : Icon(icon, color: iconColor),
             title: Text(
               label,
               style: TextStyle(
@@ -448,22 +454,22 @@ Card(
                 option(
                   value: AccountType.cash.name,
                   label: 'Cash',
-                  icon: Icons.account_balance_wallet_outlined,
+                  accountType: AccountType.cash,
                 ),
                 option(
                   value: AccountType.bank.name,
                   label: 'Checking',
-                  icon: Icons.account_balance_outlined,
+                  accountType: AccountType.bank,
                 ),
                 option(
                   value: AccountType.card.name,
                   label: 'Card',
-                  icon: Icons.credit_card_outlined,
+                  accountType: AccountType.card,
                 ),
                 option(
                   value: AccountType.investment.name,
                   label: 'Savings',
-                  icon: Icons.savings_outlined,
+                  accountType: AccountType.investment,
                 ),
 
                 if (customTypes.isNotEmpty) ...[

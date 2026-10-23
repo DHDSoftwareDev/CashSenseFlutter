@@ -429,12 +429,77 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
     }
   }
 
+  BoxDecoration _sectionDecoration(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return BoxDecoration(
+      color: colorScheme.surface,
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(
+        color: colorScheme.outlineVariant.withValues(alpha: 0.35),
+      ),
+    );
+  }
+
+  Widget _actionTile({
+    required BuildContext context,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback? onTap,
+    bool showProgress = false,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: 16,
+        vertical: 6,
+      ),
+      leading: Container(
+        width: 42,
+        height: 42,
+        decoration: BoxDecoration(
+          color: colorScheme.primaryContainer.withValues(alpha: 0.55),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(
+          icon,
+          color: colorScheme.primary,
+          size: 22,
+        ),
+      ),
+      title: Text(
+        title,
+        style: const TextStyle(fontWeight: FontWeight.w600),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: TextStyle(color: colorScheme.onSurfaceVariant),
+      ),
+      trailing: showProgress
+          ? const SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : Icon(
+              Icons.chevron_right_rounded,
+              color: colorScheme.onSurfaceVariant,
+            ),
+      onTap: onTap,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     final userSessionController = context.watch<UserSessionController>();
     final isPremium = userSessionController.isPremium;
+
     final autoBackupEnabled =
         DatabaseService.getSetting<bool>('autoBackupEnabled', false) ?? false;
+
     final lastBackupRaw = DatabaseService.getSetting<String>(
       'lastAutoBackupAt',
       null,
@@ -448,81 +513,198 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Backup & Restore')),
+      backgroundColor: colorScheme.surfaceContainerLowest,
+      appBar: AppBar(
+        title: const Text(
+          'Backup & Restore',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        centerTitle: true,
+        backgroundColor: colorScheme.primary,
+        foregroundColor: Colors.white,
+        elevation: 0,
+      ),
       body: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
         children: [
-          ListTile(
-            leading: const Icon(Icons.backup),
-            title: const Text('Backup Data'),
-            subtitle: const Text('Create a local backup file'),
-            trailing: _isRunning
-                ? const SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(),
-                  )
-                : null,
-            onTap: _isRunning ? null : _runBackup,
+          Text(
+            'LOCAL BACKUP',
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: colorScheme.primary,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.7,
+                ),
           ),
-          ListTile(
-            leading: const Icon(Icons.restore),
-            title: const Text('Restore Data'),
-            subtitle: const Text('Restore from a backup file'),
-            onTap: _restoreFromFile,
+          const SizedBox(height: 8),
+
+          Container(
+            decoration: _sectionDecoration(context),
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              children: [
+                _actionTile(
+                  context: context,
+                  icon: Icons.backup_outlined,
+                  title: 'Backup Data',
+                  subtitle: 'Create a local backup file',
+                  showProgress: _isRunning,
+                  onTap: _isRunning ? null : _runBackup,
+                ),
+                Divider(
+                  height: 1,
+                  indent: 74,
+                  color: colorScheme.outlineVariant
+                      .withValues(alpha: 0.35),
+                ),
+                _actionTile(
+                  context: context,
+                  icon: Icons.restore_rounded,
+                  title: 'Restore Data',
+                  subtitle: 'Restore from a backup file',
+                  onTap: _isRunning ? null : _restoreFromFile,
+                ),
+              ],
+            ),
           ),
+
           if (isPremium) ...[
-            ListTile(
-              leading: const Icon(Icons.cloud_upload),
-              title: const Text('Backup to Cloud'),
-              subtitle: const Text(
-                'Upload your current data to your premium cloud backup',
-              ),
-              trailing: _isRunning
-                  ? const SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(),
-                    )
-                  : null,
-              onTap: _isRunning ? null : _backupToCloud,
+            const SizedBox(height: 24),
+
+            Text(
+              'CLOUD BACKUP',
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: colorScheme.primary,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.7,
+                  ),
             ),
-            ListTile(
-              leading: const Icon(Icons.cloud_download),
-              title: const Text('Restore From Cloud Backup'),
-              subtitle: const Text(
-                'Replace this device with your latest premium backup',
+            const SizedBox(height: 8),
+
+            Container(
+              decoration: _sectionDecoration(context),
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                children: [
+                  _actionTile(
+                    context: context,
+                    icon: Icons.cloud_upload_outlined,
+                    title: 'Backup to Cloud',
+                    subtitle:
+                        'Upload your current data to your premium cloud backup',
+                    showProgress: _isRunning,
+                    onTap: _isRunning ? null : _backupToCloud,
+                  ),
+                  Divider(
+                    height: 1,
+                    indent: 74,
+                    color: colorScheme.outlineVariant
+                        .withValues(alpha: 0.35),
+                  ),
+                  _actionTile(
+                    context: context,
+                    icon: Icons.cloud_download_outlined,
+                    title: 'Restore From Cloud Backup',
+                    subtitle:
+                        'Replace this device with your latest premium backup',
+                    onTap: _isRunning ? null : _restoreFromCloudBackup,
+                  ),
+                  Divider(
+                    height: 1,
+                    indent: 74,
+                    color: colorScheme.outlineVariant
+                        .withValues(alpha: 0.35),
+                  ),
+                  _actionTile(
+                    context: context,
+                    icon: Icons.history_rounded,
+                    title: 'Automatic Backup History',
+                    subtitle: 'View and restore recent automatic backups',
+                    onTap: _showAutoBackupHistoryPopup,
+                  ),
+                  Divider(
+                    height: 1,
+                    indent: 74,
+                    color: colorScheme.outlineVariant
+                        .withValues(alpha: 0.35),
+                  ),
+                  SwitchListTile(
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 6,
+                    ),
+                    secondary: Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: colorScheme.primaryContainer
+                            .withValues(alpha: 0.55),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        Icons.cloud_sync_outlined,
+                        color: colorScheme.primary,
+                        size: 22,
+                      ),
+                    ),
+                    title: const Text(
+                      'Automatic Cloud Backup',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    subtitle: Text(
+                      autoBackupEnabled
+                          ? lastBackup != null
+                              ? 'Enabled • Last backup ${DateFormat('M/d/yy h:mm a').format(lastBackup)}'
+                              : 'Enabled'
+                          : 'Disabled',
+                      style: TextStyle(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    value: autoBackupEnabled,
+                    onChanged: (value) async {
+                      await DatabaseService.setSetting(
+                        'autoBackupEnabled',
+                        value,
+                      );
+                      setState(() {});
+                    },
+                  ),
+                ],
               ),
-              onTap: _isRunning ? null : _restoreFromCloudBackup,
-            ),
-            ListTile(
-              leading: const Icon(Icons.history),
-              title: const Text('Automatic Backup History'),
-              subtitle: const Text('View and restore recent automatic backups'),
-              onTap: _showAutoBackupHistoryPopup,
-            ),
-            SwitchListTile(
-              secondary: const Icon(Icons.cloud_upload),
-              title: const Text('Automatic Cloud Backup'),
-              subtitle: Text(
-                autoBackupEnabled
-                    ? lastBackup != null
-                          ? 'Enabled • Last backup ${DateFormat('M/d/yy h:mm a').format(lastBackup)}'
-                          : 'Enabled'
-                    : 'Disabled',
-              ),
-              value: autoBackupEnabled,
-              onChanged: (value) async {
-                await DatabaseService.setSetting('autoBackupEnabled', value);
-                setState(() {});
-              },
             ),
           ],
-          const Divider(),
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Text(
-              'Backups include transactions, categories, accounts, bills, payees, app settings, and bill occurrence statuses. Attachments are not included.',
-              style: Theme.of(context).textTheme.bodySmall,
+
+          const SizedBox(height: 24),
+
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: colorScheme.surfaceContainerHighest
+                  .withValues(alpha: 0.40),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.info_outline_rounded,
+                  size: 21,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Backups include transactions, categories, accounts, bills, payees, app settings, and bill occurrence statuses. Attachments are not included.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                          height: 1.4,
+                        ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],

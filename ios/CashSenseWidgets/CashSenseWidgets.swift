@@ -361,41 +361,39 @@ private struct WidgetHeader: View {
     let title: String
     let summary: String
     let foreground: Color
-    var stacksVertically = false
+    let icon: String
+    var compact = false
 
     var body: some View {
-        Group {
-            if stacksVertically {
-                VStack(alignment: .leading, spacing: 2) {
-                    titleText
-                    summaryText
-                }
-            } else {
-                HStack(alignment: .firstTextBaseline) {
-                    titleText
-                    Spacer(minLength: 4)
-                    summaryText
+        HStack(spacing: compact ? 7 : 9) {
+            ZStack {
+                RoundedRectangle(cornerRadius: compact ? 8 : 10, style: .continuous)
+                    .fill(foreground.opacity(0.14))
+                Image(systemName: icon)
+                    .font(.system(size: compact ? 12 : 14, weight: .semibold))
+                    .foregroundStyle(foreground)
+            }
+            .frame(width: compact ? 27 : 32, height: compact ? 27 : 32)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.system(size: compact ? 14 : 16, weight: .bold, design: .rounded))
+                    .foregroundStyle(foreground)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+
+                if !summary.isEmpty {
+                    Text(summary)
+                        .font(.system(size: compact ? 9 : 10, weight: .semibold, design: .rounded))
+                        .foregroundStyle(foreground.opacity(0.76))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
                 }
             }
+
+            Spacer(minLength: 3)
         }
-        // Bill rows can use two lines. Keep the header from being collapsed
-        // when their combined ideal height is taller than the widget.
         .fixedSize(horizontal: false, vertical: true)
-        .layoutPriority(1)
-    }
-
-    private var titleText: some View {
-        Text(title)
-            .font(.headline)
-            .foregroundStyle(foreground)
-            .lineLimit(1)
-    }
-
-    private var summaryText: some View {
-        Text(summary)
-            .font(.caption.bold())
-            .foregroundStyle(foreground.opacity(0.78))
-            .lineLimit(1)
     }
 }
 
@@ -428,24 +426,24 @@ private struct UpcomingBillsView: View {
 
     private var billsDueThisMonth: Int {
         let calendar = Calendar.autoupdatingCurrent
-        return visibleBills.filter { bill in
-            calendar.isDate(bill.dueDate, equalTo: entry.date, toGranularity: .month)
+        return visibleBills.filter {
+            calendar.isDate($0.dueDate, equalTo: entry.date, toGranularity: .month)
         }.count
     }
 
     private var billSummary: String {
         if entry.billFilter == .pastDue {
-            return "Past due - \(visibleBills.count) bills"
+            return "\(visibleBills.count) past due"
         }
-        let month = entry.date.formatted(.dateTime.month(.wide))
-        return "\(month) - \(billsDueThisMonth) bills due"
+        let month = entry.date.formatted(.dateTime.month(.abbreviated))
+        return "\(month) · \(billsDueThisMonth) due"
     }
 
     private var emptyMessage: String {
         switch entry.billFilter {
         case .all: return "No upcoming bills"
-        case .unpaid: return "No upcoming unpaid bills"
-        case .paid: return "No upcoming paid bills"
+        case .unpaid: return "No unpaid bills"
+        case .paid: return "No paid bills"
         case .pastDue: return "No past-due bills"
         }
     }
@@ -453,72 +451,168 @@ private struct UpcomingBillsView: View {
     private var rowLimit: Int {
         switch family {
         case .systemSmall: return 2
-        case .systemLarge: return 6
-        default: return 4
+        case .systemMedium: return 2
+        case .systemLarge: return 5
+        default: return 2
         }
+    }
+
+    private var displayedBills: [BillItem] {
+        Array(visibleBills.prefix(rowLimit))
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            WidgetHeader(
-                title: "Upcoming Bills",
-                summary: billSummary,
-                foreground: entry.snapshot.widgetForegroundColor,
-                stacksVertically: family == .systemSmall
-            )
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .background(entry.snapshot.widgetColor)
+            header
 
-            VStack(alignment: .leading, spacing: 8) {
-                if visibleBills.isEmpty {
-                    Spacer()
-                    Text(emptyMessage)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                    Spacer()
-                } else {
-                    let displayedBills = Array(visibleBills.prefix(rowLimit))
-                    ForEach(Array(displayedBills.enumerated()), id: \.element.id) { index, bill in
-                        Link(destination: billURL(bill)) {
-                            HStack(spacing: 6) {
-                                VStack(alignment: .leading, spacing: 1) {
-                                    Text(bill.name).font(.caption.bold()).lineLimit(1)
-                                    if let note = bill.note, !note.isEmpty {
-                                        Text(note)
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
-                                            .lineLimit(1)
-                                    }
-                                }
-                                Spacer(minLength: 4)
-                                VStack(alignment: .trailing, spacing: 1) {
-                                    Text(bill.amount, format: .currency(code: "USD"))
-                                        .font(.caption)
-                                        .lineLimit(1)
-                                    Text(bill.isPaid ? "Paid · \(dueText(bill.dueDate))" : dueText(bill.dueDate))
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(1)
-                                }
-                            }
-                        }
-                        .foregroundStyle(.primary)
-                        if index < displayedBills.count - 1 {
-                            Divider()
-                        }
-                    }
-                    Spacer(minLength: 0)
-                }
+            if visibleBills.isEmpty {
+                emptyState
+            } else {
+                billsList
             }
-            .padding(10)
-            .frame(maxHeight: .infinity, alignment: .topLeading)
-            .clipped()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .cashSenseWidgetBackground(Color(.systemBackground))
         .widgetURL(visibleBills.first.map(billURL) ?? URL(string: "cashsense://bills")!)
+    }
+
+    private var header: some View {
+        WidgetHeader(
+            title: family == .systemSmall ? "Bills" : "Upcoming Bills",
+            summary: billSummary,
+            foreground: entry.snapshot.widgetForegroundColor,
+            icon: "calendar.badge.clock",
+            compact: family == .systemSmall
+        )
+        .padding(.horizontal, family == .systemSmall ? 11 : 14)
+        .padding(
+            .vertical,
+            family == .systemSmall ? 7 : (family == .systemMedium ? 8 : 10)
+        )
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(entry.snapshot.widgetColor)
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 7) {
+            Spacer(minLength: 0)
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: family == .systemSmall ? 23 : 28))
+                .foregroundStyle(entry.snapshot.widgetColor.opacity(0.85))
+            Text(emptyMessage)
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(10)
+    }
+
+    private var billsList: some View {
+        VStack(spacing: 0) {
+            ForEach(Array(displayedBills.enumerated()), id: \.element.id) { index, bill in
+                Link(destination: billURL(bill)) {
+                    billRow(bill)
+                }
+                .buttonStyle(.plain)
+
+                if index < displayedBills.count - 1 {
+                    Divider()
+                        .padding(.leading, family == .systemSmall ? 10 : 38)
+                }
+            }
+
+            if visibleBills.count > displayedBills.count && family != .systemSmall {
+                HStack {
+                    Spacer()
+                    Text("+\(visibleBills.count - displayedBills.count) more")
+                        .font(.system(size: 9, weight: .semibold, design: .rounded))
+                        .foregroundStyle(entry.snapshot.widgetColor)
+                }
+                .padding(.top, family == .systemMedium ? 2 : 4)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, family == .systemSmall ? 9 : 11)
+        .padding(.top, family == .systemSmall ? 3 : (family == .systemMedium ? 3 : 6))
+        .padding(.bottom, family == .systemMedium ? 3 : 6)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .clipped()
+    }
+
+    @ViewBuilder
+    private func billRow(_ bill: BillItem) -> some View {
+        if family == .systemSmall {
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 4) {
+                    Text(bill.name)
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .lineLimit(1)
+                    Spacer(minLength: 3)
+                    Text(bill.amount, format: .currency(code: "USD"))
+                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                }
+
+                HStack(spacing: 4) {
+                    Text(dueText(bill.dueDate))
+                        .font(.system(size: 9, weight: .medium, design: .rounded))
+                        .foregroundStyle(dueColor(bill))
+                        .lineLimit(1)
+                    Spacer(minLength: 3)
+                    if bill.isPaid {
+                        Text("PAID")
+                            .font(.system(size: 7, weight: .bold, design: .rounded))
+                            .foregroundStyle(.green)
+                    }
+                }
+            }
+            .padding(.vertical, 6)
+            .foregroundStyle(.primary)
+        } else {
+            HStack(spacing: 9) {
+                ZStack {
+                    Circle()
+                        .fill(entry.snapshot.widgetColor.opacity(0.12))
+                    Image(systemName: bill.isPaid ? "checkmark" : "dollarsign")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(bill.isPaid ? .green : entry.snapshot.widgetColor)
+                }
+                .frame(width: 27, height: 27)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(bill.name)
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .lineLimit(1)
+                    if let note = bill.note, !note.isEmpty {
+                        Text(note)
+                            .font(.system(size: 9, weight: .medium, design: .rounded))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+
+                Spacer(minLength: 5)
+
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(bill.amount, format: .currency(code: "USD"))
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .lineLimit(1)
+                    Text(bill.isPaid ? "Paid · \(dueText(bill.dueDate))" : dueText(bill.dueDate))
+                        .font(.system(size: 9, weight: .medium, design: .rounded))
+                        .foregroundStyle(dueColor(bill))
+                        .lineLimit(1)
+                }
+            }
+            .padding(
+                .vertical,
+                family == .systemMedium ? 4 : (family == .systemLarge ? 6 : 5)
+            )
+            .foregroundStyle(.primary)
+        }
     }
 
     private func billURL(_ bill: BillItem) -> URL {
@@ -537,6 +631,14 @@ private struct UpcomingBillsView: View {
         if days == 1 { return "Due tomorrow" }
         return "Due \(date.formatted(.dateTime.month(.abbreviated).day()))"
     }
+
+    private func dueColor(_ bill: BillItem) -> Color {
+        if bill.isPaid { return .green }
+        let calendar = Calendar.autoupdatingCurrent
+        let due = calendar.startOfDay(for: bill.dueDate)
+        let current = calendar.startOfDay(for: entry.date)
+        return due < current ? .red : .secondary
+    }
 }
 
 @available(iOSApplicationExtension 17.0, *)
@@ -554,7 +656,7 @@ private struct AccountBalancesView: View {
 
     private var rowLimit: Int {
         switch family {
-        case .systemSmall: return 2
+        case .systemSmall: return 3
         case .systemLarge: return 8
         default: return 4
         }
@@ -566,78 +668,152 @@ private struct AccountBalancesView: View {
 
     private var summary: String {
         if entry.snapshot.hideBalances { return "••••" }
-        let currencies = Set(visibleAccounts.map(\.currency))
+        let currencies = Set(displayedAccounts.map(\.currency))
         if currencies.count > 1 {
-            return "\(visibleAccounts.count) accounts"
+            return "\(displayedAccounts.count) accounts"
         }
         let currency = currencies.first ?? entry.snapshot.totalCurrency ?? "USD"
-        return money(visibleBalance, currency)
+        return money(selectedTotal, currency)
     }
 
-    private var visibleBalance: Double {
-        visibleAccounts.reduce(0) { total, account in
-            total + balance(for: account)
-        }
+    private var selectedTotal: Double {
+        displayedAccounts.reduce(0) { $0 + balance(for: $1) }
     }
 
     private var title: String {
-        let plural = displayedAccounts.count != 1
-        switch (entry.balanceType, plural) {
-        case (.available, true): return "Available Balances"
-        case (.available, false): return "Available Balance"
-        case (.current, true): return "Current Balances"
-        case (.current, false): return "Current Balance"
+        switch entry.balanceType {
+        case .available: return family == .systemSmall ? "Available" : "Available Balance"
+        case .current: return family == .systemSmall ? "Current" : "Current Balance"
         }
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            WidgetHeader(
-                title: title,
-                summary: summary,
-                foreground: entry.snapshot.widgetForegroundColor
-            )
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .background(entry.snapshot.widgetColor)
+            header
 
-            VStack(alignment: .leading, spacing: 0) {
-                if displayedAccounts.isEmpty {
-                    Spacer()
-                    Text(entry.selectedAccountIDs == nil ? "No active accounts" : "Selected accounts unavailable")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                    Spacer()
-                } else {
-                    ForEach(Array(visibleAccounts.enumerated()), id: \.element.id) { index, account in
-                        Link(destination: accountURL(account)) {
-                            HStack(spacing: 6) {
-                                Text(account.name).font(.caption.bold()).lineLimit(1)
-                                Spacer(minLength: 4)
-                                Text(
-                                    entry.snapshot.hideBalances
-                                        ? "••••"
-                                        : money(balance(for: account), account.currency)
-                                )
-                                .font(.caption)
-                                .lineLimit(1)
-                            }
-                        }
-                        .foregroundStyle(.primary)
-                        .padding(.vertical, 7)
-                        if index < visibleAccounts.count - 1 {
-                            Divider().overlay(entry.snapshot.widgetColor)
-                        }
-                    }
-                    Spacer(minLength: 0)
-                }
+            if displayedAccounts.isEmpty {
+                emptyState
+            } else {
+                accountList
             }
-            .padding(.horizontal, 10)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .cashSenseWidgetBackground(Color(.systemBackground))
         .widgetURL(URL(string: "cashsense://accounts"))
+    }
+
+    private var header: some View {
+        WidgetHeader(
+            title: title,
+            summary: summary,
+            foreground: entry.snapshot.widgetForegroundColor,
+            icon: "wallet.bifold.fill",
+            compact: family == .systemSmall
+        )
+        .padding(.horizontal, family == .systemSmall ? 10 : 14)
+        .padding(.vertical, family == .systemSmall ? 8 : 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(entry.snapshot.widgetColor)
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 7) {
+            Spacer(minLength: 0)
+            Image(systemName: "wallet.bifold")
+                .font(.system(size: family == .systemSmall ? 23 : 28))
+                .foregroundStyle(entry.snapshot.widgetColor.opacity(0.8))
+            Text(entry.selectedAccountIDs == nil ? "No active accounts" : "Accounts unavailable")
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(10)
+    }
+
+    private var accountList: some View {
+        VStack(spacing: 0) {
+            ForEach(Array(visibleAccounts.enumerated()), id: \.element.id) { index, account in
+                Link(destination: accountURL(account)) {
+                    accountRow(account)
+                }
+                .buttonStyle(.plain)
+
+                if index < visibleAccounts.count - 1 {
+                    Divider()
+                        .padding(.leading, family == .systemSmall ? 8 : 38)
+                }
+            }
+
+            if displayedAccounts.count > visibleAccounts.count && family != .systemSmall {
+                HStack {
+                    Spacer()
+                    Text("+\(displayedAccounts.count - visibleAccounts.count) more")
+                        .font(.system(size: 9, weight: .semibold, design: .rounded))
+                        .foregroundStyle(entry.snapshot.widgetColor)
+                }
+                .padding(.top, 4)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, family == .systemSmall ? 9 : 11)
+        .padding(.top, family == .systemSmall ? 4 : 6)
+        .padding(.bottom, 6)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .clipped()
+    }
+
+    @ViewBuilder
+    private func accountRow(_ account: AccountItem) -> some View {
+        if family == .systemSmall {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(account.name)
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .lineLimit(1)
+
+                Text(
+                    entry.snapshot.hideBalances
+                        ? "••••"
+                        : money(balance(for: account), account.currency)
+                )
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .foregroundStyle(balanceColor(account))
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 5)
+        } else {
+            HStack(spacing: 9) {
+                ZStack {
+                    Circle()
+                        .fill(entry.snapshot.widgetColor.opacity(0.12))
+                    Image(systemName: "creditcard.fill")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(entry.snapshot.widgetColor)
+                }
+                .frame(width: 27, height: 27)
+
+                Text(account.name)
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .lineLimit(1)
+
+                Spacer(minLength: 5)
+
+                Text(
+                    entry.snapshot.hideBalances
+                        ? "••••"
+                        : money(balance(for: account), account.currency)
+                )
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .foregroundStyle(balanceColor(account))
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+            }
+            .padding(.vertical, family == .systemLarge ? 7 : 6)
+        }
     }
 
     private func accountURL(_ account: AccountItem) -> URL {
@@ -653,6 +829,11 @@ private struct AccountBalancesView: View {
         case .current:
             return account.currentBalance ?? account.balance
         }
+    }
+
+    private func balanceColor(_ account: AccountItem) -> Color {
+        if entry.snapshot.hideBalances { return .primary }
+        return balance(for: account) < 0 ? .red : .primary
     }
 
     private func money(_ amount: Double, _ currency: String) -> String {

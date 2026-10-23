@@ -35,9 +35,6 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       false; // Toggle between current and available balance
   final Set<String> _expandedMonths =
       {}; // Track which month groups are expanded
-  String? _autoExpandedMonthKey;
-  int? _lastPendingTransactionCount;
-  bool _showCleared = true; // Toggle for showing/hiding cleared transactions
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
@@ -72,13 +69,51 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     groups.removeWhere((_, transactions) => transactions.length < 2);
 
     if (groups.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Add at least two transactions on the same date to rearrange them.',
+      final colorScheme = Theme.of(context).colorScheme;
+
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: colorScheme.inverseSurface,
+            margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            content: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: colorScheme.primary.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(11),
+                  ),
+                  child: Icon(
+                    Icons.swap_vert_rounded,
+                    color: colorScheme.primary,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'You need at least two transactions on the same date to rearrange them.',
+                    style: TextStyle(
+                      color: colorScheme.onInverseSurface,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      height: 1.35,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-      );
+        );
       return;
     }
 
@@ -92,92 +127,377 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) {
+          final colorScheme = Theme.of(context).colorScheme;
           final selectedTransactions = groups[selectedGroup]!;
-          return AlertDialog(
-            title: const Text('Rearrange Transactions'),
-            content: SizedBox(
-              width: 480,
-              height: MediaQuery.sizeOf(context).height * 0.55,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  DropdownButtonFormField<String>(
-                    initialValue: selectedGroup,
-                    decoration: const InputDecoration(
-                      labelText: 'Date and status',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: groupKeys
-                        .map(
-                          (key) => DropdownMenuItem<String>(
-                            value: key,
-                            child: Text(_reorderGroupLabel(key)),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (value) {
-                      if (value == null) return;
-                      setDialogState(() => selectedGroup = value);
-                    },
+
+          return Dialog(
+            backgroundColor: Colors.transparent,
+            insetPadding: const EdgeInsets.symmetric(
+              horizontal: 20,
+              vertical: 28,
+            ),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: 520,
+                maxHeight: MediaQuery.sizeOf(context).height * 0.78,
+              ),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: colorScheme.surface,
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: colorScheme.outlineVariant
+                        .withValues(alpha: 0.35),
                   ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Drag transactions into the order you want displayed. '
-                    'Running balances will be recalculated when you save.',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                  const SizedBox(height: 8),
-                  Expanded(
-                    child: ReorderableListView.builder(
-                      buildDefaultDragHandles: false,
-                      itemCount: selectedTransactions.length,
-                      onReorder: (oldIndex, newIndex) {
-                        setDialogState(() {
-                          if (newIndex > oldIndex) newIndex--;
-                          final moved = selectedTransactions.removeAt(oldIndex);
-                          selectedTransactions.insert(newIndex, moved);
-                        });
-                      },
-                      itemBuilder: (context, index) {
-                        final transaction = selectedTransactions[index];
-                        final signedAmount =
-                            transaction.type == TransactionType.income
-                            ? transaction.amount
-                            : -transaction.amount;
-                        return Card(
-                          key: ValueKey(transaction.id),
-                          margin: const EdgeInsets.symmetric(vertical: 3),
-                          child: ListTile(
-                            dense: true,
-                            title: Text(transaction.description),
-                            subtitle: Text(
-                              _currencyFormat.format(signedAmount),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(22, 22, 16, 18),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: colorScheme.primaryContainer
+                                  .withValues(alpha: 0.60),
+                              borderRadius: BorderRadius.circular(13),
                             ),
-                            trailing: ReorderableDragStartListener(
-                              index: index,
-                              child: const Padding(
-                                padding: EdgeInsets.all(8),
-                                child: Icon(Icons.drag_handle),
+                            child: Icon(
+                              Icons.swap_vert_rounded,
+                              color: colorScheme.primary,
+                              size: 25,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Text(
+                              'Rearrange Transactions',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleLarge
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Close',
+                            onPressed: () =>
+                                Navigator.of(dialogContext).pop(),
+                            icon: const Icon(Icons.close_rounded),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    Divider(
+                      height: 1,
+                      color: colorScheme.outlineVariant
+                          .withValues(alpha: 0.30),
+                    ),
+
+                    Flexible(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(22, 20, 22, 16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              'DATE & STATUS',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelLarge
+                                  ?.copyWith(
+                                    color: colorScheme.primary,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0.7,
+                                  ),
+                            ),
+                            const SizedBox(height: 8),
+
+                            DropdownButtonFormField<String>(
+                              initialValue: selectedGroup,
+                              isExpanded: true,
+                              decoration: InputDecoration(
+                                filled: true,
+                                fillColor: colorScheme
+                                    .surfaceContainerHighest
+                                    .withValues(alpha: 0.45),
+                                prefixIcon: const Icon(
+                                  Icons.calendar_month_outlined,
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 17,
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                  borderSide: BorderSide.none,
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                  borderSide: BorderSide.none,
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                  borderSide: BorderSide(
+                                    color: colorScheme.primary,
+                                    width: 1.5,
+                                  ),
+                                ),
+                              ),
+                              items: groupKeys
+                                  .map(
+                                    (key) => DropdownMenuItem<String>(
+                                      value: key,
+                                      child: Text(
+                                        _reorderGroupLabel(key),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
+                              onChanged: (value) {
+                                if (value == null) return;
+                                setDialogState(
+                                  () => selectedGroup = value,
+                                );
+                              },
+                            ),
+
+                            const SizedBox(height: 18),
+
+                            Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: colorScheme.primaryContainer
+                                    .withValues(alpha: 0.28),
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Icon(
+                                    Icons.drag_indicator_rounded,
+                                    color: colorScheme.primary,
+                                    size: 21,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      'Drag transactions into the order you want displayed. '
+                                      'Running balances will be recalculated when you save.',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                            color:
+                                                colorScheme.onSurfaceVariant,
+                                            height: 1.4,
+                                          ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            const SizedBox(height: 18),
+
+                            Text(
+                              'TRANSACTIONS',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelLarge
+                                  ?.copyWith(
+                                    color: colorScheme.primary,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0.7,
+                                  ),
+                            ),
+                            const SizedBox(height: 8),
+
+                            SizedBox(
+                              height: selectedTransactions.length <= 3
+                                  ? selectedTransactions.length * 84.0
+                                  : 300,
+                              child: ReorderableListView.builder(
+                                buildDefaultDragHandles: false,
+                                padding: EdgeInsets.zero,
+                                itemCount: selectedTransactions.length,
+                                onReorder: (oldIndex, newIndex) {
+                                  setDialogState(() {
+                                    if (newIndex > oldIndex) newIndex--;
+                                    final moved = selectedTransactions
+                                        .removeAt(oldIndex);
+                                    selectedTransactions.insert(
+                                      newIndex,
+                                      moved,
+                                    );
+                                  });
+                                },
+                                itemBuilder: (context, index) {
+                                  final transaction =
+                                      selectedTransactions[index];
+                                  final signedAmount =
+                                      transaction.type ==
+                                              TransactionType.income
+                                          ? transaction.amount
+                                          : -transaction.amount;
+
+                                  return Container(
+                                    key: ValueKey(transaction.id),
+                                    margin:
+                                        const EdgeInsets.only(bottom: 10),
+                                    padding: const EdgeInsets.fromLTRB(
+                                      16,
+                                      12,
+                                      10,
+                                      12,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: colorScheme
+                                          .surfaceContainerHighest
+                                          .withValues(alpha: 0.38),
+                                      borderRadius:
+                                          BorderRadius.circular(16),
+                                      border: Border.all(
+                                        color: colorScheme.outlineVariant
+                                            .withValues(alpha: 0.28),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                transaction.description,
+                                                maxLines: 2,
+                                                overflow:
+                                                    TextOverflow.ellipsis,
+                                                style: const TextStyle(
+                                                  fontWeight:
+                                                      FontWeight.w600,
+                                                  fontSize: 15,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                _currencyFormat.format(
+                                                  signedAmount,
+                                                ),
+                                                style: TextStyle(
+                                                  color: signedAmount >= 0
+                                                      ? Colors.green
+                                                      : colorScheme.error,
+                                                  fontWeight:
+                                                      FontWeight.w600,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        ReorderableDragStartListener(
+                                          index: index,
+                                          child: Container(
+                                            width: 42,
+                                            height: 42,
+                                            decoration: BoxDecoration(
+                                              color: colorScheme
+                                                  .primaryContainer
+                                                  .withValues(alpha: 0.50),
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                            ),
+                                            child: Icon(
+                                              Icons.drag_handle_rounded,
+                                              color: colorScheme.primary,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    Divider(
+                      height: 1,
+                      color: colorScheme.outlineVariant
+                          .withValues(alpha: 0.30),
+                    ),
+
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(22, 14, 22, 20),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: SizedBox(
+                              height: 50,
+                              child: OutlinedButton(
+                                onPressed: () =>
+                                    Navigator.of(dialogContext).pop(),
+                                style: OutlinedButton.styleFrom(
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                child: const Text(
+                                  'Cancel',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
                               ),
                             ),
                           ),
-                        );
-                      },
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: SizedBox(
+                              height: 50,
+                              child: FilledButton.icon(
+                                onPressed: () => Navigator.of(
+                                  dialogContext,
+                                ).pop(groups),
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: colorScheme.primary,
+                                  foregroundColor: colorScheme.onPrimary,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                icon: const Icon(
+                                  Icons.check_rounded,
+                                  size: 20,
+                                ),
+                                label: const Text(
+                                  'Save Order',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.of(dialogContext).pop(groups),
-                child: const Text('Save Order'),
-              ),
-            ],
           );
         },
       ),
@@ -220,10 +540,6 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     if (savedFilter != null && savedFilter.isNotEmpty) {
       _selectedFilter = savedFilter;
     }
-    // Restore hide/show cleared preference
-    _showCleared =
-        DatabaseService.getSetting<bool>('transactionsShowCleared', true) ??
-        true;
     _loadTransactions();
     _runLegacyCalendarHideMigrationIfNeeded();
     DatabaseService.transactionsVersion.addListener(_onTransactionsChanged);
@@ -377,35 +693,117 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     required bool newCleared,
   }) async {
     final actionLabel = newCleared ? 'cleared' : 'uncleared';
+
     return showDialog<_TransferClearChoice>(
       context: context,
       builder: (dialogContext) {
+        final colorScheme = Theme.of(dialogContext).colorScheme;
+
         return AlertDialog(
-          title: const Text('Update Transfer Status'),
+          backgroundColor: colorScheme.surface,
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(22),
+          ),
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 28,
+            vertical: 24,
+          ),
+          titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+          contentPadding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+          actionsPadding: const EdgeInsets.fromLTRB(24, 20, 24, 18),
+          title: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: colorScheme.primaryContainer.withValues(alpha: 0.65),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: Icon(
+                  newCleared
+                      ? Icons.check_circle_outline_rounded
+                      : Icons.pending_outlined,
+                  color: colorScheme.primary,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 14),
+              const Expanded(
+                child: Text(
+                  'Update Transfer Status',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 20,
+                  ),
+                ),
+              ),
+            ],
+          ),
           content: Text(
             'Do you want to mark just this side or both sides of the transfer as $actionLabel?',
+            style: Theme.of(dialogContext).textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                  height: 1.4,
+                ),
           ),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () =>
-                  Navigator.of(dialogContext).pop(_TransferClearChoice.oneSide),
-              child: const Text(
-                'Just this side',
-                style: TextStyle(color: Colors.red),
-              ),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(
-                dialogContext,
-              ).pop(_TransferClearChoice.bothSides),
-              child: const Text(
-                'Both sides',
-                style: TextStyle(color: Colors.red),
-              ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(
+                  height: 50,
+                  child: FilledButton(
+                    onPressed: () => Navigator.of(dialogContext)
+                        .pop(_TransferClearChoice.bothSides),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: colorScheme.primary,
+                      foregroundColor: colorScheme.onPrimary,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      'Both Sides',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  height: 50,
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(dialogContext)
+                        .pop(_TransferClearChoice.oneSide),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: colorScheme.primary,
+                      side: BorderSide(
+                        color: colorScheme.outlineVariant,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      'Just This Side',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Cancel'),
+                ),
+              ],
             ),
           ],
         );
@@ -495,11 +893,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   }
 
   List<Transaction> get _filteredTransactions {
-    var filtered = _transactions.where(_matchesSelectedFilter).toList();
-    if (!_showCleared) {
-      filtered = filtered.where((t) => t.cleared != true).toList();
-    }
-    // Sort newest to oldest, honoring any saved same-day arrangement.
+    final filtered = _transactions.where(_matchesSelectedFilter).toList();
+
+    // Always include both cleared and uncleared transactions.
     filtered.sort(_compareTransactionsForDisplay);
     return filtered;
   }
@@ -742,7 +1138,6 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               // Search bar under the balance header. When a search query is entered
               // we show a flat list of matching transactions (includes cleared),
               // otherwise we show the normal grouped transactions list which
-              // respects the Show/Hide Cleared toggle.
             Padding(
   padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
   child: TextField(
@@ -900,29 +1295,6 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       (sum, tx) =>
           sum + (tx.type == TransactionType.income ? tx.amount : -tx.amount),
     );
-    final previousPendingCount = _lastPendingTransactionCount;
-    final pendingJustEmptied =
-        showPendingSection &&
-        pendingTxs.isEmpty &&
-        previousPendingCount != null &&
-        previousPendingCount > 0;
-    _lastPendingTransactionCount = pendingTxs.length;
-    final currentMonthKey = DateFormat('yyyy-MM').format(DateTime.now());
-    final defaultMonthKey = sortedMonths.contains(currentMonthKey)
-        ? currentMonthKey
-        : (sortedMonths.isNotEmpty ? sortedMonths.first : null);
-    if (_expandedMonths.isEmpty && defaultMonthKey != null) {
-      _expandedMonths.add(defaultMonthKey);
-      _autoExpandedMonthKey = defaultMonthKey;
-    } else if (pendingJustEmptied &&
-        sortedMonths.contains(currentMonthKey) &&
-        _autoExpandedMonthKey != currentMonthKey) {
-      if (_autoExpandedMonthKey != null) {
-        _expandedMonths.remove(_autoExpandedMonthKey);
-      }
-      _expandedMonths.add(currentMonthKey);
-      _autoExpandedMonthKey = currentMonthKey;
-    }
     // Precompute the two ledgers represented by this screen. Cleared
     // transactions are the historical ledger; pending transactions are a
     // projection from the final cleared balance.
@@ -1037,23 +1409,43 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     ),
   ),
 ],
+        if (showPendingSection)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: _rearrangeTransactions,
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 7,
+                  ),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                icon: const Icon(
+                  Icons.swap_vert_rounded,
+                  size: 18,
+                ),
+                label: const Text(
+                  'Rearrange',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+            ),
+          ),
         for (final monthKey in sortedMonths) ...[
           () {
             List<Transaction> allGroupTxs = groupedTransactions[monthKey]!;
             final groupTxsForDisplay = showPendingSection
                 ? allGroupTxs.where((t) => t.cleared == true).toList()
-                : allGroupTxs;
-            // Sort newest first, honoring any saved same-day arrangement.
+                : List<Transaction>.from(allGroupTxs);
+
+            // Pending transactions are shown only in the Pending section.
+            // Expanded month groups show all non-pending transactions.
             groupTxsForDisplay.sort(_compareTransactionsForDisplay);
-            // Always build the month group, even if all transactions are cleared
-            // Only show cleared transactions in the main list (pending are shown separately)
-            var displayTxs = showPendingSection
-                ? (_showCleared ? groupTxsForDisplay : <Transaction>[])
-                : (_showCleared
-                      ? groupTxsForDisplay
-                      : groupTxsForDisplay
-                            .where((t) => t.cleared != true)
-                            .toList());
+            final displayTxs = groupTxsForDisplay;
             final parsedDate = DateTime.parse('$monthKey-01');
             // Always show the group, even if displayTxs is empty
             return _buildMonthGroup(
@@ -1075,7 +1467,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   }
 
   Widget _buildBalanceHeader() {
-    // Only show balance header when viewing a specific account
+    // Only show balance header when viewing a specific account.
     if (widget.accountId == null || widget.accountId!.isEmpty) {
       return const SizedBox.shrink();
     }
@@ -1098,44 +1490,42 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
     final colorScheme = Theme.of(context).colorScheme;
 
-return Container(
-  margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-  padding: const EdgeInsets.all(16),
-  decoration: BoxDecoration(
-    color: colorScheme.surface,
-    borderRadius: BorderRadius.circular(18),
-    border: Border.all(
-      color: colorScheme.outlineVariant.withValues(alpha: 0.35),
-    ),
-  ),
-  child: Row(
-    crossAxisAlignment: CrossAxisAlignment.center,
-    children: [
-      Expanded(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            InkWell(
-              borderRadius: BorderRadius.circular(8),
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: colorScheme.outlineVariant.withValues(alpha: 0.35),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: InkWell(
+              borderRadius: BorderRadius.circular(10),
               onTap: () {
                 setState(() {
                   _showAvailableBalance = !_showAvailableBalance;
                 });
               },
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 2),
+                padding: const EdgeInsets.symmetric(vertical: 4),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      balanceLabel,
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodyMedium
-                          ?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
-                            fontWeight: FontWeight.w500,
-                          ),
+                    Flexible(
+                      child: Text(
+                        balanceLabel,
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodyMedium
+                            ?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                              fontWeight: FontWeight.w600,
+                            ),
+                      ),
                     ),
                     const SizedBox(width: 5),
                     Icon(
@@ -1147,81 +1537,21 @@ return Container(
                 ),
               ),
             ),
-
-            const SizedBox(height: 6),
-
-            Text(
-              _currencyFormat.format(displayBalance),
-              style: Theme.of(context)
-                  .textTheme
-                  .titleLarge
-                  ?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: displayBalance >= 0
-                        ? AppTheme.incomeGreen
-                        : AppTheme.expenseRed,
-                  ),
-            ),
-          ],
-        ),
-      ),
-
-      Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          TextButton.icon(
-            onPressed: _rearrangeTransactions,
-            style: TextButton.styleFrom(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 8,
-                vertical: 4,
-              ),
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-            icon: const Icon(
-              Icons.swap_vert_rounded,
-              size: 17,
-            ),
-            label: const Text('Rearrange'),
           ),
-
-          const SizedBox(height: 4),
-
-          TextButton.icon(
-            onPressed: () {
-              setState(() {
-                _showCleared = !_showCleared;
-              });
-
-              DatabaseService.setSetting(
-                'transactionsShowCleared',
-                _showCleared,
-              );
-            },
-            style: TextButton.styleFrom(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 8,
-                vertical: 4,
-              ),
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-            icon: Icon(
-              _showCleared
-                  ? Icons.visibility_off_outlined
-                  : Icons.visibility_outlined,
-              size: 17,
-            ),
-            label: Text(
-              _showCleared ? 'Hide Cleared' : 'Show Cleared',
-            ),
+          const SizedBox(width: 16),
+          Text(
+            _currencyFormat.format(displayBalance),
+            textAlign: TextAlign.right,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: displayBalance >= 0
+                      ? AppTheme.incomeGreen
+                      : AppTheme.expenseRed,
+                ),
           ),
         ],
       ),
-    ],
-  ),
-);
+    );
   }
 
   Widget _buildMonthGroup(
@@ -1317,10 +1647,6 @@ return Container(
             _expandedMonths.add(monthKey);
           } else {
             _expandedMonths.remove(monthKey);
-          }
-
-          if (_autoExpandedMonthKey == monthKey) {
-            _autoExpandedMonthKey = null;
           }
         });
       },
@@ -1527,6 +1853,20 @@ return Container(
           builder: (context) => AddTransactionScreen(
             prefillTransaction: transaction,
             isDuplicate: true,
+            hideFromCalendarDashboard: true,
+          ),
+        ),
+      );
+      if (result == true) _loadTransactions();
+    }
+
+    Future<void> createRefund() async {
+      final result = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => AddTransactionScreen(
+            prefillTransaction: transaction,
+            isRefund: true,
             hideFromCalendarDashboard: true,
           ),
         ),
@@ -1815,7 +2155,7 @@ final card = Material(
       key: ValueKey('transaction_swipe_${transaction.id}'),
       startActionPane: ActionPane(
         motion: const DrawerMotion(),
-        extentRatio: 0.50,
+        extentRatio: _isTransferTransaction(transaction) ? 0.50 : 0.75,
         children: [
           CustomSlidableAction(
             onPressed: (_) async => duplicateTransaction(),
@@ -1873,6 +2213,31 @@ final card = Material(
               ],
             ),
           ),
+          if (!_isTransferTransaction(transaction))
+            CustomSlidableAction(
+              onPressed: (_) async => createRefund(),
+              backgroundColor: Colors.teal,
+              foregroundColor: Colors.white,
+              child: const Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.currency_exchange_rounded, color: Colors.white),
+                  SizedBox(height: 4),
+                  Text(
+                    'Refund',
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    softWrap: false,
+                    overflow: TextOverflow.visible,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      height: 1.1,
+                    ),
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
       endActionPane: ActionPane(
@@ -1957,101 +2322,255 @@ final card = Material(
     if (isTransfer) {
       showDialog(
         context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Delete Transfer'),
-          content: const Text(
-            'Delete only this transfer side, or delete both linked sides?',
-          ),
-          actions: [
-            TextButton(
-              style: TextButton.styleFrom(
-                padding: EdgeInsets.zero,
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
+        builder: (dialogContext) {
+          final colorScheme = Theme.of(dialogContext).colorScheme;
+
+          return AlertDialog(
+            backgroundColor: colorScheme.surface,
+            surfaceTintColor: Colors.transparent,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(22),
             ),
-            TextButton(
-              style: TextButton.styleFrom(
-                padding: EdgeInsets.zero,
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-              onPressed: () async {
-                final nav = Navigator.of(context);
-                nav.pop();
-                _deleteTransferTransaction(transaction, deleteBothSides: false);
-              },
-              child: const Text('This Side Only'),
+            insetPadding: const EdgeInsets.symmetric(
+              horizontal: 28,
+              vertical: 24,
             ),
-            TextButton(
-              style: TextButton.styleFrom(
-                padding: EdgeInsets.zero,
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-              onPressed: () async {
-                final nav = Navigator.of(context);
-                nav.pop();
-                _deleteTransferTransaction(transaction, deleteBothSides: true);
-              },
-              child: const Text(
-                'Both Sides',
-                style: TextStyle(color: Colors.red),
-              ),
+            titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+            contentPadding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+            actionsPadding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
+            title: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: colorScheme.errorContainer,
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  child: Icon(
+                    Icons.delete_outline_rounded,
+                    color: colorScheme.onErrorContainer,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                const Expanded(
+                  child: Text(
+                    'Delete Transfer?',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 20,
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+            content: Text(
+              'Are you sure you want to delete this transfer? Both sides of the transfer will be deleted.',
+              style: Theme.of(dialogContext).textTheme.bodyMedium?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                    height: 1.4,
+                  ),
+            ),
+            actions: [
+              Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 48,
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(dialogContext).pop(),
+                        style: OutlinedButton.styleFrom(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text(
+                          'Cancel',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: SizedBox(
+                      height: 48,
+                      child: FilledButton(
+                        onPressed: () {
+                          Navigator.of(dialogContext).pop();
+                          _deleteTransferTransaction(
+                            transaction,
+                            deleteBothSides: true,
+                          );
+                        },
+                        style: FilledButton.styleFrom(
+                          backgroundColor: colorScheme.error,
+                          foregroundColor: colorScheme.onError,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text(
+                          'Delete',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          );
+        },
       );
     } else {
+      final isBillPayment =
+          transaction.billId != null && transaction.billId!.isNotEmpty;
+
+      Future<void> confirmDelete(BuildContext dialogContext) async {
+        final nav = Navigator.of(dialogContext);
+        final messenger = ScaffoldMessenger.of(dialogContext);
+        nav.pop();
+        try {
+          final accId = transaction.accountId;
+          if (accId != null) {
+            final acc = DatabaseService.getAccountById(accId);
+            if (acc != null) {
+              final effect = transaction.type == TransactionType.income
+                  ? transaction.amount
+                  : -transaction.amount;
+              final updatedAcc = acc.copyWith(balance: acc.balance - effect);
+              await DatabaseService.updateAccount(updatedAcc);
+            }
+          }
+        } catch (_) {}
+        await DatabaseService.deleteTransaction(transaction.id);
+        if (!mounted) return;
+        _loadTransactions();
+        messenger.clearSnackBars();
+      }
+
       showDialog(
         context: context,
-        builder: (context) => AlertDialog(
-          title: Text(
-            transaction.billId != null && transaction.billId!.isNotEmpty
-                ? 'Delete Bill Payment'
-                : 'Delete Transaction',
-          ),
-          content: Text(
-            transaction.billId != null && transaction.billId!.isNotEmpty
-                ? 'Delete this payment? It will also be removed from the bill payment history and the bill status will be updated.'
-                : 'Are you sure you want to delete "${transaction.description}"?',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
+        builder: (dialogContext) {
+          if (!isBillPayment) {
+            return AlertDialog(
+              title: const Text('Delete Transaction'),
+              content: Text(
+                'Are you sure you want to delete "${transaction.description}"?',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Cancel'),
+                ),
+                TextButton(
+                  onPressed: () => confirmDelete(dialogContext),
+                  child: const Text(
+                    'Delete',
+                    style: TextStyle(color: Colors.red),
+                  ),
+                ),
+              ],
+            );
+          }
+
+          final colorScheme = Theme.of(dialogContext).colorScheme;
+
+          return AlertDialog(
+            backgroundColor: colorScheme.surface,
+            surfaceTintColor: Colors.transparent,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(22),
             ),
-            TextButton(
-              onPressed: () async {
-                final nav = Navigator.of(context);
-                final messenger = ScaffoldMessenger.of(context);
-                nav.pop();
-                try {
-                  final accId = transaction.accountId;
-                  if (accId != null) {
-                    final acc = DatabaseService.getAccountById(accId);
-                    if (acc != null) {
-                      final effect = transaction.type == TransactionType.income
-                          ? transaction.amount
-                          : -transaction.amount;
-                      final updatedAcc = acc.copyWith(
-                        balance: acc.balance - effect,
-                      );
-                      await DatabaseService.updateAccount(updatedAcc);
-                    }
-                  }
-                } catch (_) {}
-                await DatabaseService.deleteTransaction(transaction.id);
-                if (!mounted) return;
-                _loadTransactions();
-                messenger.clearSnackBars();
-              },
-              child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            insetPadding: const EdgeInsets.symmetric(
+              horizontal: 28,
+              vertical: 24,
             ),
-          ],
-        ),
+            titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+            contentPadding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+            actionsPadding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
+            title: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: colorScheme.errorContainer,
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  child: Icon(
+                    Icons.delete_outline_rounded,
+                    color: colorScheme.onErrorContainer,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                const Expanded(
+                  child: Text(
+                    'Delete Bill Payment?',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 20,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            content: Text(
+              'This payment will be removed from the bill payment history and the bill status will be updated.',
+              style: Theme.of(dialogContext).textTheme.bodyMedium?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+                height: 1.4,
+              ),
+            ),
+            actions: [
+              Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 48,
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(dialogContext).pop(),
+                        style: OutlinedButton.styleFrom(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text(
+                          'Cancel',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: SizedBox(
+                      height: 48,
+                      child: FilledButton.icon(
+                        onPressed: () => confirmDelete(dialogContext),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: colorScheme.error,
+                          foregroundColor: colorScheme.onError,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        icon: const Icon(Icons.delete_outline_rounded),
+                        label: const Text(
+                          'Delete',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          );
+        },
       );
     }
   }

@@ -27,6 +27,7 @@ class VerificationScreen extends StatefulWidget {
 class _VerificationScreenState extends State<VerificationScreen> {
   final _formKey = GlobalKey<FormState>();
   final _codeController = TextEditingController();
+
   bool _isLoading = false;
   bool _isResending = false;
 
@@ -51,10 +52,10 @@ class _VerificationScreenState extends State<VerificationScreen> {
 
       if (!mounted) return;
 
-      if (!mounted) return;
-
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Email verified! Signing you in...')),
+        const SnackBar(
+          content: Text('Email verified! Signing you in...'),
+        ),
       );
 
       // If we have the password (from signup flow), attempt auto sign-in
@@ -70,41 +71,63 @@ class _VerificationScreenState extends State<VerificationScreen> {
           if (signInResult.isSignedIn) {
             try {
               final idToken = await AwsApiService.getIdToken();
+
               if (idToken.isNotEmpty && mounted) {
-                await context.read<UserSessionController>().refreshUser(idToken: idToken);
+                await context
+                    .read<UserSessionController>()
+                    .refreshUser(idToken: idToken);
               }
             } catch (_) {}
+
             try {
               await PushTokenService.registerDeviceOnLogin();
             } catch (_) {}
-            // Navigate to main app (dashboard)
+
             Navigator.pushAndRemoveUntil(
               context,
-              MaterialPageRoute(builder: (_) => MainNavigationScreen(key: mainNavKey)),
+              MaterialPageRoute(
+                builder: (_) => MainNavigationScreen(
+                  key: mainNavKey,
+                ),
+              ),
               (route) => false,
             );
+
             return;
           }
         } catch (e) {
-          // Fall back to login screen if auto sign-in fails
           if (!mounted) return;
+
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Auto sign-in failed: $e')),
+            SnackBar(
+              content: Text('Auto sign-in failed: $e'),
+            ),
           );
         }
       }
 
       // Navigate back to login screen as a fallback
-      Navigator.pushReplacementNamed(context, '/login');
+      Navigator.pushReplacementNamed(
+        context,
+        '/login',
+      );
     } on AuthException catch (e) {
       if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(CognitoService.getErrorMessage(e))),
+        SnackBar(
+          content: Text(
+            CognitoService.getErrorMessage(e),
+          ),
+        ),
       );
     } catch (e) {
       if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Verification failed: $e')),
+        SnackBar(
+          content: Text('Verification failed: $e'),
+        ),
       );
     } finally {
       if (mounted) {
@@ -117,16 +140,24 @@ class _VerificationScreenState extends State<VerificationScreen> {
     setState(() => _isResending = true);
 
     try {
-      await CognitoService.resendConfirmationCode(widget.email);
-      
+      await CognitoService.resendConfirmationCode(
+        widget.email,
+      );
+
       if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Verification code resent!')),
+        const SnackBar(
+          content: Text('Verification code resent!'),
+        ),
       );
     } catch (e) {
       if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to resend code: $e')),
+        SnackBar(
+          content: Text('Failed to resend code: $e'),
+        ),
       );
     } finally {
       if (mounted) {
@@ -137,118 +168,291 @@ class _VerificationScreenState extends State<VerificationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Scaffold(
+      backgroundColor: colorScheme.surfaceContainerLowest,
+
+      // APP BAR
       appBar: AppBar(
-        title: const Text('Verify Email'),
+        title: const Text(
+          'Verify Email',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        centerTitle: true,
+        backgroundColor: colorScheme.primary,
+        foregroundColor: Colors.white,
+        elevation: 0,
       ),
+
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24.0),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Icon
-                  Icon(
-                    Icons.mark_email_read,
-                    size: 80,
-                    color: Theme.of(context).primaryColor,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Check Your Email',
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'We sent a verification code to',
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: Colors.grey[600],
-                        ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    widget.email,
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 48),
-
-                  // Verification code field
-                  TextFormField(
-                    controller: _codeController,
-                    decoration: InputDecoration(
-                      labelText: 'Verification Code',
-                      prefixIcon: const Icon(Icons.verified_user),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(
+            20,
+            28,
+            20,
+            32,
+          ),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // EMAIL ICON
+                Center(
+                  child: Container(
+                    width: 88,
+                    height: 88,
+                    decoration: BoxDecoration(
+                      color: colorScheme.primaryContainer
+                          .withValues(alpha: 0.55),
+                      shape: BoxShape.circle,
                     ),
-                    keyboardType: TextInputType.number,
-                    textInputAction: TextInputAction.done,
-                    onFieldSubmitted: (_) => _handleVerification(),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Please enter the verification code';
-                      }
-                      return null;
-                    },
+                    child: Icon(
+                      Icons.mark_email_read_outlined,
+                      size: 44,
+                      color: colorScheme.primary,
+                    ),
                   ),
-                  const SizedBox(height: 24),
+                ),
 
-                  // Verify button
-                  ElevatedButton(
-                    onPressed: _isLoading ? null : _handleVerification,
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
+                const SizedBox(height: 20),
+
+                Text(
+                  'Check Your Email',
+                  textAlign: TextAlign.center,
+                  style:
+                      Theme.of(context).textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                ),
+
+                const SizedBox(height: 8),
+
+                Text(
+                  'We sent a verification code to',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyLarge
+                      ?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                ),
+
+                const SizedBox(height: 5),
+
+                Text(
+                  widget.email,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyLarge
+                      ?.copyWith(
+                        color: colorScheme.primary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+
+                const SizedBox(height: 28),
+
+                // VERIFICATION CARD
+                Container(
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    color: colorScheme.surface,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: colorScheme.outlineVariant
+                          .withValues(alpha: 0.35),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        'VERIFICATION CODE',
+                        style: Theme.of(context)
+                            .textTheme
+                            .labelLarge
+                            ?.copyWith(
+                              color: colorScheme.primary,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.7,
+                            ),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      TextFormField(
+                        controller: _codeController,
+                        keyboardType: TextInputType.number,
+                        textInputAction: TextInputAction.done,
+                        autofillHints: const [
+                          AutofillHints.oneTimeCode,
+                        ],
+                        onFieldSubmitted: (_) {
+                          if (!_isLoading) {
+                            _handleVerification();
+                          }
+                        },
+                        decoration: InputDecoration(
+                          labelText: 'Verification Code',
+                          hintText: 'Enter your code',
+                          prefixIcon: const Icon(
+                            Icons.verified_user_outlined,
+                          ),
+                          filled: true,
+                          fillColor: colorScheme
+                              .surfaceContainerHighest
+                              .withValues(alpha: 0.45),
+                          contentPadding:
+                              const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 18,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius:
+                                BorderRadius.circular(14),
+                            borderSide: BorderSide.none,
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius:
+                                BorderRadius.circular(14),
+                            borderSide: BorderSide.none,
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius:
+                                BorderRadius.circular(14),
+                            borderSide: BorderSide(
+                              color: colorScheme.primary,
+                              width: 1.5,
+                            ),
+                          ),
+                          errorBorder: OutlineInputBorder(
+                            borderRadius:
+                                BorderRadius.circular(14),
+                            borderSide: BorderSide(
+                              color: colorScheme.error,
+                            ),
+                          ),
+                          focusedErrorBorder:
+                              OutlineInputBorder(
+                            borderRadius:
+                                BorderRadius.circular(14),
+                            borderSide: BorderSide(
+                              color: colorScheme.error,
+                              width: 1.5,
+                            ),
+                          ),
+                        ),
+                        validator: (value) {
+                          if (value == null ||
+                              value.trim().isEmpty) {
+                            return 'Please enter the verification code';
+                          }
+
+                          return null;
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 22),
+
+                // VERIFY BUTTON
+                SizedBox(
+                  height: 52,
+                  child: FilledButton(
+                    onPressed:
+                        _isLoading ? null : _handleVerification,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: colorScheme.primary,
+                      foregroundColor:
+                          colorScheme.onPrimary,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius:
+                            BorderRadius.circular(12),
                       ),
                     ),
                     child: _isLoading
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
+                        ? SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: colorScheme.onPrimary,
+                            ),
                           )
                         : const Text(
-                            'Verify',
-                            style: TextStyle(fontSize: 16),
+                            'Verify Email',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                   ),
-                  const SizedBox(height: 16),
+                ),
 
-                  // Resend code button
-                  OutlinedButton(
-                    onPressed: _isResending ? null : _resendCode,
+                const SizedBox(height: 12),
+
+                // RESEND BUTTON
+                SizedBox(
+                  height: 52,
+                  child: OutlinedButton.icon(
+                    onPressed:
+                        _isResending ? null : _resendCode,
                     style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      side: BorderSide(
+                        color: colorScheme.outlineVariant,
+                      ),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius:
+                            BorderRadius.circular(12),
                       ),
                     ),
-                    child: _isResending
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
+                    icon: _isResending
+                        ? const SizedBox.shrink()
+                        : const Icon(
+                            Icons.refresh_rounded,
+                            size: 20,
+                          ),
+                    label: _isResending
+                        ? SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: colorScheme.primary,
+                            ),
                           )
                         : const Text(
                             'Resend Code',
-                            style: TextStyle(fontSize: 16),
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                   ),
-                ],
-              ),
+                ),
+
+                const SizedBox(height: 18),
+
+                Text(
+                  'Didn’t receive the code? Check your spam folder or tap Resend Code.',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                ),
+              ],
             ),
           ),
         ),

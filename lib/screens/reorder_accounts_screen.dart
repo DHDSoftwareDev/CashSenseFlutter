@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/database_service.dart';
 import '../models/account.dart';
 import '../utils/formatters.dart';
+import '../widgets/account_type_icon.dart';
 
 class ReorderAccountsScreen extends StatefulWidget {
   const ReorderAccountsScreen({super.key});
@@ -25,6 +26,26 @@ class _ReorderAccountsScreenState extends State<ReorderAccountsScreen> {
   }
 
   String? _institutionKey(Account account) => _institutionLabel(account);
+
+  Widget _typeIcon(String typeName) {
+    for (final account in _accounts) {
+      if (account.typeDisplayName == typeName) {
+        return AccountTypeIcon(
+          type: account.type,
+          displayName: account.typeDisplayName,
+        );
+      }
+    }
+    final normalized = typeName.toLowerCase();
+    final fallbackType = normalized.contains('saving')
+        ? AccountType.investment
+        : normalized.contains('check')
+        ? AccountType.bank
+        : normalized.contains('card')
+        ? AccountType.card
+        : AccountType.cash;
+    return AccountTypeIcon(type: fallbackType, displayName: typeName);
+  }
 
   @override
   void initState() {
@@ -161,11 +182,110 @@ class _ReorderAccountsScreenState extends State<ReorderAccountsScreen> {
     DatabaseService.accountsVersion.value++;
   }
 
+  BoxDecoration _cardDecoration(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return BoxDecoration(
+      color: colorScheme.surface,
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(
+        color: colorScheme.outlineVariant.withValues(alpha: 0.35),
+      ),
+    );
+  }
+
+  Widget _modeOption({
+    required BuildContext context,
+    required int index,
+    required String label,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final selected = _modeIndex == index;
+
+    return Expanded(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(11),
+        onTap: () => setState(() => _modeIndex = index),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          height: 46,
+          decoration: BoxDecoration(
+            color: selected ? colorScheme.primary : Colors.transparent,
+            borderRadius: BorderRadius.circular(11),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: selected
+                  ? colorScheme.onPrimary
+                  : colorScheme.onSurface,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _accountRow(Account account) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      key: ValueKey(account.id),
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: _cardDecoration(context),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 6,
+        ),
+        leading: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.drag_handle_rounded,
+              color: colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(width: 8),
+            AccountTypeIcon(
+              type: account.type,
+              displayName: account.typeDisplayName,
+            ),
+          ],
+        ),
+        title: Text(
+          account.name,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+        trailing: Text(
+          formatCurrency(account.balance),
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Scaffold(
+      backgroundColor: colorScheme.surfaceContainerLowest,
       appBar: AppBar(
-        title: const Text('Reorder Accounts & Types'),
+        title: const Text(
+          'Reorder Accounts',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        centerTitle: true,
+        backgroundColor: colorScheme.primary,
+        foregroundColor: Colors.white,
+        elevation: 0,
         actions: [
           TextButton(
             onPressed: () async {
@@ -174,32 +294,82 @@ class _ReorderAccountsScreenState extends State<ReorderAccountsScreen> {
               if (!mounted) return;
               navigator.pop(true);
             },
-            child: const Text('Save', style: TextStyle(color: Colors.white)),
+            child: const Text(
+              'Save',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ),
         ],
       ),
       body: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
         child: Column(
           children: [
-            // Mode toggle: Accounts | Types | Institutions
-            Center(
-              child: ToggleButtons(
-                isSelected: [_modeIndex == 0, _modeIndex == 1, _modeIndex == 2],
-                onPressed: (i) => setState(() => _modeIndex = i),
-                children: const [
-                  Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('Accounts')),
-                  Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('Types')),
-                  Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('Institutions')),
+            // MODERN MODE SELECTOR
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Row(
+                children: [
+                  _modeOption(
+                    context: context,
+                    index: 0,
+                    label: 'Accounts',
+                  ),
+                  const SizedBox(width: 4),
+                  _modeOption(
+                    context: context,
+                    index: 1,
+                    label: 'Types',
+                  ),
+                  const SizedBox(width: 4),
+                  _modeOption(
+                    context: context,
+                    index: 2,
+                    label: 'Institutions',
+                  ),
                 ],
               ),
             ),
+
+            const SizedBox(height: 18),
+
+            Row(
+              children: [
+                Icon(
+                  Icons.drag_indicator_rounded,
+                  size: 20,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _modeIndex == 0
+                        ? 'Drag to reorder individual accounts'
+                        : _modeIndex == 1
+                            ? 'Drag to reorder account types'
+                            : 'Drag to reorder institution groups',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                  ),
+                ),
+              ],
+            ),
+
             const SizedBox(height: 12),
-            if (_modeIndex == 0) ...[
-              const Text('Drag to reorder individual accounts'),
-              const SizedBox(height: 8),
+
+            if (_modeIndex == 0)
               Expanded(
                 child: ReorderableListView.builder(
+                  padding: const EdgeInsets.only(bottom: 24),
                   itemCount: _accounts.length,
                   onReorder: (oldIndex, newIndex) {
                     setState(() {
@@ -209,23 +379,14 @@ class _ReorderAccountsScreenState extends State<ReorderAccountsScreen> {
                     });
                   },
                   itemBuilder: (context, index) {
-                    final a = _accounts[index];
-                    return ListTile(
-                      key: ValueKey(a.id),
-                      leading: const Icon(Icons.drag_handle),
-                      title: Text(a.name),
-                      subtitle: Text(a.typeDisplayName),
-                      trailing: Text(formatCurrency(a.balance)),
-                    );
+                    return _accountRow(_accounts[index]);
                   },
                 ),
-              ),
-            ] else if (_modeIndex == 1) ...[
-              const SizedBox(height: 12),
-              const Text('Drag to reorder account types (groups)'),
-              const SizedBox(height: 8),
+              )
+            else if (_modeIndex == 1)
               Expanded(
                 child: ReorderableListView(
+                  padding: const EdgeInsets.only(bottom: 24),
                   onReorder: (oldIndex, newIndex) {
                     setState(() {
                       if (newIndex > oldIndex) newIndex -= 1;
@@ -234,55 +395,118 @@ class _ReorderAccountsScreenState extends State<ReorderAccountsScreen> {
                     });
                   },
                   children: [
-                    for (final t in _accountTypeOrder)
-                      Card(
-                        key: ValueKey('type_$t'),
-                        margin: const EdgeInsets.symmetric(vertical: 6),
+                    for (final type in _accountTypeOrder)
+                      Container(
+                        key: ValueKey('type_$type'),
+                        margin: const EdgeInsets.only(bottom: 10),
+                        decoration: _cardDecoration(context),
+                        clipBehavior: Clip.antiAlias,
                         child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             ListTile(
-                              leading: const Icon(Icons.drag_handle),
-                              title: Text(t),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 5,
+                              ),
+                              leading: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.drag_handle_rounded,
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  _typeIcon(type),
+                                ],
+                              ),
+                              title: Text(
+                                type,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                               trailing: IconButton(
-                                icon: Icon(_expandedTypes.contains(t) ? Icons.expand_less : Icons.expand_more),
+                                tooltip: _expandedTypes.contains(type)
+                                    ? 'Collapse'
+                                    : 'Expand',
+                                icon: Icon(
+                                  _expandedTypes.contains(type)
+                                      ? Icons.keyboard_arrow_up_rounded
+                                      : Icons.keyboard_arrow_down_rounded,
+                                ),
                                 onPressed: () {
                                   setState(() {
-                                    if (_expandedTypes.contains(t)) {
-                                      _expandedTypes.remove(t);
+                                    if (_expandedTypes.contains(type)) {
+                                      _expandedTypes.remove(type);
                                     } else {
-                                      _expandedTypes.add(t);
+                                      _expandedTypes.add(type);
                                     }
                                   });
                                 },
                               ),
                             ),
-                            if (_expandedTypes.contains(t))
-                              Padding(
-                                padding: const EdgeInsets.only(left: 16, right: 16, bottom: 12),
+                            if (_expandedTypes.contains(type))
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.fromLTRB(
+                                  12,
+                                  0,
+                                  12,
+                                  12,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: colorScheme
+                                      .surfaceContainerHighest
+                                      .withValues(alpha: 0.28),
+                                  border: Border(
+                                    top: BorderSide(
+                                      color: colorScheme.outlineVariant
+                                          .withValues(alpha: 0.30),
+                                    ),
+                                  ),
+                                ),
                                 child: Column(
                                   children: _accounts
-                                      .where((a) => a.typeDisplayName == t)
-                                      .map((a) => ListTile(
-                                            title: Text(a.name),
-                                          subtitle: Text(_institutionLabel(a) ?? ''),
-                                            trailing: Text(formatCurrency(a.balance)),
-                                          ))
+                                      .where(
+                                        (a) =>
+                                            a.typeDisplayName == type,
+                                      )
+                                      .map(
+                                        (a) => ListTile(
+                                          dense: true,
+                                          contentPadding:
+                                              const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                          ),
+                                          leading: AccountTypeIcon(
+                                            type: a.type,
+                                            displayName: a.typeDisplayName,
+                                          ),
+                                          title: Text(a.name),
+                                          subtitle: Text(
+                                            _institutionLabel(a) ?? '',
+                                          ),
+                                          trailing: Text(
+                                            formatCurrency(a.balance),
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                      )
                                       .toList(),
                                 ),
                               ),
                           ],
                         ),
-                      )
+                      ),
                   ],
                 ),
-              ),
-            ] else ...[
-              const SizedBox(height: 12),
-              const Text('Drag to reorder institution groups'),
-              const SizedBox(height: 8),
+              )
+            else
               Expanded(
                 child: ReorderableListView(
+                  padding: const EdgeInsets.only(bottom: 24),
                   onReorder: (oldIndex, newIndex) {
                     setState(() {
                       if (newIndex > oldIndex) newIndex -= 1;
@@ -291,50 +515,116 @@ class _ReorderAccountsScreenState extends State<ReorderAccountsScreen> {
                     });
                   },
                   children: [
-                    for (final inst in _institutionOrder)
-                      Card(
-                        key: ValueKey('inst_$inst'),
-                        margin: const EdgeInsets.symmetric(vertical: 6),
+                    for (final institution in _institutionOrder)
+                      Container(
+                        key: ValueKey('inst_$institution'),
+                        margin: const EdgeInsets.only(bottom: 10),
+                        decoration: _cardDecoration(context),
+                        clipBehavior: Clip.antiAlias,
                         child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             ListTile(
-                              leading: const Icon(Icons.drag_handle),
-                              title: Text(inst),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 5,
+                              ),
+                              leading: Container(
+                                width: 38,
+                                height: 38,
+                                decoration: BoxDecoration(
+                                  color: colorScheme.surfaceContainerHighest,
+                                  borderRadius: BorderRadius.circular(11),
+                                ),
+                                child: Icon(
+                                  Icons.drag_handle_rounded,
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                              title: Text(
+                                institution,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                               trailing: IconButton(
-                                icon: Icon(_expandedInstitutions.contains(inst) ? Icons.expand_less : Icons.expand_more),
+                                tooltip:
+                                    _expandedInstitutions.contains(institution)
+                                        ? 'Collapse'
+                                        : 'Expand',
+                                icon: Icon(
+                                  _expandedInstitutions.contains(institution)
+                                      ? Icons.keyboard_arrow_up_rounded
+                                      : Icons.keyboard_arrow_down_rounded,
+                                ),
                                 onPressed: () {
                                   setState(() {
-                                    if (_expandedInstitutions.contains(inst)) {
-                                      _expandedInstitutions.remove(inst);
+                                    if (_expandedInstitutions
+                                        .contains(institution)) {
+                                      _expandedInstitutions
+                                          .remove(institution);
                                     } else {
-                                      _expandedInstitutions.add(inst);
+                                      _expandedInstitutions.add(institution);
                                     }
                                   });
                                 },
                               ),
                             ),
-                            if (_expandedInstitutions.contains(inst))
-                              Padding(
-                                padding: const EdgeInsets.only(left: 16, right: 16, bottom: 12),
+                            if (_expandedInstitutions.contains(institution))
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.fromLTRB(
+                                  12,
+                                  0,
+                                  12,
+                                  12,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: colorScheme
+                                      .surfaceContainerHighest
+                                      .withValues(alpha: 0.28),
+                                  border: Border(
+                                    top: BorderSide(
+                                      color: colorScheme.outlineVariant
+                                          .withValues(alpha: 0.30),
+                                    ),
+                                  ),
+                                ),
                                 child: Column(
-                  children: _accounts
-                    .where((a) => _institutionKey(a) == inst)
-                                      .map((a) => ListTile(
-                                            title: Text(a.name),
-                                            subtitle: Text(a.typeDisplayName),
-                                            trailing: Text(formatCurrency(a.balance)),
-                                          ))
+                                  children: _accounts
+                                      .where(
+                                        (a) =>
+                                            _institutionKey(a) ==
+                                            institution,
+                                      )
+                                      .map(
+                                        (a) => ListTile(
+                                          dense: true,
+                                          contentPadding:
+                                              const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                          ),
+                                          leading: AccountTypeIcon(
+                                            type: a.type,
+                                            displayName: a.typeDisplayName,
+                                          ),
+                                          title: Text(a.name),
+                                          trailing: Text(
+                                            formatCurrency(a.balance),
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                      )
                                       .toList(),
                                 ),
                               ),
                           ],
                         ),
-                      )
+                      ),
                   ],
                 ),
               ),
-            ],
           ],
         ),
       ),

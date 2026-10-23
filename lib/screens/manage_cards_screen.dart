@@ -41,7 +41,10 @@ class _ManageCardsBodyState extends State<_ManageCardsBody> {
   @override
   void initState() {
     super.initState();
-    final saved = DatabaseService.getSetting<List<dynamic>>('reportsVisibleCards', null);
+    final saved = DatabaseService.getSetting<List<dynamic>>(
+      'reportsVisibleCards',
+      null,
+    );
     if (saved == null) {
       _visible = _availableCards.map((c) => c.id).toSet();
     } else {
@@ -70,17 +73,16 @@ class _ManageCardsBodyState extends State<_ManageCardsBody> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Manage Cards'),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text('Manage Cards'), centerTitle: true),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const SizedBox(height: 8),
-            const Text('Choose which cards should be visible on the Reports screen.'),
+            const Text(
+              'Choose which cards should be visible on the Reports screen.',
+            ),
             const SizedBox(height: 12),
             Expanded(
               child: ListView.separated(
@@ -91,7 +93,9 @@ class _ManageCardsBodyState extends State<_ManageCardsBody> {
                   final isVisible = _visible.contains(c.id);
                   return SwitchListTile(
                     title: Text(c.label),
-                    subtitle: c.description != null ? Text(c.description!) : null,
+                    subtitle: c.description != null
+                        ? Text(c.description!)
+                        : null,
                     value: isVisible,
                     onChanged: (v) => _setVisible(c.id, v),
                   );

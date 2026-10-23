@@ -2,7 +2,6 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
-import '../utils/formatters.dart';
 import '../services/database_service.dart';
 import '../services/lookups_sync_helper.dart';
 import '../models/category.dart';
@@ -224,7 +223,8 @@ class _PayeesScreenState extends State<PayeesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Placeholder UI - actual payee/payer data can be wired to DatabaseService later
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -240,53 +240,96 @@ class _PayeesScreenState extends State<PayeesScreen> {
             onPressed: () => _showAddPayeeDialog(),
           ),
         ],
-        backgroundColor: Theme.of(context).colorScheme.primary,
+        backgroundColor: colorScheme.primary,
         foregroundColor: Colors.white,
+        elevation: 0,
       ),
       body: Column(
         children: [
-          const SizedBox(height: 12),
-          Center(
-            child: ToggleButtons(
-              isSelected: [_showPayee, !_showPayee],
-              onPressed: (i) {
-                setState(() {
-                  _showPayee = (i == 0);
-                });
-              },
-              children: const [
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 12),
-                  child: Text('Payees'),
-                ),
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 12),
-                  child: Text('Payers'),
-                ),
-              ],
+          const SizedBox(height: 20),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Row(
+                children: [
+                  Expanded(child: _buildTypeOption('Payees', true)),
+                  const SizedBox(width: 4),
+                  Expanded(child: _buildTypeOption('Payers', false)),
+                ],
+              ),
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            padding: const EdgeInsets.symmetric(horizontal: 20),
             child: TextField(
               textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 hintText: 'Search payees or payers',
-                prefixIcon: Icon(Icons.search),
-                border: OutlineInputBorder(),
-                isDense: true,
+                prefixIcon: const Icon(Icons.search_rounded),
+                filled: true,
+                fillColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.55),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide.none,
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide.none,
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide(color: colorScheme.primary, width: 1.5),
+                ),
+                contentPadding: const EdgeInsets.symmetric(vertical: 16),
               ),
-              onChanged: (v) {
-                setState(() {
-                  _searchQuery = v.trim();
-                });
-              },
+              onChanged: (v) => setState(() => _searchQuery = v.trim()),
             ),
           ),
           const SizedBox(height: 12),
           Expanded(child: _buildPayeesList()),
         ],
+      ),
+    );
+  }
+
+  Widget _buildTypeOption(String label, bool payeeOption) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final selected = _showPayee == payeeOption;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(11),
+      onTap: () => setState(() => _showPayee = payeeOption),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        height: 46,
+        decoration: BoxDecoration(
+          color: selected ? colorScheme.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(11),
+        ),
+        alignment: Alignment.center,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (selected) ...[
+              Icon(Icons.check_rounded, size: 19, color: colorScheme.onPrimary),
+              const SizedBox(width: 6),
+            ],
+            Text(
+              label,
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: selected ? colorScheme.onPrimary : colorScheme.onSurface,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -305,142 +348,13 @@ class _PayeesScreenState extends State<PayeesScreen> {
   }
 
   void _showAddPayeeDialog() {
-    final nameCtrl = TextEditingController();
-    // Type is determined by _showPayee
-    String? selectedCategoryId;
-    String? categoryError;
-    bool isSaving = false;
-
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) {
-          final allCats = DatabaseService.getAllCategories();
-          final availableCategories = allCats.where((c) {
-            return _showPayee
-                ? c.type == CategoryType.expense && _isDisplayableCategory(c)
-                : c.type == CategoryType.income && _isDisplayableCategory(c);
-          }).toList();
-
-          if (availableCategories.isEmpty) {
-            selectedCategoryId = null;
-          } else if (selectedCategoryId != null &&
-              !availableCategories.any((c) => c.id == selectedCategoryId)) {
-            selectedCategoryId = null;
-          }
-
-          return AlertDialog(
-            actionsAlignment: MainAxisAlignment.center,
-            title: Center(child: Text('Add ${_showPayee ? 'Payee' : 'Payer'}')),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nameCtrl,
-                  textCapitalization: TextCapitalization.sentences,
-                  decoration: const InputDecoration(labelText: 'Name'),
-                ),
-                const SizedBox(height: 8),
-                if (availableCategories.isNotEmpty) ...[
-                  GestureDetector(
-                    onTap: () async {
-                      final picked = await _pickCategory(
-                        context,
-                        _showPayee,
-                        selectedCategoryId,
-                      );
-                      if (picked != null) {
-                        setState(() {
-                          selectedCategoryId = picked;
-                          categoryError = null;
-                        });
-                      }
-                    },
-                    child: InputDecorator(
-                      decoration: const InputDecoration(labelText: 'Category'),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              selectedCategoryId == null
-                                  ? 'Select Category'
-                                  : (DatabaseService.getCategoryById(
-                                          selectedCategoryId ?? '',
-                                        )?.name ??
-                                        ''),
-                            ),
-                          ),
-                          const Icon(Icons.arrow_drop_down),
-                        ],
-                      ),
-                    ),
-                  ),
-                  if (categoryError != null) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      categoryError!,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                    ),
-                  ],
-                ] else ...[
-                  const SizedBox.shrink(),
-                ],
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: isSaving
-                    ? null
-                    : () async {
-                        final name = nameCtrl.text.trim();
-                        if (name.isEmpty) return;
-                        if (availableCategories.isEmpty) {
-                          setState(() {
-                            categoryError =
-                                'No ${_showPayee ? 'expense' : 'income'} categories available. Create one first.';
-                          });
-                          return;
-                        }
-                        if (selectedCategoryId == null) {
-                          setState(() {
-                            categoryError = 'Please select a category.';
-                          });
-                          return;
-                        }
-                        setState(() => isSaving = true);
-                        final newPayee = {
-                          'id': DateTime.now().microsecondsSinceEpoch
-                              .toString(),
-                          'name': name,
-                          'type': _showPayee ? 'payee' : 'payer',
-                          'categoryId': selectedCategoryId,
-                        };
-                        try {
-                          await DatabaseService.addPayee(newPayee);
-                          try {
-                            await LookupsSyncHelper.syncPayeeOrPayer(newPayee);
-                          } catch (_) {}
-                          if (!context.mounted) return;
-                          Navigator.pop(context);
-                          _loadPayees();
-                        } finally {
-                          if (context.mounted) {
-                            setState(() => isSaving = false);
-                          }
-                        }
-                      },
-                child: isSaving ? const Text('Saving...') : const Text('Add'),
-              ),
-            ],
-          );
-        },
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => _PayeeFormPage(
+          isPayee: _showPayee,
+          pickCategory: _pickCategory,
+          onSaved: _loadPayees,
+        ),
       ),
     );
   }
@@ -475,20 +389,106 @@ class _PayeesScreenState extends State<PayeesScreen> {
           Future<void> deletePayeeOrPayer() async {
             final confirm = await showDialog<bool>(
               context: context,
-              builder: (context) => AlertDialog(
-                title: const Text('Delete'),
-                content: Text('Delete "${p['name']}"? This cannot be undone.'),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context, false),
-                    child: const Text('Cancel'),
+              builder: (dialogContext) {
+                final colorScheme = Theme.of(dialogContext).colorScheme;
+                final itemType = p['type'] == 'payer' ? 'Payer' : 'Payee';
+
+                return AlertDialog(
+                  backgroundColor: colorScheme.surface,
+                  surfaceTintColor: Colors.transparent,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(22),
                   ),
-                  TextButton(
-                    onPressed: () => Navigator.pop(context, true),
-                    child: const Text('Delete'),
+                  insetPadding: const EdgeInsets.symmetric(
+                    horizontal: 28,
+                    vertical: 24,
                   ),
-                ],
-              ),
+                  titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+                  contentPadding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+                  actionsPadding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
+                  title: Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: colorScheme.errorContainer,
+                          borderRadius: BorderRadius.circular(13),
+                        ),
+                        child: Icon(
+                          Icons.delete_outline_rounded,
+                          color: colorScheme.onErrorContainer,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Text(
+                          'Delete $itemType?',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 20,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  content: Text(
+                    'Permanently delete "${p['name']}"? This action cannot be undone.',
+                    style: Theme.of(dialogContext).textTheme.bodyMedium
+                        ?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                          height: 1.4,
+                        ),
+                  ),
+                  actions: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: SizedBox(
+                            height: 48,
+                            child: OutlinedButton(
+                              onPressed: () =>
+                                  Navigator.pop(dialogContext, false),
+                              style: OutlinedButton.styleFrom(
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: const Text(
+                                'Cancel',
+                                style: TextStyle(fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: SizedBox(
+                            height: 48,
+                            child: FilledButton.icon(
+                              onPressed: () =>
+                                  Navigator.pop(dialogContext, true),
+                              style: FilledButton.styleFrom(
+                                backgroundColor: colorScheme.error,
+                                foregroundColor: colorScheme.onError,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              icon: const Icon(Icons.delete_outline_rounded),
+                              label: const Text(
+                                'Delete',
+                                style: TextStyle(fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                );
+              },
             );
             if (confirm == true) {
               await DatabaseService.deletePayee(p['id']);
@@ -498,37 +498,6 @@ class _PayeesScreenState extends State<PayeesScreen> {
 
           return Slidable(
             key: ValueKey('payee_payer_swipe_${p['id']}'),
-            startActionPane: ActionPane(
-              motion: const DrawerMotion(),
-              extentRatio: 0.25,
-              children: [
-                CustomSlidableAction(
-                  onPressed: (_) async =>
-                      _showPayeeDetails(Map<String, dynamic>.from(p)),
-                  backgroundColor: Colors.blueGrey,
-                  foregroundColor: Colors.white,
-                  child: const Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.visibility, color: Colors.white),
-                      SizedBox(height: 4),
-                      Text(
-                        'View',
-                        textAlign: TextAlign.center,
-                        maxLines: 1,
-                        softWrap: false,
-                        overflow: TextOverflow.visible,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 11,
-                          height: 1.1,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
             endActionPane: ActionPane(
               motion: const DrawerMotion(),
               extentRatio: 0.25,
@@ -560,16 +529,50 @@ class _PayeesScreenState extends State<PayeesScreen> {
               ],
             ),
             child: Card(
+              elevation: 0,
+              margin: EdgeInsets.zero,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+                side: BorderSide(
+                  color: Theme.of(context)
+                      .colorScheme
+                      .outlineVariant
+                      .withValues(alpha: 0.35),
+                ),
+              ),
               child: ListTile(
-                title: Text(p['name'] ?? ''),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 8,
+                ),
+                leading: CircleAvatar(
+                  backgroundColor: Theme.of(context)
+                      .colorScheme
+                      .primaryContainer
+                      .withValues(alpha: 0.55),
+                  child: Text(
+                    ((p['name'] ?? '') as String).isNotEmpty
+                        ? (p['name'] as String)[0].toUpperCase()
+                        : '?',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                title: Text(
+                  p['name'] ?? '',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
                 subtitle: p['categoryId'] != null
-                    ? Text(
-                        DatabaseService.getCategoryById(
-                              p['categoryId'],
-                            )?.name ??
-                            '',
+                    ? Padding(
+                        padding: const EdgeInsets.only(top: 3),
+                        child: Text(
+                          DatabaseService.getCategoryById(p['categoryId'])?.name ?? '',
+                        ),
                       )
                     : null,
+                trailing: const Icon(Icons.chevron_right_rounded),
                 onTap: () async =>
                     _showEditPayeeDialog(Map<String, dynamic>.from(p)),
               ),
@@ -580,289 +583,492 @@ class _PayeesScreenState extends State<PayeesScreen> {
     );
   }
 
-  Future<void> _showPayeeDetails(Map<String, dynamic> payee) async {
-    // Show dialog similar to category details: only Transaction Statistics -> count + total
-    await showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        actionsAlignment: MainAxisAlignment.center,
-        title: Row(
-          children: [
-            CircleAvatar(
-              backgroundColor: Theme.of(
-                context,
-              ).colorScheme.primary.withOpacity(0.12),
-              child: Text(
-                ((payee['name'] ?? '') as String).isNotEmpty
-                    ? (payee['name'][0] ?? '').toString()
-                    : '?',
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Text(
-                payee['name'] ?? 'Payee',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 8),
-            Text(
-              'Transaction Statistics',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 8),
-            FutureBuilder<int>(
-              future: _getPayeeTransactionCount(payee),
-              builder: (context, snapshot) {
-                if (snapshot.hasData) {
-                  return Text('${snapshot.data} transactions');
-                } else {
-                  return const Text('Loading...');
-                }
-              },
-            ),
-            const SizedBox(height: 8),
-            FutureBuilder<double>(
-              future: _getPayeeTotalAmount(payee),
-              builder: (context, snap) {
-                if (snap.hasData) {
-                  return _buildDetailRow('Total', formatCurrency(snap.data));
-                } else {
-                  return const SizedBox.shrink();
-                }
-              },
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<int> _getPayeeTransactionCount(Map<String, dynamic> payee) async {
-    final allTx = DatabaseService.getAllTransactions();
-    final id = payee['id']?.toString() ?? '';
-    final name = (payee['name'] ?? '').toString().toLowerCase();
-    final txs = allTx.where((t) {
-      try {
-        if (t.note != null && id.isNotEmpty && t.note!.contains(id)) {
-          return true;
-        }
-      } catch (_) {}
-      try {
-        if (t.description.toLowerCase().contains(name) && name.isNotEmpty) {
-          return true;
-        }
-      } catch (_) {}
-      return false;
-    }).toList();
-    return txs.length;
-  }
-
-  Future<double> _getPayeeTotalAmount(Map<String, dynamic> payee) async {
-    final allTx = DatabaseService.getAllTransactions();
-    final id = payee['id']?.toString() ?? '';
-    final name = (payee['name'] ?? '').toString().toLowerCase();
-    final txs = allTx.where((t) {
-      try {
-        if (t.note != null && id.isNotEmpty && t.note!.contains(id)) {
-          return true;
-        }
-      } catch (_) {}
-      try {
-        if (t.description.toLowerCase().contains(name) && name.isNotEmpty) {
-          return true;
-        }
-      } catch (_) {}
-      return false;
-    }).toList();
-    return txs.fold<double>(0.0, (acc, t) => acc + t.amount);
-  }
-
-  Widget _buildDetailRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 100,
-            child: Text(
-              '$label:',
-              style: Theme.of(
-                context,
-              ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
-            ),
-          ),
-          Expanded(
-            child: Text(value, style: Theme.of(context).textTheme.bodyMedium),
-          ),
-        ],
-      ),
-    );
-  }
-
   Future<void> _showEditPayeeDialog(Map<String, dynamic> payee) async {
-    final nameCtrl = TextEditingController(text: payee['name'] ?? '');
-    final isPayeeChoice = (payee['type'] ?? 'payee') == 'payee';
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => _EditPayeeFormPage(
+          payee: payee,
+          pickCategory: _pickCategory,
+          onSaved: _loadPayees,
+        ),
+      ),
+    );
+  }
 
-    // Start with no preselected category so the dropdown shows the hint; keep payee's existing selection if valid
-    String? selectedCategoryId = payee['categoryId'];
-    String? categoryError;
-    bool isSaving = false;
+}
 
-    await showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) {
-          // Re-fetch categories so edits/adds done from the picker are visible immediately
-          final allCats = DatabaseService.getAllCategories();
-          final availableCategories = allCats.where((c) {
-            return isPayeeChoice
-                ? c.type == CategoryType.expense && _isDisplayableCategory(c)
-                : c.type == CategoryType.income && _isDisplayableCategory(c);
-          }).toList();
+class _PayeeFormPage extends StatefulWidget {
+  const _PayeeFormPage({
+    required this.isPayee,
+    required this.pickCategory,
+    required this.onSaved,
+  });
 
-          if (availableCategories.isEmpty) {
-            selectedCategoryId = null;
-          } else if (selectedCategoryId != null &&
-              !availableCategories.any((c) => c.id == selectedCategoryId)) {
-            selectedCategoryId = null;
-          }
+  final bool isPayee;
+  final Future<String?> Function(BuildContext, bool, String?) pickCategory;
+  final VoidCallback onSaved;
 
-          return AlertDialog(
-            actionsAlignment: MainAxisAlignment.center,
-            title: Center(
-              child: Text('Edit ${isPayeeChoice ? 'Payee' : 'Payer'}'),
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      'Type: ${isPayeeChoice ? 'Payee' : 'Payer'}',
-                      style: Theme.of(context).textTheme.bodyMedium,
+  @override
+  State<_PayeeFormPage> createState() => _PayeeFormPageState();
+}
+
+class _PayeeFormPageState extends State<_PayeeFormPage> {
+  final TextEditingController _nameCtrl = TextEditingController();
+  String? _selectedCategoryId;
+  String? _categoryError;
+  bool _isSaving = false;
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final availableCategories = DatabaseService.getAllCategories().where((c) {
+      return widget.isPayee
+          ? c.type == CategoryType.expense && _isDisplayableCategory(c)
+          : c.type == CategoryType.income && _isDisplayableCategory(c);
+    }).toList();
+
+    final name = _nameCtrl.text.trim();
+    if (name.isEmpty) return;
+
+    if (availableCategories.isEmpty) {
+      setState(() {
+        _categoryError =
+            'No ${widget.isPayee ? 'expense' : 'income'} categories available. Create one first.';
+      });
+      return;
+    }
+
+    if (_selectedCategoryId == null) {
+      setState(() => _categoryError = 'Please select a category.');
+      return;
+    }
+
+    setState(() => _isSaving = true);
+    final newPayee = <String, dynamic>{
+      'id': DateTime.now().microsecondsSinceEpoch.toString(),
+      'name': name,
+      'type': widget.isPayee ? 'payee' : 'payer',
+      'categoryId': _selectedCategoryId,
+    };
+
+    try {
+      await DatabaseService.addPayee(newPayee);
+      try {
+        await LookupsSyncHelper.syncPayeeOrPayer(newPayee);
+      } catch (_) {}
+      if (!mounted) return;
+      widget.onSaved();
+      Navigator.of(context).pop();
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final category = _selectedCategoryId == null
+        ? null
+        : DatabaseService.getCategoryById(_selectedCategoryId!);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Add ${widget.isPayee ? 'Payee' : 'Payer'}'),
+        centerTitle: true,
+        backgroundColor: colorScheme.primary,
+        foregroundColor: colorScheme.onPrimary,
+        elevation: 0,
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                widget.isPayee ? 'PAYEE DETAILS' : 'PAYER DETAILS',
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: colorScheme.primary,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.8,
                     ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: nameCtrl,
-                  textCapitalization: TextCapitalization.sentences,
-                  decoration: const InputDecoration(labelText: 'Name'),
-                ),
-                const SizedBox(height: 8),
-                if (availableCategories.isNotEmpty) ...[
-                  GestureDetector(
-                    onTap: () async {
-                      final picked = await _pickCategory(
-                        context,
-                        isPayeeChoice,
-                        selectedCategoryId,
-                      );
-                      if (picked != null) {
-                        setState(() {
-                          selectedCategoryId = picked;
-                          categoryError = null;
-                        });
-                      }
-                    },
-                    child: InputDecorator(
-                      decoration: const InputDecoration(labelText: 'Category'),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              selectedCategoryId == null
-                                  ? 'Select Category'
-                                  : (DatabaseService.getCategoryById(
-                                          selectedCategoryId ?? '',
-                                        )?.name ??
-                                        ''),
-                            ),
-                          ),
-                          const Icon(Icons.arrow_drop_down),
-                        ],
-                      ),
-                    ),
-                  ),
-                  if (categoryError != null) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      categoryError!,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                    ),
-                  ],
-                ] else ...[
-                  const SizedBox.shrink(),
-                ],
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
               ),
-              TextButton(
-                onPressed: isSaving
-                    ? null
-                    : () async {
-                        final name = nameCtrl.text.trim();
-                        if (name.isEmpty) return;
-                        if (availableCategories.isEmpty) {
-                          setState(() {
-                            categoryError =
-                                'No ${isPayeeChoice ? 'expense' : 'income'} categories available. Create one first.';
-                          });
-                          return;
-                        }
-                        if (selectedCategoryId == null) {
-                          setState(() {
-                            categoryError = 'Please select a category.';
-                          });
-                          return;
-                        }
-                        setState(() => isSaving = true);
-                        final updated = Map<String, dynamic>.from(payee)
-                          ..['name'] = name
-                          ..['type'] = isPayeeChoice ? 'payee' : 'payer'
-                          ..['categoryId'] = selectedCategoryId;
-                        try {
-                          await DatabaseService.updatePayee(updated);
-                          try {
-                            await LookupsSyncHelper.syncPayeeOrPayer(updated);
-                          } catch (_) {}
-                          if (!context.mounted) return;
-                          Navigator.pop(context);
-                          _loadPayees();
-                        } finally {
-                          if (context.mounted) {
-                            setState(() => isSaving = false);
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: colorScheme.surface,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: colorScheme.outlineVariant.withValues(alpha: 0.35),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    TextField(
+                      controller: _nameCtrl,
+                      autofocus: true,
+                      textCapitalization: TextCapitalization.sentences,
+                      decoration: InputDecoration(
+                        labelText: 'Name',
+                        hintText: widget.isPayee ? 'Payee name' : 'Payer name',
+                        filled: true,
+                        fillColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.55),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide.none,
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide.none,
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide(color: colorScheme.primary, width: 1.5),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Material(
+                      color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.55),
+                      borderRadius: BorderRadius.circular(14),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(14),
+                        onTap: () async {
+                          final picked = await widget.pickCategory(
+                            context,
+                            widget.isPayee,
+                            _selectedCategoryId,
+                          );
+                          if (picked != null && mounted) {
+                            setState(() {
+                              _selectedCategoryId = picked;
+                              _categoryError = null;
+                            });
                           }
-                        }
-                      },
-                child: isSaving ? const Text('Saving...') : const Text('Save'),
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          child: Row(
+                            children: [
+                              Icon(Icons.category_outlined, color: colorScheme.primary),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Category',
+                                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                                            color: colorScheme.onSurfaceVariant,
+                                          ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      category?.name ?? 'Select Category',
+                                      style: Theme.of(context).textTheme.bodyLarge,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const Icon(Icons.chevron_right_rounded),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (_categoryError != null) ...[
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          _categoryError!,
+                          style: TextStyle(color: colorScheme.error),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              FilledButton(
+                onPressed: _isSaving ? null : _save,
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(52),
+                  backgroundColor: colorScheme.primary,
+                  foregroundColor: colorScheme.onPrimary,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: _isSaving
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Text('Add ${widget.isPayee ? 'Payee' : 'Payer'}'),
               ),
             ],
-          );
-        },
+          ),
+        ),
+      ),
+    );
+  }
+}
+class _EditPayeeFormPage extends StatefulWidget {
+  const _EditPayeeFormPage({
+    required this.payee,
+    required this.pickCategory,
+    required this.onSaved,
+  });
+
+  final Map<String, dynamic> payee;
+  final Future<String?> Function(BuildContext, bool, String?) pickCategory;
+  final VoidCallback onSaved;
+
+  @override
+  State<_EditPayeeFormPage> createState() => _EditPayeeFormPageState();
+}
+
+class _EditPayeeFormPageState extends State<_EditPayeeFormPage> {
+  late final TextEditingController _nameCtrl;
+  late final bool _isPayee;
+  String? _selectedCategoryId;
+  String? _categoryError;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameCtrl = TextEditingController(text: widget.payee['name'] ?? '');
+    _isPayee = (widget.payee['type'] ?? 'payee') == 'payee';
+    _selectedCategoryId = widget.payee['categoryId'] as String?;
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    super.dispose();
+  }
+
+  List<Category> _availableCategories() {
+    return DatabaseService.getAllCategories().where((c) {
+      return _isPayee
+          ? c.type == CategoryType.expense && _isDisplayableCategory(c)
+          : c.type == CategoryType.income && _isDisplayableCategory(c);
+    }).toList();
+  }
+
+  Future<void> _save() async {
+    final availableCategories = _availableCategories();
+    final name = _nameCtrl.text.trim();
+
+    if (name.isEmpty) return;
+
+    if (availableCategories.isEmpty) {
+      setState(() {
+        _categoryError =
+            'No ${_isPayee ? 'expense' : 'income'} categories available. Create one first.';
+      });
+      return;
+    }
+
+    if (_selectedCategoryId == null ||
+        !availableCategories.any((c) => c.id == _selectedCategoryId)) {
+      setState(() => _categoryError = 'Please select a category.');
+      return;
+    }
+
+    setState(() => _isSaving = true);
+
+    final updated = Map<String, dynamic>.from(widget.payee)
+      ..['name'] = name
+      ..['type'] = _isPayee ? 'payee' : 'payer'
+      ..['categoryId'] = _selectedCategoryId;
+
+    try {
+      await DatabaseService.updatePayee(updated);
+      try {
+        await LookupsSyncHelper.syncPayeeOrPayer(updated);
+      } catch (_) {}
+
+      if (!mounted) return;
+      widget.onSaved();
+      Navigator.of(context).pop();
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final category = _selectedCategoryId == null
+        ? null
+        : DatabaseService.getCategoryById(_selectedCategoryId!);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Edit ${_isPayee ? 'Payee' : 'Payer'}'),
+        centerTitle: true,
+        backgroundColor: colorScheme.primary,
+        foregroundColor: colorScheme.onPrimary,
+        elevation: 0,
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                _isPayee ? 'PAYEE DETAILS' : 'PAYER DETAILS',
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: colorScheme.primary,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.8,
+                    ),
+              ),
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: colorScheme.surface,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: colorScheme.outlineVariant.withValues(alpha: 0.35),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    TextField(
+                      controller: _nameCtrl,
+                      autofocus: true,
+                      textCapitalization: TextCapitalization.sentences,
+                      decoration: InputDecoration(
+                        labelText: 'Name',
+                        hintText: _isPayee ? 'Payee name' : 'Payer name',
+                        filled: true,
+                        fillColor: colorScheme.surfaceContainerHighest
+                            .withValues(alpha: 0.55),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide.none,
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide.none,
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide(
+                            color: colorScheme.primary,
+                            width: 1.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Material(
+                      color: colorScheme.surfaceContainerHighest
+                          .withValues(alpha: 0.55),
+                      borderRadius: BorderRadius.circular(14),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(14),
+                        onTap: () async {
+                          final picked = await widget.pickCategory(
+                            context,
+                            _isPayee,
+                            _selectedCategoryId,
+                          );
+                          if (picked != null && mounted) {
+                            setState(() {
+                              _selectedCategoryId = picked;
+                              _categoryError = null;
+                            });
+                          }
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.category_outlined,
+                                color: colorScheme.primary,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Category',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .labelMedium
+                                          ?.copyWith(
+                                            color: colorScheme.onSurfaceVariant,
+                                          ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      category?.name ?? 'Select Category',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyLarge,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const Icon(Icons.chevron_right_rounded),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (_categoryError != null) ...[
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          _categoryError!,
+                          style: TextStyle(color: colorScheme.error),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              FilledButton(
+                onPressed: _isSaving ? null : _save,
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(52),
+                  backgroundColor: colorScheme.primary,
+                  foregroundColor: colorScheme.onPrimary,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: _isSaving
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Text('Save ${_isPayee ? 'Payee' : 'Payer'}'),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

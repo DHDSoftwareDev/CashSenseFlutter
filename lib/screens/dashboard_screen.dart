@@ -1874,22 +1874,19 @@ Widget _buildFilterChips() {
       if (plainNote.isEmpty) plainNote = null;
     }
     if (plainNote != null && plainNote.startsWith('account:')) {
-      // Accept several dash separators (em-dash, en-dash, hyphen) with optional spaces
-      // Examples:
-      //  'account: Name — notes'
-      //  'account: Name - notes'
-      //  'account: Name–notes'
       final after = plainNote.substring('account:'.length).trim();
-      // split on em-dash (—), en-dash (–), or hyphen (-) with optional surrounding whitespace
-      final parts = after.split(RegExp(r'\s*[—–-]\s*'));
-      if (parts.isNotEmpty) {
-        final extractedAccountName = parts.first.trim();
-        if (extractedAccountName.isNotEmpty) {
-          accountNameFromNote = extractedAccountName;
-        }
+      // Em/en dashes may omit spaces, while a hyphen only acts as the
+      // separator when surrounded by spaces. This preserves account names
+      // such as "High-Yield Savings" in full.
+      final separator = RegExp(r'\s*[—–]\s*|\s+-\s+').firstMatch(after);
+      final extractedAccountName = separator == null
+          ? after
+          : after.substring(0, separator.start).trim();
+      if (extractedAccountName.isNotEmpty) {
+        accountNameFromNote = extractedAccountName;
       }
-      if (parts.length > 1) {
-        plainNote = parts.sublist(1).join(' — ').trim();
+      if (separator != null) {
+        plainNote = after.substring(separator.end).trim();
         if (plainNote.isEmpty) plainNote = null;
       } else {
         // No trailing note content
@@ -2035,8 +2032,7 @@ Widget _buildFilterChips() {
                       const SizedBox(height: 5),
                       Text(
                         plainNote,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                        softWrap: true,
                         style: Theme.of(context)
                             .textTheme
                             .bodySmall
@@ -2140,12 +2136,11 @@ Widget _buildFilterChips() {
                     const SizedBox(height: 7),
 
                     SizedBox(
-                      width: 100,
+                      width: 120,
                       child: Text(
                         accountDisplayName,
                         textAlign: TextAlign.right,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                        softWrap: true,
                         style: Theme.of(context)
                             .textTheme
                             .bodySmall
@@ -2417,26 +2412,88 @@ Widget _buildFilterChips() {
       // If this is a recurring bill, ask whether to edit only this occurrence or all future occurrences
       final choice = await showDialog<String>(
         context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Edit Recurring Bill'),
-          content: const Text(
-            'This is a recurring bill. Do you want to edit only this occurrence or all future occurrences?',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, 'cancel'),
-              child: const Text('Cancel'),
+        builder: (context) {
+          final colorScheme = Theme.of(context).colorScheme;
+          return Dialog(
+            insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+            backgroundColor: Colors.transparent,
+            child: Container(
+              width: double.infinity,
+              constraints: const BoxConstraints(maxWidth: 460),
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: colorScheme.surface,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: colorScheme.outlineVariant.withValues(alpha: 0.35),
+                ),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: colorScheme.primaryContainer,
+                          borderRadius: BorderRadius.circular(13),
+                        ),
+                        child: Icon(Icons.edit_calendar_rounded, color: colorScheme.primary),
+                      ),
+                      const SizedBox(width: 14),
+                      const Expanded(
+                        child: Text(
+                          'Edit Recurring Bill',
+                          style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    'Choose how you want to apply your changes to this recurring bill.',
+                    style: TextStyle(
+                      color: colorScheme.onSurfaceVariant,
+                      fontSize: 15,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: FilledButton.icon(
+                      onPressed: () => Navigator.pop(context, 'this'),
+                      icon: const Icon(Icons.event_rounded),
+                      label: const Text('Only This Occurrence'),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: OutlinedButton.icon(
+                      onPressed: () => Navigator.pop(context, 'all'),
+                      icon: const Icon(Icons.event_repeat_rounded),
+                      label: const Text('All Future Occurrences'),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(context, 'cancel'),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                ],
+              ),
             ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, 'this'),
-              child: const Text('Only This Occurrence'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, 'all'),
-              child: const Text('All Future Occurrences'),
-            ),
-          ],
-        ),
+          );
+        },
       );
 
       if (choice == 'this') {
@@ -3111,26 +3168,95 @@ Widget _buildFilterChips() {
 
     final choice = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Recurring Bill'),
-        content: const Text(
-          'Do you want to delete only this occurrence or all future occurrences?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, 'cancel'),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, 'this'),
-            child: const Text('Only This Occurrence'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, 'all'),
-            child: const Text('All Future Occurrences'),
-          ),
-        ],
-      ),
+      builder: (context) {
+          final colorScheme = Theme.of(context).colorScheme;
+          return Dialog(
+            insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+            backgroundColor: Colors.transparent,
+            child: Container(
+              width: double.infinity,
+              constraints: const BoxConstraints(maxWidth: 460),
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: colorScheme.surface,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: colorScheme.outlineVariant.withValues(alpha: 0.35),
+                ),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: colorScheme.errorContainer,
+                          borderRadius: BorderRadius.circular(13),
+                        ),
+                        child: Icon(Icons.delete_outline_rounded, color: colorScheme.error),
+                      ),
+                      const SizedBox(width: 14),
+                      const Expanded(
+                        child: Text(
+                          'Delete Recurring Bill',
+                          style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    'Choose whether to delete only this bill or this bill and all future occurrences.',
+                    style: TextStyle(
+                      color: colorScheme.onSurfaceVariant,
+                      fontSize: 15,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: colorScheme.error,
+                        foregroundColor: colorScheme.onError,
+                      ),
+                      onPressed: () => Navigator.pop(context, 'this'),
+                      icon: const Icon(Icons.event_rounded),
+                      label: const Text('Only This Occurrence'),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: colorScheme.error,
+                      ),
+                      onPressed: () => Navigator.pop(context, 'all'),
+                      icon: const Icon(Icons.event_repeat_rounded),
+                      label: const Text('All Future Occurrences'),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(context, 'cancel'),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
     );
 
     if (choice == 'this') {
@@ -3213,24 +3339,94 @@ Widget _buildFilterChips() {
       );
       final confirmed = await showDialog<bool>(
         context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Delete Bill'),
-          content: Text(
-            relatedPayments.isNotEmpty
-                ? 'Delete this bill from the calendar and remove related payment transaction(s) for this occurrence?'
-                : 'Delete this bill from the calendar?',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel'),
+        builder: (context) {
+          final colorScheme = Theme.of(context).colorScheme;
+          return Dialog(
+            insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+            backgroundColor: Colors.transparent,
+            child: Container(
+              width: double.infinity,
+              constraints: const BoxConstraints(maxWidth: 460),
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: colorScheme.surface,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: colorScheme.outlineVariant.withValues(alpha: 0.35),
+                ),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: colorScheme.errorContainer,
+                          borderRadius: BorderRadius.circular(13),
+                        ),
+                        child: Icon(
+                          Icons.delete_outline_rounded,
+                          color: colorScheme.error,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      const Expanded(
+                        child: Text(
+                          'Delete Bill?',
+                          style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    relatedPayments.isNotEmpty
+                        ? 'This bill will be removed from the calendar along with related payment transactions for this occurrence.'
+                        : 'This bill will be removed from the calendar.',
+                    style: TextStyle(
+                      color: colorScheme.onSurfaceVariant,
+                      fontSize: 15,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: SizedBox(
+                          height: 50,
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            child: const Text('Cancel'),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: SizedBox(
+                          height: 50,
+                          child: FilledButton.icon(
+                            style: FilledButton.styleFrom(
+                              backgroundColor: colorScheme.error,
+                              foregroundColor: colorScheme.onError,
+                            ),
+                            onPressed: () => Navigator.pop(context, true),
+                            icon: const Icon(Icons.delete_outline_rounded),
+                            label: const Text('Delete'),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Delete', style: TextStyle(color: Colors.red)),
-            ),
-          ],
-        ),
+          );
+        },
       );
 
       if (confirmed == true) {

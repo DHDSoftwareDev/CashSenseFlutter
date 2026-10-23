@@ -63,61 +63,130 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
     }
   }
 
+  BoxDecoration _cardDecoration(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return BoxDecoration(
+      color: colorScheme.surface,
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(
+        color: colorScheme.outlineVariant.withValues(alpha: 0.35),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final Color headerColor = Theme.of(context).brightness == Brightness.light
-        ? Colors.black87
-        : Colors.white;
+    final colorScheme = Theme.of(context).colorScheme;
+    final headerColor =
+        Theme.of(context).brightness == Brightness.light
+            ? Colors.black87
+            : Colors.white;
+
     return Scaffold(
+      backgroundColor: colorScheme.surfaceContainerLowest,
       appBar: AppBar(
-        title: const Text('Subscriptions'),
+        title: const Text(
+          'Subscriptions',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
         centerTitle: true,
-        backgroundColor: Theme.of(context).colorScheme.primary,
+        backgroundColor: colorScheme.primary,
         foregroundColor: Colors.white,
+        elevation: 0,
       ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
         children: [
           if (BillingService.isTrialActive()) ...[
-            Card(
-              color: Colors.green[50],
-              child: ListTile(
-                leading: const Icon(Icons.timer, color: Colors.green),
-                title: const Text('Trial active'),
-                subtitle: Text(
-                  'Expires ${BillingService.trialExpiry()?.toLocal().toString().split(" ").first ?? ''}',
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.green.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: Colors.green.withValues(alpha: 0.25),
                 ),
               ),
-            ),
-            const SizedBox(height: 8),
-          ],
-          // Promo code input
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
               child: Row(
                 children: [
+                  const Icon(Icons.timer_outlined, color: Colors.green),
+                  const SizedBox(width: 12),
                   Expanded(
-                    child: TextField(
-                      controller: _promoController,
-                      textCapitalization: TextCapitalization.characters,
-                      decoration: InputDecoration(
-                        labelText: 'Promo Code',
-                        hintText: _appliedPromo ?? 'Enter Code',
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Trial active',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Expires ${BillingService.trialExpiry()?.toLocal().toString().split(" ").first ?? ''}',
+                          style: TextStyle(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+
+          // PROMO CODE
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: _cardDecoration(context),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _promoController,
+                    textCapitalization: TextCapitalization.characters,
+                    decoration: InputDecoration(
+                      labelText: 'Promo Code',
+                      hintText: _appliedPromo ?? 'Enter Code',
+                      filled: true,
+                      fillColor: colorScheme.surfaceContainerHighest
+                          .withValues(alpha: 0.45),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 17,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide.none,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide.none,
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide(
+                          color: colorScheme.primary,
+                          width: 1.5,
+                        ),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  TextButton(
+                ),
+                const SizedBox(width: 10),
+                SizedBox(
+                  height: 52,
+                  child: FilledButton(
                     onPressed: () async {
                       final code = _promoController.text.trim();
                       if (code.isEmpty) return;
                       final res = await BillingService.applyPromoCode(code);
+                      if (!mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(res['message'] ?? ''),
-                          backgroundColor: Colors.grey[400],
-                        ),
+                        SnackBar(content: Text(res['message'] ?? '')),
                       );
                       setState(() {
                         _currentPlan =
@@ -127,40 +196,71 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                         );
                       });
                     },
+                    style: FilledButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
                     child: const Text('Apply'),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 12),
-          Card(
+
+          const SizedBox(height: 16),
+
+          // CURRENT PLAN
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: _cardDecoration(context),
             child: Column(
               children: [
-                ListTile(
-                  leading: const Icon(
-                    Icons.workspace_premium,
-                    color: Colors.amber,
-                  ),
-                  title: const Text('Current Plan'),
-                  subtitle: Text(_currentPlan),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: _openDeviceSubscriptionPage,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.workspace_premium_outlined,
+                      color: Colors.amber,
+                      size: 30,
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Icon(Icons.settings, size: 18),
-                          const SizedBox(width: 4),
-                          const Text('Manage Subscription'),
+                          Text(
+                            'Current Plan',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _currentPlan,
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyLarge
+                                ?.copyWith(
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
+                          ),
                         ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: OutlinedButton.icon(
+                    onPressed: _openDeviceSubscriptionPage,
+                    icon: const Icon(Icons.settings_outlined, size: 19),
+                    label: const Text('Manage Subscription'),
+                    style: OutlinedButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
                       ),
                     ),
                   ),
@@ -168,326 +268,395 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 12),
-          // Collapsible section describing what Premium includes
-          Card(
+
+          const SizedBox(height: 16),
+
+          // PREMIUM FEATURES
+          Container(
+            decoration: _cardDecoration(context),
+            clipBehavior: Clip.antiAlias,
             child: ExpansionTile(
-              initiallyExpanded: false,
-              leading: const Icon(Icons.info_outline, color: Colors.blue),
-              title: const Text("What's included in Premium"),
-              childrenPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 8,
+              tilePadding: const EdgeInsets.symmetric(
+                horizontal: 18,
+                vertical: 4,
               ),
+              childrenPadding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+              leading: Icon(
+                Icons.info_outline_rounded,
+                color: colorScheme.primary,
+              ),
+              title: const Text(
+                "What's included in Premium",
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              shape: const Border(),
+              collapsedShape: const Border(),
               children: [
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Premium features include:',
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
+                _premiumFeature(
+                  context,
+                  'No Ads',
+                  'Enjoy an ad-free experience throughout the app when you upgrade to Premium.',
+                  headerColor,
                 ),
-                const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'No Ads',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                      color: headerColor,
-                    ),
-                  ),
+                _premiumFeature(
+                  context,
+                  'Unlimited Reports',
+                  'Create and manage detailed reports with filters by category, payee, payer, and custom date ranges to track every aspect of your finances.',
+                  headerColor,
                 ),
-                const SizedBox(height: 6),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Enjoy an ad-free experience throughout the app when you upgrade to Premium.',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
+                _premiumFeature(
+                  context,
+                  'Unlimited Accounts',
+                  'Create up to 3 accounts for free - upgrade for unlimited accounts.',
+                  headerColor,
                 ),
-                const SizedBox(height: 8),
-                const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Unlimited Reports',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                      color: headerColor,
-                    ),
-                  ),
+                _premiumFeature(
+                  context,
+                  'Unlimited Bills',
+                  'Manage up to 100 bills and payments for free — upgrade for unlimited tracking.',
+                  headerColor,
                 ),
-                const SizedBox(height: 6),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Create and manage detailed reports with filters by category, payee, payer, and custom date ranges to track every aspect of your finances.',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
+                _premiumFeature(
+                  context,
+                  'Unlimited Transactions',
+                  'Free users are limited to 50 transactions per account. Upgrade to record unlimited transactions.',
+                  headerColor,
                 ),
-                const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Unlimited Accounts',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                      color: headerColor,
-                    ),
-                  ),
+                _premiumFeature(
+                  context,
+                  'Auto Backup & Device Sync',
+                  'Automatically back up and sync your data across all your devices so nothing is ever lost.',
+                  headerColor,
+                  isLast: true,
                 ),
-                const SizedBox(height: 6),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Create up to 3 accounts for free - upgrade for unlimited accounts.',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Unlimited Bills',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                      color: headerColor,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    "Manage up to 100 bills and payments for free — upgrade for unlimited tracking.",
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Unlimited Transactions',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                      color: headerColor,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Free users are limited to 50 transactions per account. Upgrade to record unlimited transactions.',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Auto Backup & Device Sync',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                      color: headerColor,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Automatically back up and sync your data across all your devices so nothing is ever lost.',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ),
-                const SizedBox(height: 12),
               ],
             ),
           ),
-          const SizedBox(height: 12),
+
+          const SizedBox(height: 24),
+
           Text(
             'Available Plans',
-            style: Theme.of(context).textTheme.titleLarge,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
+
           ..._plans.map((p) {
             final id = p['id']!;
             final isCurrent = id == _currentPlan;
-            return Card(
-              child: Stack(
-                children: [
-                  ListTile(
-                    title: Text(
-                      p['title']!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    subtitle: Column(
+            final price = _prices[id] ?? '';
+
+            String? trialText;
+            if (id == 'Monthly') {
+              if (BillingService.isTrialActive() &&
+                  DatabaseService.getSetting<String>('subscriptionPlan') ==
+                      'Monthly') {
+                final exp = BillingService.trialExpiry();
+                trialText = exp != null
+                    ? 'Trial active until ${exp.toLocal().toString().split(' ').first}'
+                    : 'Trial active';
+              } else {
+                trialText = '7-day free trial';
+              }
+            } else if (id == 'Annual') {
+              if (BillingService.isTrialActive() &&
+                  DatabaseService.getSetting<String>('subscriptionPlan') ==
+                      'Annual') {
+                final exp = BillingService.trialExpiry();
+                trialText = exp != null
+                    ? 'Trial active until ${exp.toLocal().toString().split(' ').first}'
+                    : 'Trial active';
+              } else {
+                trialText = '30-day free trial';
+              }
+            }
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: colorScheme.surface,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: isCurrent
+                        ? colorScheme.primary.withValues(alpha: 0.55)
+                        : colorScheme.outlineVariant.withValues(alpha: 0.35),
+                    width: isCurrent ? 1.5 : 1,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(p['desc']!),
-                        const SizedBox(height: 8),
-                        // Trial badge for Monthly / Annual
-                        Builder(
-                          builder: (context) {
-                            if (id == 'Monthly') {
-                              // Monthly has a 7-day trial promotion
-                              if (BillingService.isTrialActive() &&
-                                  (DatabaseService.getSetting<String>(
-                                        'subscriptionPlan',
-                                      ) ==
-                                      'Monthly')) {
-                                final exp = BillingService.trialExpiry();
-                                final text = exp != null
-                                    ? 'Trial active until ${exp.toLocal().toString().split(' ').first}'
-                                    : 'Trial active';
-                                return Padding(
-                                  padding: const EdgeInsets.only(bottom: 8.0),
-                                  child: Chip(
-                                    label: Text(
-                                      text,
-                                      style: TextStyle(fontSize: 11),
-                                    ),
-                                    backgroundColor: Colors.transparent,
-                                  ),
-                                );
-                              }
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 8.0),
-                                child: Chip(
-                                  label: const Text(
-                                    '7-day free trial',
-                                    style: TextStyle(fontSize: 11),
-                                  ),
-                                  backgroundColor: Colors.transparent,
-                                ),
-                              );
-                            }
-
-                            if (id == 'Annual') {
-                              // Annual has a 30-day trial promotion
-                              if (BillingService.isTrialActive() &&
-                                  (DatabaseService.getSetting<String>(
-                                        'subscriptionPlan',
-                                      ) ==
-                                      'Annual')) {
-                                final exp = BillingService.trialExpiry();
-                                final text = exp != null
-                                    ? 'Trial active until ${exp.toLocal().toString().split(' ').first}'
-                                    : 'Trial active';
-                                return Padding(
-                                  padding: const EdgeInsets.only(bottom: 8.0),
-                                  child: Chip(
-                                    label: Text(
-                                      text,
-                                      style: TextStyle(fontSize: 11),
-                                    ),
-                                    backgroundColor: Colors.transparent,
-                                  ),
-                                );
-                              }
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 8.0),
-                                child: Chip(
-                                  label: const Text(
-                                    '30-day free trial',
-                                    style: TextStyle(fontSize: 11),
-                                  ),
-                                  backgroundColor: Colors.transparent,
-                                ),
-                              );
-                            }
-
-                            return const SizedBox.shrink();
-                          },
-                        ),
-                        // Benefits
-                        ...?_benefits[id]?.map(
-                          (b) => Row(
+                        Expanded(
+                          child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text('• ', style: TextStyle(fontSize: 12)),
-                              Expanded(
-                                child: Text(
-                                  b,
-                                  style: Theme.of(context).textTheme.bodySmall,
+                              Row(
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      p['title']!,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                    ),
+                                  ),
+                                  if (isCurrent) ...[
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 3,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: colorScheme.primaryContainer,
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      child: Text(
+                                        'Current',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .labelSmall
+                                            ?.copyWith(
+                                              color: colorScheme
+                                                  .onPrimaryContainer,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              const SizedBox(height: 5),
+                              Text(
+                                p['desc']!,
+                                style: TextStyle(
+                                  color: colorScheme.onSurfaceVariant,
                                 ),
                               ),
                             ],
                           ),
                         ),
+                        if (price.isNotEmpty) ...[
+                          const SizedBox(width: 12),
+                          Text(
+                            price,
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleLarge
+                                ?.copyWith(
+                                  color: colorScheme.primary,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                        ],
                       ],
                     ),
-                    trailing: isCurrent
-                        ? TextButton(
-                            onPressed: () => _showManagePlanDialog(id),
-                            child: const Text('Manage'),
-                          )
-                        : TextButton(
-                            onPressed: () => _confirmSubscribe(id),
-                            child: const Text('Subscribe'),
-                          ),
-                  ),
-                  if ((_prices[id] ?? '').isNotEmpty)
-                    Positioned(
-                      top: 12,
-                      right: 12,
-                      child: Text(
-                        _prices[id]!,
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.primary,
+                    if (trialText != null) ...[
+                      const SizedBox(height: 14),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 11,
+                          vertical: 7,
+                        ),
+                        decoration: BoxDecoration(
+                          color: colorScheme.surfaceContainerHighest
+                              .withValues(alpha: 0.55),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          trialText,
+                          style: Theme.of(context).textTheme.labelMedium,
+                        ),
+                      ),
+                    ],
+                    ...?_benefits[id]?.map(
+                      (benefit) => Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              Icons.check_rounded,
+                              size: 18,
+                              color: colorScheme.primary,
+                            ),
+                            const SizedBox(width: 7),
+                            Expanded(
+                              child: Text(
+                                benefit,
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                ],
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: isCurrent
+                          ? OutlinedButton(
+                              onPressed: () => _showManagePlanDialog(id),
+                              style: OutlinedButton.styleFrom(
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: const Text('Manage Plan'),
+                            )
+                          : FilledButton(
+                              onPressed: () => _confirmSubscribe(id),
+                              style: FilledButton.styleFrom(
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: Text('Choose ${p['title']}'),
+                            ),
+                    ),
+                  ],
+                ),
               ),
             );
-          }).toList(),
-          const SizedBox(height: 24),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.restore),
-              title: const Text('Restore Purchases'),
-              subtitle: const Text(
-                'Restore previous purchase or subscription status',
-              ),
-              trailing: TextButton(
-                onPressed: () async {
-                  final restored = await BillingService.restore();
-                  setState(() {
-                    _currentPlan = DatabaseService.subscriptionVersion.value;
-                  });
-                  if (restored) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Your previous subscription has been restored.',
-                        ),
+          }),
+
+          const SizedBox(height: 4),
+
+          // RESTORE PURCHASES
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: _cardDecoration(context),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.restore_rounded,
+                      color: colorScheme.onSurfaceVariant,
+                      size: 28,
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Restore Purchases',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            'Restore previous purchase or subscription status',
+                            style: TextStyle(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
                       ),
-                    );
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'No active subscription found to restore.',
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: OutlinedButton(
+                    onPressed: () async {
+                      final restored = await BillingService.restore();
+                      if (!mounted) return;
+                      setState(() {
+                        _currentPlan =
+                            DatabaseService.subscriptionVersion.value;
+                      });
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            restored
+                                ? 'Your previous subscription has been restored.'
+                                : 'No active subscription found to restore.',
+                          ),
                         ),
+                      );
+                    },
+                    style: OutlinedButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                    );
-                  }
-                },
-                child: const Text('Restore'),
-              ),
+                    ),
+                    child: const Text('Restore Purchases'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _premiumFeature(
+    BuildContext context,
+    String title,
+    String description,
+    Color headerColor, {
+    bool isLast = false,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: isLast ? 0 : 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              color: colorScheme.primaryContainer.withValues(alpha: 0.6),
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Icon(
+              Icons.check_rounded,
+              size: 18,
+              color: colorScheme.primary,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                    color: headerColor,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  description,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                        height: 1.35,
+                      ),
+                ),
+              ],
             ),
           ),
         ],

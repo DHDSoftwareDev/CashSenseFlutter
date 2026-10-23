@@ -12,6 +12,7 @@ import '../services/database_service.dart';
 import '../services/bill_reminder_service.dart';
 import '../services/lookups_sync_helper.dart';
 import '../widgets/app_color_picker.dart';
+import '../widgets/account_type_icon.dart';
 import 'package:uuid/uuid.dart';
 
 Category? _findCategoryById(Iterable<Category> categories, String? id) {
@@ -1737,8 +1738,9 @@ class _AddAccountPageState extends State<_AddAccountPage> {
               padding: const EdgeInsets.only(left: 16, right: 6),
               child: Row(
                 children: [
-                  Icon(
-                    Icons.account_balance_wallet_outlined,
+                  AccountTypeIcon(
+                    type: _selectedType,
+                    displayName: _formatType(selectedValue),
                     color: colorScheme.primary,
                   ),
                   const SizedBox(width: 12),
@@ -1748,12 +1750,29 @@ class _AddAccountPageState extends State<_AddAccountPage> {
                         value: selectedValue,
                         isExpanded: true,
                         items: typeNames
-                            .map(
-                              (type) => DropdownMenuItem<String>(
+                            .map((type) {
+                              final match = AccountType.values.where(
+                                (candidate) =>
+                                    candidate.name.toLowerCase() ==
+                                    type.toLowerCase(),
+                              );
+                              final displayType = _formatType(type);
+                              return DropdownMenuItem<String>(
                                 value: type,
-                                child: Text(_formatType(type)),
-                              ),
-                            )
+                                child: Row(
+                                  children: [
+                                    AccountTypeIcon(
+                                      type: match.isNotEmpty
+                                          ? match.first
+                                          : AccountType.cash,
+                                      displayName: displayType,
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Text(displayType),
+                                  ],
+                                ),
+                              );
+                            })
                             .toList(),
                         onChanged: (value) {
                           if (value == null) return;
@@ -2123,6 +2142,23 @@ class _AddBillScreenState extends State<AddBillScreen> {
   List accountList = [];
   List<Category> _categories = [];
   String? _selectedCategoryId;
+
+  Account? _accountForId(String? accountId) {
+    if (accountId == null) return null;
+    for (final account in accountList) {
+      if (account is Account && account.id == accountId) return account;
+    }
+    return null;
+  }
+
+  Widget _accountIconForId(String? accountId, IconData fallbackIcon) {
+    final account = _accountForId(accountId);
+    if (account == null) return Icon(fallbackIcon);
+    return AccountTypeIcon(
+      type: account.type,
+      displayName: account.typeDisplayName,
+    );
+  }
 
   @override
   void initState() {
@@ -2814,7 +2850,10 @@ Widget _buildNotesField() {
 
   Widget _buildAccountSelector() {
     return ListTile(
-      leading: const Icon(Icons.account_balance_wallet),
+      leading: _accountIconForId(
+        _selectedAccountId,
+        Icons.account_balance_wallet_outlined,
+      ),
       title: const Text('Account'),
       subtitle: Text(
         _selectedAccountId == null
@@ -2923,15 +2962,7 @@ Widget _buildNotesField() {
                             final accountId = account.id;
                             final isSelected = accountId == _selectedAccountId;
 
-                            final rawType =
-                                (account.customType != null &&
-                                        account.customType!.trim().isNotEmpty)
-                                    ? account.customType!.trim()
-                                    : account.type.name;
-                            final accountType = rawType.isEmpty
-                                ? ''
-                                : rawType[0].toUpperCase() +
-                                    rawType.substring(1);
+                            final accountType = account.typeDisplayName;
 
                             final colorScheme =
                                 Theme.of(selectorContext).colorScheme;
@@ -2979,10 +3010,10 @@ Widget _buildNotesField() {
                                               BorderRadius.circular(12),
                                         ),
                                         alignment: Alignment.center,
-                                        child: Icon(
-                                          Icons.account_balance_wallet_outlined,
+                                        child: AccountTypeIcon(
+                                          type: account.type,
+                                          displayName: account.typeDisplayName,
                                           color: primary,
-                                          size: 24,
                                         ),
                                       ),
                                       const SizedBox(width: 14),
@@ -3056,7 +3087,7 @@ Widget _buildNotesField() {
 
   Widget _buildFromAccountSelector() {
     return ListTile(
-        leading: const Icon(Icons.arrow_forward),
+        leading: _accountIconForId(_fromAccountId, Icons.arrow_forward),
         title: const Text('From'),
         subtitle: Text(
           _fromAccountId == null
@@ -3132,7 +3163,23 @@ Widget _buildNotesField() {
                                                     .map(
                                                       (t) => DropdownMenuItem(
                                                         value: t,
-                                                        child: Text(t.name),
+                                                        child: Row(
+                                                          children: [
+                                                            AccountTypeIcon(
+                                                              type: t,
+                                                            ),
+                                                            const SizedBox(
+                                                              width: 8,
+                                                            ),
+                                                            Text(
+                                                              t == AccountType.bank
+                                                                  ? 'Checking'
+                                                                  : t == AccountType.investment
+                                                                  ? 'Savings'
+                                                                  : t.name,
+                                                            ),
+                                                          ],
+                                                        ),
                                                       ),
                                                     )
                                                     .toList(),
@@ -3353,6 +3400,14 @@ Widget _buildNotesField() {
                       itemBuilder: (context, idx) {
                         final a = accountList[idx];
                         return ListTile(
+                          leading: a is Account
+                              ? AccountTypeIcon(
+                                  type: a.type,
+                                  displayName: a.typeDisplayName,
+                                )
+                              : const Icon(
+                                  Icons.account_balance_wallet_outlined,
+                                ),
                           title: Text(
                             (a is Account) ? a.name : (a['name'] as String),
                           ),
@@ -3375,7 +3430,7 @@ Widget _buildNotesField() {
 
   Widget _buildToAccountSelector() {
     return ListTile(
-        leading: const Icon(Icons.call_received),
+        leading: _accountIconForId(_toAccountId, Icons.call_received),
         title: const Text('To'),
         subtitle: Text(
           _toAccountId == null
@@ -3450,7 +3505,23 @@ Widget _buildNotesField() {
                                                     .map(
                                                       (t) => DropdownMenuItem(
                                                         value: t,
-                                                        child: Text(t.name),
+                                                        child: Row(
+                                                          children: [
+                                                            AccountTypeIcon(
+                                                              type: t,
+                                                            ),
+                                                            const SizedBox(
+                                                              width: 8,
+                                                            ),
+                                                            Text(
+                                                              t == AccountType.bank
+                                                                  ? 'Checking'
+                                                                  : t == AccountType.investment
+                                                                  ? 'Savings'
+                                                                  : t.name,
+                                                            ),
+                                                          ],
+                                                        ),
                                                       ),
                                                     )
                                                     .toList(),
@@ -3671,6 +3742,14 @@ Widget _buildNotesField() {
                       itemBuilder: (context, idx) {
                         final a = accountList[idx];
                         return ListTile(
+                          leading: a is Account
+                              ? AccountTypeIcon(
+                                  type: a.type,
+                                  displayName: a.typeDisplayName,
+                                )
+                              : const Icon(
+                                  Icons.account_balance_wallet_outlined,
+                                ),
                           title: Text(
                             (a is Account) ? a.name : (a['name'] as String),
                           ),

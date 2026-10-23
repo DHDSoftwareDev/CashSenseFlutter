@@ -1,4 +1,4 @@
-// ignore_for_file: deprecated_member_use
+// ignore_for_file: unused_element, deprecated_member_use
 
 import 'package:flutter/material.dart';
 import 'dart:convert';
@@ -283,53 +283,228 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
   }
 
+  BoxDecoration _cardDecoration(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return BoxDecoration(
+      color: colorScheme.surface,
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(
+        color: colorScheme.outlineVariant.withValues(alpha: 0.35),
+      ),
+    );
+  }
+
+  Widget _actionTile({
+    required BuildContext context,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback? onTap,
+    required bool loading,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: 16,
+        vertical: 6,
+      ),
+      leading: Container(
+        width: 42,
+        height: 42,
+        decoration: BoxDecoration(
+          color: colorScheme.primaryContainer.withValues(alpha: 0.55),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(
+          icon,
+          color: colorScheme.primary,
+          size: 22,
+        ),
+      ),
+      title: Text(
+        title,
+        style: const TextStyle(fontWeight: FontWeight.w600),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: TextStyle(color: colorScheme.onSurfaceVariant),
+      ),
+      trailing: loading
+          ? const SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : Icon(
+              Icons.chevron_right_rounded,
+              color: colorScheme.onSurfaceVariant,
+            ),
+      onTap: onTap,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Notifications'), centerTitle: true),
+      backgroundColor: colorScheme.surfaceContainerLowest,
+      appBar: AppBar(
+        title: const Text(
+          'Notifications',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        centerTitle: true,
+        backgroundColor: colorScheme.primary,
+        foregroundColor: Colors.white,
+        elevation: 0,
+      ),
       body: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
         children: [
-          _buildSwitch('Bill Reminders', _billReminders, 'notif_billReminders'),
-          if (_billReminders)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-              child: BillReminderPicker(
-                initialValue: selectedReminders,
-                onChanged: _updateReminderOffsets,
-              ),
+          Text(
+            'BILL REMINDERS',
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: colorScheme.primary,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.7,
+                ),
+          ),
+          const SizedBox(height: 8),
+
+          Container(
+            decoration: _cardDecoration(context),
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              children: [
+                SwitchListTile(
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 7,
+                  ),
+                  secondary: Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: colorScheme.primaryContainer
+                          .withValues(alpha: 0.55),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      Icons.notifications_active_outlined,
+                      color: colorScheme.primary,
+                      size: 22,
+                    ),
+                  ),
+                  title: const Text(
+                    'Bill Reminders',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  subtitle: Text(
+                    _billReminderSubtitle(_billReminders),
+                    style: TextStyle(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  value: _billReminders,
+                  onChanged: _setBillReminders,
+                ),
+
+                if (_billReminders) ...[
+                  Divider(
+                    height: 1,
+                    color: colorScheme.outlineVariant
+                        .withValues(alpha: 0.35),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
+                    child: BillReminderPicker(
+                      initialValue: selectedReminders,
+                      onChanged: _updateReminderOffsets,
+                    ),
+                  ),
+                ],
+              ],
             ),
-          ListTile(
-            title: const Text('Sync push notifications'),
-            subtitle: const Text('Re-register this device with the server'),
-            trailing: _syncingToken
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.sync),
-            onTap: _syncingToken ? null : _syncDeviceToken,
           ),
-          ListTile(
-            title: const Text('Reschedule bill reminders now'),
-            subtitle: const Text('Refresh scheduled reminders immediately'),
-            trailing: _reschedulingReminders
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.refresh),
-            onTap: _reschedulingReminders ? null : _rescheduleBillRemindersNow,
-          ),
-          // Only show bill reminders for now
-          const Divider(),
+
           const SizedBox(height: 24),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: Text(
-              "Turn on notifications to get bill reminders from CashSense Money Management at the time you choose.\nDon’t forget to allow push notifications in your device’s system settings.",
-              style: Theme.of(context).textTheme.bodySmall,
+
+          Text(
+            'NOTIFICATION TOOLS',
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: colorScheme.primary,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.7,
+                ),
+          ),
+          const SizedBox(height: 8),
+
+          Container(
+            decoration: _cardDecoration(context),
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              children: [
+                _actionTile(
+                  context: context,
+                  icon: Icons.sync_rounded,
+                  title: 'Sync Push Notifications',
+                  subtitle: 'Re-register this device with the server',
+                  loading: _syncingToken,
+                  onTap: _syncingToken ? null : _syncDeviceToken,
+                ),
+                Divider(
+                  height: 1,
+                  indent: 74,
+                  color: colorScheme.outlineVariant
+                      .withValues(alpha: 0.35),
+                ),
+                _actionTile(
+                  context: context,
+                  icon: Icons.refresh_rounded,
+                  title: 'Reschedule Bill Reminders',
+                  subtitle: 'Refresh scheduled reminders immediately',
+                  loading: _reschedulingReminders,
+                  onTap: _reschedulingReminders
+                      ? null
+                      : _rescheduleBillRemindersNow,
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: colorScheme.primaryContainer.withValues(alpha: 0.28),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.info_outline_rounded,
+                  size: 21,
+                  color: colorScheme.primary,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    "Turn on notifications to get bill reminders from CashSense Money Management at the time you choose.\n\nDon’t forget to allow push notifications in your device’s system settings.",
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                          height: 1.4,
+                        ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],

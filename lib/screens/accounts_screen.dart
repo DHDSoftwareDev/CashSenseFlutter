@@ -3,13 +3,19 @@
 import '../widgets/banner_ad_widget.dart';
 // ignore_for_file: use_build_context_synchronously
 
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../services/database_service.dart';
+import '../services/lookups_state.dart';
+import '../theme/app_theme.dart';
 import '../utils/formatters.dart';
 import '../models/account.dart';
 import '../models/transaction.dart';
+import '../widgets/account_type_icon.dart';
 import 'add_account_screen.dart';
 import 'add_transaction_screen.dart';
 // Reordering is handled inline in this screen.
@@ -159,6 +165,29 @@ class _AccountsScreenState extends State<AccountsScreen> {
     return '$institution - $number';
   }
 
+  Widget _buildAccountTypeIcon(Account account) {
+    return AccountTypeIcon(
+      type: account.type,
+      displayName: account.typeDisplayName,
+    );
+  }
+
+  Widget _buildFittedAccountText(String text, TextStyle? style) {
+    return SizedBox(
+      width: double.infinity,
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerLeft,
+        child: Text(
+          text,
+          maxLines: 1,
+          softWrap: false,
+          style: style,
+        ),
+      ),
+    );
+  }
+
   Future<void> _openAccountTransactions(Account acc) async {
     navigateToRootPage(1, accountId: acc.id);
   }
@@ -166,20 +195,77 @@ class _AccountsScreenState extends State<AccountsScreen> {
   Future<void> _archiveAccount(Account acc) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Archive account'),
-        content: Text('Archive "${acc.name}"? This will hide it from lists.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancel'),
+      builder: (dialogContext) {
+        final theme = Theme.of(dialogContext);
+        final colors = theme.colorScheme;
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Archive'),
+          icon: Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: colors.primaryContainer,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(
+              Icons.archive_outlined,
+              color: colors.onPrimaryContainer,
+            ),
           ),
-        ],
-      ),
+          title: const Text(
+            'Archive Account',
+            textAlign: TextAlign.center,
+          ),
+          content: Text(
+            'Archive "${acc.name}"? This will hide it from your account lists.',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: colors.onSurfaceVariant,
+              height: 1.4,
+            ),
+          ),
+          actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+          actions: [
+            Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    height: 48,
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(dialogContext, false),
+                      style: OutlinedButton.styleFrom(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: SizedBox(
+                    height: 48,
+                    child: FilledButton(
+                      onPressed: () => Navigator.pop(dialogContext, true),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: colors.primary,
+                        foregroundColor: colors.onPrimary,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text('Archive'),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
     );
     if (confirmed != true) return;
     final updated = acc.copyWith(isActive: false);
@@ -192,22 +278,77 @@ class _AccountsScreenState extends State<AccountsScreen> {
   Future<void> _deleteAccount(Account acc) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Delete account'),
-        content: Text(
-          'Are you sure you want to permanently delete "${acc.name}"? This cannot be undone.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancel'),
+      builder: (dialogContext) {
+        final theme = Theme.of(dialogContext);
+        final colors = theme.colorScheme;
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          icon: Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: colors.errorContainer,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(
+              Icons.delete_outline_rounded,
+              color: colors.onErrorContainer,
+            ),
           ),
-        ],
-      ),
+          title: const Text(
+            'Delete Account',
+            textAlign: TextAlign.center,
+          ),
+          content: Text(
+            'Permanently delete "${acc.name}"? This action cannot be undone.',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: colors.onSurfaceVariant,
+              height: 1.4,
+            ),
+          ),
+          actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+          actions: [
+            Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    height: 48,
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(dialogContext, false),
+                      style: OutlinedButton.styleFrom(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: SizedBox(
+                    height: 48,
+                    child: FilledButton(
+                      onPressed: () => Navigator.pop(dialogContext, true),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: colors.error,
+                        foregroundColor: colors.onError,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text('Delete'),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
     );
     if (confirmed != true) return;
     await DatabaseService.deleteAccount(acc.id);
@@ -419,18 +560,60 @@ class _AccountsScreenState extends State<AccountsScreen> {
                         // Show feedback dialog for free users who reached the limit
                         await showDialog(
                           context: context,
-                          builder: (dialogContext) => AlertDialog(
-                            title: const Text('Account Limit Reached'),
-                            content: const Text(
-                              'Free users can create up to 3 accounts. Subscribe for unlimited accounts.',
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(dialogContext),
-                                child: const Text('OK'),
+                          builder: (dialogContext) {
+                            final theme = Theme.of(dialogContext);
+                            final colors = theme.colorScheme;
+                            return AlertDialog(
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
                               ),
-                            ],
-                          ),
+                              icon: Container(
+                                width: 52,
+                                height: 52,
+                                decoration: BoxDecoration(
+                                  color: colors.primaryContainer,
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Icon(
+                                  Icons.workspace_premium_outlined,
+                                  color: colors.onPrimaryContainer,
+                                ),
+                              ),
+                              title: const Text(
+                                'Account Limit Reached',
+                                textAlign: TextAlign.center,
+                              ),
+                              content: Text(
+                                'Free users can create up to 3 accounts. Subscribe for unlimited accounts.',
+                                textAlign: TextAlign.center,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: colors.onSurfaceVariant,
+                                  height: 1.4,
+                                ),
+                              ),
+                              actionsPadding:
+                                  const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                              actions: [
+                                SizedBox(
+                                  width: double.infinity,
+                                  height: 48,
+                                  child: FilledButton(
+                                    onPressed: () =>
+                                        Navigator.pop(dialogContext),
+                                    style: FilledButton.styleFrom(
+                                      backgroundColor: colors.primary,
+                                      foregroundColor: colors.onPrimary,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(12),
+                                      ),
+                                    ),
+                                    child: const Text('OK'),
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
                         );
                         return;
                       }
@@ -750,51 +933,251 @@ if (_searchQuery.isEmpty) ...[
   }
 
   Widget _buildTransactionSearchTile(Transaction transaction) {
-    final category = DatabaseService.getCategoryById(transaction.categoryId);
-    final categoryName = category?.name ?? transaction.categoryName ?? '';
-    final signedAmount = transaction.type == TransactionType.income
-        ? transaction.amount
-        : -transaction.amount;
-    final amountColor = transaction.type == TransactionType.income
-        ? Colors.green
-        : Theme.of(context).colorScheme.error;
+    final lookupsState = context.watch<LookupsState>();
+    final normalizedCategoryId = transaction.categoryId.trim();
+    final category = normalizedCategoryId.isEmpty
+        ? null
+        : DatabaseService.getCategoryById(normalizedCategoryId);
+    final categoryText =
+        (category?.name != null && category!.name.trim().isNotEmpty)
+        ? category.name
+        : lookupsState.categoryName(
+            normalizedCategoryId,
+            fallbackName: transaction.categoryName ?? 'Unknown Category',
+          );
+    final payeeText = lookupsState.payeeName(
+      transaction.payeeId,
+      fallbackName: transaction.payeeName,
+    );
+    final payerText = lookupsState.payerName(
+      transaction.payerId,
+      fallbackName: transaction.payerName,
+    );
 
-    return ListTile(
+    var categoryDisplay = categoryText;
+    if (transaction.splitsJson != null &&
+        transaction.splitsJson!.trim().isNotEmpty) {
+      try {
+        final splits = json.decode(transaction.splitsJson!) as List<dynamic>;
+        final parts = <String>[];
+        for (final split in splits) {
+          if (split is Map) {
+            final categoryId = split['categoryId']?.toString().trim();
+            final amount = split['amount'];
+            final splitCategory =
+                categoryId != null && categoryId.isNotEmpty
+                ? DatabaseService.getCategoryById(categoryId)
+                : null;
+            final name =
+                splitCategory?.name != null &&
+                    splitCategory!.name.trim().isNotEmpty
+                ? splitCategory.name
+                : lookupsState.categoryName(
+                    categoryId,
+                    fallbackName: categoryId ?? 'Unknown',
+                  );
+            final amountText = amount is num
+                ? formatCurrency(amount.toDouble())
+                : amount?.toString() ?? '';
+            parts.add('$name $amountText');
+          }
+        }
+        categoryDisplay = parts.join(', ');
+      } catch (_) {
+        categoryDisplay = categoryText;
+      }
+    }
+
+    final fallbackCounterparty = transaction.type == TransactionType.expense
+        ? payeeText
+        : payerText;
+    final isPayment = transaction.description.toLowerCase().startsWith(
+      'payment for ',
+    );
+    var title = isPayment
+        ? (fallbackCounterparty.isNotEmpty
+              ? fallbackCounterparty
+              : _extractTransactionPayeeName(transaction.description))
+        : transaction.description;
+    title = title.replaceFirst(
+      RegExp(r'^\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\s+'),
+      '',
+    );
+    final categorySuffix = categoryText.trim();
+    if (categorySuffix.isNotEmpty &&
+        title.toLowerCase().endsWith(' ${categorySuffix.toLowerCase()}')) {
+      title = title
+          .substring(0, title.length - categorySuffix.length - 1)
+          .trim();
+    }
+    if ((title.trim().isEmpty || title.trim().toLowerCase() == 'transaction') &&
+        fallbackCounterparty.isNotEmpty) {
+      title = fallbackCounterparty;
+    }
+
+    final note = _transactionDisplayNote(transaction.note);
+    final isIncome = transaction.type == TransactionType.income;
+
+    return Material(
       key: ValueKey('account_search_transaction_${transaction.id}'),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      title: Text(
-        transaction.description.trim().isEmpty
-            ? 'Transaction'
-            : transaction.description,
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-      ),
-      subtitle: Text(
-        [
-          DateFormat('MM/dd/yy').format(transaction.date),
-          if (categoryName.trim().isNotEmpty) categoryName,
-        ].join(' · '),
-      ),
-      trailing: Text(
-        formatCurrency(signedAmount),
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-          color: amountColor,
-          fontWeight: FontWeight.w600,
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () async {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => AddTransactionScreen(
+                existingTransaction: transaction,
+                hideFromCalendarDashboard: true,
+              ),
+            ),
+          );
+          if (mounted) setState(() {});
+        },
+        child: ListTile(
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 12,
+          ),
+          title: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Tooltip(
+                          message: transaction.cleared == true
+                              ? 'Cleared'
+                              : 'Uncleared',
+                          child: Icon(
+                            transaction.cleared == true
+                                ? Icons.check_circle
+                                : Icons.pending_outlined,
+                            size: 12,
+                            color: transaction.cleared == true
+                                ? AppTheme.incomeGreen
+                                : Colors.red,
+                          ),
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          DateFormat('MM/dd/yy').format(transaction.date),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                                fontWeight: FontWeight.w500,
+                              ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      categoryDisplay,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 16),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    '${isIncome ? '+' : '-'}${formatCurrency(transaction.amount)}',
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: isIncome
+                          ? AppTheme.incomeGreen
+                          : AppTheme.expenseRed,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                  if (note.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    SizedBox(
+                      width: 140,
+                      child: Text(
+                        note,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Colors.grey[600],
+                        ),
+                        textAlign: TextAlign.right,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 4),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
-      onTap: () async {
-        await Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => AddTransactionScreen(
-              existingTransaction: transaction,
-              hideFromCalendarDashboard: true,
-            ),
-          ),
-        );
-        if (mounted) setState(() {});
-      },
     );
+  }
+
+  String _extractTransactionPayeeName(String description) {
+    var name = description.trim();
+    if (name.toLowerCase().startsWith('payment for ')) {
+      name = name.substring('payment for '.length).trim();
+    }
+    return name
+        .replaceAll(
+          RegExp(r'[(\[]?\d{1,2}[/-]\d{1,2}[/-]\d{2,4}[)\]]?$'),
+          '',
+        )
+        .trim();
+  }
+
+  String _transactionDisplayNote(String? note) {
+    if (note == null || note.trim().isEmpty) return '';
+
+    var display = note.trim();
+    final lower = display.toLowerCase();
+    final isTransfer =
+        lower.startsWith('__transfer_manual__') ||
+        lower.startsWith('__transfer_bill__');
+    if (isTransfer &&
+        (display == '__transfer_manual__' || display == '__transfer_bill__')) {
+      return '';
+    }
+    if (isTransfer) {
+      display = display
+          .replaceFirst(RegExp(r'^__transfer_(manual|bill)__'), '')
+          .trim();
+    }
+    display = display
+        .replaceAll(
+          RegExp(r'__hide_from_calendar__', caseSensitive: false),
+          '',
+        )
+        .trim();
+    if (display.toLowerCase().startsWith('account:')) {
+      final afterAccount = display.substring('account:'.length).trim();
+      final parts = afterAccount.split(RegExp(r'\s*[—–-]\s*'));
+      display = parts.length > 1
+          ? parts.sublist(1).join(' — ').trim()
+          : '';
+    }
+    return display
+        .replaceAll(RegExp(r'_transfer|_bill_', caseSensitive: false), '')
+        .replaceAll(RegExp(r'pair:[A-Za-z0-9\-]+'), '')
+        .trim();
   }
 
   // Attempt to extract a short account/card number from the freeform description.
@@ -1151,7 +1534,7 @@ if (_searchQuery.isEmpty) ...[
                       final card = Card(
                         margin: const EdgeInsets.symmetric(vertical: 6.0),
                         child: ListTile(
-                          leading: const Icon(Icons.account_balance_wallet),
+                          leading: _buildAccountTypeIcon(acc),
                           title: Row(
                             children: [
                               Expanded(
@@ -1159,34 +1542,21 @@ if (_searchQuery.isEmpty) ...[
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Text(
+                                    _buildFittedAccountText(
                                       acc.name,
-                                      style: Theme.of(
+                                      Theme.of(
                                         context,
                                       ).textTheme.titleMedium,
                                     ),
                                     if (_accountDetailLabel(acc) != null)
-                                      Row(
-                                        children: [
-                                          Expanded(
-                                            child: Text(
-                                              _accountDetailLabel(acc)!,
-                                              style: Theme.of(
-                                                context,
-                                              ).textTheme.bodySmall,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
-                                        ],
+                                      _buildFittedAccountText(
+                                        _accountDetailLabel(acc)!,
+                                        Theme.of(context).textTheme.bodySmall,
                                       ),
                                   ],
                                 ),
                               ),
                             ],
-                          ),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [Text(acc.typeDisplayName)],
                           ),
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -1424,12 +1794,18 @@ if (_searchQuery.isEmpty) ...[
                           for (final acc in displayAccounts)
                             ListTile(
                               key: ValueKey(acc.id),
-                              leading: const Icon(Icons.drag_handle),
+                              leading: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.drag_handle),
+                                  const SizedBox(width: 10),
+                                  _buildAccountTypeIcon(acc),
+                                ],
+                              ),
                               title: Text(
                                 acc.name,
                                 style: Theme.of(context).textTheme.titleMedium,
                               ),
-                              subtitle: Text(acc.typeDisplayName),
                               trailing: Text(formatCurrency(acc.balance)),
                             ),
                         ],
@@ -1453,7 +1829,7 @@ if (_searchQuery.isEmpty) ...[
                         return Card(
                           margin: const EdgeInsets.symmetric(vertical: 6.0),
                           child: ListTile(
-                            leading: const Icon(Icons.account_balance_wallet),
+                            leading: _buildAccountTypeIcon(acc),
                             title: Row(
                               children: [
                                 Expanded(
@@ -1462,34 +1838,21 @@ if (_searchQuery.isEmpty) ...[
                                         CrossAxisAlignment.start,
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Text(
+                                      _buildFittedAccountText(
                                         acc.name,
-                                        style: Theme.of(
+                                        Theme.of(
                                           context,
                                         ).textTheme.titleMedium,
                                       ),
                                       if (_accountDetailLabel(acc) != null)
-                                        Row(
-                                          children: [
-                                            Expanded(
-                                              child: Text(
-                                                _accountDetailLabel(acc)!,
-                                                style: Theme.of(
-                                                  context,
-                                                ).textTheme.bodySmall,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ),
-                                          ],
+                                        _buildFittedAccountText(
+                                          _accountDetailLabel(acc)!,
+                                          Theme.of(context).textTheme.bodySmall,
                                         ),
                                     ],
                                   ),
                                 ),
                               ],
-                            ),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [Text(acc.typeDisplayName)],
                             ),
                             trailing: Row(
                               mainAxisSize: MainAxisSize.min,

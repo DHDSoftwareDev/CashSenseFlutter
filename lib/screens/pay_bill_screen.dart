@@ -14,6 +14,7 @@ import '../services/lookups_state.dart';
 import '../theme/app_theme.dart';
 import '../utils/duplication_guards.dart';
 import '../widgets/splits_editor.dart';
+import '../widgets/account_type_icon.dart';
 import '../utils/split_utils.dart';
 import 'dart:convert';
 
@@ -43,7 +44,6 @@ class _PayBillScreenState extends State<PayBillScreen> {
   List<Transaction> _paymentHistory = [];
   List<Map<String, dynamic>> _splits = [];
   bool _useSplits = false;
-  bool _isRefund = false; // If true, record payment as income (refund)
   bool _showInReports = true;
   bool _isSaving = false;
 
@@ -127,7 +127,6 @@ class _PayBillScreenState extends State<PayBillScreen> {
     // Initialize empty splits for payment (user may add splits before saving)
     _splits = [];
     _useSplits = _splits.isNotEmpty;
-    _isRefund = false;
     // If the amount due is already zero (e.g. paid via multiple partial payments),
     // persist the paid status so the pay bill screen and calendar/dashboard reflect it.
     // Use tolerance of 0.01 to handle floating-point precision issues
@@ -378,11 +377,9 @@ class _PayBillScreenState extends State<PayBillScreen> {
       final userNote = _notesController.text.trim();
       final String? finalNote = userNote.isNotEmpty ? userNote : null;
 
-      final txType = _isRefund
+      final txType = widget.bill.type == BillType.income
           ? TransactionType.income
-          : (widget.bill.type == BillType.income
-                ? TransactionType.income
-                : TransactionType.expense);
+          : TransactionType.expense;
 
       if (isLikelyDuplicateBillPayment(
         transactions: DatabaseService.getAllTransactions(),
@@ -441,8 +438,7 @@ class _PayBillScreenState extends State<PayBillScreen> {
         final account = DatabaseService.getAccountById(_selectedAccountId!);
         if (account != null) {
           // Update account based on transaction type (income increases, expense decreases)
-          final newBalance =
-              (_isRefund || (widget.bill.type == BillType.income && !_isRefund))
+          final newBalance = widget.bill.type == BillType.income
               ? account.balance + amount
               : account.balance - amount;
           final updatedAccount = account.copyWith(balance: newBalance);
@@ -840,6 +836,80 @@ SizedBox(
   );
 }
 
+  Widget _buildPaymentActionTile({
+    required BuildContext context,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+    bool destructive = false,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final actionColor =
+        destructive ? colorScheme.error : colorScheme.primary;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+          decoration: BoxDecoration(
+            color: destructive
+                ? colorScheme.errorContainer.withValues(alpha: 0.35)
+                : colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: destructive
+                      ? colorScheme.errorContainer
+                      : colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: actionColor, size: 21),
+              ),
+              const SizedBox(width: 13),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: destructive ? colorScheme.error : null,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: actionColor,
+                size: 20,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildPaymentHistoryCard() {
     final colorScheme = Theme.of(context).colorScheme;
 
@@ -972,34 +1042,119 @@ return Card(
                           final ctx = context;
                           // Capture local references before any awaits to avoid using
                           // the BuildContext across async gaps.
-                          final overlay =
-                              Overlay.of(context).context.findRenderObject()
-                                  as RenderBox?;
                           final navigator = Navigator.of(context);
                           final messenger = ScaffoldMessenger.of(context);
 
-                          final position = overlay != null
-                              ? RelativeRect.fromLTRB(
-                                  overlay.size.width / 2,
-                                  overlay.size.height / 2,
-                                  overlay.size.width / 2,
-                                  overlay.size.height / 2,
-                                )
-                              : const RelativeRect.fromLTRB(100, 100, 100, 100);
-
-                          final result = await showMenu<String>(
+                          final result = await showModalBottomSheet<String>(
                             context: ctx,
-                            position: position,
-                            items: [
-                              const PopupMenuItem(
-                                value: 'edit',
-                                child: Text('Edit'),
-                              ),
-                              const PopupMenuItem(
-                                value: 'delete',
-                                child: Text('Delete'),
-                              ),
-                            ],
+                            backgroundColor: Colors.transparent,
+                            builder: (sheetContext) {
+                              final colorScheme =
+                                  Theme.of(sheetContext).colorScheme;
+                              return SafeArea(
+                                top: false,
+                                child: Container(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    20,
+                                    10,
+                                    20,
+                                    20,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: colorScheme.surface,
+                                    borderRadius: const BorderRadius.vertical(
+                                      top: Radius.circular(24),
+                                    ),
+                                  ),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Container(
+                                        width: 40,
+                                        height: 4,
+                                        decoration: BoxDecoration(
+                                          color: colorScheme.outlineVariant,
+                                          borderRadius:
+                                              BorderRadius.circular(99),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 18),
+                                      Row(
+                                        children: [
+                                          Container(
+                                            width: 44,
+                                            height: 44,
+                                            decoration: BoxDecoration(
+                                              color:
+                                                  colorScheme.primaryContainer,
+                                              borderRadius:
+                                                  BorderRadius.circular(13),
+                                            ),
+                                            child: Icon(
+                                              Icons.receipt_long_outlined,
+                                              color: colorScheme.primary,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 14),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  'Payment Options',
+                                                  style: Theme.of(sheetContext)
+                                                      .textTheme
+                                                      .titleLarge
+                                                      ?.copyWith(
+                                                        fontWeight:
+                                                            FontWeight.w700,
+                                                      ),
+                                                ),
+                                                const SizedBox(height: 2),
+                                                Text(
+                                                  DateFormat.yMMMd()
+                                                      .format(tx.date),
+                                                  style: TextStyle(
+                                                    color: colorScheme
+                                                        .onSurfaceVariant,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 18),
+                                      _buildPaymentActionTile(
+                                        context: sheetContext,
+                                        icon: Icons.edit_outlined,
+                                        title: 'Edit Payment',
+                                        subtitle:
+                                            'Update this payment transaction',
+                                        onTap: () => Navigator.pop(
+                                          sheetContext,
+                                          'edit',
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      _buildPaymentActionTile(
+                                        context: sheetContext,
+                                        icon: Icons.delete_outline_rounded,
+                                        title: 'Delete Payment',
+                                        subtitle:
+                                            'Remove this payment transaction',
+                                        destructive: true,
+                                        onTap: () => Navigator.pop(
+                                          sheetContext,
+                                          'delete',
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
                           );
 
                           if (result == 'edit') {
@@ -1027,27 +1182,116 @@ return Card(
                             if (!mounted) return;
                             final confirm = await showDialog<bool>(
                               context: navigator.context,
-                              builder: (dialogCtx) => AlertDialog(
-                                title: const Text('Delete Payment'),
-                                content: const Text(
-                                  'Are you sure you want to delete this payment? This action cannot be undone.',
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () =>
-                                        Navigator.of(dialogCtx).pop(false),
-                                    child: const Text('Cancel'),
+                              builder: (dialogCtx) {
+                                final colorScheme =
+                                    Theme.of(dialogCtx).colorScheme;
+                                return Dialog(
+                                  insetPadding: const EdgeInsets.symmetric(
+                                    horizontal: 24,
                                   ),
-                                  TextButton(
-                                    onPressed: () =>
-                                        Navigator.of(dialogCtx).pop(true),
-                                    child: const Text(
-                                      'Delete',
-                                      style: TextStyle(color: Colors.red),
+                                  backgroundColor: Colors.transparent,
+                                  child: Container(
+                                    width: double.infinity,
+                                    constraints:
+                                        const BoxConstraints(maxWidth: 460),
+                                    padding: const EdgeInsets.all(24),
+                                    decoration: BoxDecoration(
+                                      color: colorScheme.surface,
+                                      borderRadius: BorderRadius.circular(24),
+                                      border: Border.all(
+                                        color: colorScheme.outlineVariant
+                                            .withValues(alpha: 0.35),
+                                      ),
+                                    ),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Container(
+                                              width: 44,
+                                              height: 44,
+                                              decoration: BoxDecoration(
+                                                color:
+                                                    colorScheme.errorContainer,
+                                                borderRadius:
+                                                    BorderRadius.circular(13),
+                                              ),
+                                              child: Icon(
+                                                Icons.delete_outline_rounded,
+                                                color: colorScheme.error,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 14),
+                                            const Expanded(
+                                              child: Text(
+                                                'Delete Payment?',
+                                                style: TextStyle(
+                                                  fontSize: 22,
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 18),
+                                        Text(
+                                          'Are you sure you want to delete this payment? This action cannot be undone.',
+                                          style: TextStyle(
+                                            color:
+                                                colorScheme.onSurfaceVariant,
+                                            fontSize: 15,
+                                            height: 1.4,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 24),
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: SizedBox(
+                                                height: 50,
+                                                child: OutlinedButton(
+                                                  onPressed: () =>
+                                                      Navigator.of(dialogCtx)
+                                                          .pop(false),
+                                                  child:
+                                                      const Text('Cancel'),
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: SizedBox(
+                                                height: 50,
+                                                child: FilledButton.icon(
+                                                  style:
+                                                      FilledButton.styleFrom(
+                                                    backgroundColor:
+                                                        colorScheme.error,
+                                                    foregroundColor:
+                                                        colorScheme.onError,
+                                                  ),
+                                                  onPressed: () =>
+                                                      Navigator.of(dialogCtx)
+                                                          .pop(true),
+                                                  icon: const Icon(
+                                                    Icons
+                                                        .delete_outline_rounded,
+                                                  ),
+                                                  label:
+                                                      const Text('Delete'),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                ],
-                              ),
+                                );
+                              },
                             );
                             if (confirm == true) {
                               try {
@@ -1468,12 +1712,9 @@ InkWell(
         shrinkWrap: true,
         children: _accounts.map((account) {
           return ListTile(
-            leading: Icon(
-              account.type == AccountType.bank
-                  ? Icons.account_balance
-                  : account.type == AccountType.card
-                      ? Icons.credit_card
-                      : Icons.money,
+            leading: AccountTypeIcon(
+              type: account.type,
+              displayName: account.typeDisplayName,
             ),
             title: Text(account.name),
             selected: _selectedAccountId == account.id,
@@ -1494,13 +1735,36 @@ InkWell(
     ),
     child: Row(
       children: [
-        Icon(
-          Icons.account_balance_wallet_outlined,
-          size: 21,
-          color: Theme.of(context)
-              .colorScheme
-              .onSurfaceVariant,
-        ),
+        if (_selectedAccountId != null)
+          AccountTypeIcon(
+            type: _accounts
+                .firstWhere(
+                  (account) => account.id == _selectedAccountId,
+                  orElse: () => Account(
+                    name: 'Unknown',
+                    type: AccountType.cash,
+                    balance: 0,
+                  ),
+                )
+                .type,
+            displayName: _accounts
+                .firstWhere(
+                  (account) => account.id == _selectedAccountId,
+                  orElse: () => Account(
+                    name: 'Unknown',
+                    type: AccountType.cash,
+                    balance: 0,
+                  ),
+                )
+                .typeDisplayName,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          )
+        else
+          Icon(
+            Icons.account_balance_wallet_outlined,
+            size: 21,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
         const SizedBox(width: 14),
         Expanded(
           child: Column(
@@ -1630,60 +1894,6 @@ maxLines: 2,
   ),
 ),
             const SizedBox(height: 12),
-            // Refund toggle: record this payment as an income (refund) which
-            // will be treated as reducing the paid total for expense bills.
-          Container(
-  padding: const EdgeInsets.symmetric(
-    horizontal: 12,
-    vertical: 8,
-  ),
-  decoration: BoxDecoration(
-    color: colorScheme.surfaceContainerHighest.withValues(
-      alpha: 0.30,
-    ),
-    borderRadius: BorderRadius.circular(12),
-  ),
-  child: Row(
-    children: [
-      Icon(
-        Icons.currency_exchange_rounded,
-        size: 21,
-        color: colorScheme.onSurfaceVariant,
-      ),
-      const SizedBox(width: 12),
-      Expanded(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Refund (money received)',
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              'Record this as income instead of a payment',
-              style: TextStyle(
-                fontSize: 12,
-                height: 1.3,
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
-      ),
-      const SizedBox(width: 8),
-      Switch(
-        value: _isRefund,
-        onChanged: (v) => setState(() => _isRefund = v),
-      ),
-    ],
-  ),
-),
-
-const SizedBox(height: 10),
 
 Container(
   padding: const EdgeInsets.symmetric(

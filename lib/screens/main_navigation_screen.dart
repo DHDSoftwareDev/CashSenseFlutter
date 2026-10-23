@@ -28,90 +28,234 @@ class MainNavigationScreenState extends State<MainNavigationScreen> {
     const SettingsScreen(),
   ];
 
+  void _navigateFromDrawer(int index) {
+    setState(() {
+      _currentIndex = index;
+    });
+    Navigator.of(context).pop();
+  }
+
+  Widget _drawerItem({
+    required BuildContext context,
+    required int index,
+    required IconData icon,
+    required String title,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final selected = _currentIndex == index;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+      child: Material(
+        color: selected
+            ? colorScheme.primaryContainer.withValues(alpha: 0.65)
+            : Colors.transparent,
+        borderRadius: BorderRadius.circular(14),
+        child: ListTile(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          leading: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: selected
+                  ? colorScheme.primary.withValues(alpha: 0.12)
+                  : colorScheme.surfaceContainerHighest
+                      .withValues(alpha: 0.55),
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: Icon(
+              icon,
+              size: 21,
+              color: selected
+                  ? colorScheme.primary
+                  : colorScheme.onSurfaceVariant,
+            ),
+          ),
+          title: Text(
+            title,
+            style: TextStyle(
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+              color: selected
+                  ? colorScheme.primary
+                  : colorScheme.onSurface,
+            ),
+          ),
+          trailing: selected
+              ? Icon(
+                  Icons.check_rounded,
+                  size: 20,
+                  color: colorScheme.primary,
+                )
+              : null,
+          onTap: () => _navigateFromDrawer(index),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Scaffold(
       key: rootScaffoldKey,
       drawer: Drawer(
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            Container(
-              height: MediaQuery.of(context).padding.top + kToolbarHeight,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-            if (_currentIndex != 0)
-              ListTile(
-                leading: const Icon(Icons.dashboard),
-                title: const Text('Dashboard'),
-                onTap: () {
-                  setState(() {
-                    _currentIndex = 0;
-                  });
-                  Navigator.of(context).pop();
-                },
+        backgroundColor: colorScheme.surfaceContainerLowest,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.horizontal(
+            right: Radius.circular(22),
+          ),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            children: [
+              Container(
+                width: double.infinity,
+                padding: EdgeInsets.fromLTRB(
+                  20,
+                  MediaQuery.of(context).padding.top + 20,
+                  20,
+                  22,
+                ),
+                decoration: BoxDecoration(
+                  color: colorScheme.primary,
+                  borderRadius: const BorderRadius.only(
+                    bottomRight: Radius.circular(22),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: colorScheme.onPrimary.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Icon(
+                        Icons.account_balance_wallet_outlined,
+                        color: colorScheme.onPrimary,
+                        size: 26,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'CashSense',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleLarge
+                                ?.copyWith(
+                                  color: colorScheme.onPrimary,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Manage your finances',
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(
+                                  color: colorScheme.onPrimary
+                                      .withValues(alpha: 0.82),
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            if (_currentIndex != 4)
-              ListTile(
-                leading: const Icon(Icons.account_balance),
-                title: const Text('Accounts'),
-                onTap: () {
-                  setState(() {
-                    _currentIndex = 4; // accounts index
-                  });
-                  Navigator.of(context).pop();
-                },
+
+              const SizedBox(height: 14),
+
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 4, 20, 7),
+                      child: Text(
+                        'NAVIGATION',
+                        style:
+                            Theme.of(context).textTheme.labelSmall?.copyWith(
+                                  color: colorScheme.onSurfaceVariant,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.8,
+                                ),
+                      ),
+                    ),
+
+                    _drawerItem(
+                      context: context,
+                      index: 0,
+                      icon: Icons.dashboard_outlined,
+                      title: 'Dashboard',
+                    ),
+
+                    _drawerItem(
+                      context: context,
+                      index: 4,
+                      icon: Icons.account_balance_outlined,
+                      title: 'Accounts',
+                    ),
+
+                    // Transactions intentionally remains excluded from the
+                    // drawer. It is still available through the app UI and
+                    // navigateToPage().
+                    _drawerItem(
+                      context: context,
+                      index: 5,
+                      icon: Icons.people_outline_rounded,
+                      title: 'Payees / Payers',
+                    ),
+
+                    _drawerItem(
+                      context: context,
+                      index: 2,
+                      icon: Icons.category_outlined,
+                      title: 'Categories',
+                    ),
+
+                    _drawerItem(
+                      context: context,
+                      index: 3,
+                      icon: Icons.analytics_outlined,
+                      title: 'Reports',
+                    ),
+
+                    const Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 10,
+                      ),
+                      child: Divider(height: 1),
+                    ),
+
+                    _drawerItem(
+                      context: context,
+                      index: 6,
+                      icon: Icons.settings_outlined,
+                      title: 'Settings',
+                    ),
+                  ],
+                ),
               ),
-            // Transactions entry removed per request - navigation to
-            // transactions still available from app UI (Accounts, Dashboard, etc.)
-            if (_currentIndex != 5)
-              ListTile(
-                leading: const Icon(Icons.people),
-                title: const Text('Payees / Payers'),
-                onTap: () {
-                  setState(() {
-                    _currentIndex = 5; // payees index
-                  });
-                  Navigator.of(context).pop();
-                },
-              ),
-            if (_currentIndex != 2)
-              ListTile(
-                leading: const Icon(Icons.category),
-                title: const Text('Categories'),
-                onTap: () {
-                  setState(() {
-                    _currentIndex = 2;
-                  });
-                  Navigator.of(context).pop();
-                },
-              ),
-            if (_currentIndex != 3)
-              ListTile(
-                leading: const Icon(Icons.analytics),
-                title: const Text('Reports'),
-                onTap: () {
-                  setState(() {
-                    _currentIndex = 3;
-                  });
-                  Navigator.of(context).pop();
-                },
-              ),
-            if (_currentIndex != 6)
-              ListTile(
-                leading: const Icon(Icons.settings),
-                title: const Text('Settings'),
-                onTap: () {
-                  setState(() {
-                    _currentIndex = 6;
-                  });
-                  Navigator.of(context).pop();
-                },
-              ),
-          ],
+            ],
+          ),
         ),
       ),
-      body: IndexedStack(index: _currentIndex, children: _screens),
+      body: IndexedStack(
+        index: _currentIndex,
+        children: _screens,
+      ),
     );
   }
 
@@ -119,15 +263,24 @@ class MainNavigationScreenState extends State<MainNavigationScreen> {
   // one of the root indexed pages. If [accountId] is provided and the
   // target page is the Transactions index (1), it will pass the accountId
   // to that screen by rebuilding the _screens list entry.
-  void navigateToPage(int index, {String? accountId, DateTime? selectedDate}) {
+  void navigateToPage(
+    int index, {
+    String? accountId,
+    DateTime? selectedDate,
+  }) {
     setState(() {
       _currentIndex = index;
+
       if (index == 0 && selectedDate != null) {
-        _screens[0] = DashboardScreen(initialSelectedDate: selectedDate);
+        _screens[0] =
+            DashboardScreen(initialSelectedDate: selectedDate);
       }
+
       if (index == 1) {
-        // Replace the TransactionsScreen instance so it receives the accountId
-        _screens[1] = TransactionsScreen(accountId: accountId);
+        // Replace the TransactionsScreen instance so it receives
+        // the accountId.
+        _screens[1] =
+            TransactionsScreen(accountId: accountId);
       }
     });
   }

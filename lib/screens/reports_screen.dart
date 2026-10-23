@@ -2615,27 +2615,28 @@ class _ReportsScreenState extends State<ReportsScreen> {
                           top: Radius.circular(24),
                         ),
                       ),
-                      child: SafeArea(
-                        top: false,
-                        child: Column(
-                          children: [
-                            // HEADER
-                            Container(
-                              decoration: BoxDecoration(
-                                color: colorScheme.primary,
-                                borderRadius: const BorderRadius.vertical(
-                                  top: Radius.circular(24),
-                                ),
-                              ),
-                              child: SafeArea(
-                                bottom: false,
-                                child: SizedBox(
-                                  height: 64,
-                                  child: Stack(
-                                    alignment: Alignment.center,
-                                    children: [
-                                      Text(
-                                        'Select categories',
+                      clipBehavior: Clip.antiAlias,
+                      child: Column(
+                        children: [
+                          // HEADER
+                          Container(
+                            width: double.infinity,
+                            color: colorScheme.primary,
+                            child: SafeArea(
+                              bottom: false,
+                              child: SizedBox(
+                                height: 64,
+                                child: Stack(
+                                  alignment: Alignment.center,
+                                  children: [
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 64,
+                                      ),
+                                      child: Text(
+                                        'Select Categories',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                         textAlign: TextAlign.center,
                                         style: Theme.of(context)
                                             .textTheme
@@ -2645,129 +2646,16 @@ class _ReportsScreenState extends State<ReportsScreen> {
                                               fontWeight: FontWeight.w700,
                                             ),
                                       ),
-                                      Positioned(
-                                        right: 8,
-                                        child: IconButton(
-                                          tooltip: 'Close',
-                                          onPressed: () =>
-                                              Navigator.of(ctx).pop(),
-                                          icon: Icon(
-                                            Icons.close_rounded,
-                                            color: colorScheme.onPrimary,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-
-                            // EXPENSE / INCOME SELECTOR
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-                              child: Container(
-                                padding: const EdgeInsets.all(4),
-                                decoration: BoxDecoration(
-                                  color: colorScheme.surfaceContainerHighest,
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: InkWell(
-                                        borderRadius: BorderRadius.circular(11),
-                                        onTap: () {
-                                          sb(() {
-                                            showIncome = false;
-                                          });
-                                        },
-                                        child: AnimatedContainer(
-                                          duration: const Duration(
-                                            milliseconds: 150,
-                                          ),
-                                          height: 46,
-                                          decoration: BoxDecoration(
-                                            color: !showIncome
-                                                ? colorScheme.primary
-                                                : Colors.transparent,
-                                            borderRadius: BorderRadius.circular(
-                                              11,
-                                            ),
-                                          ),
-                                          alignment: Alignment.center,
-                                          child: Row(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.center,
-                                            children: [
-                                              if (!showIncome) ...[
-                                                Icon(
-                                                  Icons.check_rounded,
-                                                  size: 19,
-                                                  color: colorScheme.onPrimary,
-                                                ),
-                                                const SizedBox(width: 6),
-                                              ],
-                                              Text(
-                                                'Expenses',
-                                                style: TextStyle(
-                                                  fontWeight: FontWeight.w600,
-                                                  color: !showIncome
-                                                      ? colorScheme.onPrimary
-                                                      : colorScheme.onSurface,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
                                     ),
-                                    const SizedBox(width: 4),
-                                    Expanded(
-                                      child: InkWell(
-                                        borderRadius: BorderRadius.circular(11),
-                                        onTap: () {
-                                          sb(() {
-                                            showIncome = true;
-                                          });
-                                        },
-                                        child: AnimatedContainer(
-                                          duration: const Duration(
-                                            milliseconds: 150,
-                                          ),
-                                          height: 46,
-                                          decoration: BoxDecoration(
-                                            color: showIncome
-                                                ? colorScheme.primary
-                                                : Colors.transparent,
-                                            borderRadius: BorderRadius.circular(
-                                              11,
-                                            ),
-                                          ),
-                                          alignment: Alignment.center,
-                                          child: Row(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.center,
-                                            children: [
-                                              if (showIncome) ...[
-                                                Icon(
-                                                  Icons.check_rounded,
-                                                  size: 19,
-                                                  color: colorScheme.onPrimary,
-                                                ),
-                                                const SizedBox(width: 6),
-                                              ],
-                                              Text(
-                                                'Income',
-                                                style: TextStyle(
-                                                  fontWeight: FontWeight.w600,
-                                                  color: showIncome
-                                                      ? colorScheme.onPrimary
-                                                      : colorScheme.onSurface,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
+                                    Positioned(
+                                      right: 8,
+                                      child: IconButton(
+                                        tooltip: 'Close',
+                                        onPressed: () =>
+                                            Navigator.of(ctx).pop(),
+                                        icon: Icon(
+                                          Icons.close_rounded,
+                                          color: colorScheme.onPrimary,
                                         ),
                                       ),
                                     ),
@@ -2775,171 +2663,274 @@ class _ReportsScreenState extends State<ReportsScreen> {
                                 ),
                               ),
                             ),
+                          ),
 
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 20,
+                          // EXPENSE / INCOME SELECTOR
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: colorScheme.surfaceContainerHighest,
+                                borderRadius: BorderRadius.circular(14),
                               ),
-                              child: Align(
-                                alignment: Alignment.centerRight,
-                                child: TextButton.icon(
-                                  onPressed: clearSelection,
-                                  icon: const Icon(
-                                    Icons.close_rounded,
-                                    size: 18,
-                                  ),
-                                  label: const Text('Clear selection'),
-                                ),
-                              ),
-                            ),
-
-                            const SizedBox(height: 4),
-
-                            // CATEGORY LIST
-                            Expanded(
-                              child: filteredCategories.isEmpty
-                                  ? Center(
-                                      child: Text(
-                                        showIncome
-                                            ? 'No income categories'
-                                            : 'No expense categories',
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodyMedium
-                                            ?.copyWith(
-                                              color:
-                                                  colorScheme.onSurfaceVariant,
-                                            ),
-                                      ),
-                                    )
-                                  : ListView.separated(
-                                      padding: const EdgeInsets.fromLTRB(
-                                        20,
-                                        4,
-                                        20,
-                                        16,
-                                      ),
-                                      itemCount: filteredCategories.length,
-                                      separatorBuilder: (_, __) =>
-                                          const SizedBox(height: 8),
-                                      itemBuilder: (context, index) {
-                                        final category =
-                                            filteredCategories[index];
-
-                                        final selected = tempSelected.contains(
-                                          category.id,
-                                        );
-
-                                        return Material(
-                                          color: selected
-                                              ? colorScheme.primaryContainer
-                                                    .withValues(alpha: 0.45)
-                                              : colorScheme.surface,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              14,
-                                            ),
-                                            side: BorderSide(
-                                              color: selected
-                                                  ? colorScheme.primary
-                                                        .withValues(alpha: 0.55)
-                                                  : colorScheme.outlineVariant
-                                                        .withValues(
-                                                          alpha: 0.35,
-                                                        ),
-                                            ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(11),
+                                      onTap: () {
+                                        sb(() {
+                                          showIncome = false;
+                                        });
+                                      },
+                                      child: AnimatedContainer(
+                                        duration: const Duration(
+                                          milliseconds: 150,
+                                        ),
+                                        height: 46,
+                                        decoration: BoxDecoration(
+                                          color: !showIncome
+                                              ? colorScheme.primary
+                                              : Colors.transparent,
+                                          borderRadius: BorderRadius.circular(
+                                            11,
                                           ),
-                                          clipBehavior: Clip.antiAlias,
-                                          child: InkWell(
-                                            onTap: () {
-                                              sb(() {
-                                                if (selected) {
-                                                  tempSelected.remove(
-                                                    category.id,
-                                                  );
-                                                } else {
-                                                  tempSelected.add(category.id);
-                                                }
-                                              });
-                                            },
-                                            child: Padding(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 16,
-                                                    vertical: 14,
-                                                  ),
-                                              child: Row(
-                                                children: [
-                                                  Expanded(
-                                                    child: Text(
-                                                      category.name,
-                                                      style: Theme.of(context)
-                                                          .textTheme
-                                                          .bodyLarge
-                                                          ?.copyWith(
-                                                            fontWeight:
-                                                                FontWeight.w500,
-                                                          ),
-                                                    ),
-                                                  ),
-                                                  AnimatedContainer(
-                                                    duration: const Duration(
-                                                      milliseconds: 150,
-                                                    ),
-                                                    width: 26,
-                                                    height: 26,
-                                                    decoration: BoxDecoration(
-                                                      color: selected
-                                                          ? colorScheme.primary
-                                                          : Colors.transparent,
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            8,
-                                                          ),
-                                                      border: Border.all(
-                                                        color: selected
-                                                            ? colorScheme
-                                                                  .primary
-                                                            : colorScheme
-                                                                  .outline,
-                                                        width: 1.5,
-                                                      ),
-                                                    ),
-                                                    child: selected
-                                                        ? Icon(
-                                                            Icons.check_rounded,
-                                                            size: 18,
-                                                            color: colorScheme
-                                                                .onPrimary,
-                                                          )
-                                                        : null,
-                                                  ),
-                                                ],
+                                        ),
+                                        alignment: Alignment.center,
+                                        child: Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            if (!showIncome) ...[
+                                              Icon(
+                                                Icons.check_rounded,
+                                                size: 19,
+                                                color: colorScheme.onPrimary,
+                                              ),
+                                              const SizedBox(width: 6),
+                                            ],
+                                            Text(
+                                              'Expenses',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w600,
+                                                color: !showIncome
+                                                    ? colorScheme.onPrimary
+                                                    : colorScheme.onSurface,
                                               ),
                                             ),
-                                          ),
-                                        );
-                                      },
+                                          ],
+                                        ),
+                                      ),
                                     ),
-                            ),
-
-                            // BOTTOM BUTTONS
-                            Container(
-                              padding: const EdgeInsets.fromLTRB(
-                                20,
-                                12,
-                                20,
-                                12,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Expanded(
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(11),
+                                      onTap: () {
+                                        sb(() {
+                                          showIncome = true;
+                                        });
+                                      },
+                                      child: AnimatedContainer(
+                                        duration: const Duration(
+                                          milliseconds: 150,
+                                        ),
+                                        height: 46,
+                                        decoration: BoxDecoration(
+                                          color: showIncome
+                                              ? colorScheme.primary
+                                              : Colors.transparent,
+                                          borderRadius: BorderRadius.circular(
+                                            11,
+                                          ),
+                                        ),
+                                        alignment: Alignment.center,
+                                        child: Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            if (showIncome) ...[
+                                              Icon(
+                                                Icons.check_rounded,
+                                                size: 19,
+                                                color: colorScheme.onPrimary,
+                                              ),
+                                              const SizedBox(width: 6),
+                                            ],
+                                            Text(
+                                              'Income',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w600,
+                                                color: showIncome
+                                                    ? colorScheme.onPrimary
+                                                    : colorScheme.onSurface,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
-                              decoration: BoxDecoration(
-                                color: colorScheme.surface,
-                                border: Border(
-                                  top: BorderSide(
-                                    color: colorScheme.outlineVariant
-                                        .withValues(alpha: 0.25),
+                            ),
+                          ),
+
+                          // CLEAR SELECTION
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                            child: Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton.icon(
+                                onPressed: clearSelection,
+                                icon: const Icon(Icons.close_rounded, size: 18),
+                                label: const Text('Clear selection'),
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(height: 4),
+
+                          // CATEGORY LIST
+                          Expanded(
+                            child: filteredCategories.isEmpty
+                                ? Center(
+                                    child: Text(
+                                      showIncome
+                                          ? 'No income categories'
+                                          : 'No expense categories',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium
+                                          ?.copyWith(
+                                            color: colorScheme.onSurfaceVariant,
+                                          ),
+                                    ),
+                                  )
+                                : ListView.separated(
+                                    padding: const EdgeInsets.fromLTRB(
+                                      20,
+                                      4,
+                                      20,
+                                      16,
+                                    ),
+                                    itemCount: filteredCategories.length,
+                                    separatorBuilder: (_, __) =>
+                                        const SizedBox(height: 8),
+                                    itemBuilder: (context, index) {
+                                      final category =
+                                          filteredCategories[index];
+
+                                      final selected = tempSelected.contains(
+                                        category.id,
+                                      );
+
+                                      return Material(
+                                        color: selected
+                                            ? colorScheme.primaryContainer
+                                                  .withValues(alpha: 0.45)
+                                            : colorScheme.surface,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            14,
+                                          ),
+                                          side: BorderSide(
+                                            color: selected
+                                                ? colorScheme.primary
+                                                      .withValues(alpha: 0.55)
+                                                : colorScheme.outlineVariant
+                                                      .withValues(alpha: 0.35),
+                                          ),
+                                        ),
+                                        clipBehavior: Clip.antiAlias,
+                                        child: InkWell(
+                                          onTap: () {
+                                            sb(() {
+                                              if (selected) {
+                                                tempSelected.remove(
+                                                  category.id,
+                                                );
+                                              } else {
+                                                tempSelected.add(category.id);
+                                              }
+                                            });
+                                          },
+                                          child: Padding(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 16,
+                                              vertical: 14,
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                Expanded(
+                                                  child: Text(
+                                                    category.name,
+                                                    style: Theme.of(context)
+                                                        .textTheme
+                                                        .bodyLarge
+                                                        ?.copyWith(
+                                                          fontWeight:
+                                                              FontWeight.w500,
+                                                        ),
+                                                  ),
+                                                ),
+                                                AnimatedContainer(
+                                                  duration: const Duration(
+                                                    milliseconds: 150,
+                                                  ),
+                                                  width: 26,
+                                                  height: 26,
+                                                  decoration: BoxDecoration(
+                                                    color: selected
+                                                        ? colorScheme.primary
+                                                        : Colors.transparent,
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          8,
+                                                        ),
+                                                    border: Border.all(
+                                                      color: selected
+                                                          ? colorScheme.primary
+                                                          : colorScheme.outline,
+                                                      width: 1.5,
+                                                    ),
+                                                  ),
+                                                  child: selected
+                                                      ? Icon(
+                                                          Icons.check_rounded,
+                                                          size: 18,
+                                                          color: colorScheme
+                                                              .onPrimary,
+                                                        )
+                                                      : null,
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                          ),
+
+                          // BOTTOM BUTTONS
+                          Container(
+                            padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+                            decoration: BoxDecoration(
+                              color: colorScheme.surface,
+                              border: Border(
+                                top: BorderSide(
+                                  color: colorScheme.outlineVariant.withValues(
+                                    alpha: 0.25,
                                   ),
                                 ),
                               ),
+                            ),
+                            child: SafeArea(
+                              top: false,
                               child: Row(
                                 children: [
                                   Expanded(
@@ -2974,8 +2965,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
                                 ],
                               ),
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
                   );
@@ -3131,7 +3122,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                                         horizontal: 64,
                                       ),
                                       child: Text(
-                                        'Select payees/payers',
+                                        'Select Payees/Payers',
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                         textAlign: TextAlign.center,
