@@ -146,8 +146,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                   color: colorScheme.surface,
                   borderRadius: BorderRadius.circular(24),
                   border: Border.all(
-                    color: colorScheme.outlineVariant
-                        .withValues(alpha: 0.35),
+                    color: colorScheme.outlineVariant.withValues(alpha: 0.35),
                   ),
                 ),
                 clipBehavior: Clip.antiAlias,
@@ -162,8 +161,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                             width: 44,
                             height: 44,
                             decoration: BoxDecoration(
-                              color: colorScheme.primaryContainer
-                                  .withValues(alpha: 0.60),
+                              color: colorScheme.primaryContainer.withValues(
+                                alpha: 0.60,
+                              ),
                               borderRadius: BorderRadius.circular(13),
                             ),
                             child: Icon(
@@ -176,18 +176,13 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                           Expanded(
                             child: Text(
                               'Rearrange Transactions',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleLarge
-                                  ?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                  ),
+                              style: Theme.of(context).textTheme.titleLarge
+                                  ?.copyWith(fontWeight: FontWeight.w700),
                             ),
                           ),
                           IconButton(
                             tooltip: 'Close',
-                            onPressed: () =>
-                                Navigator.of(dialogContext).pop(),
+                            onPressed: () => Navigator.of(dialogContext).pop(),
                             icon: const Icon(Icons.close_rounded),
                           ),
                         ],
@@ -196,8 +191,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
                     Divider(
                       height: 1,
-                      color: colorScheme.outlineVariant
-                          .withValues(alpha: 0.30),
+                      color: colorScheme.outlineVariant.withValues(alpha: 0.30),
                     ),
 
                     Flexible(
@@ -208,9 +202,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                           children: [
                             Text(
                               'DATE & STATUS',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .labelLarge
+                              style: Theme.of(context).textTheme.labelLarge
                                   ?.copyWith(
                                     color: colorScheme.primary,
                                     fontWeight: FontWeight.w700,
@@ -224,8 +216,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                               isExpanded: true,
                               decoration: InputDecoration(
                                 filled: true,
-                                fillColor: colorScheme
-                                    .surfaceContainerHighest
+                                fillColor: colorScheme.surfaceContainerHighest
                                     .withValues(alpha: 0.45),
                                 prefixIcon: const Icon(
                                   Icons.calendar_month_outlined,
@@ -263,9 +254,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                   .toList(),
                               onChanged: (value) {
                                 if (value == null) return;
-                                setDialogState(
-                                  () => selectedGroup = value,
-                                );
+                                setDialogState(() => selectedGroup = value);
                               },
                             ),
 
@@ -274,8 +263,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                             Container(
                               padding: const EdgeInsets.all(14),
                               decoration: BoxDecoration(
-                                color: colorScheme.primaryContainer
-                                    .withValues(alpha: 0.28),
+                                color: colorScheme.primaryContainer.withValues(
+                                  alpha: 0.28,
+                                ),
                                 borderRadius: BorderRadius.circular(14),
                               ),
                               child: Row(
@@ -295,8 +285,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                           .textTheme
                                           .bodySmall
                                           ?.copyWith(
-                                            color:
-                                                colorScheme.onSurfaceVariant,
+                                            color: colorScheme.onSurfaceVariant,
                                             height: 1.4,
                                           ),
                                     ),
@@ -309,9 +298,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
                             Text(
                               'TRANSACTIONS',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .labelLarge
+                              style: Theme.of(context).textTheme.labelLarge
                                   ?.copyWith(
                                     color: colorScheme.primary,
                                     fontWeight: FontWeight.w700,
@@ -331,8 +318,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                 onReorder: (oldIndex, newIndex) {
                                   setDialogState(() {
                                     if (newIndex > oldIndex) newIndex--;
-                                    final moved = selectedTransactions
-                                        .removeAt(oldIndex);
+                                    final moved = selectedTransactions.removeAt(
+                                      oldIndex,
+                                    );
                                     selectedTransactions.insert(
                                       newIndex,
                                       moved,
@@ -343,15 +331,13 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                   final transaction =
                                       selectedTransactions[index];
                                   final signedAmount =
-                                      transaction.type ==
-                                              TransactionType.income
-                                          ? transaction.amount
-                                          : -transaction.amount;
+                                      transaction.type == TransactionType.income
+                                      ? transaction.amount
+                                      : -transaction.amount;
 
                                   return Container(
                                     key: ValueKey(transaction.id),
-                                    margin:
-                                        const EdgeInsets.only(bottom: 10),
+                                    margin: const EdgeInsets.only(bottom: 10),
                                     padding: const EdgeInsets.fromLTRB(
                                       16,
                                       12,
@@ -359,11 +345,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                       12,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: colorScheme
-                                          .surfaceContainerHighest
+                                      color: colorScheme.surfaceContainerHighest
                                           .withValues(alpha: 0.38),
-                                      borderRadius:
-                                          BorderRadius.circular(16),
+                                      borderRadius: BorderRadius.circular(16),
                                       border: Border.all(
                                         color: colorScheme.outlineVariant
                                             .withValues(alpha: 0.28),
@@ -379,11 +363,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                               Text(
                                                 transaction.description,
                                                 maxLines: 2,
-                                                overflow:
-                                                    TextOverflow.ellipsis,
+                                                overflow: TextOverflow.ellipsis,
                                                 style: const TextStyle(
-                                                  fontWeight:
-                                                      FontWeight.w600,
+                                                  fontWeight: FontWeight.w600,
                                                   fontSize: 15,
                                                 ),
                                               ),
@@ -396,8 +378,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                                   color: signedAmount >= 0
                                                       ? Colors.green
                                                       : colorScheme.error,
-                                                  fontWeight:
-                                                      FontWeight.w600,
+                                                  fontWeight: FontWeight.w600,
                                                 ),
                                               ),
                                             ],
@@ -435,8 +416,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
                     Divider(
                       height: 1,
-                      color: colorScheme.outlineVariant
-                          .withValues(alpha: 0.30),
+                      color: colorScheme.outlineVariant.withValues(alpha: 0.30),
                     ),
 
                     Padding(
@@ -456,9 +436,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                 ),
                                 child: const Text(
                                   'Cancel',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                                  style: TextStyle(fontWeight: FontWeight.w600),
                                 ),
                               ),
                             ),
@@ -468,9 +446,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                             child: SizedBox(
                               height: 50,
                               child: FilledButton.icon(
-                                onPressed: () => Navigator.of(
-                                  dialogContext,
-                                ).pop(groups),
+                                onPressed: () =>
+                                    Navigator.of(dialogContext).pop(groups),
                                 style: FilledButton.styleFrom(
                                   backgroundColor: colorScheme.primary,
                                   foregroundColor: colorScheme.onPrimary,
@@ -478,15 +455,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                 ),
-                                icon: const Icon(
-                                  Icons.check_rounded,
-                                  size: 20,
-                                ),
+                                icon: const Icon(Icons.check_rounded, size: 20),
                                 label: const Text(
                                   'Save Order',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                                  style: TextStyle(fontWeight: FontWeight.w600),
                                 ),
                               ),
                             ),
@@ -734,10 +706,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               const Expanded(
                 child: Text(
                   'Update Transfer Status',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 20,
-                  ),
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 20),
                 ),
               ),
             ],
@@ -745,9 +714,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           content: Text(
             'Do you want to mark just this side or both sides of the transfer as $actionLabel?',
             style: Theme.of(dialogContext).textTheme.bodyMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                  height: 1.4,
-                ),
+              color: colorScheme.onSurfaceVariant,
+              height: 1.4,
+            ),
           ),
           actions: [
             Column(
@@ -756,8 +725,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 SizedBox(
                   height: 50,
                   child: FilledButton(
-                    onPressed: () => Navigator.of(dialogContext)
-                        .pop(_TransferClearChoice.bothSides),
+                    onPressed: () => Navigator.of(
+                      dialogContext,
+                    ).pop(_TransferClearChoice.bothSides),
                     style: FilledButton.styleFrom(
                       backgroundColor: colorScheme.primary,
                       foregroundColor: colorScheme.onPrimary,
@@ -778,13 +748,12 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 SizedBox(
                   height: 50,
                   child: OutlinedButton(
-                    onPressed: () => Navigator.of(dialogContext)
-                        .pop(_TransferClearChoice.oneSide),
+                    onPressed: () => Navigator.of(
+                      dialogContext,
+                    ).pop(_TransferClearChoice.oneSide),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: colorScheme.primary,
-                      side: BorderSide(
-                        color: colorScheme.outlineVariant,
-                      ),
+                      side: BorderSide(color: colorScheme.outlineVariant),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -945,182 +914,169 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             },
           ),
           centerTitle: true,
+          toolbarHeight: _accountName == null ? null : 96,
           title: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text('Transactions'),
               if (_accountName != null) ...[
                 const SizedBox(height: 2),
-              Text(
-  _accountName!,
-  style: Theme.of(context)
-      .textTheme
-      .bodyMedium
-      ?.copyWith(
-        color: Colors.white.withValues(alpha: 0.85),
-        fontWeight: FontWeight.w400,
-      ),
-),
+                Flexible(
+                  child: Text(
+                    _accountName!,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Colors.white.withValues(alpha: 0.85),
+                      fontWeight: FontWeight.w400,
+                      height: 1.1,
+                    ),
+                  ),
+                ),
               ],
             ],
           ),
           backgroundColor: Theme.of(context).colorScheme.primary,
           foregroundColor: Colors.white,
           actions: [
-     TextButton(
-  onPressed: () async {
-    final selected = await showModalBottomSheet<String>(
-      context: context,
-      showDragHandle: true,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(24),
-        ),
-      ),
-      builder: (sheetContext) {
-        final colorScheme =
-            Theme.of(sheetContext).colorScheme;
-
-        Widget option({
-          required String value,
-          required String label,
-          required IconData icon,
-        }) {
-          final isSelected = _selectedFilter == value;
-
-          return ListTile(
-            leading: Icon(
-              icon,
-              color: isSelected
-                  ? colorScheme.primary
-                  : colorScheme.onSurfaceVariant,
-            ),
-            title: Text(
-              label,
-              style: TextStyle(
-                fontWeight: isSelected
-                    ? FontWeight.w600
-                    : FontWeight.normal,
-              ),
-            ),
-            trailing: isSelected
-                ? Icon(
-                    Icons.check_rounded,
-                    color: colorScheme.primary,
-                  )
-                : null,
-            onTap: () {
-              Navigator.pop(sheetContext, value);
-            },
-          );
-        }
-
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-              12,
-              0,
-              12,
-              12,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    12,
-                    4,
-                    12,
-                    12,
+            TextButton(
+              onPressed: () async {
+                final selected = await showModalBottomSheet<String>(
+                  context: context,
+                  showDragHandle: true,
+                  backgroundColor: Theme.of(context).colorScheme.surface,
+                  shape: const RoundedRectangleBorder(
+                    borderRadius: BorderRadius.vertical(
+                      top: Radius.circular(24),
+                    ),
                   ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'Filter Transactions',
-                          style: Theme.of(sheetContext)
-                              .textTheme
-                              .titleMedium
-                              ?.copyWith(
-                                fontWeight: FontWeight.w700,
+                  builder: (sheetContext) {
+                    final colorScheme = Theme.of(sheetContext).colorScheme;
+
+                    Widget option({
+                      required String value,
+                      required String label,
+                      required IconData icon,
+                    }) {
+                      final isSelected = _selectedFilter == value;
+
+                      return ListTile(
+                        leading: Icon(
+                          icon,
+                          color: isSelected
+                              ? colorScheme.primary
+                              : colorScheme.onSurfaceVariant,
+                        ),
+                        title: Text(
+                          label,
+                          style: TextStyle(
+                            fontWeight: isSelected
+                                ? FontWeight.w600
+                                : FontWeight.normal,
+                          ),
+                        ),
+                        trailing: isSelected
+                            ? Icon(
+                                Icons.check_rounded,
+                                color: colorScheme.primary,
+                              )
+                            : null,
+                        onTap: () {
+                          Navigator.pop(sheetContext, value);
+                        },
+                      );
+                    }
+
+                    return SafeArea(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      'Filter Transactions',
+                                      style: Theme.of(sheetContext)
+                                          .textTheme
+                                          .titleMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                    ),
+                                  ),
+                                ],
                               ),
+                            ),
+
+                            option(
+                              value: 'All',
+                              label: 'All',
+                              icon: Icons.list_alt_rounded,
+                            ),
+
+                            option(
+                              value: 'Income',
+                              label: 'Income',
+                              icon: Icons.arrow_downward_rounded,
+                            ),
+
+                            option(
+                              value: 'Expense',
+                              label: 'Expense',
+                              icon: Icons.arrow_upward_rounded,
+                            ),
+
+                            option(
+                              value: 'Transfers',
+                              label: 'Transfers',
+                              icon: Icons.swap_horiz_rounded,
+                            ),
+                          ],
                         ),
                       ),
-                    ],
+                    );
+                  },
+                );
+
+                if (selected == null || !mounted) return;
+
+                setState(() {
+                  _selectedFilter = selected;
+                });
+              },
+
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              ),
+
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    switch (_selectedFilter) {
+                      'Income' => 'Income',
+                      'Expense' => 'Expense',
+                      'Transfers' => 'Transfers',
+                      _ => 'All',
+                    },
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
-                ),
 
-                option(
-                  value: 'All',
-                  label: 'All',
-                  icon: Icons.list_alt_rounded,
-                ),
+                  const SizedBox(width: 2),
 
-                option(
-                  value: 'Income',
-                  label: 'Income',
-                  icon: Icons.arrow_downward_rounded,
-                ),
-
-                option(
-                  value: 'Expense',
-                  label: 'Expense',
-                  icon: Icons.arrow_upward_rounded,
-                ),
-
-                option(
-                  value: 'Transfers',
-                  label: 'Transfers',
-                  icon: Icons.swap_horiz_rounded,
-                ),
-              ],
+                  const Icon(Icons.keyboard_arrow_down_rounded, size: 20),
+                ],
+              ),
             ),
-          ),
-        );
-      },
-    );
-
-    if (selected == null || !mounted) return;
-
-    setState(() {
-      _selectedFilter = selected;
-    });
-  },
-
-  style: TextButton.styleFrom(
-    foregroundColor: Colors.white,
-    padding: const EdgeInsets.symmetric(
-      horizontal: 8,
-      vertical: 4,
-    ),
-  ),
-
-  child: Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      Text(
-        switch (_selectedFilter) {
-          'Income' => 'Income',
-          'Expense' => 'Expense',
-          'Transfers' => 'Transfers',
-          _ => 'All',
-        },
-        style: const TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-
-      const SizedBox(width: 2),
-
-      const Icon(
-        Icons.keyboard_arrow_down_rounded,
-        size: 20,
-      ),
-    ],
-  ),
-),
             IconButton(
               icon: const Icon(Icons.add),
               onPressed: _addTransaction,
@@ -1138,78 +1094,78 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               // Search bar under the balance header. When a search query is entered
               // we show a flat list of matching transactions (includes cleared),
               // otherwise we show the normal grouped transactions list which
-            Padding(
-  padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-  child: TextField(
-    controller: _searchController,
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                child: TextField(
+                  controller: _searchController,
 
-    onTapOutside: (_) {
-      FocusScope.of(context).unfocus();
-    },
+                  onTapOutside: (_) {
+                    FocusScope.of(context).unfocus();
+                  },
 
-    onChanged: (value) {
-      setState(() {
-        _searchQuery = value.trim();
-      });
-    },
+                  onChanged: (value) {
+                    setState(() {
+                      _searchQuery = value.trim();
+                    });
+                  },
 
-    decoration: InputDecoration(
-      hintText: 'Search transactions',
-      hintStyle: TextStyle(
-        color: Theme.of(context).colorScheme.onSurfaceVariant,
-      ),
+                  decoration: InputDecoration(
+                    hintText: 'Search transactions',
+                    hintStyle: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
 
-      prefixIcon: Icon(
-        Icons.search_rounded,
-        color: Theme.of(context).colorScheme.onSurfaceVariant,
-      ),
+                    prefixIcon: Icon(
+                      Icons.search_rounded,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
 
-      suffixIcon: _searchController.text.isNotEmpty
-          ? IconButton(
-              tooltip: 'Clear search',
-              icon: const Icon(Icons.close_rounded),
-              onPressed: () {
-                setState(() {
-                  _searchController.clear();
-                  _searchQuery = '';
-                });
+                    suffixIcon: _searchController.text.isNotEmpty
+                        ? IconButton(
+                            tooltip: 'Clear search',
+                            icon: const Icon(Icons.close_rounded),
+                            onPressed: () {
+                              setState(() {
+                                _searchController.clear();
+                                _searchQuery = '';
+                              });
 
-                FocusScope.of(context).unfocus();
-              },
-            )
-          : null,
+                              FocusScope.of(context).unfocus();
+                            },
+                          )
+                        : null,
 
-      filled: true,
-      fillColor: Theme.of(context)
-          .colorScheme
-          .surfaceContainerHighest
-          .withValues(alpha: 0.35),
+                    filled: true,
+                    fillColor: Theme.of(context)
+                        .colorScheme
+                        .surfaceContainerHighest
+                        .withValues(alpha: 0.35),
 
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide.none,
-      ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
 
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide.none,
-      ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
 
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(
-          color: Theme.of(context).colorScheme.primary,
-          width: 1.5,
-        ),
-      ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: Theme.of(context).colorScheme.primary,
+                        width: 1.5,
+                      ),
+                    ),
 
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: 16,
-        vertical: 15,
-      ),
-    ),
-  ),
-),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 15,
+                    ),
+                  ),
+                ),
+              ),
               Expanded(
                 child: _searchQuery.isNotEmpty
                     ? _buildSearchResults()
@@ -1314,101 +1270,85 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
     return ListView(
       children: [
-      if (showPendingSection && pendingTxs.isNotEmpty) ...[
-  Container(
-    margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-    decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.surface,
-      borderRadius: BorderRadius.circular(18),
-      border: Border.all(
-        color: Theme.of(context)
-            .colorScheme
-            .outlineVariant
-            .withValues(alpha: 0.35),
-      ),
-    ),
-    clipBehavior: Clip.antiAlias,
-    child: Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Pending',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleMedium
-                      ?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                ),
-              ),
-
-              Text(
-                '${pendingTxs.length} transaction${pendingTxs.length != 1 ? 's' : ''}',
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.copyWith(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurfaceVariant,
-                    ),
-              ),
-
-              const SizedBox(width: 10),
-
-              Text(
-                _currencyFormat.format(pendingTotal),
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyMedium
-                    ?.copyWith(
-                      color: pendingTotal >= 0
-                          ? AppTheme.incomeGreen
-                          : AppTheme.expenseRed,
-                      fontWeight: FontWeight.w700,
-                    ),
-              ),
-            ],
-          ),
-        ),
-
-        Divider(
-          height: 1,
-          thickness: 1,
-          color: Theme.of(context)
-              .colorScheme
-              .outlineVariant
-              .withValues(alpha: 0.35),
-        ),
-
-        for (var i = 0; i < pendingTxs.length; i++) ...[
-          _buildTransactionItem(
-            pendingTxs[i],
-            runningBalance:
-                pendingRunningMap?[pendingTxs[i].id],
-          ),
-
-          if (i != pendingTxs.length - 1)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Divider(
-                height: 1,
-                thickness: 1,
-                color: Theme.of(context)
-                    .colorScheme
-                    .outlineVariant
-                    .withValues(alpha: 0.25),
+        if (showPendingSection && pendingTxs.isNotEmpty) ...[
+          Container(
+            margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: Theme.of(
+                  context,
+                ).colorScheme.outlineVariant.withValues(alpha: 0.35),
               ),
             ),
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Pending',
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+
+                      Text(
+                        '${pendingTxs.length} transaction${pendingTxs.length != 1 ? 's' : ''}',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+
+                      const SizedBox(width: 10),
+
+                      Text(
+                        _currencyFormat.format(pendingTotal),
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: pendingTotal >= 0
+                              ? AppTheme.incomeGreen
+                              : AppTheme.expenseRed,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                Divider(
+                  height: 1,
+                  thickness: 1,
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.outlineVariant.withValues(alpha: 0.35),
+                ),
+
+                for (var i = 0; i < pendingTxs.length; i++) ...[
+                  _buildTransactionItem(
+                    pendingTxs[i],
+                    runningBalance: pendingRunningMap?[pendingTxs[i].id],
+                  ),
+
+                  if (i != pendingTxs.length - 1)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Divider(
+                        height: 1,
+                        thickness: 1,
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.outlineVariant.withValues(alpha: 0.25),
+                      ),
+                    ),
+                ],
+              ],
+            ),
+          ),
         ],
-      ],
-    ),
-  ),
-],
         if (showPendingSection)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
@@ -1424,10 +1364,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                   minimumSize: Size.zero,
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
-                icon: const Icon(
-                  Icons.swap_vert_rounded,
-                  size: 18,
-                ),
+                icon: const Icon(Icons.swap_vert_rounded, size: 18),
                 label: const Text(
                   'Rearrange',
                   style: TextStyle(fontWeight: FontWeight.w600),
@@ -1518,13 +1455,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                     Flexible(
                       child: Text(
                         balanceLabel,
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodyMedium
-                            ?.copyWith(
-                              color: colorScheme.onSurfaceVariant,
-                              fontWeight: FontWeight.w600,
-                            ),
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 5),
@@ -1543,11 +1477,11 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             _currencyFormat.format(displayBalance),
             textAlign: TextAlign.right,
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: displayBalance >= 0
-                      ? AppTheme.incomeGreen
-                      : AppTheme.expenseRed,
-                ),
+              fontWeight: FontWeight.w700,
+              color: displayBalance >= 0
+                  ? AppTheme.incomeGreen
+                  : AppTheme.expenseRed,
+            ),
           ),
         ],
       ),
@@ -1604,7 +1538,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       final visibleTxs = transactions
           .where((t) => DateFormat('MM/dd/yyyy').format(t.date) == dateStr)
           .toList();
-      
+
       if (visibleTxs.isNotEmpty) {
         children.addAll(
           visibleTxs.map(
@@ -1619,86 +1553,66 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       }
     }
     return Container(
-  margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-  decoration: BoxDecoration(
-    color: Theme.of(context).colorScheme.surface,
-    borderRadius: BorderRadius.circular(18),
-    border: Border.all(
-      color: Theme.of(context)
-          .colorScheme
-          .outlineVariant
-          .withValues(alpha: 0.35),
-    ),
-  ),
-  clipBehavior: Clip.antiAlias,
-  child: Theme(
-    data: Theme.of(context).copyWith(
-      dividerColor: Colors.transparent,
-    ),
-    child: ExpansionTile(
-      key: PageStorageKey<String>(
-        'transactions_month_$monthKey',
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: Theme.of(
+            context,
+          ).colorScheme.outlineVariant.withValues(alpha: 0.35),
+        ),
       ),
-      initiallyExpanded: _expandedMonths.contains(monthKey),
+      clipBehavior: Clip.antiAlias,
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          key: PageStorageKey<String>('transactions_month_$monthKey'),
+          initiallyExpanded: _expandedMonths.contains(monthKey),
 
-      onExpansionChanged: (expanded) {
-        setState(() {
-          if (expanded) {
-            _expandedMonths.add(monthKey);
-          } else {
-            _expandedMonths.remove(monthKey);
-          }
-        });
-      },
+          onExpansionChanged: (expanded) {
+            setState(() {
+              if (expanded) {
+                _expandedMonths.add(monthKey);
+              } else {
+                _expandedMonths.remove(monthKey);
+              }
+            });
+          },
 
-      maintainState: true,
+          maintainState: true,
 
-      tilePadding: const EdgeInsets.symmetric(
-        horizontal: 16,
-        vertical: 4,
-      ),
+          tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
 
-      childrenPadding: const EdgeInsets.only(
-        bottom: 8,
-      ),
+          childrenPadding: const EdgeInsets.only(bottom: 8),
 
-      iconColor: Theme.of(context).colorScheme.primary,
-      collapsedIconColor:
-          Theme.of(context).colorScheme.onSurfaceVariant,
+          iconColor: Theme.of(context).colorScheme.primary,
+          collapsedIconColor: Theme.of(context).colorScheme.onSurfaceVariant,
 
-      title: Row(
-        children: [
-          Expanded(
-            child: Text(
-              monthName,
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(
+          title: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  monthName,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w700,
                   ),
-            ),
-          ),
-
-          Text(
-            '${txsForHeader.length} transaction${txsForHeader.length != 1 ? 's' : ''}',
-            style: Theme.of(context)
-                .textTheme
-                .bodySmall
-                ?.copyWith(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurfaceVariant,
                 ),
-          ),
-        ],
-      ),
+              ),
 
-      children:
-          children.isNotEmpty ? children : const [],
-    ),
-  ),
-);
+              Text(
+                '${txsForHeader.length} transaction${txsForHeader.length != 1 ? 's' : ''}',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+
+          children: children.isNotEmpty ? children : const [],
+        ),
+      ),
+    );
   }
 
   // Extract a normalized payee/payer name from a transaction description by
@@ -1718,6 +1632,27 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     final trimmed = description.trim();
     if (!trimmed.toLowerCase().startsWith('payment for ')) return '';
     return trimmed.substring('payment for '.length).trim();
+  }
+
+  String _transactionDisplayNote(String? note) {
+    var displayNote = (note ?? '').trim();
+    if (displayNote.isEmpty) return '';
+
+    displayNote = displayNote
+        .replaceFirst(RegExp(r'^__transfer_(manual|bill)__'), '')
+        .replaceAll(RegExp(r'__hide_from_calendar__', caseSensitive: false), '')
+        .trim();
+
+    if (displayNote.toLowerCase().startsWith('account:')) {
+      final afterAccount = displayNote.substring('account:'.length).trim();
+      final parts = afterAccount.split(RegExp(r'\s*[—–-]\s*'));
+      displayNote = parts.length > 1 ? parts.sublist(1).join(' — ').trim() : '';
+    }
+
+    return displayNote
+        .replaceAll(RegExp(r'_transfer|_bill_', caseSensitive: false), '')
+        .replaceAll(RegExp(r'pair:[A-Za-z0-9\-]+'), '')
+        .trim();
   }
 
   Widget _buildClearedStatusBadge(Transaction transaction) {
@@ -1815,6 +1750,36 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         }
       }
     }
+    final displayNote = _transactionDisplayNote(transaction.note);
+    final isPayment = transaction.description.toLowerCase().startsWith(
+      'payment for ',
+    );
+    final fallbackCounterparty = transaction.type == TransactionType.expense
+        ? payeeText
+        : payerText;
+    var displayTitle = isPayment
+        ? (fallbackCounterparty.isNotEmpty
+              ? fallbackCounterparty
+              : _extractPayeeName(transaction.description))
+        : transaction.description;
+    displayTitle = displayTitle.replaceFirst(
+      RegExp(r'^\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\s+'),
+      '',
+    );
+    final titleCategory = categoryText.trim();
+    if (titleCategory.isNotEmpty &&
+        displayTitle.toLowerCase().endsWith(
+          ' ${titleCategory.toLowerCase()}',
+        )) {
+      displayTitle = displayTitle
+          .substring(0, displayTitle.length - titleCategory.length - 1)
+          .trim();
+    }
+    if ((displayTitle.trim().isEmpty ||
+            displayTitle.trim().toLowerCase() == 'transaction') &&
+        fallbackCounterparty.isNotEmpty) {
+      displayTitle = fallbackCounterparty;
+    }
 
     // Search results do not receive the precomputed map, so use the same
     // ledger calculation here rather than maintaining a second formula.
@@ -1904,235 +1869,93 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       _loadTransactions();
     }
 
-final card = Material(
-  color: Colors.transparent,
-  child: InkWell(
-    onTap: () async {
-      await openEditTransaction();
-    },
-    child: ListTile(
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: 16,
-        vertical: 12,
-      ),
+    final card = Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () async {
+          await openEditTransaction();
+        },
+        child: ListTile(
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 12,
+          ),
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  Expanded(
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  _buildClearedStatusBadge(transaction),
-                                  const SizedBox(width: 5),
-                                  Text(
-                                    DateFormat(
-                                      'MM/dd/yy',
-                                    ).format(transaction.date),
-                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-  color: Theme.of(context).colorScheme.onSurfaceVariant,
-  fontWeight: FontWeight.w500,
-),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 4),
-                              // Extract clean payee/payer name for payment transactions,
-                              // removing "Payment for" prefix and trailing date
-                              Builder(
-                                builder: (context) {
-                                  final isPayment = transaction.description
-                                      .toLowerCase()
-                                      .startsWith('payment for ');
-                                  final fallbackCounterparty =
-                                      transaction.type ==
-                                          TransactionType.expense
-                                      ? payeeText
-                                      : payerText;
-                                  var baseTitle = isPayment
-                                      ? (fallbackCounterparty.isNotEmpty
-                                            ? fallbackCounterparty
-                                            : _extractPayeeName(
-                                                transaction.description,
-                                              ))
-                                      : transaction.description;
-                                  baseTitle = baseTitle.replaceFirst(
-                                    RegExp(
-                                      r'^\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\s+',
-                                    ),
-                                    '',
-                                  );
-                                  final cat = categoryText.trim();
-                                  if (cat.isNotEmpty &&
-                                      baseTitle.toLowerCase().endsWith(
-                                        ' ${cat.toLowerCase()}',
-                                      )) {
-                                    baseTitle = baseTitle
-                                        .substring(
-                                          0,
-                                          baseTitle.length - cat.length - 1,
-                                        )
-                                        .trim();
-                                  }
-                                  final displayTitle =
-                                      (baseTitle.trim().isEmpty ||
-                                          baseTitle.trim().toLowerCase() ==
-                                              'transaction')
-                                      ? (fallbackCounterparty.isEmpty
-                                            ? baseTitle
-                                            : fallbackCounterparty)
-                                      : baseTitle;
-                                  return Text(
-                                    displayTitle,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleMedium
-                                        ?.copyWith(fontWeight: FontWeight.w600),
-                                  );
-                                },
-                              ),
-                              const SizedBox(height: 4),
-                              // Make the account/category name smaller. If transaction is split,
-                              // show each category and allocated amount in-line.
-                              Text(
-                                categoryDisplay,
-                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-  color: Theme.of(context).colorScheme.onSurfaceVariant,
-),
-                              ),
-                            ],
-                          ),
+                  _buildClearedStatusBadge(transaction),
+                  const SizedBox(width: 5),
+                  Text(
+                    DateFormat('MM/dd/yy').format(transaction.date),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const Spacer(),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        '${transaction.type == TransactionType.income ? '+' : '-'}${_currencyFormat.format(transaction.amount)}',
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: transaction.type == TransactionType.income
+                              ? AppTheme.incomeGreen
+                              : AppTheme.expenseRed,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
                         ),
-                        const SizedBox(width: 16),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(
-                              '${transaction.type == TransactionType.income ? '+' : '-'}${_currencyFormat.format(transaction.amount)}',
-                              style: Theme.of(context).textTheme.bodyLarge
-                                  ?.copyWith(
-                                    color:
-                                        transaction.type ==
-                                            TransactionType.income
-                                        ? AppTheme.incomeGreen
-                                        : AppTheme.expenseRed,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 13,
-                                  ),
-                            ),
-                            if (transaction.note != null &&
-                                transaction.note!.trim().isNotEmpty) ...[
-                              Builder(
-                                builder: (ctx) {
-                                  String raw = transaction.note!;
-                                  String lower = raw.toLowerCase();
-                                  final isTransfer =
-                                      lower.startsWith('__transfer_manual__') ||
-                                      lower.startsWith('__transfer_bill__');
-                                  // Only show note for transfers if user entered a note (not just marker)
-                                  if (isTransfer &&
-                                      (raw.trim() == '__transfer_manual__' ||
-                                          raw.trim() == '__transfer_bill__')) {
-                                    return const SizedBox.shrink();
-                                  }
-                                  // Remove transfer marker prefix if present
-                                  if (isTransfer) {
-                                    raw = raw
-                                        .replaceFirst(
-                                          RegExp(
-                                            r'^__transfer_(manual|bill)__',
-                                          ),
-                                          '',
-                                        )
-                                        .trim();
-                                    lower = raw.toLowerCase();
-                                  }
-                                  // Remove hide marker used for legacy dashboard filtering.
-                                  raw = raw
-                                      .replaceAll(
-                                        RegExp(
-                                          r'__hide_from_calendar__',
-                                          caseSensitive: false,
-                                        ),
-                                        '',
-                                      )
-                                      .trim();
-                                  lower = raw.toLowerCase();
-                                  // Remove account: prefix if present
-                                  if (lower.startsWith('account:')) {
-                                    final after = raw
-                                        .substring('account:'.length)
-                                        .trim();
-                                    final parts = after.split(
-                                      RegExp(r'\s*[—–-]\s*'),
-                                    );
-                                    raw = parts.length > 1
-                                        ? parts.sublist(1).join(' — ').trim()
-                                        : '';
-                                  }
-                                  // Remove any leftover _transfer or _bill_ markers
-                                  raw = raw
-                                      .replaceAll(
-                                        RegExp(
-                                          r'_transfer|_bill_',
-                                          caseSensitive: false,
-                                        ),
-                                        '',
-                                      )
-                                      .trim();
-                                  // Remove any internal pair tokens added to link transfer sides (e.g. 'pair:<id>')
-                                  raw = raw
-                                      .replaceAll(
-                                        RegExp(r'pair:[A-Za-z0-9\-]+'),
-                                        '',
-                                      )
-                                      .trim();
-                                  if (raw.isEmpty) {
-                                    return const SizedBox.shrink();
-                                  }
-                                  return Padding(
-                                    padding: const EdgeInsets.only(top: 4),
-                                    child: SizedBox(
-                                      width: 140,
-                                      child: Text(
-                                        raw,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall
-                                            ?.copyWith(color: Colors.grey[600]),
-                                        textAlign: TextAlign.right,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  );
-                                },
+                      ),
+                      if (runningBalance != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          _currencyFormat.format(runningBalance),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                fontWeight: FontWeight.w500,
+                                color: Colors.grey[600],
+                                fontSize: 9,
                               ),
-                            ],
-                            const SizedBox(height: 4),
-                            if (runningBalance != null) ...[
-                              Text(
-                                _currencyFormat.format(runningBalance),
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(
-                                      fontWeight: FontWeight.w500,
-                                      color: Colors.grey[600],
-                                      fontSize: 9,
-                                    ),
-                              ),
-                            ],
-                          ],
                         ),
                       ],
-                    ),
+                    ],
                   ),
                 ],
               ),
+              const SizedBox(height: 4),
+              SizedBox(
+                width: double.infinity,
+                child: Text(
+                  displayTitle,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                  softWrap: true,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                categoryDisplay,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+                softWrap: true,
+              ),
+              if (displayNote.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: Text(
+                    displayNote,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+                    softWrap: true,
+                  ),
+                ),
+              ],
               if (widget.accountId != null &&
                   widget.accountId!.isNotEmpty &&
                   paymentForDisplay.isNotEmpty &&
@@ -2357,10 +2180,7 @@ final card = Material(
                 const Expanded(
                   child: Text(
                     'Delete Transfer?',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 20,
-                    ),
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 20),
                   ),
                 ),
               ],
@@ -2368,9 +2188,9 @@ final card = Material(
             content: Text(
               'Are you sure you want to delete this transfer? Both sides of the transfer will be deleted.',
               style: Theme.of(dialogContext).textTheme.bodyMedium?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                    height: 1.4,
-                  ),
+                color: colorScheme.onSurfaceVariant,
+                height: 1.4,
+              ),
             ),
             actions: [
               Row(
@@ -2510,10 +2330,7 @@ final card = Material(
                 const Expanded(
                   child: Text(
                     'Delete Bill Payment?',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 20,
-                    ),
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 20),
                   ),
                 ),
               ],
