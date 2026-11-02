@@ -2214,7 +2214,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
     if (pageChildren.isNotEmpty) {
       children.add(
         SizedBox(
-          height: 190,
+          // The cards include up to six detail rows and an optional "See
+          // more" action. Keep the PageView tall enough that those contents
+          // are not clipped and the outer reports scroll can reach them.
+          height: 430,
           child: PageView(padEnds: false, children: pageChildren),
         ),
       );
