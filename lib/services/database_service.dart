@@ -12,6 +12,7 @@ import '../models/reminder_offset.dart';
 import '../utils/account_ledger.dart';
 import '../utils/duplication_guards.dart';
 import 'aws_api_service.dart';
+import 'cloud_restore_policy.dart';
 import 'cloud_sync_policy.dart';
 
 class DatabaseService {
@@ -2919,6 +2920,30 @@ class DatabaseService {
     final deletedTransactionIds = _getDeletedTransactionIds().toSet();
     final recurrenceEndOverrides = _getBillRecurrenceEndOverrides();
     final locallyModifiedBillIds = _getLocallyModifiedBillIds().toSet();
+
+    final replaceInstallSeeds = CloudRestorePolicy.isAutomaticRestoreTarget(
+      accounts: getAllAccounts(),
+      hasBills: _billsBox.isNotEmpty,
+      hasTransactions: _transactionBox.isNotEmpty,
+      hasPayees: getAllPayees().isNotEmpty,
+      hasCustomCategories: _categoryBox.values.any(
+        (category) => !category.isDefault,
+      ),
+    );
+
+    // Avoid keeping fresh-install IDs alongside the IDs from the backup.
+    // Only untouched seed data is removed; user-created local data makes
+    // replaceInstallSeeds false and is preserved by the merge below.
+    if (replaceInstallSeeds) {
+      if (accounts.isNotEmpty && _accountBox.isNotEmpty) {
+        await _accountBox.clear();
+        accountsChanged = true;
+      }
+      if (categories.isNotEmpty && _categoryBox.isNotEmpty) {
+        await _categoryBox.clear();
+        categoriesChanged = true;
+      }
+    }
 
     if (accounts.isNotEmpty) {
       for (final account in accounts) {

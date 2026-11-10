@@ -324,8 +324,8 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                 ),
                 _premiumFeature(
                   context,
-                  'Auto Backup & Device Sync',
-                  'Automatically back up and sync your data across all your devices so nothing is ever lost.',
+                  'Cloud Backup & Restore',
+                  'Manually back up your data to the cloud and restore it on another device.',
                   headerColor,
                   isLast: true,
                 ),

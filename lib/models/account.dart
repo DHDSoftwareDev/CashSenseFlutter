@@ -90,20 +90,22 @@ class Account extends HiveObject {
 
   factory Account.fromJson(Map<String, dynamic> json) {
     return Account(
-      id: json['accountId'],
+      id: json['accountId'] ?? json['id'],
       name: json['name'],
       type: AccountType.values.firstWhere(
         (e) => e.name == json['type'],
         orElse: () => AccountType.cash,
       ),
-      balance: (json['initialBalance'] ?? 0).toDouble(),
+      balance: (json['initialBalance'] ?? json['balance'] ?? 0).toDouble(),
       currency: json['currency'] ?? 'USD',
       isActive: json['isActive'] ?? true,
       description: json['description'],
       institution: json['institution'],
       accountNumber: json['accountNumber'],
       cardNumber: json['cardNumber'],
-      availableBalance: json['availableBalance'] == null ? null : (json['availableBalance'] as num).toDouble(),
+      availableBalance: json['availableBalance'] == null
+          ? null
+          : (json['availableBalance'] as num).toDouble(),
       customType: json['customType'],
     );
   }

@@ -12,6 +12,7 @@ import 'aws_api_service.dart';
 import 'cognito_service.dart';
 import 'database_service.dart';
 import 'amplify_service.dart';
+import 'cloud_restore_policy.dart';
 import 'cloud_sync_policy.dart';
 import 'user_api_service.dart';
 import 'user_auth_service.dart';
@@ -36,13 +37,8 @@ class RemoteSyncService {
         return;
       }
       debugPrint(
-        'Premium user detected ($plan); evaluating cloud backup restore',
+        'Premium user detected ($plan); cloud backup actions are available',
       );
-
-      if (!CloudSyncPolicy.syncUserFinanceDataToAws) {
-        await _restoreLatestCloudBackupIfLocalDataEmpty();
-        return;
-      }
     } catch (e) {
       debugPrint('Remote sync failed: $e');
     } finally {
@@ -76,18 +72,15 @@ class RemoteSyncService {
     }
   }
 
-  static Future<void> _restoreLatestCloudBackupIfLocalDataEmpty() async {
-    if (!_isLocalSnapshotEmpty()) {
-      debugPrint('Skipping cloud restore; local data already exists on device');
-      return;
-    }
-
-    await restoreLatestCloudBackup(forceOverwrite: false);
-  }
-
   static Future<bool> restoreLatestCloudBackup({
     required bool forceOverwrite,
   }) async {
+    final plan = DatabaseService.subscriptionVersion.value;
+    if (!CloudSyncPolicy.isPremiumPlan(plan)) {
+      debugPrint('Cloud restore skipped: premium subscription required');
+      return false;
+    }
+
     if (!forceOverwrite && !_isLocalSnapshotEmpty()) {
       debugPrint('Skipping cloud restore; local data already exists on device');
       return false;
@@ -101,6 +94,7 @@ class RemoteSyncService {
 
     if (forceOverwrite) {
       await DatabaseService.clearAllData();
+      await DatabaseService.setSubscriptionPlan(plan);
     }
 
     await DatabaseService.hydrateFromRemoteSnapshot(
@@ -129,10 +123,15 @@ class RemoteSyncService {
   }
 
   static bool _isLocalSnapshotEmpty() {
-    return DatabaseService.getAllAccounts().isEmpty &&
-        DatabaseService.getAllBills().isEmpty &&
-        DatabaseService.getAllTransactions().isEmpty &&
-        DatabaseService.getAllPayees().isEmpty;
+    return CloudRestorePolicy.isAutomaticRestoreTarget(
+      accounts: DatabaseService.getAllAccounts(),
+      hasBills: DatabaseService.getAllBills().isNotEmpty,
+      hasTransactions: DatabaseService.getAllTransactions().isNotEmpty,
+      hasPayees: DatabaseService.getAllPayees().isNotEmpty,
+      hasCustomCategories: DatabaseService.getAllCategories().any(
+        (category) => !category.isDefault,
+      ),
+    );
   }
 
   static String _resolvePlanFromUser(CashSenseUser user) {

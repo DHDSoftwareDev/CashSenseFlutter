@@ -28,7 +28,6 @@ import '../services/biometric_auth_service.dart';
 import 'login_screen.dart';
 import 'signup_screen.dart';
 import 'edit_account_screen.dart';
-import '../services/auto_backup_service.dart';
 import 'package:amplify_flutter/amplify_flutter.dart' hide Category;
 import '../services/bill_reminder_service.dart';
 import '../services/home_screen_widget_service.dart';
@@ -59,7 +58,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _isLoggedIn = false;
   bool _authUIEnabled = true;
   String _versionLabel = '';
-  bool _autoBackupEnabled = false;
   bool _biometricEnabled = false;
   bool _biometricAvailable = false;
   String _biometricLabel = 'Biometrics';
@@ -83,8 +81,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           false,
         ) ??
         false;
-    _autoBackupEnabled =
-        DatabaseService.getSetting<bool>('autoBackupEnabled', false) ?? false;
   }
 
   void _loadBillReminderSettings() {
@@ -339,88 +335,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _shareFCMToken() {
     // Firebase Messaging removed
     debugPrint('FCM sharing disabled');
-  }
-
-  void _showAutoBackupHistoryPopup() async {
-    // Get the CashSense folder in appropriate directory based on platform
-    Directory dir;
-    if (Platform.isIOS) {
-      // iOS: Use app's documents directory
-      final docsDir = await getApplicationDocumentsDirectory();
-      dir = Directory('${docsDir.path}/CashSense');
-    } else {
-      // Android/Desktop: Use Downloads directory
-      final downloadsDir = await getDownloadsDirectory();
-      if (downloadsDir == null) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Automatic Backups'),
-            content: const Text('Downloads directory not available.'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Close'),
-              ),
-            ],
-          ),
-        );
-        return;
-      }
-      dir = Directory('${downloadsDir.path}/CashSense');
-    }
-
-    List<File> files = [];
-    if (await dir.exists()) {
-      files = dir
-          .listSync()
-          .whereType<File>()
-          .where((f) => f.path.contains('cashsense_auto_backup_'))
-          .toList();
-      files.sort((a, b) => b.path.compareTo(a.path)); // newest first
-    }
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Automatic Backups'),
-        content: SizedBox(
-          width: 350,
-          child: files.isEmpty
-              ? const Text('No automatic backups found.')
-              : ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: files.length,
-                  itemBuilder: (context, idx) {
-                    final file = files[idx];
-                    final name = file.path.split('/').last;
-                    final ts = name
-                        .replaceAll('cashsense_auto_backup_', '')
-                        .replaceAll('.json', '')
-                        .replaceAll('-', ':');
-                    return ListTile(
-                      title: Text('Backup: $ts'),
-                      subtitle: Text(file.path),
-                      trailing: TextButton(
-                        child: const Text('Restore'),
-                        onPressed: () async {
-                          Navigator.pop(context);
-                          final jsonString = await file.readAsString();
-                          await _performRestore(jsonString);
-                        },
-                      ),
-                    );
-                  },
-                ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
   }
 
   void _showBackupRestorePopup() {
@@ -830,47 +744,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _hasActiveSubscription() {
     final plan = DatabaseService.subscriptionVersion.value;
     return plan != 'Free';
-  }
-
-  Widget _buildAutoBackupCard() {
-    final subtitle = _autoBackupEnabled
-        ? 'Automatic backups enabled'
-        : 'Automatic backups disabled';
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 6.0),
-      child: Card(
-        elevation: 1,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        child: Column(
-          children: [
-            ListTile(
-              leading: const Icon(Icons.cloud_upload),
-              title: const Text('Auto Backup'),
-              subtitle: Text(subtitle),
-              trailing: Switch(
-                value: _autoBackupEnabled,
-                onChanged: (value) async {
-                  await DatabaseService.setSetting('autoBackupEnabled', value);
-                  await AutoBackupService.configurePeriodicTaskFromSettings();
-                  if (!mounted) return;
-                  setState(() => _autoBackupEnabled = value);
-                },
-              ),
-              onTap: () => _showAutoBackupHistoryPopup(),
-            ),
-            const Divider(height: 1),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: _runAutoBackupNow,
-                icon: const Icon(Icons.backup),
-                label: const Text('Backup Now'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   void _showHelpSupportDialog() {
@@ -1927,52 +1800,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         );
       }
-    }
-  }
-
-  Future<void> _runAutoBackupNow() async {
-    // Show a simple progress dialog while backup runs
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        content: Row(
-          children: const [
-            SizedBox(width: 24, height: 24, child: CircularProgressIndicator()),
-            SizedBox(width: 16),
-            Expanded(child: Text('Performing backup...')),
-          ],
-        ),
-      ),
-    );
-
-    try {
-      final path = await AutoBackupService.performBackup();
-      if (context.mounted) Navigator.pop(context); // close progress
-
-      if (path != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Backup created: $path'),
-            backgroundColor: Colors.blueGrey[400],
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Backup failed'),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Backup error: $e'),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
     }
   }
 

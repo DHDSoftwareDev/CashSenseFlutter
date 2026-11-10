@@ -35,18 +35,75 @@ class LookupsState extends ChangeNotifier {
   }
 
   Future<void> loadFromLocal() async {
-    final categories = await repository.getLocalByType('category');
-    final payees = await repository.getLocalByType('payee');
-    final payers = await repository.getLocalByType('payer');
+    final cachedCategories = await repository.getLocalByType('category');
+    final cachedPayees = await repository.getLocalByType('payee');
+    final cachedPayers = await repository.getLocalByType('payer');
 
-    categoriesById = {for (final x in categories) x.id: x};
-    payeesById = {for (final x in payees) x.id: x};
-    payersById = {for (final x in payers) x.id: x};
+    final categories = <String, LookupItem>{
+      for (final item in cachedCategories) item.id: item,
+    };
+    final payees = <String, LookupItem>{
+      for (final item in cachedPayees) item.id: item,
+    };
+    final payers = <String, LookupItem>{
+      for (final item in cachedPayers) item.id: item,
+    };
+
+    // Backup/restore hydrates the primary local database, not the legacy
+    // lookups cache. Merge that data so restored labels appear immediately.
+    final restoredAt = DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+    for (final category in DatabaseService.getAllCategories()) {
+      categories[category.id] = LookupItem(
+        id: category.id,
+        type: 'category',
+        name: category.name,
+        color: category.colorValue,
+        icon: category.image ?? category.iconCodePoint,
+        sortOrder: 0,
+        isDeleted: false,
+        createdAt: restoredAt,
+        updatedAt: restoredAt,
+      );
+    }
+
+    for (final contact in DatabaseService.getAllPayees()) {
+      final id = (contact['id'] ?? '').toString().trim();
+      final name = (contact['name'] ?? '').toString().trim();
+      final type = (contact['type'] ?? '').toString().trim().toLowerCase();
+      if (id.isEmpty || name.isEmpty || (type != 'payee' && type != 'payer')) {
+        continue;
+      }
+
+      final item = LookupItem(
+        id: id,
+        type: type,
+        name: name,
+        color: contact['color']?.toString(),
+        icon: contact['icon']?.toString(),
+        categoryId: contact['categoryId']?.toString(),
+        sortOrder: int.tryParse((contact['sortOrder'] ?? '0').toString()) ?? 0,
+        isDeleted: false,
+        createdAt: restoredAt,
+        updatedAt: restoredAt,
+      );
+      if (type == 'payee') {
+        payees[id] = item;
+      } else {
+        payers[id] = item;
+      }
+    }
+
+    categoriesById = categories;
+    payeesById = payees;
+    payersById = payers;
     notifyListeners();
   }
 
   Future<void> syncRemote() async {
     if (!CloudSyncPolicy.syncUserFinanceDataToAws) {
+      // Remote finance APIs are intentionally disabled. A premium restore may
+      // just have updated Hive, so refresh the display maps from local data.
+      await loadFromLocal();
       return;
     }
 

@@ -452,7 +452,7 @@ private struct UpcomingBillsView: View {
         switch family {
         case .systemSmall: return 2
         case .systemMedium: return 2
-        case .systemLarge: return 5
+        case .systemLarge: return 8
         default: return 2
         }
     }
@@ -581,7 +581,10 @@ private struct UpcomingBillsView: View {
                         .font(.system(size: 10, weight: .bold))
                         .foregroundStyle(bill.isPaid ? .green : entry.snapshot.widgetColor)
                 }
-                .frame(width: 27, height: 27)
+                .frame(
+                    width: family == .systemLarge ? 23 : 27,
+                    height: family == .systemLarge ? 23 : 27
+                )
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(bill.name)
@@ -609,7 +612,7 @@ private struct UpcomingBillsView: View {
             }
             .padding(
                 .vertical,
-                family == .systemMedium ? 4 : (family == .systemLarge ? 6 : 5)
+                family == .systemMedium ? 4 : (family == .systemLarge ? 2 : 5)
             )
             .foregroundStyle(.primary)
         }
@@ -654,7 +657,9 @@ private struct AccountBalancesView: View {
         return entry.snapshot.accounts.filter { selectedIDs.contains($0.id) }
     }
 
-    private var rowLimit: Int {
+    // This is the physical capacity of each WidgetKit family, not an account cap.
+    // WidgetKit widgets cannot scroll, so larger families use every available row.
+    private var rowCapacity: Int {
         switch family {
         case .systemSmall: return 3
         case .systemLarge: return 8
@@ -663,7 +668,7 @@ private struct AccountBalancesView: View {
     }
 
     private var visibleAccounts: [AccountItem] {
-        Array(displayedAccounts.prefix(rowLimit))
+        Array(displayedAccounts.prefix(rowCapacity))
     }
 
     private var summary: String {
@@ -794,7 +799,10 @@ private struct AccountBalancesView: View {
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(entry.snapshot.widgetColor)
                 }
-                .frame(width: 27, height: 27)
+                .frame(
+                    width: family == .systemLarge ? 23 : 27,
+                    height: family == .systemLarge ? 23 : 27
+                )
 
                 Text(account.name)
                     .font(.system(size: 12, weight: .bold, design: .rounded))
@@ -812,7 +820,7 @@ private struct AccountBalancesView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
             }
-            .padding(.vertical, family == .systemLarge ? 7 : 6)
+            .padding(.vertical, family == .systemLarge ? 2 : 6)
         }
     }
 

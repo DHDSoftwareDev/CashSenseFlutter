@@ -13,9 +13,11 @@ import es.antonborri.home_widget.HomeWidgetLaunchIntent
 import es.antonborri.home_widget.HomeWidgetProvider
 import java.text.DateFormat
 import java.text.NumberFormat
+import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Currency
 import java.util.Date
+import java.util.Locale
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -44,23 +46,49 @@ private val rowIds = intArrayOf(
     R.id.widget_row_2,
     R.id.widget_row_3,
     R.id.widget_row_4,
+    R.id.widget_row_5,
+    R.id.widget_row_6,
+    R.id.widget_row_7,
+    R.id.widget_row_8,
 )
 private val rowNameIds = intArrayOf(
     R.id.widget_row_1_name,
     R.id.widget_row_2_name,
     R.id.widget_row_3_name,
     R.id.widget_row_4_name,
+    R.id.widget_row_5_name,
+    R.id.widget_row_6_name,
+    R.id.widget_row_7_name,
+    R.id.widget_row_8_name,
+)
+private val rowIconIds = intArrayOf(
+    R.id.widget_row_1_icon,
+    R.id.widget_row_2_icon,
+    R.id.widget_row_3_icon,
+    R.id.widget_row_4_icon,
+    R.id.widget_row_5_icon,
+    R.id.widget_row_6_icon,
+    R.id.widget_row_7_icon,
+    R.id.widget_row_8_icon,
 )
 private val rowValueIds = intArrayOf(
     R.id.widget_row_1_value,
     R.id.widget_row_2_value,
     R.id.widget_row_3_value,
     R.id.widget_row_4_value,
+    R.id.widget_row_5_value,
+    R.id.widget_row_6_value,
+    R.id.widget_row_7_value,
+    R.id.widget_row_8_value,
 )
 private val rowDividerIds = intArrayOf(
     R.id.widget_row_divider_1,
     R.id.widget_row_divider_2,
     R.id.widget_row_divider_3,
+    R.id.widget_row_divider_4,
+    R.id.widget_row_divider_5,
+    R.id.widget_row_divider_6,
+    R.id.widget_row_divider_7,
 )
 
 private fun snapshot(widgetData: SharedPreferences): JSONObject? =
@@ -93,7 +121,16 @@ private fun RemoteViews.applyTheme(data: JSONObject?) {
     val headerForeground = readableForeground(accent)
     setInt(R.id.widget_header, "setBackgroundColor", accent)
     setTextColor(R.id.widget_title, headerForeground)
-    setTextColor(R.id.widget_summary, headerForeground)
+    setTextColor(
+        R.id.widget_summary,
+        Color.argb(
+            194,
+            Color.red(headerForeground),
+            Color.green(headerForeground),
+            Color.blue(headerForeground),
+        ),
+    )
+    setInt(R.id.widget_icon, "setColorFilter", headerForeground)
     setTextColor(R.id.widget_empty, Color.DKGRAY)
     setInt(R.id.widget_divider, "setBackgroundColor", accent)
     rowNameIds.forEach { setTextColor(it, Color.rgb(33, 33, 33)) }
@@ -114,6 +151,8 @@ private fun RemoteViews.showRow(
     value: String,
     context: Context,
     uri: Uri,
+    iconResource: Int,
+    iconTint: Int,
     showDivider: Boolean = false,
 ) {
     if (index !in rowIds.indices) return
@@ -122,6 +161,8 @@ private fun RemoteViews.showRow(
     if (showDivider && index > 0) {
         setViewVisibility(rowDividerIds[index - 1], View.VISIBLE)
     }
+    setImageViewResource(rowIconIds[index], iconResource)
+    setInt(rowIconIds[index], "setColorFilter", iconTint)
     setTextViewText(rowNameIds[index], name)
     setTextViewText(rowValueIds[index], value)
     setOnClickPendingIntent(
@@ -137,11 +178,16 @@ private fun visibleRowLimit(
     val minHeight = appWidgetManager
         .getAppWidgetOptions(widgetId)
         .getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 110)
-    return when {
+    val rowsThatFit = when {
+        minHeight >= 360 -> 8
+        minHeight >= 320 -> 7
+        minHeight >= 280 -> 6
+        minHeight >= 240 -> 5
         minHeight >= 170 -> 4
         minHeight >= 140 -> 3
         else -> 2
     }
+    return minOf(rowsThatFit, rowIds.size)
 }
 
 private fun currency(amount: Double, currencyCode: String = "USD"): String {
@@ -238,26 +284,45 @@ class UpcomingBillsWidgetProvider : HomeWidgetProvider() {
             val maxRows = visibleRowLimit(appWidgetManager, widgetId)
             val views = widgetViews(context)
             views.applyTheme(data)
+            views.setImageViewResource(
+                R.id.widget_icon,
+                R.drawable.ic_widget_upcoming_bills,
+            )
             views.setTextViewText(R.id.widget_title, "Upcoming Bills")
+            val billsDueThisMonth = bills.count { bill ->
+                val due = Calendar.getInstance().apply {
+                    timeInMillis = bill.optLong("dueMillis")
+                }
+                due.get(Calendar.YEAR) == today.get(Calendar.YEAR) &&
+                    due.get(Calendar.MONTH) == today.get(Calendar.MONTH)
+            }
+            val month = SimpleDateFormat("MMM", Locale.getDefault()).format(today.time)
             views.setTextViewText(
                 R.id.widget_summary,
-                if (bills.size == 1) "1 due" else "${bills.size} due",
+                if (filter == "pastDue") {
+                    "${bills.size} past due"
+                } else {
+                    "$month · $billsDueThisMonth due"
+                },
             )
             views.resetRows(emptyMessage)
             for (index in 0 until minOf(bills.size, maxRows)) {
                 val bill = bills[index]
+                val isPaid = bill.optString("paymentStatus") == "paid"
                 val dueMillis = bill.optLong("dueMillis")
                 val amount = currency(bill.optDouble("amount"))
                 val note = bill.optString("note").trim()
                 val name = bill.optString("name", "Bill")
                 val nameWithNote = if (note.isEmpty()) name else "$name\n$note"
-                val paidPrefix = if (bill.optString("paymentStatus") == "paid") "Paid · " else ""
+                val paidPrefix = if (isPaid) "Paid · " else ""
                 views.showRow(
                     index,
                     nameWithNote,
                     "$paidPrefix${dueLabel(dueMillis)} · $amount",
                     context,
                     Uri.parse("cashsense://bills?date=$dueMillis"),
+                    if (isPaid) R.drawable.ic_widget_row_check else R.drawable.ic_widget_row_bill,
+                    if (isPaid) Color.rgb(46, 125, 50) else widgetThemeColor(data),
                     showDivider = true,
                 )
             }
@@ -326,6 +391,10 @@ class AccountBalancesWidgetProvider : HomeWidgetProvider() {
             val maxRows = visibleRowLimit(appWidgetManager, widgetId)
             val views = widgetViews(context)
             views.applyTheme(data)
+            views.setImageViewResource(
+                R.id.widget_icon,
+                R.drawable.ic_widget_account_balances,
+            )
             val configuredAccounts = (0 until accounts.length()).mapNotNull { index ->
                 accounts.optJSONObject(index)
             }.filter { account ->
@@ -387,6 +456,8 @@ class AccountBalancesWidgetProvider : HomeWidgetProvider() {
                     Uri.parse(
                         "cashsense://accounts?accountId=${Uri.encode(account.optString("id"))}",
                     ),
+                    R.drawable.ic_widget_row_account,
+                    widgetThemeColor(data),
                     showDivider = true,
                 )
             }

@@ -88,86 +88,16 @@ class _PayeesScreenState extends State<PayeesScreen> {
                 icon: const Icon(Icons.add),
                 tooltip: 'Add Category',
                 onPressed: () async {
-                  final nameController = TextEditingController();
-                  Color selectedColor = const Color(0xFF607D8B);
-                  final result = await showDialog<Category?>(
-                    context: parentContext,
-                    builder: (ctx) => StatefulBuilder(
-                      builder: (ctx, setState) => AlertDialog(
-                        title: const Text('Add Category'),
-                        content: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            TextField(
-                              controller: nameController,
-                              textCapitalization: TextCapitalization.sentences,
-                              decoration: const InputDecoration(
-                                labelText: 'Name',
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            GestureDetector(
-                              onTap: () async {
-                                final picked = await showAppColorPicker(
-                                  context: parentContext,
-                                  initialColor: selectedColor,
-                                  title: 'Pick Category Color',
-                                );
-                                if (picked != null) {
-                                  setState(() => selectedColor = picked);
-                                }
-                              },
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 20,
-                                    height: 20,
-                                    decoration: BoxDecoration(
-                                      color: selectedColor,
-                                      borderRadius: BorderRadius.circular(4),
-                                      border: Border.all(color: Colors.black26),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  const Text('Category Color'),
-                                  const Spacer(),
-                                  const Icon(
-                                    Icons.color_lens_outlined,
-                                    size: 20,
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                          ],
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(ctx),
-                            child: const Text('Cancel'),
-                          ),
-                          ElevatedButton(
-                            onPressed: () {
-                              if (nameController.text.trim().isNotEmpty) {
-                                final newCat = Category(
-                                  name: nameController.text.trim(),
-                                  iconCodePoint: '0xe85d',
-                                  colorValue: selectedColor.value.toString(),
-                                  type: isPayeeChoice
-                                      ? CategoryType.expense
-                                      : CategoryType.income,
-                                );
-                                Navigator.pop(ctx, newCat);
-                              }
-                            },
-                            child: const Text('Add'),
-                          ),
-                        ],
+                  final result = await Navigator.of(sheetContext).push<Category>(
+                    MaterialPageRoute(
+                      builder: (_) => _PayeeAddCategoryPage(
+                        isIncome: !isPayeeChoice,
                       ),
                     ),
                   );
                   if (result != null) {
                     final newCatId = await DatabaseService.addCategory(result);
+                    if (!sheetContext.mounted) return;
                     // Pop the bottom sheet using the sheetContext so the
                     // returned value reliably goes back to the caller of
                     // showModalBottomSheet.
@@ -595,6 +525,245 @@ class _PayeesScreenState extends State<PayeesScreen> {
     );
   }
 
+}
+
+class _PayeeAddCategoryPage extends StatefulWidget {
+  const _PayeeAddCategoryPage({required this.isIncome});
+
+  final bool isIncome;
+
+  @override
+  State<_PayeeAddCategoryPage> createState() =>
+      _PayeeAddCategoryPageState();
+}
+
+class _PayeeAddCategoryPageState extends State<_PayeeAddCategoryPage> {
+  final TextEditingController _nameController = TextEditingController();
+  Color _selectedColor = const Color(0xFF607D8B);
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  void _cancel() {
+    FocusScope.of(context).unfocus();
+    Navigator.of(context).pop();
+  }
+
+  void _save() {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a category name')),
+      );
+      return;
+    }
+
+    FocusScope.of(context).unfocus();
+    Navigator.of(context).pop(
+      Category(
+        name: name,
+        iconCodePoint: '0xe85d',
+        colorValue: _selectedColor.value.toString(),
+        type: widget.isIncome ? CategoryType.income : CategoryType.expense,
+      ),
+    );
+  }
+
+  Future<void> _pickColor() async {
+    FocusScope.of(context).unfocus();
+    final picked = await showAppColorPicker(
+      context: context,
+      initialColor: _selectedColor,
+      title: 'Pick Category Color',
+    );
+    if (picked != null && mounted) {
+      setState(() => _selectedColor = picked);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Scaffold(
+      backgroundColor: colorScheme.surface,
+      appBar: AppBar(
+        leading: IconButton(
+          tooltip: 'Cancel',
+          onPressed: _cancel,
+          icon: const Icon(Icons.close_rounded),
+        ),
+        title: const Text('Add Category'),
+        centerTitle: true,
+      ),
+      body: SafeArea(
+        top: false,
+        child: ListView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
+          children: [
+            Text(
+              widget.isIncome
+                  ? 'Create a category for your income.'
+                  : 'Create a category for your expenses.',
+              style: TextStyle(
+                fontSize: 15,
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 28),
+            Text(
+              'NAME',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.8,
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _nameController,
+              autofocus: true,
+              onTapOutside: (_) => FocusScope.of(context).unfocus(),
+              textCapitalization: TextCapitalization.sentences,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => _save(),
+              decoration: InputDecoration(
+                hintText: 'Category name',
+                prefixIcon: const Icon(Icons.category_outlined),
+                filled: true,
+                fillColor: colorScheme.surfaceContainerLow,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide.none,
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide(
+                    color: colorScheme.outlineVariant.withValues(alpha: 0.45),
+                  ),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide(
+                    color: colorScheme.primary,
+                    width: 1.5,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 28),
+            Text(
+              'COLOR',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.8,
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Material(
+              color: colorScheme.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(14),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: _pickColor,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 16,
+                  ),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: colorScheme.outlineVariant.withValues(alpha: 0.45),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: _selectedColor,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.black12),
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Category Color',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              'Tap to choose a color',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Icon(
+                        Icons.color_lens_outlined,
+                        color: colorScheme.primary,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 36),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _cancel,
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(52),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text('Cancel'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: _save,
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(52),
+                      backgroundColor: colorScheme.primary,
+                      foregroundColor: colorScheme.onPrimary,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text('Add Category'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _PayeeFormPage extends StatefulWidget {

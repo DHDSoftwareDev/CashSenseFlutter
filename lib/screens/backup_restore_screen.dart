@@ -4,10 +4,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:background_fetch/background_fetch.dart' as bf;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 
@@ -29,106 +27,6 @@ class BackupRestoreScreen extends StatefulWidget {
 
 class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
   bool _isRunning = false;
-
-  void _showAutoBackupHistoryPopup() async {
-    Directory dir;
-    if (Platform.isIOS) {
-      final docsDir = await getApplicationDocumentsDirectory();
-      dir = Directory('${docsDir.path}/CashSense');
-    } else {
-      final downloadsDir = await getDownloadsDirectory();
-      if (downloadsDir == null) {
-        if (!mounted) return;
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Automatic Backups'),
-            content: const Text('Downloads directory not available.'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Close'),
-              ),
-            ],
-          ),
-        );
-        return;
-      }
-      dir = Directory('${downloadsDir.path}/CashSense');
-    }
-
-    List<File> files = [];
-    if (await dir.exists()) {
-      files = dir.listSync().whereType<File>().where((f) {
-        final name = f.path.split('/').last;
-        return name.startsWith('cashsense_auto_backup_') &&
-            name.endsWith('.json');
-      }).toList();
-
-      files.sort(
-        (a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()),
-      );
-    }
-
-    if (!mounted) return;
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Automatic Backups'),
-        content: SizedBox(
-          width: 350,
-          child: files.isEmpty
-              ? const Text('No automatic backups found.')
-              : ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: files.length,
-                  itemBuilder: (context, idx) {
-                    final file = files[idx];
-
-                    String titleText;
-                    try {
-                      final modified = file.lastModifiedSync();
-                      final formatted = DateFormat(
-                        'M/d/yy, h:mm a',
-                      ).format(modified).toLowerCase();
-                      titleText = 'Backup $formatted';
-                    } catch (_) {
-                      titleText = 'Backup ${file.path.split('/').last}';
-                    }
-
-                    return ListTile(
-                      title: Text(titleText),
-                      subtitle: Text(
-                        file.path,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Colors.grey[600],
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      trailing: TextButton(
-                        style: TextButton.styleFrom(
-                          foregroundColor: Colors.grey[700],
-                        ),
-                        child: const Text('Restore'),
-                        onPressed: () async {
-                          Navigator.pop(context);
-                          final jsonString = await file.readAsString();
-                          await _performRestore(jsonString);
-                        },
-                      ),
-                    );
-                  },
-                ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
-  }
 
   Future<void> _runBackup() async {
     setState(() => _isRunning = true);
@@ -497,21 +395,6 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
     final userSessionController = context.watch<UserSessionController>();
     final isPremium = userSessionController.isPremium;
 
-    final autoBackupEnabled =
-        DatabaseService.getSetting<bool>('autoBackupEnabled', false) ?? false;
-
-    final lastBackupRaw = DatabaseService.getSetting<String>(
-      'lastAutoBackupAt',
-      null,
-    );
-
-    DateTime? lastBackup;
-    if (lastBackupRaw != null) {
-      try {
-        lastBackup = DateTime.parse(lastBackupRaw);
-      } catch (_) {}
-    }
-
     return Scaffold(
       backgroundColor: colorScheme.surfaceContainerLowest,
       appBar: AppBar(
@@ -610,67 +493,6 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
                     subtitle:
                         'Replace this device with your latest premium backup',
                     onTap: _isRunning ? null : _restoreFromCloudBackup,
-                  ),
-                  Divider(
-                    height: 1,
-                    indent: 74,
-                    color: colorScheme.outlineVariant
-                        .withValues(alpha: 0.35),
-                  ),
-                  _actionTile(
-                    context: context,
-                    icon: Icons.history_rounded,
-                    title: 'Automatic Backup History',
-                    subtitle: 'View and restore recent automatic backups',
-                    onTap: _showAutoBackupHistoryPopup,
-                  ),
-                  Divider(
-                    height: 1,
-                    indent: 74,
-                    color: colorScheme.outlineVariant
-                        .withValues(alpha: 0.35),
-                  ),
-                  SwitchListTile(
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 6,
-                    ),
-                    secondary: Container(
-                      width: 42,
-                      height: 42,
-                      decoration: BoxDecoration(
-                        color: colorScheme.primaryContainer
-                            .withValues(alpha: 0.55),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(
-                        Icons.cloud_sync_outlined,
-                        color: colorScheme.primary,
-                        size: 22,
-                      ),
-                    ),
-                    title: const Text(
-                      'Automatic Cloud Backup',
-                      style: TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    subtitle: Text(
-                      autoBackupEnabled
-                          ? lastBackup != null
-                              ? 'Enabled • Last backup ${DateFormat('M/d/yy h:mm a').format(lastBackup)}'
-                              : 'Enabled'
-                          : 'Disabled',
-                      style: TextStyle(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    value: autoBackupEnabled,
-                    onChanged: (value) async {
-                      await DatabaseService.setSetting(
-                        'autoBackupEnabled',
-                        value,
-                      );
-                      setState(() {});
-                    },
                   ),
                 ],
               ),
