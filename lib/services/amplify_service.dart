@@ -56,25 +56,59 @@ class AmplifyService {
   /// Upload a local file to S3. `filePath` is the absolute path to the local file.
   /// Returns true on success.
   static Future<bool> uploadFile(String filePath, String key) async {
-    try {
-      final local = AWSFile.fromPath(filePath);
-      await Amplify.Storage.uploadFile(localFile: local, path: StoragePath.fromString(key));
-      return true;
-    } on StorageException catch (e) {
-      debugPrint('Amplify Storage upload error: ${e.message}');
+  try {
+    final file = File(filePath);
+
+    if (!await file.exists()) {
+      debugPrint('S3 upload failed: local file does not exist');
       return false;
     }
+
+    final operation = Amplify.Storage.uploadFile(
+      localFile: AWSFile.fromPath(filePath),
+      path: StoragePath.fromString(key),
+    );
+
+    final result = await operation.result;
+
+    debugPrint('S3 upload completed: ${result.uploadedItem.path}');
+
+    return true;
+  } on StorageException catch (e) {
+    debugPrint('Amplify Storage upload error: ${e.message}');
+    return false;
+  } catch (e) {
+    debugPrint('Unexpected S3 upload error: $e');
+    return false;
   }
+}
 
   /// Download a file from S3 to the provided local path. Returns true on success.
   static Future<bool> downloadFile(String key, String downloadPath) async {
-    try {
-      final local = AWSFile.fromPath(downloadPath);
-      await Amplify.Storage.downloadFile(path: StoragePath.fromString(key), localFile: local);
-      return true;
-    } on StorageException catch (e) {
-      debugPrint('Amplify Storage download error: ${e.message}');
+  try {
+    final operation = Amplify.Storage.downloadFile(
+      path: StoragePath.fromString(key),
+      localFile: AWSFile.fromPath(downloadPath),
+    );
+
+    await operation.result;
+
+    final file = File(downloadPath);
+
+    if (!await file.exists()) {
+      debugPrint('S3 download failed: downloaded file not found');
       return false;
     }
+
+    debugPrint('S3 download completed: $key');
+
+    return true;
+  } on StorageException catch (e) {
+    debugPrint('Amplify Storage download error: ${e.message}');
+    return false;
+  } catch (e) {
+    debugPrint('Unexpected S3 download error: $e');
+    return false;
   }
+}
 }

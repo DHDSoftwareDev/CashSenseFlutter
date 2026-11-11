@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:flutter/foundation.dart' show debugPrint, debugPrintStack;
 
 import '../models/account.dart';
 import '../models/bill.dart';
@@ -76,6 +76,7 @@ class RemoteSyncService {
     required bool forceOverwrite,
   }) async {
     final plan = DatabaseService.subscriptionVersion.value;
+
     if (!CloudSyncPolicy.isPremiumPlan(plan)) {
       debugPrint('Cloud restore skipped: premium subscription required');
       return false;
@@ -86,40 +87,89 @@ class RemoteSyncService {
       return false;
     }
 
+    // Download and parse the cloud backup before changing local data.
     final cloudSnapshot = await _fetchCloudBackupSnapshot();
+
     if (cloudSnapshot == null) {
       debugPrint('No cloud backup snapshot available for restore');
       return false;
     }
 
-    if (forceOverwrite) {
-      await DatabaseService.clearAllData();
-      await DatabaseService.setSubscriptionPlan(plan);
+    // Block a new restore if an unresolved recovery file exists.
+    // Also verify that current local data can be safely captured.
+    try {
+      await DatabaseService.ensureSafeToBeginCloudRestore();
+    } catch (e, stackTrace) {
+      debugPrint('Cloud restore blocked by recovery safety check: $e');
+      debugPrintStack(stackTrace: stackTrace);
+      return false;
     }
 
-    await DatabaseService.hydrateFromRemoteSnapshot(
-      accounts: cloudSnapshot.accounts,
-      bills: cloudSnapshot.bills,
-      transactions: cloudSnapshot.transactions,
-      categories: cloudSnapshot.categories,
-      payees: cloudSnapshot.payees,
-      payers: cloudSnapshot.payers,
-      payments: cloudSnapshot.payments,
-    );
+    // Capture the original local data in memory.
+    // This supports immediate rollback if a restore fails.
+    final localSnapshot = DatabaseService.captureLocalRestoreSnapshot();
 
-    if (cloudSnapshot.billOccurrenceStatuses.isNotEmpty) {
-      await DatabaseService.importBillOccurrenceStatuses(
-        cloudSnapshot.billOccurrenceStatuses,
+    // Save the original local data to persistent storage
+    // before any financial Hive records are replaced.
+    try {
+      await DatabaseService.writeLocalRestoreRecoveryFile();
+    } catch (e, stackTrace) {
+      debugPrint(
+        'Cloud restore cancelled: persistent recovery '
+        'file could not be created: $e',
       );
+      debugPrintStack(stackTrace: stackTrace);
+      return false;
     }
 
-    debugPrint(
-      'Restored latest premium cloud backup to empty local device: '
-      'accounts=${cloudSnapshot.accounts.length}, '
-      'bills=${cloudSnapshot.bills.length}, '
-      'transactions=${cloudSnapshot.transactions.length}',
-    );
-    return true;
+    // At this point, the original data has been saved
+    // and verified in the persistent recovery file.
+    try {
+      await DatabaseService.replaceLocalDataFromCloudBackup(
+        accounts: cloudSnapshot.accounts,
+        bills: cloudSnapshot.bills,
+        transactions: cloudSnapshot.transactions,
+        categories: cloudSnapshot.categories,
+        payees: cloudSnapshot.payees,
+        payers: cloudSnapshot.payers,
+        billOccurrenceStatuses: cloudSnapshot.billOccurrenceStatuses,
+        settings: cloudSnapshot.settings,
+      );
+
+      // The replacement method verifies restored financial
+      // records, settings, contacts, and bill statuses.
+      //
+      // Remove the recovery file only after those checks pass.
+      await DatabaseService.finalizeLocalRestoreRecovery(restoreVerified: true);
+
+      debugPrint(
+        'Manual cloud restore completed successfully: '
+        'accounts=${cloudSnapshot.accounts.length}, '
+        'bills=${cloudSnapshot.bills.length}, '
+        'transactions=${cloudSnapshot.transactions.length}',
+      );
+
+      return true;
+    } catch (e, stackTrace) {
+      debugPrint('Manual cloud restore failed: $e');
+      debugPrintStack(stackTrace: stackTrace);
+
+      // Recover the original local financial data.
+      try {
+        await DatabaseService.restoreLocalRestoreSnapshot(localSnapshot);
+
+        debugPrint('Original local data recovered successfully.');
+
+        // The original data has been restored.
+        // Do not delete the persistent recovery file here.
+        // A later recovery step will safely resolve it.
+      } catch (rollbackError, rollbackStackTrace) {
+        debugPrint('CRITICAL: Local data recovery failed: $rollbackError');
+        debugPrintStack(stackTrace: rollbackStackTrace);
+      }
+
+      return false;
+    }
   }
 
   static bool _isLocalSnapshotEmpty() {
@@ -178,7 +228,25 @@ class RemoteSyncService {
       if (raw.trim().isEmpty) return null;
 
       final decoded = jsonDecode(raw);
-      if (decoded is! Map<String, dynamic>) return null;
+
+      if (decoded is! Map<String, dynamic>) {
+        throw const FormatException('Cloud backup is not a valid JSON object.');
+      }
+
+      const requiredSections = [
+        'accounts',
+        'bills',
+        'transactions',
+        'categories',
+      ];
+
+      for (final section in requiredSections) {
+        if (decoded[section] is! List) {
+          throw FormatException(
+            'Cloud backup is missing a valid $section section.',
+          );
+        }
+      }
 
       final accounts = _parseModelList<Account>(
         decoded['accounts'],
@@ -195,6 +263,18 @@ class RemoteSyncService {
       );
       final payees = _parseMapList(decoded['payees']);
       final payers = _parseMapList(decoded['payers']);
+
+      final settingsRaw = decoded['settings'];
+
+      if (settingsRaw != null && settingsRaw is! Map) {
+        throw const FormatException(
+          'Cloud backup contains an invalid settings section.',
+        );
+      }
+
+      final backupSettings = settingsRaw == null
+          ? <String, dynamic>{}
+          : Map<String, dynamic>.from(settingsRaw);
 
       final paymentsRaw = decoded['payments_history'];
       final payments = paymentsRaw is List
@@ -221,6 +301,7 @@ class RemoteSyncService {
         payers: payers,
         payments: payments,
         billOccurrenceStatuses: billOccurrenceStatuses,
+        settings: backupSettings,
       );
     } catch (e) {
       debugPrint('Cloud backup restore on login failed: $e');
@@ -232,26 +313,57 @@ class RemoteSyncService {
     dynamic raw,
     T Function(Map<String, dynamic>) fromJson,
   ) {
-    if (raw is! List) return <T>[];
+    if (raw is! List) {
+      throw const FormatException(
+        'Cloud backup contains a missing or invalid data list.',
+      );
+    }
+
     final out = <T>[];
-    for (final item in raw) {
-      if (item is Map) {
-        try {
-          out.add(fromJson(Map<String, dynamic>.from(item)));
-        } catch (_) {}
+
+    for (var index = 0; index < raw.length; index++) {
+      final item = raw[index];
+
+      if (item is! Map) {
+        throw FormatException(
+          'Cloud backup contains an invalid record at index $index.',
+        );
+      }
+
+      try {
+        final record = Map<String, dynamic>.from(item);
+        out.add(fromJson(record));
+      } catch (e) {
+        throw FormatException(
+          'Cloud backup record at index $index could not be restored: $e',
+        );
       }
     }
+
     return out;
   }
 
   static List<Map<String, dynamic>> _parseMapList(dynamic raw) {
-    if (raw is! List) return <Map<String, dynamic>>[];
-    final out = <Map<String, dynamic>>[];
-    for (final item in raw) {
-      if (item is Map) {
-        out.add(Map<String, dynamic>.from(item));
-      }
+    if (raw is! List) {
+      throw const FormatException(
+        'Cloud backup contains a missing or invalid lookup list.',
+      );
     }
+
+    final out = <Map<String, dynamic>>[];
+
+    for (var index = 0; index < raw.length; index++) {
+      final item = raw[index];
+
+      if (item is! Map) {
+        throw FormatException(
+          'Cloud backup contains an invalid lookup at index $index.',
+        );
+      }
+
+      out.add(Map<String, dynamic>.from(item));
+    }
+
     return out;
   }
 }
@@ -266,6 +378,7 @@ class _CloudBackupSnapshot {
     required this.payers,
     required this.payments,
     required this.billOccurrenceStatuses,
+    required this.settings,
   });
 
   final List<Account> accounts;
@@ -276,4 +389,5 @@ class _CloudBackupSnapshot {
   final List<Map<String, dynamic>> payers;
   final List<Map<String, dynamic>> payments;
   final Map<String, dynamic> billOccurrenceStatuses;
+  final Map<String, dynamic> settings;
 }

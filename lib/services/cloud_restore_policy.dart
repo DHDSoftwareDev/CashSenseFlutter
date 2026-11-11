@@ -5,18 +5,18 @@ class CloudRestorePolicy {
 
   /// A newly installed app is seeded with a blank Cash account before sign-in.
   /// That seed must not prevent a premium backup from being restored.
-  static bool isAutomaticRestoreTarget({
-    required List<Account> accounts,
-    required bool hasBills,
-    required bool hasTransactions,
-    required bool hasPayees,
-    required bool hasCustomCategories,
-  }) {
-    if (hasBills || hasTransactions || hasPayees || hasCustomCategories) {
-      return false;
-    }
-    return accounts.every(_isBlankSeedAccount);
-  }
+static bool isAutomaticRestoreTarget({
+  required List<Account> accounts,
+  required bool hasBills,
+  required bool hasTransactions,
+  required bool hasPayees,
+  required bool hasCustomCategories,
+}) {
+  // Never automatically restore financial data.
+  // Cloud restoration must be initiated manually
+  // through Backup & Restore.
+  return false;
+}
 
   static bool _isBlankSeedAccount(Account account) {
     return account.name.trim().toLowerCase() == 'cash' &&

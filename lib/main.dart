@@ -221,21 +221,14 @@ Future<void> _refreshCurrentUserSession(
 Future<void> _initDatabase() async {
   try {
     await DatabaseService.init();
-  } catch (e) {
-    // If there's a Hive error (e.g., unknown typeId), clear all boxes and reinitialize
-    debugPrint('Database initialization error: $e');
-    debugPrint('Clearing corrupted database...');
+    debugPrint('CashSense local database initialized successfully');
+  } catch (e, stackTrace) {
+    debugPrint('CashSense database initialization failed: $e');
+    debugPrintStack(stackTrace: stackTrace);
 
-    await Hive.initFlutter();
-    await Hive.deleteBoxFromDisk('transactions');
-    await Hive.deleteBoxFromDisk('categories');
-    await Hive.deleteBoxFromDisk('accounts');
-    await Hive.deleteBoxFromDisk('bills');
-    await Hive.deleteBoxFromDisk('bill_occurrence_status');
-    await Hive.deleteBoxFromDisk('settings');
-
-    // Retry initialization
-    await DatabaseService.init();
+    // Never automatically delete local financial records.
+    // Preserve the existing database for recovery.
+    rethrow;
   }
 }
 

@@ -17,6 +17,215 @@ import 'cloud_sync_policy.dart';
 
 class DatabaseService {
   static const String _subscriptionModeOverrideKey = 'subscriptionModeOverride';
+
+  // Persistent recovery snapshot for interrupted manual cloud restores.
+  static const String _restoreRecoveryFileName =
+      'cashsense_restore_recovery.json';
+
+  static Future<File> getRestoreRecoveryFile() async {
+    final supportDir = await getApplicationSupportDirectory();
+
+    return File('${supportDir.path}/$_restoreRecoveryFileName');
+  }
+
+  /// Writes a validated local recovery snapshot to persistent storage.
+  ///
+  /// This method does not modify any Hive records.
+  /// The recovery file must be written successfully before
+  /// a cloud restore is allowed to replace local data.
+  static Future<void> writeLocalRestoreRecoveryFile() async {
+    final recoveryFile = await getRestoreRecoveryFile();
+
+    // Build and validate the current local financial data.
+    final snapshot = buildLocalRestoreRecoveryData();
+
+    final verifiedSnapshot = verifyLocalRestoreRecoveryRoundTrip(snapshot);
+
+    final encoded = jsonEncode(verifiedSnapshot);
+
+    // Write to a temporary file first so an interrupted write
+    // does not leave a partially written recovery file.
+    final temporaryFile = File('${recoveryFile.path}.tmp');
+
+    if (await recoveryFile.exists()) {
+      throw const FileSystemException(
+        'An existing recovery file must be resolved before '
+        'creating another one.',
+      );
+    }
+
+    // Never reuse a potentially incomplete temporary file.
+    if (await temporaryFile.exists()) {
+      await temporaryFile.delete();
+    }
+
+    await temporaryFile.writeAsString(encoded, flush: true);
+
+    // Verify the saved bytes before promoting the file.
+    final savedContents = await temporaryFile.readAsString();
+
+    if (savedContents != encoded) {
+      throw const FormatException('Recovery file verification failed.');
+    }
+
+    // Rename the completed temporary file into place.
+    await temporaryFile.rename(recoveryFile.path);
+
+    // Verify the final recovery file.
+    final finalContents = await recoveryFile.readAsString();
+
+    if (finalContents != encoded) {
+      throw const FormatException('Final recovery file verification failed.');
+    }
+
+    foundation.debugPrint(
+      'CashSense persistent local recovery file saved successfully.',
+    );
+  }
+
+  /// Reads and validates a persistent local recovery snapshot.
+  ///
+  /// Does not modify Hive records or delete recovery files.
+  /// Throws if the file is missing, invalid, or incomplete.
+
+  /// Returns the durable state of a pending cloud restore.
+  ///
+  /// READ ONLY:
+  /// Does not modify Hive or the recovery file.
+  static Future<String?> getLocalRestoreRecoveryState() async {
+    if (!await hasPendingLocalRestoreRecovery()) {
+      return null;
+    }
+
+    final snapshot = await readLocalRestoreRecoveryFile();
+
+    final rawState = snapshot['restoreState'];
+
+    // Recovery files created before restore-state tracking
+    // are conservatively treated as uncommitted.
+    if (rawState == null) {
+      return 'prepared';
+    }
+
+    if (rawState is! String ||
+        !const {'prepared', 'applying', 'committed'}.contains(rawState)) {
+      throw const FormatException('Invalid persistent cloud restore state.');
+    }
+
+    return rawState;
+  }
+
+  static Future<Map<String, dynamic>> readLocalRestoreRecoveryFile() async {
+    final recoveryFile = await getRestoreRecoveryFile();
+
+    if (!await recoveryFile.exists()) {
+      throw const FileSystemException('No local restore recovery file exists.');
+    }
+
+    final contents = await recoveryFile.readAsString();
+
+    if (contents.trim().isEmpty) {
+      throw const FormatException('Local restore recovery file is empty.');
+    }
+
+    final dynamic decoded;
+
+    try {
+      decoded = jsonDecode(contents);
+    } on FormatException {
+      throw const FormatException(
+        'Local restore recovery file contains invalid JSON.',
+      );
+    }
+
+    if (decoded is! Map<String, dynamic>) {
+      throw const FormatException(
+        'Local restore recovery file has an invalid structure.',
+      );
+    }
+
+    // Validate the snapshot and its financial models.
+    final verifiedSnapshot = verifyLocalRestoreRecoveryRoundTrip(decoded);
+
+    foundation.debugPrint(
+      'CashSense persistent local recovery file validated successfully.',
+    );
+
+    return verifiedSnapshot;
+  }
+
+  /// Checks whether a persistent local recovery file exists.
+  ///
+  /// Read-only. Does not validate, modify, or delete the file.
+  /// An existing file must be resolved before another restore begins.
+  static Future<bool> hasPendingLocalRestoreRecovery() async {
+    final recoveryFile = await getRestoreRecoveryFile();
+
+    return recoveryFile.exists();
+  }
+
+  /// Checks whether it is safe to begin a new cloud restore.
+  ///
+  /// An existing recovery file may belong to an interrupted
+  /// restore and must never be overwritten automatically.
+  ///
+  /// This method does not modify local financial records.
+  static Future<void> ensureSafeToBeginCloudRestore() async {
+    final hasPendingRecovery = await hasPendingLocalRestoreRecovery();
+
+    if (hasPendingRecovery) {
+      throw StateError(
+        'A previous cloud restore recovery file exists. '
+        'The pending recovery must be resolved before '
+        'starting another cloud restore.',
+      );
+    }
+
+    // Confirm that the current financial data can be
+    // captured and reconstructed before allowing a restore.
+    final snapshot = buildLocalRestoreRecoveryData();
+
+    verifyLocalRestoreRecoveryRoundTrip(snapshot);
+
+    foundation.debugPrint(
+      'CashSense cloud restore preflight safety check passed.',
+    );
+  }
+
+  /// Removes a persistent recovery file after a cloud restore
+  /// has been completed and independently verified.
+  ///
+  /// Do not call this method before restore verification succeeds.
+  /// This method does not modify any Hive financial records.
+  static Future<void> finalizeLocalRestoreRecovery({
+    required bool restoreVerified,
+  }) async {
+    if (!restoreVerified) {
+      throw StateError(
+        'Cannot finalize local recovery because the '
+        'cloud restore has not been verified.',
+      );
+    }
+
+    final recoveryFile = await getRestoreRecoveryFile();
+
+    if (!await recoveryFile.exists()) {
+      throw StateError(
+        'Cannot finalize local recovery because '
+        'the recovery file is missing.',
+      );
+    }
+
+    // Ensure the recovery file is valid before removing it.
+    await readLocalRestoreRecoveryFile();
+
+    await recoveryFile.delete();
+
+    foundation.debugPrint(
+      'CashSense local restore recovery finalized successfully.',
+    );
+  }
+
   static const String _hideFromCalendarMarker = '__hide_from_calendar__';
   static const String _legacyAccountCalendarMigrationKey =
       'migratedLegacyAccountCalendarHiddenV1';
@@ -331,8 +540,8 @@ class DatabaseService {
   static void _registerHiveAdapters() {
     _registerAdapterIfNeeded(1, TransactionAdapter());
     _registerAdapterIfNeeded(0, TransactionTypeAdapter());
-    _registerAdapterIfNeeded(2, CategoryAdapter());
-    _registerAdapterIfNeeded(42, CategoryTypeAdapter());
+    _registerAdapterIfNeeded(12, CategoryAdapter());
+    _registerAdapterIfNeeded(13, CategoryTypeAdapter());
     _registerAdapterIfNeeded(3, AccountTypeAdapter());
     _registerAdapterIfNeeded(4, AccountAdapter());
     _registerAdapterIfNeeded(5, RecurrenceAdapter());
@@ -342,42 +551,34 @@ class DatabaseService {
   }
 
   static Future<Box<T>> _openTypedBoxWithRecovery<T>(String boxName) async {
-    // Never reuse an already-open box instance for a different generic type.
-    // Even when `Hive.box<T>()` compiles, the underlying box may still have
-    // been opened with a different adapter context, causing runtime mismatches
-    // like `Category is not a subtype of Transaction` on writes.
-    if (Hive.isBoxOpen(boxName)) {
-      try {
-        await Hive.box(boxName).close();
-      } catch (_) {}
-    }
-
     try {
+      if (Hive.isBoxOpen(boxName)) {
+        return Hive.box<T>(boxName);
+      }
+
       return await Hive.openBox<T>(boxName);
-    } catch (e) {
-      foundation.debugPrint('Failed to open $boxName box, rebuilding it: $e');
-      try {
-        if (Hive.isBoxOpen(boxName)) {
-          await Hive.box(boxName).close();
-        }
-      } catch (_) {}
-      await Hive.deleteBoxFromDisk(boxName);
-      return await Hive.openBox<T>(boxName);
+    } catch (e, stackTrace) {
+      foundation.debugPrint(
+        'Failed to open Hive box "$boxName". Existing data was preserved: $e',
+      );
+      foundation.debugPrintStack(stackTrace: stackTrace);
+      rethrow;
     }
   }
 
   static Future<Box> _openBoxWithRecovery(String boxName) async {
     try {
+      if (Hive.isBoxOpen(boxName)) {
+        return Hive.box(boxName);
+      }
+
       return await Hive.openBox(boxName);
-    } catch (e) {
-      foundation.debugPrint('Failed to open $boxName box, rebuilding it: $e');
-      try {
-        if (Hive.isBoxOpen(boxName)) {
-          await Hive.box(boxName).close();
-        }
-      } catch (_) {}
-      await Hive.deleteBoxFromDisk(boxName);
-      return await Hive.openBox(boxName);
+    } catch (e, stackTrace) {
+      foundation.debugPrint(
+        'Failed to open Hive box "$boxName". Existing data was preserved: $e',
+      );
+      foundation.debugPrintStack(stackTrace: stackTrace);
+      rethrow;
     }
   }
 
@@ -2145,6 +2346,42 @@ class DatabaseService {
     _billOccurrenceBox = await _openBoxWithRecovery(_billOccurrenceBoxName);
     _settingsBox = await _openBoxWithRecovery(_settingsBoxName);
 
+    // Detect a pending recovery file before any startup
+    // initialization or migrations modify financial data.
+    final pendingRecovery = await hasPendingLocalRestoreRecovery();
+
+    if (pendingRecovery) {
+      foundation.debugPrint(
+        'CRITICAL: CashSense detected an unfinished cloud restore. '
+        'A persistent local recovery file exists.',
+      );
+
+      // Validate the saved recovery snapshot without modifying Hive.
+      try {
+        await readLocalRestoreRecoveryFile();
+
+        foundation.debugPrint(
+          'CashSense pending recovery snapshot is valid. '
+          'Startup is blocked until recovery is resolved.',
+        );
+      } catch (e, stackTrace) {
+        foundation.debugPrint(
+          'CRITICAL: Pending recovery snapshot validation failed: $e',
+        );
+        foundation.debugPrintStack(stackTrace: stackTrace);
+
+        rethrow;
+      }
+
+      // Do not initialize default data or run migrations while
+      // a cloud restore may have been interrupted.
+      throw StateError(
+        'CashSense detected a pending cloud restore recovery. '
+        'Financial data initialization has been stopped to '
+        'prevent further changes. Recovery must be resolved first.',
+      );
+    }
+
     // A locally selected Free/Developer/Tester mode is authoritative across
     // launches. Otherwise restore the real billing plan.
     final savedModeOverride =
@@ -2377,6 +2614,12 @@ class DatabaseService {
     // Notify listeners that accounts changed
     accountsVersion.value++;
     await _safeAwsCall(() => AwsApiService.deleteAccount(id), 'delete account');
+  }
+
+  /// Returns every locally stored account for backup purposes,
+  /// including inactive and archived accounts.
+  static List<Account> getAllAccountsForBackup() {
+    return _accountBox.values.toList();
   }
 
   static List<Account> getAllAccounts() {
@@ -3389,6 +3632,1300 @@ class DatabaseService {
     await _categoryBox.clear();
     await _categoryBox.flush();
     categoriesVersion.value++;
+  }
+
+  /// Converts supported Hive values to JSON without silently losing data.
+  ///
+  /// Unlike the normal backup exporter, this throws if a value cannot
+  /// be preserved safely.
+  static dynamic _serializeRecoveryValue(dynamic value) {
+    if (value == null || value is String || value is bool || value is int) {
+      return value;
+    }
+
+    if (value is double) {
+      if (!value.isFinite) {
+        throw const FormatException(
+          'Recovery snapshot contains a non-finite number.',
+        );
+      }
+      return value;
+    }
+
+    if (value is DateTime) {
+      return {
+        '__cashsenseRecoveryType': 'DateTime',
+        'value': value.toIso8601String(),
+      };
+    }
+
+    if (value is List) {
+      return value.map(_serializeRecoveryValue).toList();
+    }
+
+    if (value is Map) {
+      // Reserve this key exclusively for recovery type markers.
+      // Reject conflicting user data rather than risk changing it.
+      if (value.containsKey('__cashsenseRecoveryType')) {
+        throw const FormatException(
+          'Recovery snapshot contains a reserved type marker '
+          'inside a normal settings map.',
+        );
+      }
+
+      final result = <String, dynamic>{};
+
+      for (final entry in value.entries) {
+        if (entry.key is! String) {
+          throw const FormatException(
+            'Recovery snapshot contains a non-string map key.',
+          );
+        }
+
+        result[entry.key as String] = _serializeRecoveryValue(entry.value);
+      }
+
+      return result;
+    }
+
+    throw FormatException(
+      'Unsupported recovery value type: ${value.runtimeType}',
+    );
+  }
+
+  /// Exports a Hive box without skipping invalid records.
+  static Map<String, dynamic> _exportRecoveryBox(Box box) {
+    final result = <String, dynamic>{};
+
+    for (final key in box.keys) {
+      if (key is! String) {
+        throw const FormatException(
+          'Recovery snapshot contains a non-string Hive key.',
+        );
+      }
+
+      result[key] = _serializeRecoveryValue(box.get(key));
+    }
+
+    return result;
+  }
+
+  /// Reconstructs values saved by the strict recovery serializer.
+  ///
+  /// This method only decodes values. It does not modify Hive.
+  static dynamic _deserializeRecoveryValue(dynamic value) {
+    if (value == null || value is String || value is bool || value is int) {
+      return value;
+    }
+
+    if (value is double) {
+      if (!value.isFinite) {
+        throw const FormatException(
+          'Recovery snapshot contains a non-finite number.',
+        );
+      }
+      return value;
+    }
+
+    if (value is List) {
+      return value.map(_deserializeRecoveryValue).toList();
+    }
+
+    if (value is Map) {
+      final map = Map<String, dynamic>.from(value);
+
+      // Only decode maps that exactly match our DateTime marker.
+      if (map.length == 2 &&
+          map['__cashsenseRecoveryType'] == 'DateTime' &&
+          map['value'] is String) {
+        final date = DateTime.tryParse(map['value'] as String);
+
+        if (date == null) {
+          throw const FormatException(
+            'Recovery snapshot contains an invalid DateTime.',
+          );
+        }
+
+        return date;
+      }
+
+      final result = <String, dynamic>{};
+
+      for (final entry in map.entries) {
+        result[entry.key] = _deserializeRecoveryValue(entry.value);
+      }
+
+      return result;
+    }
+
+    throw FormatException(
+      'Unsupported recovery value type: ${value.runtimeType}',
+    );
+  }
+
+  /// Decodes a recovery section without modifying its Hive box.
+  static Map<String, dynamic> _decodeRecoveryBox(dynamic raw) {
+    if (raw is! Map) {
+      throw const FormatException(
+        'Recovery snapshot contains an invalid Hive section.',
+      );
+    }
+
+    final result = <String, dynamic>{};
+
+    for (final entry in raw.entries) {
+      if (entry.key is! String) {
+        throw const FormatException(
+          'Recovery snapshot contains a non-string Hive key.',
+        );
+      }
+
+      result[entry.key as String] = _deserializeRecoveryValue(entry.value);
+    }
+
+    return result;
+  }
+
+  /// Exports typed Hive records with their original storage keys.
+  ///
+  /// This is used only for local restore recovery.
+  /// It does not modify any existing Hive records.
+  static List<Map<String, dynamic>> _exportRecoveryRecords<T>(
+    Box<T> box,
+    Map<String, dynamic> Function(T) toJson,
+  ) {
+    final records = <Map<String, dynamic>>[];
+
+    for (final key in box.keys) {
+      if (key is! String) {
+        throw const FormatException(
+          'Recovery snapshot contains a non-string record key.',
+        );
+      }
+
+      final record = box.get(key);
+
+      if (record == null) {
+        throw FormatException(
+          'Recovery snapshot contains a missing record for key "$key".',
+        );
+      }
+
+      records.add({'hiveKey': key, 'data': toJson(record)});
+    }
+
+    return records;
+  }
+
+  /// Creates a JSON-compatible snapshot for persistent restore recovery.
+  ///
+  /// This method only reads local data. It does not modify Hive boxes.
+  static Map<String, dynamic> buildLocalRestoreRecoveryData() {
+    return {
+      'version': 1,
+      'createdAt': DateTime.now().toIso8601String(),
+
+      'transactions': _exportRecoveryRecords<Transaction>(
+        _transactionBox,
+        (transaction) => transaction.toJson(),
+      ),
+
+      'categories': _exportRecoveryRecords<Category>(
+        _categoryBox,
+        (category) => category.toJson(),
+      ),
+
+      'accounts': _exportRecoveryRecords<Account>(
+        _accountBox,
+        (account) => account.toJson(),
+      ),
+
+      'bills': _exportRecoveryRecords<Bill>(_billsBox, (bill) => bill.toJson()),
+
+      'billOccurrences': _exportRecoveryBox(_billOccurrenceBox),
+
+      'settings': _exportRecoveryBox(_settingsBox),
+    };
+  }
+
+  /// Validates the structure and JSON encoding of a local recovery snapshot.
+  ///
+  /// Does not modify existing financial data.
+  static void validateLocalRestoreRecoveryData(Map<String, dynamic> snapshot) {
+    if (snapshot['version'] != 1) {
+      throw const FormatException(
+        'Unsupported local recovery snapshot version.',
+      );
+    }
+
+    final createdAt = snapshot['createdAt'];
+
+    if (createdAt is! String || DateTime.tryParse(createdAt) == null) {
+      throw const FormatException(
+        'Local recovery snapshot has an invalid creation date.',
+      );
+    }
+
+    const requiredLists = <String>[
+      'transactions',
+      'categories',
+      'accounts',
+      'bills',
+    ];
+
+    for (final section in requiredLists) {
+      final records = snapshot[section];
+
+      if (records is! List) {
+        throw FormatException(
+          'Local recovery snapshot has an invalid $section section.',
+        );
+      }
+
+      final seenKeys = <String>{};
+
+      for (final record in records) {
+        if (record is! Map) {
+          throw FormatException(
+            'Local recovery snapshot contains an invalid $section record.',
+          );
+        }
+
+        final entry = Map<String, dynamic>.from(record);
+
+        if (entry.length != 2 ||
+            !entry.containsKey('hiveKey') ||
+            !entry.containsKey('data')) {
+          throw FormatException(
+            'Local recovery snapshot contains an invalid '
+            '$section record structure.',
+          );
+        }
+
+        final hiveKey = entry['hiveKey'];
+
+        if (hiveKey is! String ||
+            hiveKey.trim().isEmpty ||
+            !seenKeys.add(hiveKey)) {
+          throw FormatException(
+            'Local recovery snapshot contains an empty or duplicate '
+            '$section Hive key.',
+          );
+        }
+
+        if (entry['data'] is! Map) {
+          throw FormatException(
+            'Local recovery snapshot contains invalid $section data.',
+          );
+        }
+
+        final data = Map<String, dynamic>.from(entry['data'] as Map);
+
+        // Ensure every model record is JSON-compatible.
+        jsonEncode(data);
+      }
+    }
+
+    // Decode these sections to verify their serialized values.
+    _decodeRecoveryBox(snapshot['billOccurrences']);
+    _decodeRecoveryBox(snapshot['settings']);
+
+    // Verify the entire recovery snapshot can be encoded.
+    jsonEncode(snapshot);
+  }
+
+  /// Validates that recovery records can be decoded into their Dart models.
+  ///
+  /// This only validates data. It does not change the local database.
+  static void validateLocalRestoreRecoveryModels(
+    Map<String, dynamic> snapshot,
+  ) {
+    validateLocalRestoreRecoveryData(snapshot);
+
+    void validateRecords<T>(
+      String section,
+      T Function(Map<String, dynamic>) fromJson,
+    ) {
+      final records = snapshot[section] as List;
+      final seenIds = <String>{};
+
+      for (final record in records) {
+        try {
+          final entry = Map<String, dynamic>.from(record as Map);
+          final hiveKey = entry['hiveKey'] as String;
+
+          final json = Map<String, dynamic>.from(entry['data'] as Map);
+
+          final id =
+              (section == 'accounts'
+                      ? (json['accountId'] ?? json['id'])
+                      : json['id'])
+                  ?.toString()
+                  .trim() ??
+              '';
+
+          if (id.isEmpty || !seenIds.add(id)) {
+            throw FormatException(
+              'Recovery snapshot contains an empty or duplicate '
+              '$section record ID.',
+            );
+          }
+
+          if (hiveKey != id) {
+            throw FormatException(
+              'Recovery snapshot $section Hive key does not '
+              'match its record ID.',
+            );
+          }
+
+          final model = fromJson(json);
+
+          // Convert the reconstructed model back to JSON.
+          Map<String, dynamic> reconstructed;
+
+          if (model is Transaction) {
+            reconstructed = model.toJson();
+          } else if (model is Category) {
+            reconstructed = model.toJson();
+          } else if (model is Account) {
+            reconstructed = model.toJson();
+          } else if (model is Bill) {
+            reconstructed = model.toJson();
+          } else {
+            throw FormatException('Unsupported recovery model in $section.');
+          }
+
+          // Compare structured JSON values rather than map insertion order.
+          bool sameJson(dynamic left, dynamic right) {
+            if (left is Map && right is Map) {
+              if (left.length != right.length) return false;
+
+              for (final key in left.keys) {
+                if (!right.containsKey(key)) return false;
+                if (!sameJson(left[key], right[key])) return false;
+              }
+
+              return true;
+            }
+
+            if (left is List && right is List) {
+              if (left.length != right.length) return false;
+
+              for (var i = 0; i < left.length; i++) {
+                if (!sameJson(left[i], right[i])) return false;
+              }
+
+              return true;
+            }
+
+            return left == right;
+          }
+
+          if (!sameJson(json, reconstructed)) {
+            throw FormatException(
+              'Recovery snapshot $section record "$id" '
+              'changed during model reconstruction.',
+            );
+          }
+        } catch (e) {
+          throw FormatException(
+            'Recovery snapshot contains an invalid $section record: $e',
+          );
+        }
+      }
+    }
+
+    validateRecords<Transaction>('transactions', Transaction.fromJson);
+
+    validateRecords<Category>('categories', Category.fromJson);
+
+    validateRecords<Account>('accounts', Account.fromJson);
+
+    validateRecords<Bill>('bills', Bill.fromRecoveryJson);
+  }
+
+  /// Verifies that a recovery snapshot survives JSON serialization.
+  ///
+  /// This method only works with in-memory data.
+  /// It does not read, clear, or modify Hive boxes.
+  static Map<String, dynamic> verifyLocalRestoreRecoveryRoundTrip(
+    Map<String, dynamic> snapshot,
+  ) {
+    // Validate the original snapshot first.
+    validateLocalRestoreRecoveryModels(snapshot);
+
+    // Simulate saving the snapshot to a JSON file.
+    final encoded = jsonEncode(snapshot);
+
+    // Simulate reading the snapshot back from that file.
+    final decoded = jsonDecode(encoded);
+
+    if (decoded is! Map<String, dynamic>) {
+      throw const FormatException('Recovery snapshot could not be decoded.');
+    }
+
+    // Validate the decoded snapshot.
+    validateLocalRestoreRecoveryModels(decoded);
+
+    // Ensure the serialized representation is unchanged.
+    if (jsonEncode(decoded) != encoded) {
+      throw const FormatException(
+        'Recovery snapshot changed during JSON round-trip.',
+      );
+    }
+
+    return decoded;
+  }
+
+  /// Reconstructs the original financial records from a
+  /// persistent local recovery file.
+  ///
+  /// READ ONLY:
+  /// Does not clear, replace, or modify any Hive records.
+  /// Does not delete or modify the recovery file.
+  static Future<Map<String, dynamic>> prepareLocalRestoreRecoveryData() async {
+    // Read and validate the saved recovery file.
+    final snapshot = await readLocalRestoreRecoveryFile();
+
+    Map<String, T> reconstructRecords<T>(
+      String section,
+      T Function(Map<String, dynamic>) fromJson,
+    ) {
+      final rawRecords = snapshot[section];
+
+      if (rawRecords is! List) {
+        throw FormatException('Recovery section "$section" is missing.');
+      }
+
+      final reconstructed = <String, T>{};
+
+      for (final rawRecord in rawRecords) {
+        if (rawRecord is! Map) {
+          throw FormatException('Invalid recovery record in "$section".');
+        }
+
+        final record = Map<String, dynamic>.from(rawRecord);
+
+        final hiveKey = record['hiveKey'];
+
+        if (hiveKey is! String || hiveKey.trim().isEmpty) {
+          throw FormatException('Invalid Hive key in "$section".');
+        }
+
+        final rawData = record['data'];
+
+        if (rawData is! Map) {
+          throw FormatException('Invalid model data in "$section".');
+        }
+
+        final data = Map<String, dynamic>.from(rawData);
+
+        if (reconstructed.containsKey(hiveKey)) {
+          throw FormatException('Duplicate Hive key in "$section".');
+        }
+
+        reconstructed[hiveKey] = fromJson(data);
+      }
+
+      return reconstructed;
+    }
+
+    // Reconstruct the original typed financial records.
+    final transactions = reconstructRecords<Transaction>(
+      'transactions',
+      Transaction.fromJson,
+    );
+
+    final categories = reconstructRecords<Category>(
+      'categories',
+      Category.fromJson,
+    );
+
+    final accounts = reconstructRecords<Account>('accounts', Account.fromJson);
+
+    final bills = reconstructRecords<Bill>('bills', Bill.fromRecoveryJson);
+
+    // Reconstruct settings and bill payment statuses,
+    // including their original serialized value types.
+    final billOccurrences = _decodeRecoveryBox(snapshot['billOccurrences']);
+
+    final settings = _decodeRecoveryBox(snapshot['settings']);
+
+    // Verify that all six recovery sections are available.
+    final recovered = <String, dynamic>{
+      'transactions': transactions,
+      'categories': categories,
+      'accounts': accounts,
+      'bills': bills,
+      'billOccurrences': billOccurrences,
+      'settings': settings,
+    };
+
+    foundation.debugPrint(
+      'CashSense persistent recovery data reconstructed: '
+      'transactions=${transactions.length}, '
+      'categories=${categories.length}, '
+      'accounts=${accounts.length}, '
+      'bills=${bills.length}, '
+      'billOccurrences=${billOccurrences.length}, '
+      'settings=${settings.length}.',
+    );
+
+    return recovered;
+  }
+
+  /// Verifies reconstructed recovery data against its saved snapshot.
+  ///
+  /// READ ONLY:
+  /// Does not modify Hive or delete the recovery file.
+  static Future<void> verifyPreparedLocalRestoreRecoveryData() async {
+    final snapshot = await readLocalRestoreRecoveryFile();
+
+    final prepared = await prepareLocalRestoreRecoveryData();
+
+    bool sameJson(dynamic left, dynamic right) {
+      if (left is Map && right is Map) {
+        if (left.length != right.length) return false;
+
+        for (final key in left.keys) {
+          if (!right.containsKey(key) || !sameJson(left[key], right[key])) {
+            return false;
+          }
+        }
+
+        return true;
+      }
+
+      if (left is List && right is List) {
+        if (left.length != right.length) return false;
+
+        for (var i = 0; i < left.length; i++) {
+          if (!sameJson(left[i], right[i])) {
+            return false;
+          }
+        }
+
+        return true;
+      }
+
+      return left == right;
+    }
+
+    void verifyRecords<T>(
+      String section,
+      Map<String, dynamic> Function(T) toJson,
+    ) {
+      final expected = snapshot[section] as List;
+
+      final actual = Map<String, T>.from(prepared[section] as Map);
+
+      if (expected.length != actual.length) {
+        throw StateError(
+          'Recovery verification failed: '
+          '$section record count mismatch.',
+        );
+      }
+
+      for (final raw in expected) {
+        final record = Map<String, dynamic>.from(raw as Map);
+
+        final key = record['hiveKey'] as String;
+        final expectedJson = Map<String, dynamic>.from(record['data'] as Map);
+
+        final model = actual[key];
+
+        if (model == null || !sameJson(expectedJson, toJson(model))) {
+          throw StateError(
+            'Recovery verification failed for '
+            '$section record "$key".',
+          );
+        }
+      }
+    }
+
+    verifyRecords<Transaction>(
+      'transactions',
+      (transaction) => transaction.toJson(),
+    );
+
+    verifyRecords<Category>('categories', (category) => category.toJson());
+
+    verifyRecords<Account>('accounts', (account) => account.toJson());
+
+    verifyRecords<Bill>('bills', (bill) => bill.toJson());
+
+    // Re-encode the decoded Hive settings and bill statuses
+    // using the strict recovery serializer.
+    final expectedSettings = snapshot['settings'];
+    final actualSettings = _serializeRecoveryValue(prepared['settings']);
+
+    if (!sameJson(expectedSettings, actualSettings)) {
+      throw StateError(
+        'Recovery verification failed: '
+        'financial settings do not match.',
+      );
+    }
+
+    final expectedOccurrences = snapshot['billOccurrences'];
+    final actualOccurrences = _serializeRecoveryValue(
+      prepared['billOccurrences'],
+    );
+
+    if (!sameJson(expectedOccurrences, actualOccurrences)) {
+      throw StateError(
+        'Recovery verification failed: '
+        'bill occurrence statuses do not match.',
+      );
+    }
+
+    foundation.debugPrint(
+      'CashSense reconstructed local recovery data '
+      'verified successfully. No Hive records changed.',
+    );
+  }
+
+  /// Prepares and verifies a complete persistent recovery snapshot.
+  ///
+  /// This method is read-only. It does not modify Hive records,
+  /// delete the recovery file, or perform a restore.
+  static Future<Map<String, dynamic>>
+  prepareVerifiedLocalRestoreRecovery() async {
+    // Verify all reconstructed records against the saved file.
+    await verifyPreparedLocalRestoreRecoveryData();
+
+    // Reconstruct the verified financial records.
+    final prepared = await prepareLocalRestoreRecoveryData();
+
+    final transactions = Map<String, Transaction>.from(
+      prepared['transactions'] as Map,
+    );
+
+    final categories = Map<String, Category>.from(
+      prepared['categories'] as Map,
+    );
+
+    final accounts = Map<String, Account>.from(prepared['accounts'] as Map);
+
+    final bills = Map<String, Bill>.from(prepared['bills'] as Map);
+
+    final billOccurrences = Map<String, dynamic>.from(
+      prepared['billOccurrences'] as Map,
+    );
+
+    final settings = Map<String, dynamic>.from(prepared['settings'] as Map);
+
+    // Confirm that every required section is reconstructed.
+    final verified = <String, dynamic>{
+      'transactions': transactions,
+      'categories': categories,
+      'accounts': accounts,
+      'bills': bills,
+      'billOccurrences': billOccurrences,
+      'settings': settings,
+    };
+
+    foundation.debugPrint(
+      'CashSense recovery preparation passed: '
+      '${transactions.length} transactions, '
+      '${categories.length} categories, '
+      '${accounts.length} accounts, '
+      '${bills.length} bills, '
+      '${billOccurrences.length} bill statuses, '
+      '${settings.length} settings.',
+    );
+
+    return verified;
+  }
+
+  /// Recovers the original local financial data from the
+  /// persistent recovery file after an interrupted cloud restore.
+  ///
+  /// IMPORTANT:
+  /// This method modifies all six Hive boxes.
+  /// It intentionally does NOT delete the recovery file.
+  ///
+  /// Call only during controlled recovery, after all
+  /// Hive boxes have been opened and before startup migrations.
+  static Future<void> recoverOriginalLocalDataFromRecoveryFile() async {
+    // Reconstruct and verify every section before modifying Hive.
+    final prepared = await prepareVerifiedLocalRestoreRecovery();
+
+    // Preserve the recovery file so another attempt remains
+    // possible if the app closes during the recovery process.
+    if (!await hasPendingLocalRestoreRecovery()) {
+      throw StateError(
+        'Cannot recover original local data because '
+        'the persistent recovery file is missing.',
+      );
+    }
+
+    // Reuse the existing local snapshot restoration method.
+    // It restores all six boxes using their original Hive keys
+    // and flushes the recovered records to disk.
+
+    await restoreLocalRestoreSnapshot(prepared);
+
+    // Verify every recovered record against the original
+    // persistent snapshot after all Hive writes are flushed.
+    //
+    // If verification fails, the exception stops recovery.
+    // The persistent recovery file remains available.
+    await verifyRecoveredLocalHiveData();
+
+    foundation.debugPrint(
+      'CashSense original local financial data recovered '
+      'and verified successfully. '
+      'Persistent recovery file retained until '
+      'recovery is explicitly finalized.',
+    );
+  }
+
+  /// Independently verifies recovered Hive data against
+  /// the persistent recovery snapshot.
+  ///
+  /// READ ONLY:
+  /// Does not modify Hive or delete the recovery file.
+  static Future<void> verifyRecoveredLocalHiveData() async {
+    // Read the original recovery snapshot from disk.
+    final expected = await readLocalRestoreRecoveryFile();
+
+    // Re-export the actual data currently stored in Hive.
+    final actual = buildLocalRestoreRecoveryData();
+
+    // Validate the reconstructed Hive records.
+    validateLocalRestoreRecoveryModels(actual);
+
+    bool sameJson(dynamic left, dynamic right) {
+      if (left is Map && right is Map) {
+        if (left.length != right.length) return false;
+
+        for (final key in left.keys) {
+          if (!right.containsKey(key) || !sameJson(left[key], right[key])) {
+            return false;
+          }
+        }
+
+        return true;
+      }
+
+      if (left is List && right is List) {
+        if (left.length != right.length) return false;
+
+        for (var i = 0; i < left.length; i++) {
+          if (!sameJson(left[i], right[i])) {
+            return false;
+          }
+        }
+
+        return true;
+      }
+
+      return left == right;
+    }
+
+    void verifyRecordSection(String section) {
+      final expectedRecords = expected[section] as List;
+      final actualRecords = actual[section] as List;
+
+      if (expectedRecords.length != actualRecords.length) {
+        throw StateError(
+          'Recovery verification failed: '
+          '$section record count mismatch.',
+        );
+      }
+
+      Map<String, dynamic> indexRecords(List records) {
+        final indexed = <String, dynamic>{};
+
+        for (final raw in records) {
+          final record = Map<String, dynamic>.from(raw as Map);
+          final key = record['hiveKey'] as String;
+
+          if (indexed.containsKey(key)) {
+            throw StateError(
+              'Recovery verification failed: '
+              'duplicate $section key "$key".',
+            );
+          }
+
+          indexed[key] = record['data'];
+        }
+
+        return indexed;
+      }
+
+      final expectedByKey = indexRecords(expectedRecords);
+      final actualByKey = indexRecords(actualRecords);
+
+      if (!sameJson(expectedByKey, actualByKey)) {
+        throw StateError(
+          'Recovery verification failed: '
+          '$section contents do not match.',
+        );
+      }
+    }
+
+    // Verify all typed financial records and their original keys.
+    verifyRecordSection('transactions');
+    verifyRecordSection('categories');
+    verifyRecordSection('accounts');
+    verifyRecordSection('bills');
+
+    // Verify the complete original settings and bill statuses.
+    if (!sameJson(expected['settings'], actual['settings'])) {
+      throw StateError(
+        'Recovery verification failed: '
+        'settings do not match the original snapshot.',
+      );
+    }
+
+    if (!sameJson(expected['billOccurrences'], actual['billOccurrences'])) {
+      throw StateError(
+        'Recovery verification failed: '
+        'bill occurrence statuses do not match.',
+      );
+    }
+
+    foundation.debugPrint(
+      'CashSense recovered Hive data matches the '
+      'persistent recovery snapshot. '
+      'Recovery file remains intact.',
+    );
+  }
+
+  /// Checks whether current local financial records are compatible
+  /// with persistent recovery.
+  ///
+  /// Read-only: does not modify Hive or write recovery files.
+  static bool checkLocalRestoreRecoveryCompatibility() {
+    try {
+      final snapshot = buildLocalRestoreRecoveryData();
+
+      final verified = verifyLocalRestoreRecoveryRoundTrip(snapshot);
+
+      foundation.debugPrint(
+        'CashSense recovery compatibility passed. '
+        'Transactions: ${(verified['transactions'] as List).length}, '
+        'Categories: ${(verified['categories'] as List).length}, '
+        'Accounts: ${(verified['accounts'] as List).length}, '
+        'Bills: ${(verified['bills'] as List).length}.',
+      );
+
+      return true;
+    } catch (e, stackTrace) {
+      foundation.debugPrint('CashSense recovery compatibility FAILED: $e');
+
+      foundation.debugPrintStack(stackTrace: stackTrace);
+
+      return false;
+    }
+  }
+
+  /// Creates a complete in-memory snapshot of the current local Hive data.
+  ///
+  /// Used to protect local financial records before a manual cloud restore.
+  static Map<String, dynamic> captureLocalRestoreSnapshot() {
+    return {
+      'transactions': Map<dynamic, Transaction>.from(_transactionBox.toMap()),
+      'categories': Map<dynamic, Category>.from(_categoryBox.toMap()),
+      'accounts': Map<dynamic, Account>.from(_accountBox.toMap()),
+      'bills': Map<dynamic, Bill>.from(_billsBox.toMap()),
+      'billOccurrences': Map<dynamic, dynamic>.from(_billOccurrenceBox.toMap()),
+      'settings': Map<dynamic, dynamic>.from(_settingsBox.toMap()),
+    };
+  }
+
+  /// Restores the original local Hive data after a failed manual restore.
+  ///
+  /// This method restores the exact Hive keys and values captured before
+  /// the restore attempt, including local settings and bill statuses.
+  static Future<void> restoreLocalRestoreSnapshot(
+    Map<String, dynamic> snapshot,
+  ) async {
+    final transactions = Map<dynamic, Transaction>.from(
+      snapshot['transactions'] as Map,
+    );
+    final categories = Map<dynamic, Category>.from(
+      snapshot['categories'] as Map,
+    );
+    final accounts = Map<dynamic, Account>.from(snapshot['accounts'] as Map);
+    final bills = Map<dynamic, Bill>.from(snapshot['bills'] as Map);
+    final billOccurrences = Map<dynamic, dynamic>.from(
+      snapshot['billOccurrences'] as Map,
+    );
+    final settings = Map<dynamic, dynamic>.from(snapshot['settings'] as Map);
+
+    await _transactionBox.clear();
+    await _transactionBox.putAll(transactions);
+
+    await _categoryBox.clear();
+    await _categoryBox.putAll(categories);
+
+    await _accountBox.clear();
+    await _accountBox.putAll(accounts);
+
+    await _billsBox.clear();
+    await _billsBox.putAll(bills);
+
+    await _billOccurrenceBox.clear();
+    await _billOccurrenceBox.putAll(billOccurrences);
+
+    await _settingsBox.clear();
+    await _settingsBox.putAll(settings);
+
+    // Flush the recovered local data to disk.
+    await _transactionBox.flush();
+    await _categoryBox.flush();
+    await _accountBox.flush();
+    await _billsBox.flush();
+    await _billOccurrenceBox.flush();
+    await _settingsBox.flush();
+
+    // Refresh screens after recovering the original data.
+    accountsVersion.value++;
+    billsVersion.value++;
+    transactionsVersion.value++;
+    categoriesVersion.value++;
+
+    foundation.debugPrint(
+      'Original local CashSense data recovered and flushed to disk.',
+    );
+  }
+
+  /// Replaces local financial data with a manually selected cloud backup.
+  ///
+  /// This method must only be called after the backup has been downloaded
+  /// and validated. It does not change subscription or device settings.
+
+  static Future<void> replaceLocalDataFromCloudBackup({
+    required List<Account> accounts,
+    required List<Bill> bills,
+    required List<Transaction> transactions,
+    required List<Category> categories,
+    required List<Map<String, dynamic>> payees,
+    required List<Map<String, dynamic>> payers,
+    required Map<String, dynamic> billOccurrenceStatuses,
+    required Map<String, dynamic> settings,
+  }) async {
+    void validateIds(Iterable<String> ids, String label) {
+      final seen = <String>{};
+
+      for (final id in ids) {
+        if (id.trim().isEmpty || !seen.add(id)) {
+          throw FormatException(
+            'Cloud backup contains an empty or duplicate $label ID.',
+          );
+        }
+      }
+    }
+
+    validateIds(accounts.map((e) => e.id), 'account');
+    validateIds(bills.map((e) => e.id), 'bill');
+    validateIds(transactions.map((e) => e.id), 'transaction');
+    validateIds(categories.map((e) => e.id), 'category');
+
+    // Validate financial settings before modifying Hive.
+    if (settings.isEmpty) {
+      throw const FormatException(
+        'Cloud backup is missing financial settings. '
+        'Restore cancelled to protect account balances.',
+      );
+    }
+
+    // Validate account opening balances.
+    for (final account in accounts) {
+      final key = 'initialBalance:${account.id}';
+      final value = settings[key];
+
+      if (value is! num || !value.toDouble().isFinite) {
+        throw FormatException(
+          'Cloud backup is missing a valid initial balance '
+          'for account "${account.name}". Restore cancelled.',
+        );
+      }
+    }
+
+    // Prepare replacement data.
+    final accountData = {for (final item in accounts) item.id: item};
+
+    final billData = {for (final item in bills) item.id: item};
+
+    final transactionData = {for (final item in transactions) item.id: item};
+
+    final categoryData = {for (final item in categories) item.id: item};
+
+    final contactData = <Map<String, dynamic>>[...payees, ...payers];
+
+    const financialSettingKeys = <String>{
+      'accountOrder',
+      'customAccountTypes',
+      'hiddenFromCalendarTransactions',
+      'billRecurrenceEndOverrides',
+    };
+
+    // Replace financial records.
+    // Persistent crash recovery must be connected
+    // before this restore is safe to test.
+    await _accountBox.clear();
+    await _accountBox.putAll(accountData);
+
+    await _billsBox.clear();
+    await _billsBox.putAll(billData);
+
+    await _transactionBox.clear();
+    await _transactionBox.putAll(transactionData);
+
+    await _categoryBox.clear();
+    await _categoryBox.putAll(categoryData);
+
+    // Restore payees and payers.
+    await _settingsBox.put('payees', contactData);
+
+    // Remove old financial settings.
+    final keysToRemove = _settingsBox.keys.where((key) {
+      final name = key.toString();
+
+      return name.startsWith('initialBalance:') ||
+          financialSettingKeys.contains(name);
+    }).toList();
+
+    await _settingsBox.deleteAll(keysToRemove);
+
+    // Restore supported financial settings.
+    for (final entry in settings.entries) {
+      if (entry.key.startsWith('initialBalance:') ||
+          financialSettingKeys.contains(entry.key)) {
+        await _settingsBox.put(entry.key, entry.value);
+      }
+    }
+
+    // Opening balances were validated above.
+    // No fallback is needed.
+
+    // Restore bill occurrence statuses.
+    await _billOccurrenceBox.clear();
+    await _billOccurrenceBox.putAll(billOccurrenceStatuses);
+
+    // Flush all financial data to disk.
+    await _accountBox.flush();
+    await _billsBox.flush();
+    await _transactionBox.flush();
+    await _categoryBox.flush();
+    await _settingsBox.flush();
+    await _billOccurrenceBox.flush();
+
+    // Verify the expected Hive record IDs.
+    void verifyRestoredIds<T>(
+      Box<T> box,
+      Map<String, T> expected,
+      String label,
+    ) {
+      final expectedKeys = expected.keys.toSet();
+      final actualKeys = box.keys.map((key) => key.toString()).toSet();
+
+      if (box.length != expected.length ||
+          actualKeys.length != expectedKeys.length ||
+          !actualKeys.containsAll(expectedKeys)) {
+        throw StateError(
+          'Cloud restore verification failed for $label. '
+          'The saved record IDs do not match the backup.',
+        );
+      }
+    }
+
+    // Compare structured JSON values.
+    bool sameJson(dynamic left, dynamic right) {
+      if (left is Map && right is Map) {
+        if (left.length != right.length) return false;
+
+        for (final key in left.keys) {
+          if (!right.containsKey(key) || !sameJson(left[key], right[key])) {
+            return false;
+          }
+        }
+
+        return true;
+      }
+
+      if (left is List && right is List) {
+        if (left.length != right.length) return false;
+
+        for (var i = 0; i < left.length; i++) {
+          if (!sameJson(left[i], right[i])) {
+            return false;
+          }
+        }
+
+        return true;
+      }
+
+      return left == right;
+    }
+
+    // Verify complete serialized record contents.
+    void verifyRestoredContents<T>(
+      Box<T> box,
+      Map<String, T> expected,
+      Map<String, dynamic> Function(T) toJson,
+      String label,
+    ) {
+      for (final entry in expected.entries) {
+        final saved = box.get(entry.key);
+
+        if (saved == null || !sameJson(toJson(entry.value), toJson(saved))) {
+          throw StateError(
+            'Cloud restore verification failed for '
+            '$label record "${entry.key}". '
+            'The saved data does not match the backup.',
+          );
+        }
+      }
+    }
+
+    // Verify account IDs and contents.
+    verifyRestoredIds<Account>(_accountBox, accountData, 'accounts');
+
+    verifyRestoredContents<Account>(
+      _accountBox,
+      accountData,
+      (account) => account.toJson(),
+      'accounts',
+    );
+
+    // Verify bill IDs and contents.
+    verifyRestoredIds<Bill>(_billsBox, billData, 'bills');
+
+    verifyRestoredContents<Bill>(
+      _billsBox,
+      billData,
+      (bill) => bill.toJson(),
+      'bills',
+    );
+
+    // Verify transaction IDs and contents.
+    verifyRestoredIds<Transaction>(
+      _transactionBox,
+      transactionData,
+      'transactions',
+    );
+
+    verifyRestoredContents<Transaction>(
+      _transactionBox,
+      transactionData,
+      (transaction) => transaction.toJson(),
+      'transactions',
+    );
+
+    // Verify category IDs and contents.
+    verifyRestoredIds<Category>(_categoryBox, categoryData, 'categories');
+
+    verifyRestoredContents<Category>(
+      _categoryBox,
+      categoryData,
+      (category) => category.toJson(),
+      'categories',
+    );
+
+    foundation.debugPrint(
+      'CashSense cloud restore financial record ID '
+      'and content verification passed.',
+    );
+
+    // Verify restored payees and payers.
+    final savedContacts = _settingsBox.get('payees');
+
+    if (!sameJson(
+      _sanitizeForJson(contactData),
+      _sanitizeForJson(savedContacts),
+    )) {
+      throw StateError(
+        'Cloud restore verification failed: '
+        'payees and payers do not match the backup.',
+      );
+    }
+
+    // Verify supported financial settings and opening balances.
+    for (final entry in settings.entries) {
+      final key = entry.key;
+
+      if (!key.startsWith('initialBalance:') &&
+          !financialSettingKeys.contains(key)) {
+        continue;
+      }
+
+      if (!_settingsBox.containsKey(key) ||
+          !sameJson(
+            _sanitizeForJson(entry.value),
+            _sanitizeForJson(_settingsBox.get(key)),
+          )) {
+        throw StateError(
+          'Cloud restore verification failed for '
+          'financial setting "$key".',
+        );
+      }
+    }
+
+    // Ensure no obsolete opening balances remain.
+    final expectedBalanceKeys = accounts
+        .map((account) => 'initialBalance:${account.id}')
+        .toSet();
+
+    final savedBalanceKeys = _settingsBox.keys
+        .map((key) => key.toString())
+        .where((key) => key.startsWith('initialBalance:'))
+        .toSet();
+
+    if (savedBalanceKeys.length != expectedBalanceKeys.length ||
+        !savedBalanceKeys.containsAll(expectedBalanceKeys)) {
+      throw StateError(
+        'Cloud restore verification failed: '
+        'account opening balance keys do not match.',
+      );
+    }
+
+    // Verify bill occurrence payment statuses.
+    final expectedOccurrenceKeys = billOccurrenceStatuses.keys.toSet();
+
+    final savedOccurrenceKeys = _billOccurrenceBox.keys
+        .map((key) => key.toString())
+        .toSet();
+
+    if (savedOccurrenceKeys.length != expectedOccurrenceKeys.length ||
+        !savedOccurrenceKeys.containsAll(expectedOccurrenceKeys)) {
+      throw StateError(
+        'Cloud restore verification failed: '
+        'bill occurrence keys do not match.',
+      );
+    }
+
+    for (final entry in billOccurrenceStatuses.entries) {
+      if (!_billOccurrenceBox.containsKey(entry.key) ||
+          !sameJson(
+            _sanitizeForJson(entry.value),
+            _sanitizeForJson(_billOccurrenceBox.get(entry.key)),
+          )) {
+        throw StateError(
+          'Cloud restore verification failed for '
+          'bill occurrence "${entry.key}".',
+        );
+      }
+    }
+
+    foundation.debugPrint(
+      'CashSense cloud restore financial settings, '
+      'contacts, and bill occurrence verification passed.',
+    );
+
+    // Notify screens after verification succeeds.
+    accountsVersion.value++;
+    billsVersion.value++;
+    transactionsVersion.value++;
+    categoriesVersion.value++;
+    payeesVersion.value++;
+
+    foundation.debugPrint(
+      'Manual cloud backup data saved to local Hive database.',
+    );
   }
 
   // Clear all data (useful for testing or reset)

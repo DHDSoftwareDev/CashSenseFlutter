@@ -41,38 +41,58 @@ class AutoBackupService {
     try {
       final transactions = DatabaseService.getAllTransactions();
       final categories = DatabaseService.getAllCategories();
-      final accounts = DatabaseService.getAllAccounts();
+      final accounts = DatabaseService.getAllAccountsForBackup();
       final bills = DatabaseService.getAllBills();
       final settings = DatabaseService.exportAllSettings();
-      final billOccurrences = DatabaseService.exportBillOccurrenceStatuses();
-      final payees = DatabaseService.getAllPayees();
+    final billOccurrences = DatabaseService.exportBillOccurrenceStatuses();
+
+final allContacts = DatabaseService.getAllPayees();
+
+final payees = allContacts.where((contact) {
+  return (contact['type'] ?? '')
+          .toString()
+          .trim()
+          .toLowerCase() ==
+      'payee';
+}).toList();
+
+final payers = allContacts.where((contact) {
+  return (contact['type'] ?? '')
+          .toString()
+          .trim()
+          .toLowerCase() ==
+      'payer';
+}).toList();
 
       final backupData = {
         'version': '1.1.0',
         'timestamp': DateTime.now().toIso8601String(),
         'transactions': transactions.map((t) => t.toJson()).toList(),
         'categories': categories.map((c) => c.toJson()).toList(),
-        'accounts': accounts
-            .map(
-              (a) => {
-                'id': a.id,
-                'name': a.name,
-                'type': a.type.toString().split('.').last,
-                'balance': a.balance,
-                'isActive': a.isActive,
-                'currency': a.currency,
-                'description': a.description,
-                'institution': a.institution,
-                'accountNumber': a.accountNumber,
-                'availableBalance': a.availableBalance,
-                'customType': a.customType,
-              },
-            )
-            .toList(),
+      'accounts': accounts
+    .map(
+      (a) => {
+        'id': a.id,
+        'name': a.name,
+        'type': a.type.name,
+        'balance': a.balance,
+        'initialBalance': DatabaseService.getInitialBalance(a.id),
+        'isActive': a.isActive,
+        'currency': a.currency,
+        'description': a.description,
+        'institution': a.institution,
+        'accountNumber': a.accountNumber,
+        'cardNumber': a.cardNumber,
+        'availableBalance': a.availableBalance,
+        'customType': a.customType,
+      },
+    )
+    .toList(),
         'bills': bills.map((b) => b.toJson()).toList(),
-        'payees': payees,
-        'settings': settings,
-        'bill_occurrence_status': billOccurrences,
+       'payees': payees,
+'payers': payers,
+'settings': settings,
+'bill_occurrence_status': billOccurrences,
       };
 
       return const JsonEncoder.withIndent('  ').convert(backupData);
@@ -161,16 +181,42 @@ class AutoBackupService {
     final key = 'backups/$userId/auto/$filename';
     final latestKey = 'backups/$userId/auto/latest.json';
 
-    final uploaded = await AmplifyService.uploadFile(localFilePath, key);
-    if (!uploaded) return false;
+   final uploaded = await AmplifyService.uploadFile(
+  localFilePath,
+  key,
+);
 
-    await AmplifyService.uploadFile(localFilePath, latestKey);
-    await DatabaseService.setSetting('lastCloudBackupKey', key);
-    await DatabaseService.setSetting(
-      'lastCloudBackupAt',
-      DateTime.now().toIso8601String(),
-    );
-    return true;
+if (!uploaded) {
+  debugPrint('Cloud backup failed: timestamped upload failed');
+  return false;
+}
+
+final latestUploaded = await AmplifyService.uploadFile(
+  localFilePath,
+  latestKey,
+);
+
+if (!latestUploaded) {
+  debugPrint(
+    'Cloud backup failed: latest.json upload failed. '
+    'Timestamped backup was uploaded successfully.',
+  );
+  return false;
+}
+
+await DatabaseService.setSetting(
+  'lastCloudBackupKey',
+  key,
+);
+
+await DatabaseService.setSetting(
+  'lastCloudBackupAt',
+  DateTime.now().toIso8601String(),
+);
+
+debugPrint('Cloud backup successfully uploaded: $latestKey');
+
+return true;
   }
 }
 

@@ -81,10 +81,10 @@ class Account extends HiveObject {
       'description': descriptionValue,
       'accountNumber': accountNumber,
       'cardNumber': cardNumber ?? '',
-      'balance': balance,
-      'initialBalance': balance,
+            'balance': balance,
       'availableBalance': availableBalance,
       'currency': currency,
+      'customType': customType,
     };
   }
 
@@ -96,7 +96,7 @@ class Account extends HiveObject {
         (e) => e.name == json['type'],
         orElse: () => AccountType.cash,
       ),
-      balance: (json['initialBalance'] ?? json['balance'] ?? 0).toDouble(),
+            balance: (json['balance'] ?? json['initialBalance'] ?? 0).toDouble(),
       currency: json['currency'] ?? 'USD',
       isActive: json['isActive'] ?? true,
       description: json['description'],

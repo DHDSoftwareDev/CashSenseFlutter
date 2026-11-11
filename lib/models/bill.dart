@@ -41,6 +41,31 @@ enum BillType {
 @HiveType(typeId: 6)
 class Bill extends HiveObject {
   static const Object _unset = Object();
+  /// Preserves the full date and time when reading recovery data.
+  static DateTime _parseRecoveryDate(dynamic raw) {
+    if (raw == null) {
+      throw const FormatException('Missing recovery date.');
+    }
+
+    final value = raw.toString().trim();
+
+    if (value.isEmpty) {
+      throw const FormatException('Empty recovery date.');
+    }
+
+    final mmddyyyy =
+        RegExp(r'^(\d{2})\/(\d{2})\/(\d{4})$').firstMatch(value);
+
+    if (mmddyyyy != null) {
+      return DateTime(
+        int.parse(mmddyyyy.group(3)!),
+        int.parse(mmddyyyy.group(1)!),
+        int.parse(mmddyyyy.group(2)!),
+      );
+    }
+
+    return DateTime.parse(value);
+  }
 
   static DateTime _parseDateOnly(dynamic raw) {
     final value = raw?.toString();
@@ -212,6 +237,21 @@ class Bill extends HiveObject {
     );
   }
 
+  /// Rebuilds a bill from a local recovery snapshot while preserving
+  /// the full DateTime values.
+  factory Bill.fromRecoveryJson(Map<String, dynamic> json) {
+    final bill = Bill.fromJson(json);
+
+    bill.dueDate = _parseRecoveryDate(json['dueDate']);
+
+    if (json['recurrenceEndDate'] != null) {
+      bill.recurrenceEndDate =
+          _parseRecoveryDate(json['recurrenceEndDate']);
+    }
+
+    return bill;
+  }
+  
   Bill copyWith({
     String? id,
     double? amount,
