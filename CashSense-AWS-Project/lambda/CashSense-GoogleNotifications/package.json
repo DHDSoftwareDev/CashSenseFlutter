@@ -1,0 +1,13 @@
+{
+  "name": "cashsense-billing",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.900.0",
+    "@aws-sdk/lib-dynamodb": "^3.900.0",
+    "@aws-sdk/client-secrets-manager": "^3.900.0",
+    "@apple/app-store-server-library": "^2.0.0",
+    "google-auth-library": "^10.0.0"
+  }
+}

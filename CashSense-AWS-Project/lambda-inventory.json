@@ -1,0 +1,106 @@
+[
+  {
+    "FunctionName": "CashSense-Stg-20261114-0332-1464-Users",
+    "FunctionArn": "arn:aws:lambda:us-east-1:781540302423:function:CashSense-Stg-20261114-0332-1464-Users"
+  },
+  {
+    "FunctionName": "CashSense-BackupInit",
+    "FunctionArn": "arn:aws:lambda:us-east-1:781540302423:function:CashSense-BackupInit"
+  },
+  {
+    "FunctionName": "CashSense-RegisterDevice",
+    "FunctionArn": "arn:aws:lambda:us-east-1:781540302423:function:CashSense-RegisterDevice"
+  },
+  {
+    "FunctionName": "CashSense-BackupLatest",
+    "FunctionArn": "arn:aws:lambda:us-east-1:781540302423:function:CashSense-BackupLatest"
+  },
+  {
+    "FunctionName": "CashSense-AppleTestNotification",
+    "FunctionArn": "arn:aws:lambda:us-east-1:781540302423:function:CashSense-AppleTestNotification"
+  },
+  {
+    "FunctionName": "CashSense-AppStoreNotificationsV2",
+    "FunctionArn": "arn:aws:lambda:us-east-1:781540302423:function:CashSense-AppStoreNotificationsV2"
+  },
+  {
+    "FunctionName": "CashSense-Lookups",
+    "FunctionArn": "arn:aws:lambda:us-east-1:781540302423:function:CashSense-Lookups"
+  },
+  {
+    "FunctionName": "CashSense-Stg-20261114-0332-1464-GoogleNotifications",
+    "FunctionArn": "arn:aws:lambda:us-east-1:781540302423:function:CashSense-Stg-20261114-0332-1464-GoogleNotifications"
+  },
+  {
+    "FunctionName": "CashSense-SendNotification",
+    "FunctionArn": "arn:aws:lambda:us-east-1:781540302423:function:CashSense-SendNotification"
+  },
+  {
+    "FunctionName": "CashSense-EntitlementsRefresh",
+    "FunctionArn": "arn:aws:lambda:us-east-1:781540302423:function:CashSense-EntitlementsRefresh"
+  },
+  {
+    "FunctionName": "CashSense-Users",
+    "FunctionArn": "arn:aws:lambda:us-east-1:781540302423:function:CashSense-Users"
+  },
+  {
+    "FunctionName": "CashSense-BackupComplete",
+    "FunctionArn": "arn:aws:lambda:us-east-1:781540302423:function:CashSense-BackupComplete"
+  },
+  {
+    "FunctionName": "CashSense-CognitoCustomMessage",
+    "FunctionArn": "arn:aws:lambda:us-east-1:781540302423:function:CashSense-CognitoCustomMessage"
+  },
+  {
+    "FunctionName": "CashSense-PushSender",
+    "FunctionArn": "arn:aws:lambda:us-east-1:781540302423:function:CashSense-PushSender"
+  },
+  {
+    "FunctionName": "CashSense-Bills",
+    "FunctionArn": "arn:aws:lambda:us-east-1:781540302423:function:CashSense-Bills"
+  },
+  {
+    "FunctionName": "CashSense-Accounts",
+    "FunctionArn": "arn:aws:lambda:us-east-1:781540302423:function:CashSense-Accounts"
+  },
+  {
+    "FunctionName": "CashSense-GoogleNotifications",
+    "FunctionArn": "arn:aws:lambda:us-east-1:781540302423:function:CashSense-GoogleNotifications"
+  },
+  {
+    "FunctionName": "CashSense-AppleNotifications",
+    "FunctionArn": "arn:aws:lambda:us-east-1:781540302423:function:CashSense-AppleNotifications"
+  },
+  {
+    "FunctionName": "CashSense-NotificationSchedules",
+    "FunctionArn": "arn:aws:lambda:us-east-1:781540302423:function:CashSense-NotificationSchedules"
+  },
+  {
+    "FunctionName": "CashSense-CancelReminder",
+    "FunctionArn": "arn:aws:lambda:us-east-1:781540302423:function:CashSense-CancelReminder"
+  },
+  {
+    "FunctionName": "CashSense-Transactions",
+    "FunctionArn": "arn:aws:lambda:us-east-1:781540302423:function:CashSense-Transactions"
+  },
+  {
+    "FunctionName": "CashSense-Billing",
+    "FunctionArn": "arn:aws:lambda:us-east-1:781540302423:function:CashSense-Billing"
+  },
+  {
+    "FunctionName": "CashSense-ScheduleBillReminder",
+    "FunctionArn": "arn:aws:lambda:us-east-1:781540302423:function:CashSense-ScheduleBillReminder"
+  },
+  {
+    "FunctionName": "CashSense-Stg-20261114-0332-1464-AppleNotifications",
+    "FunctionArn": "arn:aws:lambda:us-east-1:781540302423:function:CashSense-Stg-20261114-0332-1464-AppleNotifications"
+  },
+  {
+    "FunctionName": "CashSense-Stg-20261114-0332-1464-Billing",
+    "FunctionArn": "arn:aws:lambda:us-east-1:781540302423:function:CashSense-Stg-20261114-0332-1464-Billing"
+  },
+  {
+    "FunctionName": "CashSense-BillPayments",
+    "FunctionArn": "arn:aws:lambda:us-east-1:781540302423:function:CashSense-BillPayments"
+  }
+]

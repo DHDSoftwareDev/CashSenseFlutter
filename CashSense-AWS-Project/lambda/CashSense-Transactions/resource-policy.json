@@ -1,0 +1,4 @@
+{
+  "Policy": "{\"Version\":\"2012-10-17\",\"Id\":\"default\",\"Statement\":[{\"Sid\":\"eb7aa28d-49a6-5158-9024-bfd0c58d7531\",\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"apigateway.amazonaws.com\"},\"Action\":\"lambda:InvokeFunction\",\"Resource\":\"arn:aws:lambda:us-east-1:781540302423:function:CashSense-Transactions\",\"Condition\":{\"ArnLike\":{\"AWS:SourceArn\":\"arn:aws:execute-api:us-east-1:781540302423:0ic4wr3xsc/*/*/transactions\"}}},{\"Sid\":\"5c74d068-491b-591f-838c-6074bb726c0c\",\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"apigateway.amazonaws.com\"},\"Action\":\"lambda:InvokeFunction\",\"Resource\":\"arn:aws:lambda:us-east-1:781540302423:function:CashSense-Transactions\",\"Condition\":{\"ArnLike\":{\"AWS:SourceArn\":\"arn:aws:execute-api:us-east-1:781540302423:0ic4wr3xsc/*/*/transactions/{transactionId}\"}}}]}",
+  "RevisionId": "abb00340-ce11-444b-bbac-52663da5501e"
+}

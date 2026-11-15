@@ -1,0 +1,44 @@
+{
+  "metadata": {
+    "Policy": {
+      "PolicyName": "AWSLambdaBasicExecutionRole-541be98a-699d-42e5-9af4-35ec7293ab10",
+      "PolicyId": "ANPA3L53OTZL2MYE7VEOW",
+      "Arn": "arn:aws:iam::781540302423:policy/service-role/AWSLambdaBasicExecutionRole-541be98a-699d-42e5-9af4-35ec7293ab10",
+      "Path": "/service-role/",
+      "DefaultVersionId": "v1",
+      "AttachmentCount": 1,
+      "PermissionsBoundaryUsageCount": 0,
+      "IsAttachable": true,
+      "CreateDate": "2026-11-12 03:20:06+00:00",
+      "UpdateDate": "2026-11-12 03:20:06+00:00",
+      "Tags": []
+    }
+  },
+  "version": {
+    "PolicyVersion": {
+      "Document": {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Effect": "Allow",
+            "Action": "logs:CreateLogGroup",
+            "Resource": "arn:aws:logs:us-east-1:781540302423:*"
+          },
+          {
+            "Effect": "Allow",
+            "Action": [
+              "logs:CreateLogStream",
+              "logs:PutLogEvents"
+            ],
+            "Resource": [
+              "arn:aws:logs:us-east-1:781540302423:log-group:/aws/lambda/CashSense-Billing:*"
+            ]
+          }
+        ]
+      },
+      "VersionId": "v1",
+      "IsDefaultVersion": true,
+      "CreateDate": "2026-11-12 03:20:06+00:00"
+    }
+  }
+}

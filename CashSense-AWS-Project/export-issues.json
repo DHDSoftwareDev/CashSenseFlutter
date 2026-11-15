@@ -1,0 +1,10 @@
+[
+  {
+    "task": "lambda/CashSense-AppleTestNotification/resource-policy.json",
+    "error": "ResourceNotFoundException"
+  },
+  {
+    "task": "lambda/CashSense-PushSender/resource-policy.json",
+    "error": "ResourceNotFoundException"
+  }
+]

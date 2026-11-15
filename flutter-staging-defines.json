@@ -1,0 +1,4 @@
+{
+  "CASH_SENSE_BILLING_ENVIRONMENT": "staging",
+  "CASH_SENSE_BILLING_STAGING_URL": "https://rnhupy1gw9.execute-api.us-east-1.amazonaws.com"
+}

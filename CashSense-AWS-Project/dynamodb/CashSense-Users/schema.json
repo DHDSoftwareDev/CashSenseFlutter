@@ -1,0 +1,41 @@
+{
+  "Table": {
+    "AttributeDefinitions": [
+      {
+        "AttributeName": "userId",
+        "AttributeType": "S"
+      }
+    ],
+    "TableName": "CashSense-Users",
+    "KeySchema": [
+      {
+        "AttributeName": "userId",
+        "KeyType": "HASH"
+      }
+    ],
+    "TableStatus": "ACTIVE",
+    "CreationDateTime": "2026-01-16 01:48:57.331000+00:00",
+    "ProvisionedThroughput": {
+      "NumberOfDecreasesToday": 0,
+      "ReadCapacityUnits": 0,
+      "WriteCapacityUnits": 0
+    },
+    "TableSizeBytes": 2296,
+    "ItemCount": 11,
+    "TableArn": "arn:aws:dynamodb:us-east-1:781540302423:table/CashSense-Users",
+    "TableId": "73853ada-7e11-4dbc-a8c6-6f402deb589b",
+    "BillingModeSummary": {
+      "BillingMode": "PAY_PER_REQUEST",
+      "LastUpdateToPayPerRequestDateTime": "2026-01-16 01:48:57.331000+00:00"
+    },
+    "TableClassSummary": {
+      "TableClass": "STANDARD"
+    },
+    "DeletionProtectionEnabled": false,
+    "WarmThroughput": {
+      "ReadUnitsPerSecond": 12000,
+      "WriteUnitsPerSecond": 4000,
+      "Status": "ACTIVE"
+    }
+  }
+}

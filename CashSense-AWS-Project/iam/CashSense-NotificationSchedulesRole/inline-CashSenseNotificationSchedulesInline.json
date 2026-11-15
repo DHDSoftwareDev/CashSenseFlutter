@@ -1,0 +1,42 @@
+{
+  "RoleName": "CashSense-NotificationSchedulesRole",
+  "PolicyName": "CashSenseNotificationSchedulesInline",
+  "PolicyDocument": {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Sid": "NotificationSchedulesTableAccess",
+        "Effect": "Allow",
+        "Action": [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:DeleteItem",
+          "dynamodb:Query"
+        ],
+        "Resource": [
+          "arn:aws:dynamodb:us-east-1:781540302423:table/CashSense-NotificationSchedules",
+          "arn:aws:dynamodb:us-east-1:781540302423:table/CashSense-NotificationSchedules/index/NotificationSchedule",
+          "arn:aws:dynamodb:us-east-1:781540302423:table/CashSense-NotificationSchedules/index/DedupeIndex"
+        ]
+      },
+      {
+        "Sid": "SchedulerManageSchedules",
+        "Effect": "Allow",
+        "Action": [
+          "scheduler:CreateSchedule",
+          "scheduler:UpdateSchedule",
+          "scheduler:DeleteSchedule",
+          "scheduler:GetSchedule",
+          "scheduler:ListSchedules"
+        ],
+        "Resource": "arn:aws:scheduler:us-east-1:781540302423:schedule/default/*"
+      },
+      {
+        "Sid": "AllowPassSchedulerInvokeRole",
+        "Effect": "Allow",
+        "Action": "iam:PassRole",
+        "Resource": "arn:aws:iam::781540302423:role/CashSense-EventBridgeScheduler"
+      }
+    ]
+  }
+}

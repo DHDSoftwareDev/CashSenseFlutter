@@ -17,6 +17,8 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'services/database_service.dart';
+import 'services/account_session_service.dart';
+import 'services/account_operations.dart';
 import 'services/auto_backup_service.dart';
 import 'services/bill_reminder_service.dart';
 import 'services/push_token_service.dart';
@@ -28,6 +30,8 @@ import 'screens/login_screen.dart';
 import 'screens/signup_screen.dart';
 import 'services/cognito_service.dart';
 import 'services/aws_api_service.dart';
+import 'services/billing_service.dart';
+import 'screens/billing_staging_screen.dart';
 import 'services/user_api_service.dart';
 import 'services/lookups_api.dart';
 import 'services/lookups_repository.dart';
@@ -53,8 +57,26 @@ void main() async {
   // Load environment variables (block: required for backend config)
   await _safeInitStep('Load .env', () => dotenv.load(fileName: ".env"));
 
+  // Initialize AWS Amplify with Cognito (required for auth)
+  await _safeInitStep(
+    'Amplify configuration',
+    () => _configureAmplify(),
+    timeout: const Duration(seconds: 12),
+  );
+
   // Initialize database with error handling BEFORE services that depend on it
-  await _initDatabase();
+  try {
+    final profile = await AccountSessionService.prepare();
+    await _initDatabase(profile.path);
+    await AccountSessionService.markProfileOpened();
+    AccountSessionService.onProfileOpened = _mountAccountApp;
+    AccountSessionService.watchSession();
+  } catch (e, stackTrace) {
+    debugPrint('Account storage startup stopped: $e');
+    debugPrintStack(stackTrace: stackTrace);
+    AccountSessionService.showStartupFailure();
+    return;
+  }
 
   // Run one-time upgrade migrations when build number increases
   await _safeInitStep('Run upgrade migrations', () => runUpgradeMigrations());
@@ -68,16 +90,11 @@ void main() async {
     debugPrint('✅ Notification handlers initialized');
   });
 
-  // Initialize AWS Amplify with Cognito (required for auth)
-  await _safeInitStep(
-    'Amplify configuration',
-    () => _configureAmplify(),
-    timeout: const Duration(seconds: 12),
-  );
+  await _mountAccountApp();
+}
 
+Future<void> _mountAccountApp() async {
   // Decide initial home: show auth screens at startup when enabled and user not signed in
-  final bool enableAuthUI =
-      DatabaseService.getSetting<bool>('enableAuthUI', true) ?? true;
   final bool isSignedIn =
       await _safeInitValue<bool>(
         'Check Cognito sign-in',
@@ -86,7 +103,7 @@ void main() async {
       ) ??
       false;
 
-  final shouldShowLogin = enableAuthUI && !isSignedIn;
+  final shouldShowLogin = !isSignedIn;
   final Widget initialHome = shouldShowLogin
       ? const LoginScreen()
       : MainNavigationScreen(key: mainNavKey);
@@ -109,6 +126,11 @@ void main() async {
       localStore: SettingsLookupsLocalStore(),
     ),
   );
+
+  AccountSessionService.onProfileClosing = () {
+    userSession.dispose();
+    lookupsState.dispose();
+  };
 
   // Local-first: hydrate lookups before first frame when already authenticated.
   if (isSignedIn) {
@@ -133,11 +155,11 @@ void main() async {
 
   // Kick off non-critical initializations after first frame so UI can render fast.
   WidgetsBinding.instance.addPostFrameCallback((_) {
-    _startDeferredInits(isSignedIn, userSession, lookupsState);
+    unawaited(AccountOperations.run(() =>
+      _startDeferredInits(isSignedIn, userSession, lookupsState),
+    ).catchError((Object e) { debugPrint('Account initialization stopped: $e'); }));
   });
 
-  // Remove splash screen after app is ready
-  // FlutterNativeSplash.remove();
 }
 
 Future<void> _safeInitStep(
@@ -218,9 +240,9 @@ Future<void> _refreshCurrentUserSession(
   await userSession.refreshUser(idToken: idToken);
 }
 
-Future<void> _initDatabase() async {
+Future<void> _initDatabase(String accountDirectory) async {
   try {
-    await DatabaseService.init();
+    await DatabaseService.init(accountDirectory: accountDirectory);
     debugPrint('CashSense local database initialized successfully');
   } catch (e, stackTrace) {
     debugPrint('CashSense database initialization failed: $e');
@@ -343,8 +365,13 @@ class CashSenseApp extends StatelessWidget {
 
 class AppLifecycleBiometricLock extends StatefulWidget {
   final Widget child;
+  final bool showBillingShortcut;
 
-  const AppLifecycleBiometricLock({super.key, required this.child});
+  const AppLifecycleBiometricLock({
+    super.key,
+    required this.child,
+    this.showBillingShortcut = true,
+  });
 
   @override
   State<AppLifecycleBiometricLock> createState() =>
@@ -509,6 +536,27 @@ class _AppLifecycleBiometricLockState extends State<AppLifecycleBiometricLock>
     return Stack(
       children: [
         widget.child,
+        if (widget.showBillingShortcut && BillingService.isStaging)
+          Positioned(
+            right: 12,
+            bottom: 12 + MediaQuery.of(context).padding.bottom,
+            child: Material(
+              elevation: 6,
+              borderRadius: BorderRadius.circular(24),
+              child: TextButton.icon(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const AppLifecycleBiometricLock(
+                      showBillingShortcut: false,
+                      child: BillingStagingScreen(),
+                    ),
+                  ),
+                ),
+                icon: const Icon(Icons.science_outlined),
+                label: const Text('Billing Staging Tests'),
+              ),
+            ),
+          ),
         if (_showBiometricLockOverlay)
           Positioned.fill(
             child: Material(

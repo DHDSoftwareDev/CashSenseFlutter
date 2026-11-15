@@ -1,0 +1,15 @@
+{
+  "rule": {
+    "Name": "CashSenseBillReminderSchedule",
+    "Arn": "arn:aws:events:us-east-1:781540302423:rule/CashSenseBillReminderSchedule",
+    "State": "ENABLED",
+    "ScheduleExpression": "rate(5 minutes)",
+    "EventBusName": "default"
+  },
+  "targets": [
+    {
+      "Id": "BillReminderSchedulerTarget",
+      "Arn": "arn:aws:lambda:us-east-1:781540302423:function:CashSense-ScheduleBillReminder"
+    }
+  ]
+}

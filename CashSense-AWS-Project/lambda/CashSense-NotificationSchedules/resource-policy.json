@@ -1,0 +1,4 @@
+{
+  "Policy": "{\"Version\":\"2012-10-17\",\"Id\":\"default\",\"Statement\":[{\"Sid\":\"3512c47c-34ac-5a55-a6f1-efa8c3d6d942\",\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"apigateway.amazonaws.com\"},\"Action\":\"lambda:InvokeFunction\",\"Resource\":\"arn:aws:lambda:us-east-1:781540302423:function:CashSense-NotificationSchedules\",\"Condition\":{\"ArnLike\":{\"AWS:SourceArn\":\"arn:aws:execute-api:us-east-1:781540302423:0ic4wr3xsc/*/*/notification-schedules\"}}},{\"Sid\":\"bae9397a-fe18-54c1-a860-2cbcce291e1d\",\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"apigateway.amazonaws.com\"},\"Action\":\"lambda:InvokeFunction\",\"Resource\":\"arn:aws:lambda:us-east-1:781540302423:function:CashSense-NotificationSchedules\",\"Condition\":{\"ArnLike\":{\"AWS:SourceArn\":\"arn:aws:execute-api:us-east-1:781540302423:0ic4wr3xsc/*/*/notification-schedules/{scheduleId}\"}}}]}",
+  "RevisionId": "fee29b9a-318a-4844-bb5b-7666848be3d7"
+}

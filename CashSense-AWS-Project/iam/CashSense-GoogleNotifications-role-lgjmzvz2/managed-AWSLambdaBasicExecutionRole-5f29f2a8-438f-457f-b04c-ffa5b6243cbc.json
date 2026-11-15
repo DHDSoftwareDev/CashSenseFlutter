@@ -1,0 +1,44 @@
+{
+  "metadata": {
+    "Policy": {
+      "PolicyName": "AWSLambdaBasicExecutionRole-5f29f2a8-438f-457f-b04c-ffa5b6243cbc",
+      "PolicyId": "ANPA3L53OTZLVMPAEB5X5",
+      "Arn": "arn:aws:iam::781540302423:policy/service-role/AWSLambdaBasicExecutionRole-5f29f2a8-438f-457f-b04c-ffa5b6243cbc",
+      "Path": "/service-role/",
+      "DefaultVersionId": "v1",
+      "AttachmentCount": 1,
+      "PermissionsBoundaryUsageCount": 0,
+      "IsAttachable": true,
+      "CreateDate": "2026-11-14 00:52:40+00:00",
+      "UpdateDate": "2026-11-14 00:52:40+00:00",
+      "Tags": []
+    }
+  },
+  "version": {
+    "PolicyVersion": {
+      "Document": {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Effect": "Allow",
+            "Action": "logs:CreateLogGroup",
+            "Resource": "arn:aws:logs:us-east-1:781540302423:*"
+          },
+          {
+            "Effect": "Allow",
+            "Action": [
+              "logs:CreateLogStream",
+              "logs:PutLogEvents"
+            ],
+            "Resource": [
+              "arn:aws:logs:us-east-1:781540302423:log-group:/aws/lambda/CashSense-GoogleNotifications:*"
+            ]
+          }
+        ]
+      },
+      "VersionId": "v1",
+      "IsDefaultVersion": true,
+      "CreateDate": "2026-11-14 00:52:40+00:00"
+    }
+  }
+}

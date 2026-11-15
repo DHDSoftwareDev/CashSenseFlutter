@@ -1,0 +1,49 @@
+{
+  "FunctionName": "CashSense-NotificationSchedules",
+  "FunctionArn": "arn:aws:lambda:us-east-1:781540302423:function:CashSense-NotificationSchedules",
+  "Runtime": "nodejs24.x",
+  "Role": "arn:aws:iam::781540302423:role/CashSense-NotificationSchedulesRole",
+  "Handler": "index.handler",
+  "CodeSize": 12133,
+  "Description": "",
+  "Timeout": 900,
+  "MemorySize": 128,
+  "LastModified": "2026-06-26T23:47:50.000+0000",
+  "CodeSha256": "NhF5g00Mowq2GfiNgksqvTugAvvPaxHySFp7UJTeA6M=",
+  "Version": "$LATEST",
+  "Environment": {
+    "Variables": {
+      "SCHEDULER_ROLE_ARN": "[REDACTED]",
+      "NOTIFICATION_SCHEDULES_DEDUPE_GSI": "[REDACTED]",
+      "NOTIFICATION_SCHEDULES_USER_GSI": "[REDACTED]",
+      "NOTIFICATION_SCHEDULES_TABLE": "[REDACTED]",
+      "PUSH_SENDER_LAMBDA_ARN": "[REDACTED]",
+      "SCHEDULE_NAME_PREFIX": "[REDACTED]",
+      "SEND_NOTIFICATION_LAMBDA_ARN": "[REDACTED]"
+    }
+  },
+  "TracingConfig": {
+    "Mode": "PassThrough"
+  },
+  "RevisionId": "2fcb4d15-37a0-48ba-ae7c-98478addf17b",
+  "State": "Active",
+  "LastUpdateStatus": "Successful",
+  "PackageType": "Zip",
+  "Architectures": [
+    "x86_64"
+  ],
+  "EphemeralStorage": {
+    "Size": 512
+  },
+  "SnapStart": {
+    "ApplyOn": "None",
+    "OptimizationStatus": "Off"
+  },
+  "RuntimeVersionConfig": {
+    "RuntimeVersionArn": "arn:aws:lambda:us-east-1::runtime:0b838743e273014328936dd3fbc15f7c9978d711cf9655fab1181c5343336a35"
+  },
+  "LoggingConfig": {
+    "LogFormat": "Text",
+    "LogGroup": "/aws/lambda/CashSense-NotificationSchedules"
+  }
+}

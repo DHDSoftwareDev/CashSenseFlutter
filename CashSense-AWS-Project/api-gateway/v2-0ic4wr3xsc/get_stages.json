@@ -1,0 +1,16 @@
+[
+  {
+    "AutoDeploy": true,
+    "CreatedDate": "2026-01-13 01:05:07+00:00",
+    "DefaultRouteSettings": {
+      "DetailedMetricsEnabled": false
+    },
+    "DeploymentId": "a5koxm",
+    "LastDeploymentStatusMessage": "Successfully deployed stage with deployment ID 'a5koxm'",
+    "LastUpdatedDate": "2026-11-13 21:50:49+00:00",
+    "RouteSettings": {},
+    "StageName": "prod",
+    "StageVariables": {},
+    "Tags": {}
+  }
+]

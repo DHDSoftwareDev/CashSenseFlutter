@@ -1,7 +1,7 @@
+import 'account_operations.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'dart:convert';
 import 'dart:io';
-import 'package:path_provider/path_provider.dart';
 import 'package:flutter/foundation.dart' as foundation;
 import 'package:intl/intl.dart';
 import '../models/transaction.dart';
@@ -22,10 +22,11 @@ class DatabaseService {
   static const String _restoreRecoveryFileName =
       'cashsense_restore_recovery.json';
 
-  static Future<File> getRestoreRecoveryFile() async {
-    final supportDir = await getApplicationSupportDirectory();
-
-    return File('${supportDir.path}/$_restoreRecoveryFileName');
+  static Future<File> getRestoreRecoveryFile() {
+    return AccountOperations.run(() async {
+    if (_accountDirectory == null) { throw StateError('Account storage is not configured.'); }
+    return File('$_accountDirectory/$_restoreRecoveryFileName');
+      });
   }
 
   /// Writes a validated local recovery snapshot to persistent storage.
@@ -33,7 +34,8 @@ class DatabaseService {
   /// This method does not modify any Hive records.
   /// The recovery file must be written successfully before
   /// a cloud restore is allowed to replace local data.
-  static Future<void> writeLocalRestoreRecoveryFile() async {
+  static Future<void> writeLocalRestoreRecoveryFile() {
+    return AccountOperations.run(() async {
     final recoveryFile = await getRestoreRecoveryFile();
 
     // Build and validate the current local financial data.
@@ -81,6 +83,7 @@ class DatabaseService {
     foundation.debugPrint(
       'CashSense persistent local recovery file saved successfully.',
     );
+      });
   }
 
   /// Reads and validates a persistent local recovery snapshot.
@@ -92,7 +95,8 @@ class DatabaseService {
   ///
   /// READ ONLY:
   /// Does not modify Hive or the recovery file.
-  static Future<String?> getLocalRestoreRecoveryState() async {
+  static Future<String?> getLocalRestoreRecoveryState() {
+    return AccountOperations.run(() async {
     if (!await hasPendingLocalRestoreRecovery()) {
       return null;
     }
@@ -113,9 +117,11 @@ class DatabaseService {
     }
 
     return rawState;
+      });
   }
 
-  static Future<Map<String, dynamic>> readLocalRestoreRecoveryFile() async {
+  static Future<Map<String, dynamic>> readLocalRestoreRecoveryFile() {
+    return AccountOperations.run(() async {
     final recoveryFile = await getRestoreRecoveryFile();
 
     if (!await recoveryFile.exists()) {
@@ -152,16 +158,19 @@ class DatabaseService {
     );
 
     return verifiedSnapshot;
+      });
   }
 
   /// Checks whether a persistent local recovery file exists.
   ///
   /// Read-only. Does not validate, modify, or delete the file.
   /// An existing file must be resolved before another restore begins.
-  static Future<bool> hasPendingLocalRestoreRecovery() async {
+  static Future<bool> hasPendingLocalRestoreRecovery() {
+    return AccountOperations.run(() async {
     final recoveryFile = await getRestoreRecoveryFile();
 
     return recoveryFile.exists();
+      });
   }
 
   /// Checks whether it is safe to begin a new cloud restore.
@@ -170,7 +179,8 @@ class DatabaseService {
   /// restore and must never be overwritten automatically.
   ///
   /// This method does not modify local financial records.
-  static Future<void> ensureSafeToBeginCloudRestore() async {
+  static Future<void> ensureSafeToBeginCloudRestore() {
+    return AccountOperations.run(() async {
     final hasPendingRecovery = await hasPendingLocalRestoreRecovery();
 
     if (hasPendingRecovery) {
@@ -190,6 +200,7 @@ class DatabaseService {
     foundation.debugPrint(
       'CashSense cloud restore preflight safety check passed.',
     );
+      });
   }
 
   /// Removes a persistent recovery file after a cloud restore
@@ -199,7 +210,8 @@ class DatabaseService {
   /// This method does not modify any Hive financial records.
   static Future<void> finalizeLocalRestoreRecovery({
     required bool restoreVerified,
-  }) async {
+  }) {
+    return AccountOperations.run(() async {
     if (!restoreVerified) {
       throw StateError(
         'Cannot finalize local recovery because the '
@@ -224,6 +236,7 @@ class DatabaseService {
     foundation.debugPrint(
       'CashSense local restore recovery finalized successfully.',
     );
+      });
   }
 
   static const String _hideFromCalendarMarker = '__hide_from_calendar__';
@@ -297,7 +310,8 @@ class DatabaseService {
     }
   }
 
-  static Future<void> _addDeletedAccountId(String id) async {
+  static Future<void> _addDeletedAccountId(String id) {
+    return AccountOperations.run(() async {
     final trimmed = id.trim();
     if (trimmed.isEmpty) return;
     final ids = _getDeletedAccountIds();
@@ -306,9 +320,11 @@ class DatabaseService {
       await _settingsBox.put(_deletedAccountsKey, ids);
       await _settingsBox.flush();
     }
+      });
   }
 
-  static Future<void> _removeDeletedAccountId(String id) async {
+  static Future<void> _removeDeletedAccountId(String id) {
+    return AccountOperations.run(() async {
     final trimmed = id.trim();
     if (trimmed.isEmpty) return;
     final ids = _getDeletedAccountIds();
@@ -316,6 +332,7 @@ class DatabaseService {
       await _settingsBox.put(_deletedAccountsKey, ids);
       await _settingsBox.flush();
     }
+      });
   }
 
   static List<String> _getDeletedBillIds() {
@@ -340,7 +357,8 @@ class DatabaseService {
     }
   }
 
-  static Future<void> _addDeletedCategoryId(String id) async {
+  static Future<void> _addDeletedCategoryId(String id) {
+    return AccountOperations.run(() async {
     final trimmed = id.trim();
     if (trimmed.isEmpty) return;
     final ids = _getDeletedCategoryIds();
@@ -349,9 +367,11 @@ class DatabaseService {
       await _settingsBox.put(_deletedCategoriesKey, ids);
       await _settingsBox.flush();
     }
+      });
   }
 
-  static Future<void> _removeDeletedCategoryId(String id) async {
+  static Future<void> _removeDeletedCategoryId(String id) {
+    return AccountOperations.run(() async {
     final trimmed = id.trim();
     if (trimmed.isEmpty) return;
     final ids = _getDeletedCategoryIds();
@@ -359,6 +379,7 @@ class DatabaseService {
       await _settingsBox.put(_deletedCategoriesKey, ids);
       await _settingsBox.flush();
     }
+      });
   }
 
   static List<String> _getDeletedTransactionIds() {
@@ -372,7 +393,8 @@ class DatabaseService {
     }
   }
 
-  static Future<void> _addDeletedTransactionId(String id) async {
+  static Future<void> _addDeletedTransactionId(String id) {
+    return AccountOperations.run(() async {
     final trimmed = id.trim();
     if (trimmed.isEmpty) return;
     final ids = _getDeletedTransactionIds();
@@ -381,9 +403,11 @@ class DatabaseService {
       await _settingsBox.put(_deletedTransactionsKey, ids);
       await _settingsBox.flush();
     }
+      });
   }
 
-  static Future<void> _removeDeletedTransactionId(String id) async {
+  static Future<void> _removeDeletedTransactionId(String id) {
+    return AccountOperations.run(() async {
     final trimmed = id.trim();
     if (trimmed.isEmpty) return;
     final ids = _getDeletedTransactionIds();
@@ -391,9 +415,11 @@ class DatabaseService {
       await _settingsBox.put(_deletedTransactionsKey, ids);
       await _settingsBox.flush();
     }
+      });
   }
 
-  static Future<void> _addDeletedBillId(String id) async {
+  static Future<void> _addDeletedBillId(String id) {
+    return AccountOperations.run(() async {
     final trimmed = id.trim();
     if (trimmed.isEmpty) return;
     final ids = _getDeletedBillIds();
@@ -402,9 +428,11 @@ class DatabaseService {
       await _settingsBox.put(_deletedBillsKey, ids);
       await _settingsBox.flush();
     }
+      });
   }
 
-  static Future<void> _removeDeletedBillId(String id) async {
+  static Future<void> _removeDeletedBillId(String id) {
+    return AccountOperations.run(() async {
     final trimmed = id.trim();
     if (trimmed.isEmpty) return;
     final ids = _getDeletedBillIds();
@@ -412,6 +440,7 @@ class DatabaseService {
       await _settingsBox.put(_deletedBillsKey, ids);
       await _settingsBox.flush();
     }
+      });
   }
 
   static List<String> _getLocallyModifiedBillIds() {
@@ -425,7 +454,8 @@ class DatabaseService {
     }
   }
 
-  static Future<void> _addLocallyModifiedBillId(String id) async {
+  static Future<void> _addLocallyModifiedBillId(String id) {
+    return AccountOperations.run(() async {
     final trimmed = id.trim();
     if (trimmed.isEmpty) return;
     final ids = _getLocallyModifiedBillIds();
@@ -434,9 +464,11 @@ class DatabaseService {
       await _settingsBox.put(_locallyModifiedBillsKey, ids);
       await _settingsBox.flush();
     }
+      });
   }
 
-  static Future<void> _removeLocallyModifiedBillId(String id) async {
+  static Future<void> _removeLocallyModifiedBillId(String id) {
+    return AccountOperations.run(() async {
     final trimmed = id.trim();
     if (trimmed.isEmpty) return;
     final ids = _getLocallyModifiedBillIds();
@@ -444,6 +476,7 @@ class DatabaseService {
       await _settingsBox.put(_locallyModifiedBillsKey, ids);
       await _settingsBox.flush();
     }
+      });
   }
 
   static Map<String, DateTime> _getBillRecurrenceEndOverrides() {
@@ -470,7 +503,8 @@ class DatabaseService {
   static Future<void> setBillRecurrenceEndOverride(
     String billId,
     DateTime recurrenceEndDate,
-  ) async {
+  ) {
+    return AccountOperations.run(() async {
     final id = billId.trim();
     if (id.isEmpty) return;
     final current = _getBillRecurrenceEndOverrides();
@@ -484,9 +518,11 @@ class DatabaseService {
     };
     await _settingsBox.put(_billRecurrenceEndOverridesKey, encoded);
     await _settingsBox.flush();
+      });
   }
 
-  static Future<void> clearBillRecurrenceEndOverride(String billId) async {
+  static Future<void> clearBillRecurrenceEndOverride(String billId) {
+    return AccountOperations.run(() async {
     final id = billId.trim();
     if (id.isEmpty) return;
     final current = _getBillRecurrenceEndOverrides();
@@ -496,9 +532,11 @@ class DatabaseService {
     };
     await _settingsBox.put(_billRecurrenceEndOverridesKey, encoded);
     await _settingsBox.flush();
+      });
   }
 
-  static Future<int> clearStaleForeverBillRecurrenceEndOverrides() async {
+  static Future<int> clearStaleForeverBillRecurrenceEndOverrides() {
+    return AccountOperations.run(() async {
     final current = _getBillRecurrenceEndOverrides();
     if (current.isEmpty) return 0;
 
@@ -520,6 +558,7 @@ class DatabaseService {
     await _settingsBox.flush();
     billsVersion.value++;
     return removed;
+      });
   }
 
   static void _registerAdapterIfNeeded<T>(int typeId, TypeAdapter<T> adapter) {
@@ -550,7 +589,8 @@ class DatabaseService {
     _registerAdapterIfNeeded(6, BillAdapter());
   }
 
-  static Future<Box<T>> _openTypedBoxWithRecovery<T>(String boxName) async {
+  static Future<Box<T>> _openTypedBoxWithRecovery<T>(String boxName) {
+    return AccountOperations.run(() async {
     try {
       if (Hive.isBoxOpen(boxName)) {
         return Hive.box<T>(boxName);
@@ -564,9 +604,11 @@ class DatabaseService {
       foundation.debugPrintStack(stackTrace: stackTrace);
       rethrow;
     }
+      });
   }
 
-  static Future<Box> _openBoxWithRecovery(String boxName) async {
+  static Future<Box> _openBoxWithRecovery(String boxName) {
+    return AccountOperations.run(() async {
     try {
       if (Hive.isBoxOpen(boxName)) {
         return Hive.box(boxName);
@@ -580,10 +622,12 @@ class DatabaseService {
       foundation.debugPrintStack(stackTrace: stackTrace);
       rethrow;
     }
+      });
   }
 
   /// Returns the transfer category, creating it if it doesn't exist.
-  static Future<Category> getOrCreateTransferCategory() async {
+  static Future<Category> getOrCreateTransferCategory() {
+    return AccountOperations.run(() async {
     // Try to find an existing transfer category (case-insensitive)
     final existing = getAllCategories().firstWhere(
       (c) => c.name.trim().toLowerCase() == 'transfer',
@@ -608,10 +652,12 @@ class DatabaseService {
     );
     await addCategory(transferCat);
     return transferCat;
+      });
   }
 
   // Update all transactions, bills, etc. that reference a category when the category is edited
-  static Future<void> updateCategoryReferences(Category updatedCategory) async {
+  static Future<void> updateCategoryReferences(Category updatedCategory) {
+    return AccountOperations.run(() async {
     final normalizedName = updatedCategory.name.trim();
 
     final txs = getAllTransactions()
@@ -636,12 +682,14 @@ class DatabaseService {
 
     // Bills reference categoryId directly; no denormalized name to rewrite.
     // Keep existing IDs unchanged so all bill/category lookups stay consistent.
+      });
   }
 
   // Update all transactions, bills, etc. that reference a payee/payer when edited
   static Future<void> updatePayeeReferences(
     Map<String, dynamic> updatedPayee,
-  ) async {
+  ) {
+    return AccountOperations.run(() async {
     final payeeId = (updatedPayee['id'] ?? '').toString().trim();
     if (payeeId.isEmpty) return;
 
@@ -735,6 +783,7 @@ class DatabaseService {
       await _billsBox.flush();
       billsVersion.value++;
     }
+      });
   }
 
   // ...existing code...
@@ -769,7 +818,8 @@ class DatabaseService {
   static Future<bool> _safeAwsCall(
     Future<void> Function() task,
     String label,
-  ) async {
+  ) {
+    return AccountOperations.run(() async {
     if (!CloudSyncPolicy.syncUserFinanceDataToAws) return true;
     if (!AwsApiService.isConfigured) return true;
     try {
@@ -779,6 +829,7 @@ class DatabaseService {
       foundation.debugPrint('AWS sync failed ($label): $e');
       return false;
     }
+      });
   }
 
   static bool _isBillTransactionTypeMismatch(Object error) {
@@ -791,7 +842,8 @@ class DatabaseService {
     return msg.contains('Category') && msg.contains('Transaction');
   }
 
-  static Future<void> _reopenCoreBoxes() async {
+  static Future<void> _reopenCoreBoxes() {
+    return AccountOperations.run(() async {
     _registerHiveAdapters();
     try {
       if (Hive.isBoxOpen(_transactionBoxName)) {
@@ -808,9 +860,11 @@ class DatabaseService {
       _transactionBoxName,
     );
     _billsBox = await _openTypedBoxWithRecovery<Bill>(_billsBoxName);
+      });
   }
 
-  static Future<void> _reopenCategoryAndTransactionBoxes() async {
+  static Future<void> _reopenCategoryAndTransactionBoxes() {
+    return AccountOperations.run(() async {
     _registerHiveAdapters();
     try {
       if (Hive.isBoxOpen(_categoryBoxName)) {
@@ -827,13 +881,15 @@ class DatabaseService {
     _transactionBox = await _openTypedBoxWithRecovery<Transaction>(
       _transactionBoxName,
     );
+      });
   }
 
   // Bill operations
   static Future<void> addBill(
     Bill bill, {
     List<ReminderOffset>? reminderOffsets,
-  }) async {
+  }) {
+    return AccountOperations.run(() async {
     try {
       await _billsBox.put(bill.id, bill);
       await _billsBox.flush();
@@ -861,6 +917,7 @@ class DatabaseService {
     } else {
       await _addLocallyModifiedBillId(bill.id);
     }
+      });
   }
 
   // Per-occurrence bill status helpers
@@ -877,7 +934,8 @@ class DatabaseService {
     DateTime date,
     bool isPaid,
     PaymentStatus status,
-  ) async {
+  ) {
+    return AccountOperations.run(() async {
     final key = _occurrenceKey(billId, date);
     await _billOccurrenceBox.put(key, {
       'isPaid': isPaid,
@@ -886,11 +944,13 @@ class DatabaseService {
     await _billOccurrenceBox.flush();
     // Notify UI that bills have changed so calendars refresh
     billsVersion.value++;
+      });
   }
 
   /// Remove all persisted per-occurrence statuses for a bill.
   /// Useful when bill amount or recurrence changes so stale paid flags do not linger.
-  static Future<void> clearBillOccurrenceStatusesForBill(String billId) async {
+  static Future<void> clearBillOccurrenceStatusesForBill(String billId) {
+    return AccountOperations.run(() async {
     final id = billId.trim();
     if (id.isEmpty) return;
     try {
@@ -909,6 +969,7 @@ class DatabaseService {
       await _billOccurrenceBox.flush();
       billsVersion.value++;
     } catch (_) {}
+      });
   }
 
   /// Return occurrence-level status if present. Null if no persisted occurrence record exists.
@@ -940,7 +1001,8 @@ class DatabaseService {
   static Future<void> updateBill(
     Bill bill, {
     List<ReminderOffset>? reminderOffsets,
-  }) async {
+  }) {
+    return AccountOperations.run(() async {
     try {
       await _billsBox.put(bill.id, bill);
       await _billsBox.flush();
@@ -966,9 +1028,11 @@ class DatabaseService {
     if (!synced) {
       await _addLocallyModifiedBillId(bill.id);
     }
+      });
   }
 
-  static Future<void> deleteBill(String id) async {
+  static Future<void> deleteBill(String id) {
+    return AccountOperations.run(() async {
     await _addDeletedBillId(id);
     await clearBillRecurrenceEndOverride(id);
     // Remove any per-occurrence status entries for this bill
@@ -1014,6 +1078,7 @@ class DatabaseService {
       'delete bill notification schedules',
     );
     await _safeAwsCall(() => AwsApiService.deleteBill(id), 'delete bill');
+      });
   }
 
   static List<Bill> getAllBills() {
@@ -1021,7 +1086,8 @@ class DatabaseService {
       ..sort((a, b) => a.dueDate.compareTo(b.dueDate));
   }
 
-  static Future<void> syncLocallyModifiedBills() async {
+  static Future<void> syncLocallyModifiedBills() {
+    return AccountOperations.run(() async {
     if (!AwsApiService.isConfigured) return;
     final ids = _getLocallyModifiedBillIds();
     if (ids.isEmpty) return;
@@ -1046,6 +1112,7 @@ class DatabaseService {
         // overwrite the freshly edited local bill on app restart.
       }
     }
+      });
   }
 
   static bool _billMatches(Bill a, Bill b) {
@@ -1082,7 +1149,8 @@ class DatabaseService {
   }
 
   // Transaction operations
-  static Future<void> addTransaction(Transaction transaction) async {
+  static Future<void> addTransaction(Transaction transaction) {
+    return AccountOperations.run(() async {
     await _transactionBox.put(transaction.id, transaction);
     // Ensure the transaction box is flushed so UI/readers see the new transaction
     // immediately and any persistence occurs if the app exits.
@@ -1093,9 +1161,11 @@ class DatabaseService {
       () => AwsApiService.createTransaction(transaction),
       'create transaction',
     );
+      });
   }
 
-  static Future<void> updateTransaction(Transaction transaction) async {
+  static Future<void> updateTransaction(Transaction transaction) {
+    return AccountOperations.run(() async {
     final toPersist = transaction.copyWith(updatedAt: DateTime.now());
     // Capture previous value so we can update occurrence status if bill linkage
     // changed or if amount/date was edited.
@@ -1260,6 +1330,7 @@ class DatabaseService {
     } catch (_) {
       // Non-critical: do not block transaction edits if status sync fails.
     }
+      });
   }
 
   /// One-time best-effort migration for legacy account-context transactions.
@@ -1270,7 +1341,8 @@ class DatabaseService {
   /// filtering is robust.
   static Future<int> migrateLegacyAccountTransactionsHiddenFromCalendar({
     bool force = false,
-  }) async {
+  }) {
+    return AccountOperations.run(() async {
     final alreadyMigrated =
         getSetting<bool>(_legacyAccountCalendarMigrationKey, false) ?? false;
     if (!force && alreadyMigrated) return 0;
@@ -1312,6 +1384,7 @@ class DatabaseService {
       await setSetting(_legacyAccountCalendarMigrationKey, true);
     }
     return updatedCount;
+      });
   }
 
   /// Force-hide all non-bill transactions for a specific account from the
@@ -1320,7 +1393,8 @@ class DatabaseService {
   /// hide markers were consistently applied.
   static Future<int> hideTransactionsForAccountFromDashboard(
     String accountId,
-  ) async {
+  ) {
+    return AccountOperations.run(() async {
     final normalized = accountId.trim();
     if (normalized.isEmpty) return 0;
 
@@ -1353,6 +1427,7 @@ class DatabaseService {
       transactionsVersion.value++;
     }
     return updatedCount;
+      });
   }
 
   static bool _looksLikeOpaqueId(String value) {
@@ -1421,7 +1496,8 @@ class DatabaseService {
   /// is available for historical entries.
   static Future<int> migrateLegacyTransactionPaymentFor({
     bool force = false,
-  }) async {
+  }) {
+    return AccountOperations.run(() async {
     final alreadyMigrated =
         getSetting<bool>(_legacyPaymentForMigrationKey, false) ?? false;
     if (!force && alreadyMigrated) return 0;
@@ -1505,13 +1581,15 @@ class DatabaseService {
       await setSetting(_legacyPaymentForMigrationKey, true);
     }
     return updatedCount;
+      });
   }
 
   /// One-time best-effort migration to ensure transactions display category
   /// names (not raw category IDs) in dashboard and account transaction lists.
   static Future<int> migrateLegacyTransactionCategoryNames({
     bool force = false,
-  }) async {
+  }) {
+    return AccountOperations.run(() async {
     final alreadyMigrated =
         getSetting<bool>(_legacyCategoryNameMigrationKey, false) ?? false;
     if (!force && alreadyMigrated) return 0;
@@ -1559,6 +1637,7 @@ class DatabaseService {
       await setSetting(_legacyCategoryNameMigrationKey, true);
     }
     return updatedCount;
+      });
   }
 
   /// One-time best-effort migration to repair legacy transaction category
@@ -1571,7 +1650,8 @@ class DatabaseService {
   /// - Refreshing categoryName from the resolved category record
   static Future<int> migrateLegacyTransactionCategoryResolution({
     bool force = false,
-  }) async {
+  }) {
+    return AccountOperations.run(() async {
     final alreadyMigrated =
         getSetting<bool>(_legacyCategoryResolutionMigrationKey, false) ?? false;
     if (!force && alreadyMigrated) return 0;
@@ -1651,6 +1731,7 @@ class DatabaseService {
       await setSetting(_legacyCategoryResolutionMigrationKey, true);
     }
     return updatedCount;
+      });
   }
 
   static DateTime? _earliestDate(DateTime? a, DateTime? b) {
@@ -1920,7 +2001,8 @@ class DatabaseService {
   /// the old and new series may still generate the same occurrence date.
   static Future<int> migrateLegacyRecurringBillSplitOverlaps({
     bool force = false,
-  }) async {
+  }) {
+    return AccountOperations.run(() async {
     final alreadyMigrated =
         getSetting<bool>(_legacyRecurringSplitOverlapMigrationKey, false) ??
         false;
@@ -2011,15 +2093,19 @@ class DatabaseService {
       await setSetting(_legacyRecurringSplitOverlapMigrationKey, true);
     }
     return updatedCount;
+      });
   }
 
   /// Runs the recurring split overlap repair without migration gating.
   /// Safe to call repeatedly; only applies changes when overlaps exist.
-  static Future<int> repairRecurringBillSplitOverlaps() async {
+  static Future<int> repairRecurringBillSplitOverlaps() {
+    return AccountOperations.run(() async {
     return migrateLegacyRecurringBillSplitOverlaps(force: true);
+      });
   }
 
-  static Future<void> runPostFixRecurringSplitRepairIfNeeded() async {
+  static Future<void> runPostFixRecurringSplitRepairIfNeeded() {
+    return AccountOperations.run(() async {
     final alreadyRan =
         getSetting<bool>(_postFixRecurringSplitRepairKey, false) ?? false;
     if (alreadyRan) return;
@@ -2028,11 +2114,13 @@ class DatabaseService {
     } finally {
       await setSetting(_postFixRecurringSplitRepairKey, true);
     }
+      });
   }
 
   static Future<int> migrateLegacyBillPlaceholderText({
     bool force = false,
-  }) async {
+  }) {
+    return AccountOperations.run(() async {
     final alreadyMigrated =
         getSetting<bool>(_legacyBillPlaceholderTextMigrationKey, false) ??
         false;
@@ -2092,9 +2180,11 @@ class DatabaseService {
     }
 
     return updatedCount;
+      });
   }
 
-  static Future<void> deleteTransaction(String id) async {
+  static Future<void> deleteTransaction(String id) {
+    return AccountOperations.run(() async {
     // Read the transaction before deleting so we can update any linked
     // bill occurrence status if this transaction represented a bill payment.
     final Transaction? tx = _transactionBox.get(id);
@@ -2296,6 +2386,7 @@ class DatabaseService {
     } catch (_) {
       // Non-critical: don't block deletion on status update errors
     }
+      });
   }
 
   static List<Transaction> getAllTransactions() {
@@ -2303,33 +2394,22 @@ class DatabaseService {
       ..sort((a, b) => b.date.compareTo(a.date));
   }
 
-  static Future<void> init() async {
-    // Use application support directory for Hive files to keep them hidden from users
-    final supportDir = await getApplicationSupportDirectory();
-    final hiveDir = Directory('${supportDir.path}/.hive');
-    final migratedTransactionsFile = File('${hiveDir.path}/transactions.hive');
-    await hiveDir.create(recursive: true);
+  static String? _accountDirectory;
 
-    // Migrate from old location if exists
-    final docsDir = await getApplicationDocumentsDirectory();
-    final oldHiveDir = Directory('${docsDir.path}/CashSense/.hive');
-    if (await oldHiveDir.exists() && !await migratedTransactionsFile.exists()) {
-      // Copy old files to new location
-      try {
-        await for (final file in oldHiveDir.list()) {
-          if (file is File) {
-            final newFile = File(
-              '${hiveDir.path}/${file.uri.pathSegments.last}',
-            );
-            await file.copy(newFile.path);
-          }
-        }
-        // Optionally delete old directory after successful copy
-        await oldHiveDir.delete(recursive: true);
-      } catch (e) {
-        foundation.debugPrint('Failed to migrate Hive files: $e');
-      }
+  /// Called only after account operations drain and their screens unmount.
+  static Future<void> closeForAccountChange() async {
+    await Hive.close();
+    _accountDirectory = null;
+    subscriptionVersion.value = 'Free';
+  }
+
+  static Future<void> init({required String accountDirectory}) async {
+    if (_accountDirectory != null && _accountDirectory != accountDirectory) {
+      throw StateError('Close the current account database before opening another.');
     }
+    _accountDirectory = accountDirectory;
+    final hiveDir = Directory('$accountDirectory/.hive');
+    await hiveDir.create(recursive: true);
 
     Hive.init(hiveDir.path);
 
@@ -2351,35 +2431,10 @@ class DatabaseService {
     final pendingRecovery = await hasPendingLocalRestoreRecovery();
 
     if (pendingRecovery) {
-      foundation.debugPrint(
-        'CRITICAL: CashSense detected an unfinished cloud restore. '
-        'A persistent local recovery file exists.',
-      );
-
-      // Validate the saved recovery snapshot without modifying Hive.
-      try {
-        await readLocalRestoreRecoveryFile();
-
-        foundation.debugPrint(
-          'CashSense pending recovery snapshot is valid. '
-          'Startup is blocked until recovery is resolved.',
-        );
-      } catch (e, stackTrace) {
-        foundation.debugPrint(
-          'CRITICAL: Pending recovery snapshot validation failed: $e',
-        );
-        foundation.debugPrintStack(stackTrace: stackTrace);
-
-        rethrow;
-      }
-
-      // Do not initialize default data or run migrations while
-      // a cloud restore may have been interrupted.
-      throw StateError(
-        'CashSense detected a pending cloud restore recovery. '
-        'Financial data initialization has been stopped to '
-        'prevent further changes. Recovery must be resolved first.',
-      );
+      // Restore and verify the pre-restore data before startup can write.
+      // Any failure retains the recovery file and stops initialization.
+      await recoverOriginalLocalDataFromRecoveryFile();
+      await finalizeLocalRestoreRecovery(restoreVerified: true);
     }
 
     // A locally selected Free/Developer/Tester mode is authoritative across
@@ -2411,7 +2466,8 @@ class DatabaseService {
     await migrateLegacyBillPlaceholderText();
   }
 
-  static Future<void> _initializeDefaultData() async {
+  static Future<void> _initializeDefaultData() {
+    return AccountOperations.run(() async {
     if (_categoryBox.isEmpty) {
       for (final category in DefaultCategories.expenseCategories) {
         final fresh = Category(
@@ -2448,6 +2504,7 @@ class DatabaseService {
       );
       await _accountBox.put(defaultAccount.id, defaultAccount);
     }
+      });
   }
 
   static List<Transaction> getTransactionsByDateRange(
@@ -2484,7 +2541,8 @@ class DatabaseService {
   }
 
   // Category operations
-  static Future<String> addCategory(Category category) async {
+  static Future<String> addCategory(Category category) {
+    return AccountOperations.run(() async {
     try {
       await _categoryBox.put(category.id, category);
       await _categoryBox.flush();
@@ -2504,9 +2562,11 @@ class DatabaseService {
       'create category',
     );
     return category.id;
+      });
   }
 
-  static Future<void> updateCategory(Category category) async {
+  static Future<void> updateCategory(Category category) {
+    return AccountOperations.run(() async {
     try {
       await _categoryBox.put(category.id, category);
       await _categoryBox.flush();
@@ -2526,9 +2586,11 @@ class DatabaseService {
       () => AwsApiService.updateCategory(category),
       'update category',
     );
+      });
   }
 
-  static Future<void> deleteCategory(String id) async {
+  static Future<void> deleteCategory(String id) {
+    return AccountOperations.run(() async {
     await _addDeletedCategoryId(id);
     await _categoryBox.delete(id);
     await _categoryBox.flush();
@@ -2537,6 +2599,7 @@ class DatabaseService {
       () => AwsApiService.deleteCategory(id),
       'delete category',
     );
+      });
   }
 
   static List<Category> getAllCategories() {
@@ -2548,7 +2611,8 @@ class DatabaseService {
   }
 
   // Account operations
-  static Future<void> addAccount(Account account) async {
+  static Future<void> addAccount(Account account) {
+    return AccountOperations.run(() async {
     await _accountBox.put(account.id, account);
     // Ensure the box is flushed to disk so the account is persisted even if the
     // app is closed immediately after saving.
@@ -2566,9 +2630,11 @@ class DatabaseService {
       () => AwsApiService.createAccount(account),
       'create account',
     );
+      });
   }
 
-  static Future<void> updateAccount(Account account) async {
+  static Future<void> updateAccount(Account account) {
+    return AccountOperations.run(() async {
     await _accountBox.put(account.id, account);
     await _accountBox.flush();
     // Notify listeners that accounts changed
@@ -2580,16 +2646,19 @@ class DatabaseService {
       () => AwsApiService.updateAccount(account),
       'update account',
     );
+      });
   }
 
   /// Persist or update the stored initial balance for an account.
-  static Future<void> setInitialBalance(String accountId, double value) async {
+  static Future<void> setInitialBalance(String accountId, double value) {
+    return AccountOperations.run(() async {
     try {
       await setSetting('initialBalance:$accountId', value);
     } catch (e) {
       // ignore: avoid_print
       print('Failed to set initial balance for $accountId: $e');
     }
+      });
   }
 
   /// Retrieve the persisted initial balance for an account.
@@ -2607,13 +2676,15 @@ class DatabaseService {
     return acc?.balance ?? 0.0;
   }
 
-  static Future<void> deleteAccount(String id) async {
+  static Future<void> deleteAccount(String id) {
+    return AccountOperations.run(() async {
     await _accountBox.delete(id);
     await _accountBox.flush();
     await _addDeletedAccountId(id);
     // Notify listeners that accounts changed
     accountsVersion.value++;
     await _safeAwsCall(() => AwsApiService.deleteAccount(id), 'delete account');
+      });
   }
 
   /// Returns every locally stored account for backup purposes,
@@ -2712,7 +2783,8 @@ class DatabaseService {
     }
   }
 
-  static Future<void> setSetting(String key, dynamic value) async {
+  static Future<void> setSetting(String key, dynamic value) {
+    return AccountOperations.run(() async {
     final box = _settingsBoxOrNull();
     if (box == null) {
       foundation.debugPrint(
@@ -2722,6 +2794,7 @@ class DatabaseService {
     }
     await box.put(key, value);
     await box.flush();
+      });
   }
 
   static T? getSetting<T>(String key, [T? defaultValue]) {
@@ -2786,7 +2859,8 @@ class DatabaseService {
     }
   }
 
-  static Future<void> addHiddenTransactionId(String id) async {
+  static Future<void> addHiddenTransactionId(String id) {
+    return AccountOperations.run(() async {
     try {
       final list = getHiddenTransactionIds();
       if (!list.contains(id)) {
@@ -2800,9 +2874,11 @@ class DatabaseService {
       // ignore: avoid_print
       print('DatabaseService.addHiddenTransactionId failed: $e');
     }
+      });
   }
 
-  static Future<void> removeHiddenTransactionId(String id) async {
+  static Future<void> removeHiddenTransactionId(String id) {
+    return AccountOperations.run(() async {
     try {
       final list = getHiddenTransactionIds();
       list.removeWhere((e) => e == id);
@@ -2813,6 +2889,7 @@ class DatabaseService {
       // ignore: avoid_print
       print('DatabaseService.removeHiddenTransactionId failed: $e');
     }
+      });
   }
 
   // Custom account types operations (stored as a list of strings in settings)
@@ -2829,7 +2906,8 @@ class DatabaseService {
     }
   }
 
-  static Future<void> addCustomAccountType(String typeName) async {
+  static Future<void> addCustomAccountType(String typeName) {
+    return AccountOperations.run(() async {
     try {
       final list = getAllCustomAccountTypes();
       // Only add if it doesn't already exist (case-insensitive check)
@@ -2843,9 +2921,11 @@ class DatabaseService {
       // ignore: avoid_print
       print('DatabaseService.addCustomAccountType failed: $e');
     }
+      });
   }
 
-  static Future<void> deleteCustomAccountType(String typeName) async {
+  static Future<void> deleteCustomAccountType(String typeName) {
+    return AccountOperations.run(() async {
     try {
       final list = getAllCustomAccountTypes();
       list.removeWhere((t) => t.toLowerCase() == typeName.toLowerCase());
@@ -2856,6 +2936,7 @@ class DatabaseService {
       // ignore: avoid_print
       print('DatabaseService.deleteCustomAccountType failed: $e');
     }
+      });
   }
 
   // Payee/Payer operations (stored as simple maps in settings to avoid
@@ -2914,7 +2995,8 @@ class DatabaseService {
     }
   }
 
-  static Future<void> addPayee(Map<String, dynamic> payee) async {
+  static Future<void> addPayee(Map<String, dynamic> payee) {
+    return AccountOperations.run(() async {
     try {
       final list = getAllPayees();
       final normalized = _normalizePayeeMap(payee);
@@ -2931,9 +3013,11 @@ class DatabaseService {
       // ignore: avoid_print
       print('DatabaseService.addPayee failed: $e');
     }
+      });
   }
 
-  static Future<void> updatePayee(Map<String, dynamic> payee) async {
+  static Future<void> updatePayee(Map<String, dynamic> payee) {
+    return AccountOperations.run(() async {
     try {
       final list = getAllPayees();
       final idx = list.indexWhere((p) => p['id'] == payee['id']);
@@ -2954,9 +3038,11 @@ class DatabaseService {
       // ignore: avoid_print
       print('DatabaseService.updatePayee failed: $e');
     }
+      });
   }
 
-  static Future<void> deletePayee(String id) async {
+  static Future<void> deletePayee(String id) {
+    return AccountOperations.run(() async {
     try {
       final list = getAllPayees();
       list.removeWhere((p) => p['id'] == id);
@@ -2972,6 +3058,7 @@ class DatabaseService {
       // ignore: avoid_print
       print('DatabaseService.deletePayee failed: $e');
     }
+      });
   }
 
   // Analytics helpers
@@ -3057,7 +3144,8 @@ class DatabaseService {
   static Future<void> persistBillOccurrenceStatuses({
     DateTime? from,
     DateTime? to,
-  }) async {
+  }) {
+    return AccountOperations.run(() async {
     final bills = getAllBills();
     if (bills.isEmpty) return;
 
@@ -3139,6 +3227,7 @@ class DatabaseService {
         );
       }
     }
+      });
   }
 
   /// Upsert remote snapshot data into local storage without triggering
@@ -3151,7 +3240,8 @@ class DatabaseService {
     List<Map<String, dynamic>> payees = const [],
     List<Map<String, dynamic>> payers = const [],
     List<Map<String, dynamic>> payments = const [],
-  }) async {
+  }) {
+    return AccountOperations.run(() async {
     bool accountsChanged = false;
     bool billsChanged = false;
     bool transactionsChanged = false;
@@ -3485,9 +3575,11 @@ class DatabaseService {
     if (billsChanged) billsVersion.value++;
     if (transactionsChanged) transactionsVersion.value++;
     if (payeesChanged) payeesVersion.value++;
+      });
   }
 
-  static Future<void> clearAccountsOnly() async {
+  static Future<void> clearAccountsOnly() {
+    return AccountOperations.run(() async {
     final bills = _billsBox.values.toList();
     var billsChanged = 0;
     for (final bill in bills) {
@@ -3532,9 +3624,11 @@ class DatabaseService {
     await _settingsBox.flush();
 
     accountsVersion.value++;
+      });
   }
 
-  static Future<void> clearTransactionsOnly() async {
+  static Future<void> clearTransactionsOnly() {
+    return AccountOperations.run(() async {
     await _transactionBox.clear();
     await _transactionBox.flush();
     await _billOccurrenceBox.clear();
@@ -3543,9 +3637,11 @@ class DatabaseService {
     await _settingsBox.flush();
 
     transactionsVersion.value++;
+      });
   }
 
-  static Future<void> clearBillsOnly({required bool includePayments}) async {
+  static Future<void> clearBillsOnly({required bool includePayments}) {
+    return AccountOperations.run(() async {
     var transactionsChanged = 0;
 
     if (includePayments) {
@@ -3592,9 +3688,11 @@ class DatabaseService {
       transactionsVersion.value++;
     }
     billsVersion.value++;
+      });
   }
 
-  static Future<void> clearPayeesAndPayersOnly() async {
+  static Future<void> clearPayeesAndPayersOnly() {
+    return AccountOperations.run(() async {
     var transactionsChanged = 0;
     for (final tx in _transactionBox.values) {
       final hasPayee = (tx.payeeId ?? '').trim().isNotEmpty;
@@ -3626,12 +3724,15 @@ class DatabaseService {
       billsVersion.value++;
     }
     payeesVersion.value++;
+      });
   }
 
-  static Future<void> clearCategoriesOnly() async {
+  static Future<void> clearCategoriesOnly() {
+    return AccountOperations.run(() async {
     await _categoryBox.clear();
     await _categoryBox.flush();
     categoriesVersion.value++;
+      });
   }
 
   /// Converts supported Hive values to JSON without silently losing data.
@@ -4083,7 +4184,8 @@ class DatabaseService {
   /// READ ONLY:
   /// Does not clear, replace, or modify any Hive records.
   /// Does not delete or modify the recovery file.
-  static Future<Map<String, dynamic>> prepareLocalRestoreRecoveryData() async {
+  static Future<Map<String, dynamic>> prepareLocalRestoreRecoveryData() {
+    return AccountOperations.run(() async {
     // Read and validate the saved recovery file.
     final snapshot = await readLocalRestoreRecoveryFile();
 
@@ -4172,13 +4274,15 @@ class DatabaseService {
     );
 
     return recovered;
+      });
   }
 
   /// Verifies reconstructed recovery data against its saved snapshot.
   ///
   /// READ ONLY:
   /// Does not modify Hive or delete the recovery file.
-  static Future<void> verifyPreparedLocalRestoreRecoveryData() async {
+  static Future<void> verifyPreparedLocalRestoreRecoveryData() {
+    return AccountOperations.run(() async {
     final snapshot = await readLocalRestoreRecoveryFile();
 
     final prepared = await prepareLocalRestoreRecoveryData();
@@ -4282,6 +4386,7 @@ class DatabaseService {
       'CashSense reconstructed local recovery data '
       'verified successfully. No Hive records changed.',
     );
+      });
   }
 
   /// Prepares and verifies a complete persistent recovery snapshot.
@@ -4289,7 +4394,8 @@ class DatabaseService {
   /// This method is read-only. It does not modify Hive records,
   /// delete the recovery file, or perform a restore.
   static Future<Map<String, dynamic>>
-  prepareVerifiedLocalRestoreRecovery() async {
+  prepareVerifiedLocalRestoreRecovery() {
+    return AccountOperations.run(() async {
     // Verify all reconstructed records against the saved file.
     await verifyPreparedLocalRestoreRecoveryData();
 
@@ -4335,6 +4441,7 @@ class DatabaseService {
     );
 
     return verified;
+      });
   }
 
   /// Recovers the original local financial data from the
@@ -4346,7 +4453,8 @@ class DatabaseService {
   ///
   /// Call only during controlled recovery, after all
   /// Hive boxes have been opened and before startup migrations.
-  static Future<void> recoverOriginalLocalDataFromRecoveryFile() async {
+  static Future<void> recoverOriginalLocalDataFromRecoveryFile() {
+    return AccountOperations.run(() async {
     // Reconstruct and verify every section before modifying Hive.
     final prepared = await prepareVerifiedLocalRestoreRecovery();
 
@@ -4378,6 +4486,7 @@ class DatabaseService {
       'Persistent recovery file retained until '
       'recovery is explicitly finalized.',
     );
+      });
   }
 
   /// Independently verifies recovered Hive data against
@@ -4385,7 +4494,8 @@ class DatabaseService {
   ///
   /// READ ONLY:
   /// Does not modify Hive or delete the recovery file.
-  static Future<void> verifyRecoveredLocalHiveData() async {
+  static Future<void> verifyRecoveredLocalHiveData() {
+    return AccountOperations.run(() async {
     // Read the original recovery snapshot from disk.
     final expected = await readLocalRestoreRecoveryFile();
 
@@ -4491,6 +4601,7 @@ class DatabaseService {
       'persistent recovery snapshot. '
       'Recovery file remains intact.',
     );
+      });
   }
 
   /// Checks whether current local financial records are compatible
@@ -4541,7 +4652,8 @@ class DatabaseService {
   /// the restore attempt, including local settings and bill statuses.
   static Future<void> restoreLocalRestoreSnapshot(
     Map<String, dynamic> snapshot,
-  ) async {
+  ) {
+    return AccountOperations.run(() async {
     final transactions = Map<dynamic, Transaction>.from(
       snapshot['transactions'] as Map,
     );
@@ -4590,6 +4702,7 @@ class DatabaseService {
     foundation.debugPrint(
       'Original local CashSense data recovered and flushed to disk.',
     );
+      });
   }
 
   /// Replaces local financial data with a manually selected cloud backup.
@@ -4606,7 +4719,8 @@ class DatabaseService {
     required List<Map<String, dynamic>> payers,
     required Map<String, dynamic> billOccurrenceStatuses,
     required Map<String, dynamic> settings,
-  }) async {
+  }) {
+    return AccountOperations.run(() async {
     void validateIds(Iterable<String> ids, String label) {
       final seen = <String>{};
 
@@ -4926,10 +5040,12 @@ class DatabaseService {
     foundation.debugPrint(
       'Manual cloud backup data saved to local Hive database.',
     );
+      });
   }
 
   // Clear all data (useful for testing or reset)
-  static Future<void> clearAllData() async {
+  static Future<void> clearAllData() {
+    return AccountOperations.run(() async {
     // Clear all data boxes
     await _transactionBox.clear();
     await _categoryBox.clear();
@@ -4975,19 +5091,23 @@ class DatabaseService {
 
     // Reinitialize default data
     await _initializeDefaultData();
+      });
   }
 
   // Set subscription plan and notify listeners
-  static Future<void> setSubscriptionPlan(String plan) async {
+  static Future<void> setSubscriptionPlan(String plan) {
+    return AccountOperations.run(() async {
     await _settingsBox.put('subscriptionPlan', plan);
     await _settingsBox.flush();
     subscriptionVersion.value = plan;
+      });
   }
 
   /// Persist a locally selected subscription-testing mode. This remains
   /// authoritative over backend entitlement refreshes until explicitly
   /// cleared (for example, by completing a real purchase).
-  static Future<void> setSubscriptionModeOverride(String mode) async {
+  static Future<void> setSubscriptionModeOverride(String mode) {
+    return AccountOperations.run(() async {
     if (mode != 'Free' && mode != 'Developer' && mode != 'Tester') {
       throw ArgumentError.value(mode, 'mode', 'Unsupported subscription mode');
     }
@@ -4995,6 +5115,7 @@ class DatabaseService {
     await _settingsBox.put('subscriptionPlan', mode);
     await _settingsBox.flush();
     subscriptionVersion.value = mode;
+      });
   }
 
   static String? getSubscriptionModeOverride() {
@@ -5004,9 +5125,11 @@ class DatabaseService {
         : null;
   }
 
-  static Future<void> clearSubscriptionModeOverride() async {
+  static Future<void> clearSubscriptionModeOverride() {
+    return AccountOperations.run(() async {
     await _settingsBox.delete(_subscriptionModeOverrideKey);
     await _settingsBox.flush();
+      });
   }
 
   /// Export all settings (key -> value) as a JSON-encodable map.
@@ -5043,7 +5166,8 @@ class DatabaseService {
   /// Import bill occurrence statuses from a map into the internal box.
   static Future<void> importBillOccurrenceStatuses(
     Map<String, dynamic> data,
-  ) async {
+  ) {
+    return AccountOperations.run(() async {
     if (data.isEmpty) return;
     try {
       for (final entry in data.entries) {
@@ -5053,5 +5177,6 @@ class DatabaseService {
       }
       await _billOccurrenceBox.flush();
     } catch (_) {}
+      });
   }
 }

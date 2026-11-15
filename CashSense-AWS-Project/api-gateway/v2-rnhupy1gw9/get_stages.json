@@ -1,0 +1,18 @@
+[
+  {
+    "AutoDeploy": true,
+    "CreatedDate": "2026-11-14 03:56:28+00:00",
+    "DefaultRouteSettings": {
+      "DetailedMetricsEnabled": false,
+      "ThrottlingBurstLimit": 10,
+      "ThrottlingRateLimit": 5.0
+    },
+    "DeploymentId": "ssv4cu",
+    "LastDeploymentStatusMessage": "Successfully deployed stage with deployment ID 'ssv4cu'",
+    "LastUpdatedDate": "2026-11-14 03:56:29+00:00",
+    "RouteSettings": {},
+    "StageName": "$default",
+    "StageVariables": {},
+    "Tags": {}
+  }
+]

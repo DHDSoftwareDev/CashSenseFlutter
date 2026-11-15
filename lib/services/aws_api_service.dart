@@ -13,6 +13,8 @@ import '../models/bill.dart';
 import '../models/category.dart';
 import '../models/reminder_offset.dart';
 import '../models/transaction.dart';
+import 'billing_backend_config.dart';
+import 'billing_verification_policy.dart';
 import 'device_id_service.dart';
 import 'http_service.dart';
 import 'user_auth_service.dart';
@@ -20,6 +22,41 @@ import 'user_auth_service.dart';
 class AwsApiService {
   static String get _baseUrl => (dotenv.env['API_BASE_URL'] ?? '').trim();
   static String get baseUrl => _baseUrl;
+
+  static bool get isBillingStaging => BillingBackendConfig.isStaging;
+  static String get billingBaseUrl => BillingBackendConfig.baseUrl(_baseUrl);
+
+  static Uri _billingUri(String path) {
+    final base = Uri.parse(billingBaseUrl);
+    return base.replace(path: _joinPaths(base.path, path));
+  }
+
+  /// Reads membership from the same backend that verified the purchase.
+  /// No local Premium settings or financial endpoints are changed here.
+  static Future<Map<String, dynamic>> fetchBillingProfile({
+    required String expectedUserId,
+  }) async {
+    final idToken = await _billingTokenForUser(expectedUserId);
+    final response = await HttpService.execute(
+      () => http.get(
+        _billingUri('/users/me'),
+        headers: {'Authorization': 'Bearer $idToken'},
+      ).timeout(const Duration(seconds: 30)),
+    );
+    _throwIfNotOk(response);
+    if (await currentBillingUserId() != expectedUserId) {
+      throw StateError('Account changed while fetching billing membership.');
+    }
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map || decoded['user'] is! Map) {
+      throw StateError('Invalid billing membership response.');
+    }
+    final user = Map<String, dynamic>.from(decoded['user'] as Map);
+    if (user['userId'] != expectedUserId) {
+      throw StateError('Billing membership belongs to a different account.');
+    }
+    return user;
+  }
 
   static Future<String> getIdToken() async {
     return _getIdToken();
@@ -102,6 +139,62 @@ class AwsApiService {
     }
 
     return '';
+  }
+
+  /// Billing never falls back to a locally cached account ID.
+  static Future<String> currentBillingUserId() async {
+    final user = await Amplify.Auth.getCurrentUser();
+    if (user.userId.trim().isEmpty) throw StateError('Sign in before using billing.');
+    return user.userId.trim();
+  }
+
+  /// Captures an authenticated Cognito ID token for the expected
+  /// billing account. The JWT subject is checked against that account.
+  static Future<String> _billingTokenForUser(String expectedUserId) async {
+    if (expectedUserId.trim().isEmpty) {
+      throw StateError('Expected billing account is missing.');
+    }
+
+    final session = await Amplify.Auth.fetchAuthSession();
+
+    if (!session.isSignedIn || session is! CognitoAuthSession) {
+      throw StateError('Cognito authentication is required for billing.');
+    }
+
+    final idToken = session.userPoolTokensResult.value.idToken.raw;
+
+    if (idToken.isEmpty) {
+      throw StateError('Cognito ID token is unavailable.');
+    }
+
+    // Read the subject from the captured token rather than relying
+    // on a separate, potentially changed authentication session.
+    final segments = idToken.split('.');
+
+    if (segments.length != 3) {
+      throw StateError('Invalid Cognito ID token format.');
+    }
+
+    Map<String, dynamic> claims;
+
+    try {
+      final payload = utf8.decode(
+        base64Url.decode(base64Url.normalize(segments[1])),
+      );
+
+      claims = Map<String, dynamic>.from(jsonDecode(payload) as Map);
+    } catch (_) {
+      throw StateError('Unable to read Cognito token claims.');
+    }
+
+    final tokenUserId = (claims['sub'] ?? '').toString().trim();
+    final tokenUse = (claims['token_use'] ?? '').toString();
+
+    if (tokenUse != 'id' || tokenUserId != expectedUserId) {
+      throw StateError('Billing token does not match the expected account.');
+    }
+
+    return idToken;
   }
 
   static Future<Map<String, String>> _buildHeaders() async {
@@ -729,56 +822,104 @@ class AwsApiService {
     _throwIfNotOk(response);
   }
 
-  /// Optional backend verification hook for Google Play purchases.
-  /// Returns canonical plan id when backend resolves entitlement, else null.
-  static Future<String?> verifyAndroidPurchase({
+  /// Verify an Apple transaction using the expected account's Cognito ID token.
+  /// Invalid or failed server responses never fall back to a local plan.
+  static Future<String?> verifyApplePurchase({
+    required String productId,
+    required String transactionId,
+    String? expectedUserId,
+  }) async {
+    final accountId = expectedUserId ?? await currentBillingUserId();
+    if (productId.trim().isEmpty || transactionId.trim().isEmpty) {
+      throw ArgumentError('Apple product ID and transaction ID are required.');
+    }
+
+    if (billingBaseUrl.isEmpty) {
+      throw StateError('Billing API base URL is not configured.');
+    }
+    if (isBillingStaging) {
+      await fetchBillingProfile(expectedUserId: accountId);
+    }
+
+    // Capture the token for the expected account.
+    final idToken = await _billingTokenForUser(accountId);
+
+    // This request uses the captured token, not a token
+    // retrieved later from a potentially different session.
+    final uri = _billingUri('/billing/apple/verify');
+
+    final response = await HttpService.execute(
+      () => http.post(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $idToken',
+        },
+        body: jsonEncode({
+          'productId': productId,
+          'transactionId': transactionId,
+        }),
+      ).timeout(const Duration(seconds: 30)),
+    );
+
+    _throwIfNotOk(response);
+
+    // Confirm the active account has not changed.
+    final currentUserId = await currentBillingUserId();
+
+    if (currentUserId != accountId) {
+      throw StateError('Billing account changed during purchase verification.');
+    }
+
+    return BillingVerificationPolicy.verifiedPlan(
+      jsonDecode(response.body),
+      nowSeconds: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+    );
+  }
+
+  /// Google Play purchase verification. Never fall back to local Premium.
+  static Future<String> verifyAndroidPurchase({
     required String productId,
     required String purchaseToken,
+    String? expectedUserId,
     String? purchaseId,
     String? source,
   }) async {
-    try {
-      final response = await _request(
-        'POST',
-        '/billing/google-play/verify',
-        body: {
+    final accountId = expectedUserId ?? await currentBillingUserId();
+    if (productId.trim().isEmpty || purchaseToken.trim().isEmpty) {
+      throw ArgumentError('Google Play product ID and token are required.');
+    }
+    if (billingBaseUrl.isEmpty) {
+      throw StateError('Billing API base URL is not configured.');
+    }
+    if (isBillingStaging) {
+      await fetchBillingProfile(expectedUserId: accountId);
+    }
+    final idToken = await _billingTokenForUser(accountId);
+    final response = await HttpService.execute(
+      () => http.post(
+        _billingUri('/billing/google-play/verify'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $idToken',
+        },
+        body: jsonEncode({
           'productId': productId,
           'purchaseToken': purchaseToken,
           if (purchaseId != null && purchaseId.isNotEmpty)
             'purchaseId': purchaseId,
           if (source != null && source.isNotEmpty) 'source': source,
-        },
-      );
-
-      if (response.statusCode == 404) {
-        // Endpoint not deployed yet; caller should fall back locally.
-        return null;
-      }
-
-      _throwIfNotOk(response);
-
-      final decoded = jsonDecode(response.body);
-      if (decoded is! Map) return null;
-
-      final planRaw =
-          (decoded['plan'] ??
-                  decoded['subscriptionPlan'] ??
-                  decoded['entitlement'] ??
-                  decoded['tier'])
-              ?.toString();
-
-      if (planRaw == null || planRaw.trim().isEmpty) return null;
-
-      final normalized = planRaw.trim().toLowerCase();
-      if (normalized == 'monthly') return 'Monthly';
-      if (normalized == 'annual' || normalized == 'yearly') return 'Annual';
-      if (normalized == 'lifetime') return 'Lifetime';
-
-      return planRaw;
-    } catch (e) {
-      debugPrint('verifyAndroidPurchase failed: $e');
-      return null;
+        }),
+      ).timeout(const Duration(seconds: 30)),
+    );
+    _throwIfNotOk(response);
+    if (await currentBillingUserId() != accountId) {
+      throw StateError('Billing account changed during Google verification.');
     }
+    return BillingVerificationPolicy.verifiedPlan(
+      jsonDecode(response.body),
+      nowSeconds: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+    );
   }
 
   static AccountType _accountTypeFromString(String raw) {

@@ -1,0 +1,50 @@
+{
+  "FunctionName": "CashSense-Bills",
+  "FunctionArn": "arn:aws:lambda:us-east-1:781540302423:function:CashSense-Bills",
+  "Runtime": "nodejs24.x",
+  "Role": "arn:aws:iam::781540302423:role/CashSense-LegacyDisabledRole",
+  "Handler": "index.handler",
+  "CodeSize": 1559,
+  "Description": "",
+  "Timeout": 3,
+  "MemorySize": 128,
+  "LastModified": "2026-06-17T02:12:58.000+0000",
+  "CodeSha256": "krOGjSo+unr3ibu8GM9MfzV7pJgIKNNx7+UkyDAX6qU=",
+  "Version": "$LATEST",
+  "Environment": {
+    "Variables": {
+      "NOTIFICATION_SCHEDULES_LAMBDA_ARN": "[REDACTED]",
+      "USERS_TABLE": "[REDACTED]",
+      "TRANSACTIONS_TABLE": "[REDACTED]",
+      "BILLS_TABLE": "[REDACTED]",
+      "PAYMENTS_TABLE": "[REDACTED]",
+      "DEVICE_REGISTRY_TABLE": "[REDACTED]",
+      "ACCOUNTS_TABLE": "[REDACTED]",
+      "NOTIFICATION_SCHEDULES_TABLE": "[REDACTED]"
+    }
+  },
+  "TracingConfig": {
+    "Mode": "PassThrough"
+  },
+  "RevisionId": "40c3ce09-76e1-4f93-b615-e1291c7f336e",
+  "State": "Active",
+  "LastUpdateStatus": "Successful",
+  "PackageType": "Zip",
+  "Architectures": [
+    "x86_64"
+  ],
+  "EphemeralStorage": {
+    "Size": 512
+  },
+  "SnapStart": {
+    "ApplyOn": "None",
+    "OptimizationStatus": "Off"
+  },
+  "RuntimeVersionConfig": {
+    "RuntimeVersionArn": "arn:aws:lambda:us-east-1::runtime:0b838743e273014328936dd3fbc15f7c9978d711cf9655fab1181c5343336a35"
+  },
+  "LoggingConfig": {
+    "LogFormat": "Text",
+    "LogGroup": "/aws/lambda/CashSense-Bills"
+  }
+}

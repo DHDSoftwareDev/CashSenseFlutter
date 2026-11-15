@@ -1,0 +1,32 @@
+{
+  "RoleName": "CashSense-GoogleNotifications-role-lgjmzvz2",
+  "PolicyName": "CashSense-GoogleNotifications-Access",
+  "PolicyDocument": {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Sid": "CashSenseBillingDynamoDBAccess",
+        "Effect": "Allow",
+        "Action": [
+          "dynamodb:GetItem",
+          "dynamodb:Query",
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:DeleteItem"
+        ],
+        "Resource": [
+          "arn:aws:dynamodb:us-east-1:781540302423:table/CashSense-Users",
+          "arn:aws:dynamodb:us-east-1:781540302423:table/CashSense-PurchaseClaims"
+        ]
+      },
+      {
+        "Sid": "GooglePlaySecretAccess",
+        "Effect": "Allow",
+        "Action": [
+          "secretsmanager:GetSecretValue"
+        ],
+        "Resource": "arn:aws:secretsmanager:us-east-1:781540302423:secret:CashSense/GooglePlayServiceAccount-*"
+      }
+    ]
+  }
+}

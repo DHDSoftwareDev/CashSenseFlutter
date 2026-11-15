@@ -1,0 +1,11 @@
+[
+  {
+    "ApiKeyRequired": false,
+    "AuthorizationScopes": [],
+    "AuthorizationType": "NONE",
+    "RequestParameters": {},
+    "RouteId": "4j473lg",
+    "RouteKey": "POST /google-play/notifications",
+    "Target": "integrations/bw0sswb"
+  }
+]

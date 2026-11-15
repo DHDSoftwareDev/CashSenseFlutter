@@ -1,0 +1,26 @@
+{
+  "Role": {
+    "Path": "/service-role/",
+    "RoleName": "CashSense-AppleTestNotification-role-ky785dcj",
+    "RoleId": "AROA3L53OTZL4TRG2EOEK",
+    "Arn": "arn:aws:iam::781540302423:role/service-role/CashSense-AppleTestNotification-role-ky785dcj",
+    "CreateDate": "2026-11-13 17:18:20+00:00",
+    "AssumeRolePolicyDocument": {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Principal": {
+            "Service": "lambda.amazonaws.com"
+          },
+          "Action": "sts:AssumeRole"
+        }
+      ]
+    },
+    "MaxSessionDuration": 3600,
+    "RoleLastUsed": {
+      "LastUsedDate": "2026-11-13 17:27:51+00:00",
+      "Region": "us-east-1"
+    }
+  }
+}

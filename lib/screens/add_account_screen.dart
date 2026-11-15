@@ -1,3 +1,4 @@
+import '../services/account_operations.dart';
 import 'package:flutter/material.dart';
 import '../services/database_service.dart';
 import '../models/account.dart';
@@ -13,6 +14,7 @@ class AddAccountScreen extends StatefulWidget {
 }
 
 class _AddAccountScreenState extends State<AddAccountScreen> {
+  final int _accountGeneration = AccountOperations.generation;
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _institutionController = TextEditingController();
@@ -89,7 +91,8 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
 
   }
 
-  Future<void> _save() async {
+  Future<void> _save() {
+    return AccountOperations.bind(_accountGeneration, () async {
     if (!_formKey.currentState!.validate()) return;
     final name = _nameController.text.trim();
     final type = _type;
@@ -135,6 +138,7 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
     }
     if (!mounted) return;
     Navigator.of(context).pop(true);
+      });
   }
 
   @override

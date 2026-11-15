@@ -1,3 +1,4 @@
+import 'account_operations.dart';
 import '../models/lookup_item.dart';
 import 'database_service.dart';
 import 'lookups_repository.dart';
@@ -6,13 +7,16 @@ class SettingsLookupsLocalStore implements LookupsLocalStore {
   static String _keyForType(String type) => 'lookups:$type';
 
   @override
-  Future<void> saveAll(String type, List<LookupItem> items) async {
+  Future<void> saveAll(String type, List<LookupItem> items) {
+    return AccountOperations.run(() async {
     final payload = items.map((x) => x.toJson()).toList();
     await DatabaseService.setSetting(_keyForType(type), payload);
+      });
   }
 
   @override
-  Future<List<LookupItem>> getAll(String type) async {
+  Future<List<LookupItem>> getAll(String type) {
+    return AccountOperations.run(() async {
     try {
       final raw = DatabaseService.getSetting<dynamic>(_keyForType(type), <dynamic>[]);
       if (raw is! List) return <LookupItem>[];
@@ -23,10 +27,12 @@ class SettingsLookupsLocalStore implements LookupsLocalStore {
     } catch (_) {
       return <LookupItem>[];
     }
+      });
   }
 
   @override
-  Future<void> upsertOne(LookupItem item) async {
+  Future<void> upsertOne(LookupItem item) {
+    return AccountOperations.run(() async {
     final current = await getAll(item.type);
     final idx = current.indexWhere((x) => x.id == item.id);
     if (idx == -1) {
@@ -35,12 +41,15 @@ class SettingsLookupsLocalStore implements LookupsLocalStore {
       current[idx] = item;
     }
     await saveAll(item.type, current);
+      });
   }
 
   @override
-  Future<void> deleteOne(String type, String id) async {
+  Future<void> deleteOne(String type, String id) {
+    return AccountOperations.run(() async {
     final current = await getAll(type);
     current.removeWhere((x) => x.id == id);
     await saveAll(type, current);
+      });
   }
 }

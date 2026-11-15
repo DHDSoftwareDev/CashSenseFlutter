@@ -1,0 +1,41 @@
+{
+  "Table": {
+    "AttributeDefinitions": [
+      {
+        "AttributeName": "claimId",
+        "AttributeType": "S"
+      }
+    ],
+    "TableName": "CashSense-PurchaseClaims",
+    "KeySchema": [
+      {
+        "AttributeName": "claimId",
+        "KeyType": "HASH"
+      }
+    ],
+    "TableStatus": "ACTIVE",
+    "CreationDateTime": "2026-11-12 03:18:34.733000+00:00",
+    "ProvisionedThroughput": {
+      "NumberOfDecreasesToday": 0,
+      "ReadCapacityUnits": 0,
+      "WriteCapacityUnits": 0
+    },
+    "TableSizeBytes": 0,
+    "ItemCount": 0,
+    "TableArn": "arn:aws:dynamodb:us-east-1:781540302423:table/CashSense-PurchaseClaims",
+    "TableId": "a0f9a676-ec4e-47c7-aa3c-d6c653b7f6b0",
+    "BillingModeSummary": {
+      "BillingMode": "PAY_PER_REQUEST",
+      "LastUpdateToPayPerRequestDateTime": "2026-11-12 03:18:34.733000+00:00"
+    },
+    "TableClassSummary": {
+      "TableClass": "STANDARD"
+    },
+    "DeletionProtectionEnabled": false,
+    "WarmThroughput": {
+      "ReadUnitsPerSecond": 12000,
+      "WriteUnitsPerSecond": 4000,
+      "Status": "ACTIVE"
+    }
+  }
+}

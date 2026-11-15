@@ -1,3 +1,4 @@
+import '../services/account_operations.dart';
 import 'package:flutter/material.dart';
 import '../services/database_service.dart';
 
@@ -25,6 +26,7 @@ class _ManageCardsBody extends StatefulWidget {
 }
 
 class _ManageCardsBodyState extends State<_ManageCardsBody> {
+  final int _accountGeneration = AccountOperations.generation;
   static const List<_CardItem> _availableCards = [
     _CardItem('summary_totals', 'Summary Totals', 'Income / Expenses / Net'),
     _CardItem('expenses_pie', 'Expenses (by Category)'),
@@ -58,7 +60,8 @@ class _ManageCardsBodyState extends State<_ManageCardsBody> {
     }
   }
 
-  Future<void> _setVisible(String id, bool visible) async {
+  Future<void> _setVisible(String id, bool visible) {
+    return AccountOperations.bind(_accountGeneration, () async {
     setState(() {
       if (visible) {
         _visible.add(id);
@@ -68,6 +71,7 @@ class _ManageCardsBodyState extends State<_ManageCardsBody> {
     });
     // Persist the visible list
     await DatabaseService.setSetting('reportsVisibleCards', _visible.toList());
+      });
   }
 
   @override

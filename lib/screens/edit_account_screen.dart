@@ -1,5 +1,6 @@
 // ignore_for_file: use_build_context_synchronously
 
+import '../services/account_operations.dart';
 import 'package:flutter/material.dart';
 import '../services/cognito_service.dart';
 import '../services/user_auth_service.dart';
@@ -12,6 +13,7 @@ class EditAccountScreen extends StatefulWidget {
 }
 
 class _EditAccountScreenState extends State<EditAccountScreen> {
+  final int _accountGeneration = AccountOperations.generation;
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _displayNameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
@@ -32,7 +34,8 @@ class _EditAccountScreenState extends State<EditAccountScreen> {
     _loadCurrentAttributes();
   }
 
-  Future<void> _loadCurrentAttributes() async {
+  Future<void> _loadCurrentAttributes() {
+    return AccountOperations.bind(_accountGeneration, () async {
     try {
       final attrs = await CognitoService.getCurrentUserAttributes();
 
@@ -46,9 +49,11 @@ class _EditAccountScreenState extends State<EditAccountScreen> {
     } catch (e) {
       // Ignore errors, leave fields blank.
     }
+      });
   }
 
-  Future<void> _saveAttributes() async {
+  Future<void> _saveAttributes() {
+    return AccountOperations.bind(_accountGeneration, () async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _loading = true);
@@ -219,6 +224,7 @@ class _EditAccountScreenState extends State<EditAccountScreen> {
         setState(() => _loading = false);
       }
     }
+      });
   }
 
   InputDecoration _fieldDecoration({

@@ -1,0 +1,21 @@
+{
+  "RoleName": "CashSense-EntitlementsRole",
+  "PolicyName": "CashSenseEntitlementsInline",
+  "PolicyDocument": {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Sid": "UsersUpdates",
+        "Effect": "Allow",
+        "Action": "dynamodb:UpdateItem",
+        "Resource": "arn:aws:dynamodb:us-east-1:781540302423:table/CashSense-Users"
+      },
+      {
+        "Sid": "UsersOriginalTransactionLookup",
+        "Effect": "Allow",
+        "Action": "dynamodb:Query",
+        "Resource": "arn:aws:dynamodb:us-east-1:781540302423:table/CashSense-Users/index/originalTransactionId-index"
+      }
+    ]
+  }
+}

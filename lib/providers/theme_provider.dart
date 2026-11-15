@@ -1,5 +1,6 @@
 // ignore_for_file: deprecated_member_use
 
+import '../services/account_operations.dart';
 import 'package:flutter/material.dart';
 import '../services/database_service.dart';
 import '../services/home_screen_widget_service.dart';
@@ -28,17 +29,21 @@ class ThemeProvider extends ChangeNotifier {
 
   Color get primaryColor => _primaryColor;
 
-  Future<void> setThemeMode(ThemeMode mode) async {
+  Future<void> setThemeMode(ThemeMode mode) {
+    return AccountOperations.run(() async {
     _themeMode = mode;
     await DatabaseService.setSetting(_settingKey, _themeModeToString(mode));
     notifyListeners();
+      });
   }
 
-  Future<void> setPrimaryColor(Color color) async {
+  Future<void> setPrimaryColor(Color color) {
+    return AccountOperations.run(() async {
     _primaryColor = color;
     await DatabaseService.setSetting(_primaryColorKey, color.value);
     await HomeScreenWidgetService.syncNow();
     notifyListeners();
+      });
   }
 
   static ThemeMode _themeModeFromString(String? value) {

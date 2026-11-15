@@ -1,0 +1,88 @@
+PASS CRC/syntax/import: CashSense-AppleNotifications-deployment.zip
+PASS CRC/syntax/import: CashSense-BackupComplete-deployment.zip
+PASS CRC/syntax/import: CashSense-BackupInit-deployment.zip
+PASS CRC/syntax/import: CashSense-BackupLatest-deployment.zip
+PASS CRC/syntax/import: CashSense-Billing-deployment.zip
+PASS CRC/syntax/import: CashSense-GoogleNotifications-deployment.zip
+PASS CRC/syntax/import: CashSense-RegisterDevice-deployment.zip
+PASS CRC/syntax/import: CashSense-Users-deployment.zip
+✔ cancel retains paid term, expiration removes access (6.276155ms)
+✔ multiple Apple and Google purchases: refund falls back to other store (1.254497ms)
+✔ Lifetime refund removes only matching Lifetime; subscription fallback survives (1.714597ms)
+✔ older voided order does not void new Lifetime order (0.730182ms)
+✔ renewal recovers from historical subscription void flag (0.665872ms)
+✔ devOverride preserved while purchases are still recorded (0.684884ms)
+✔ testerOverride preserved while purchases are still recorded (0.487907ms)
+✔ duplicate/out of order calls fetch current state and cannot resurrect revoked purchase (1.043835ms)
+✔ revision conflict refetches store snapshot (0.977844ms)
+✔ concurrent purchases converge without losing ledger entries (1.086609ms)
+✔ cross account ownership denied (1.735057ms)
+✔ standalone trial and legacy membership never grant store Premium (0.471616ms)
+✔ only verified store ledger entries with valid expiry grant access (0.498846ms)
+✔ new verified purchase cannot import an unverified legacy Lifetime fallback (0.904407ms)
+✔ store outage leaves entitlement unchanged (1.400273ms)
+✔ Google replacement token permanently retires linked entitlement (1.332496ms)
+Billing failed { name: 'Error', message: 'Authenticated Cognito JWT required' }
+Billing failed { name: 'Error', message: 'ack offline' }
+CashSense-Users invoked {
+  method: 'GET',
+  rawPath: undefined,
+  hasAuthorizer: true,
+  hasHeaders: false
+}
+Pub/Sub authentication rejected: bad token
+Google Play notification processing failed: { name: 'Error', message: 'Package mismatch' }
+Google voided purchase: Current store state reconciled
+{"maintenance":true,"failures":[]}
+{"maintenance":true,"failures":[]}
+Billing failed { name: 'Error', message: 'Authenticated Cognito JWT required' }
+✔ Billing HTTP validation and existing route shape (2.479651ms)
+✔ Billing grant commits before ack and ack failure retries safely (3.103734ms)
+✔ Billing refund updates ledger and returns inactive verification (0.532927ms)
+✔ Users GET computes expiry without writing stale membership summary (1.869705ms)
+✔ Google validates OIDC identity and accepts authenticated test (1.065941ms)
+✔ Google validates package name (0.408914ms)
+✔ Apple test notification verifies JWS and commits event (2.350348ms)
+✔ Apple malformed signed payload rejected (0.17276ms)
+✔ Google one-time notification restores current Lifetime state (2.142926ms)
+✔ Google voided Lifetime notification falls back to current ledger (1.023151ms)
+✔ Scheduled void sweep and claim-page paths run without HTTP authorization (0.857456ms)
+✔ HTTP request cannot select maintenance by adding source (0.319373ms)
+✔ legacy verification routes still require store verification (2.368712ms)
+✔ JSON null and arrays are rejected before store verification (0.158881ms)
+✔ CashSense-Billing shares strict Premium policy (2.875381ms)
+✔ CashSense-Users shares strict Premium policy (0.611837ms)
+✔ CashSense-AppleNotifications shares strict Premium policy (1.033827ms)
+✔ CashSense-GoogleNotifications shares strict Premium policy (1.040843ms)
+✔ CashSense-RegisterDevice shares strict Premium policy (1.170666ms)
+✔ CashSense-BackupInit shares strict Premium policy (1.422922ms)
+✔ CashSense-BackupLatest shares strict Premium policy (1.994676ms)
+✔ CashSense-BackupComplete shares strict Premium policy (0.54933ms)
+✔ Google store ACTIVE (3.031988ms)
+✔ Google store IN_GRACE_PERIOD (0.289102ms)
+✔ Google store CANCELED (0.127955ms)
+✔ Google store EXPIRED (0.140636ms)
+✔ Google store ON_HOLD (0.287636ms)
+✔ Google store PAUSED (0.131263ms)
+✔ Google store PENDING (0.29479ms)
+✔ Google canceled term in past stays expired (0.476171ms)
+✔ Google plan replacement uses supported current product (0.468446ms)
+✔ Google Lifetime state 0 (0.536496ms)
+✔ Google Lifetime state 1 (0.285534ms)
+✔ Google Lifetime state 2 (0.425209ms)
+✔ Apple old transaction restores latest renewal (3.852507ms)
+✔ Apple non entitled status 2 (1.942692ms)
+✔ Apple non entitled status 3 (1.515149ms)
+✔ Apple non entitled status 5 (1.569743ms)
+✔ Apple grace uses signed grace expiry (1.801936ms)
+✔ Apple revoked latest transaction denied even if status active (1.35052ms)
+✔ Apple Lifetime grants and revokes using verified transaction (1.062075ms)
+✔ Apple transaction/product mismatch rejected (2.837ms)
+ℹ tests 58
+ℹ suites 0
+ℹ pass 58
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 956.172481

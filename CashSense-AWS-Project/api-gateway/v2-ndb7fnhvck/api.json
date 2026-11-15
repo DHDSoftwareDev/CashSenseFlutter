@@ -1,0 +1,12 @@
+{
+  "ApiEndpoint": "https://ndb7fnhvck.execute-api.us-east-1.amazonaws.com",
+  "ApiId": "ndb7fnhvck",
+  "ApiKeySelectionExpression": "$request.header.x-api-key",
+  "CreatedDate": "2026-11-14 01:25:59+00:00",
+  "DisableExecuteApiEndpoint": false,
+  "IpAddressType": "ipv4",
+  "Name": "CashSense-GoogleNotifications-API",
+  "ProtocolType": "HTTP",
+  "RouteSelectionExpression": "$request.method $request.path",
+  "Tags": {}
+}

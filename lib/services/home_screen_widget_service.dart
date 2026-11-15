@@ -33,6 +33,7 @@ class HomeScreenWidgetService {
   static StreamSubscription<Uri?>? _widgetClickSubscription;
   static Timer? _syncDebounce;
   static bool _initialized = false;
+  static bool _accountLocked = false;
   static bool _syncing = false;
   static bool _syncAgain = false;
 
@@ -77,7 +78,7 @@ class HomeScreenWidgetService {
   }
 
   static Future<void> syncNow() async {
-    if (!_isSupported) return;
+    if (!_isSupported || _accountLocked) return;
     if (_syncing) {
       _syncAgain = true;
       return;
@@ -328,6 +329,39 @@ class HomeScreenWidgetService {
           navigateToRootPage(4);
         }
         break;
+    }
+  }
+
+  static Future<void> resumeForAccount() async {
+    _accountLocked = false;
+    await initialize();
+    await syncNow();
+  }
+
+  static Future<void> lockForAccountChange() async {
+    _accountLocked = true;
+    _syncAgain = false;
+    await dispose();
+    if (!_isSupported) { return; }
+    while (_syncing) {
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+    }
+    try {
+      if (Platform.isIOS) { await HomeWidget.setAppGroupId(appGroupId); }
+      await HomeWidget.saveWidgetData<String>(snapshotKey, jsonEncode({
+        'version': 1, 'generatedAtMillis': DateTime.now().millisecondsSinceEpoch,
+        'hideBalances': true, 'primaryColor': 0xFF6200EE,
+        'bills': [], 'accounts': [], 'totalAvailable': 0,
+        'totalCurrent': 0, 'totalCurrency': 'USD', 'hasMixedCurrencies': false,
+      }), appGroupId: Platform.isIOS ? appGroupId : null);
+      await Future.wait<bool?>([
+        HomeWidget.updateWidget(iOSName: billsIOSKind,
+          qualifiedAndroidName: '$androidPackage.$billsAndroidProvider'),
+        HomeWidget.updateWidget(iOSName: balancesIOSKind,
+          qualifiedAndroidName: '$androidPackage.$balancesAndroidProvider'),
+      ]);
+    } catch (e) {
+      debugPrint('Widget privacy reset failed: $e');
     }
   }
 

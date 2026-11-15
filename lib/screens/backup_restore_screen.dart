@@ -1,5 +1,6 @@
 // ignore_for_file: prefer_interpolation_to_compose_strings, use_build_context_synchronously, unused_import, unused_element, unused_local_variable
 
+import '../services/account_operations.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -26,9 +27,11 @@ class BackupRestoreScreen extends StatefulWidget {
 }
 
 class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
+  final int _accountGeneration = AccountOperations.generation;
   bool _isRunning = false;
 
-  Future<void> _runBackup() async {
+  Future<void> _runBackup() {
+    return AccountOperations.bind(_accountGeneration, () async {
     setState(() => _isRunning = true);
     try {
       final jsonString = await AutoBackupService.buildBackupJsonString();
@@ -75,7 +78,7 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
       }
 
       final outFile = File(filePath);
-      await outFile.writeAsBytes(bytesData);
+      await outFile.writeAsBytes(bytesData, flush: true);
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -95,9 +98,11 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
     } finally {
       if (mounted) setState(() => _isRunning = false);
     }
+      });
   }
 
-  Future<void> _restoreFromFile() async {
+  Future<void> _restoreFromFile() {
+    return AccountOperations.bind(_accountGeneration, () async {
     try {
       final result = await FilePicker.platform.pickFiles(
         dialogTitle: 'Select Backup File',
@@ -120,9 +125,11 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
         ),
       );
     }
+      });
   }
 
-  Future<void> _performRestore(String jsonData) async {
+  Future<void> _performRestore(String jsonData) {
+    return AccountOperations.bind(_accountGeneration, () async {
     try {
       final decoded = jsonDecode(jsonData);
       if (decoded is! Map<String, dynamic>) {
@@ -157,75 +164,8 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
 
       if (confirmed != true) return;
 
-      await DatabaseService.clearAllData();
-
-      final categoriesRaw =
-          (backupData['categories'] as List?) ?? const <dynamic>[];
-      for (final catData in categoriesRaw) {
-        try {
-          final category = Category.fromJson(
-            Map<String, dynamic>.from(catData as Map),
-          );
-          await DatabaseService.addCategory(category);
-        } catch (_) {}
-      }
-
-      final accountsRaw =
-          (backupData['accounts'] as List?) ?? const <dynamic>[];
-      for (final accData in accountsRaw) {
-        try {
-          final account = Account.fromJson(
-            Map<String, dynamic>.from(accData as Map),
-          );
-          await DatabaseService.addAccount(account);
-        } catch (_) {}
-      }
-
-      final transactionsRaw =
-          (backupData['transactions'] as List?) ?? const <dynamic>[];
-      for (final txData in transactionsRaw) {
-        try {
-          final transaction = Transaction.fromJson(
-            Map<String, dynamic>.from(txData as Map),
-          );
-          await DatabaseService.addTransaction(transaction);
-        } catch (_) {}
-      }
-
-      final billsRaw = (backupData['bills'] as List?) ?? const <dynamic>[];
-      for (final billData in billsRaw) {
-        try {
-          final bill = Bill.fromJson(
-            Map<String, dynamic>.from(billData as Map),
-          );
-          await DatabaseService.addBill(bill);
-        } catch (_) {}
-      }
-
-      final payeesRaw = backupData['payees'];
-      if (payeesRaw is List) {
-        for (final entry in payeesRaw) {
-          try {
-            if (entry is Map) {
-              await DatabaseService.addPayee(Map<String, dynamic>.from(entry));
-            }
-          } catch (_) {}
-        }
-      }
-
-      final settingsRaw = backupData['settings'];
-      if (settingsRaw is Map<String, dynamic>) {
-        for (final entry in settingsRaw.entries) {
-          await DatabaseService.setSetting(entry.key, entry.value);
-        }
-      }
-
-      final occurrenceRaw = backupData['bill_occurrence_status'];
-      if (occurrenceRaw is Map<String, dynamic>) {
-        await DatabaseService.importBillOccurrenceStatuses(occurrenceRaw);
-      }
-
-      await DatabaseService.persistBillOccurrenceStatuses();
+      setState(() => _isRunning = true);
+      await RemoteSyncService.restoreFromJson(jsonData);
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -242,10 +182,14 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
           backgroundColor: Colors.redAccent,
         ),
       );
+    } finally {
+      if (mounted) setState(() => _isRunning = false);
     }
+      });
   }
 
-  Future<void> _restoreFromCloudBackup() async {
+  Future<void> _restoreFromCloudBackup() {
+    return AccountOperations.bind(_accountGeneration, () async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -296,9 +240,11 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
     } finally {
       if (mounted) setState(() => _isRunning = false);
     }
+      });
   }
 
-  Future<void> _backupToCloud() async {
+  Future<void> _backupToCloud() {
+    return AccountOperations.bind(_accountGeneration, () async {
     setState(() => _isRunning = true);
     try {
       final uploaded = await AutoBackupService.backupToCloud();
@@ -325,6 +271,7 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
     } finally {
       if (mounted) setState(() => _isRunning = false);
     }
+      });
   }
 
   BoxDecoration _sectionDecoration(BuildContext context) {

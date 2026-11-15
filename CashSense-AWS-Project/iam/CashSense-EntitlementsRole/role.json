@@ -1,0 +1,23 @@
+{
+  "Role": {
+    "Path": "/",
+    "RoleName": "CashSense-EntitlementsRole",
+    "RoleId": "AROA3L53OTZL3W5KSZHIW",
+    "Arn": "arn:aws:iam::781540302423:role/CashSense-EntitlementsRole",
+    "CreateDate": "2026-06-17 02:10:58+00:00",
+    "AssumeRolePolicyDocument": {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Principal": {
+            "Service": "lambda.amazonaws.com"
+          },
+          "Action": "sts:AssumeRole"
+        }
+      ]
+    },
+    "MaxSessionDuration": 3600,
+    "RoleLastUsed": {}
+  }
+}

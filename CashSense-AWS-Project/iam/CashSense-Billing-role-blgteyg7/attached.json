@@ -1,0 +1,6 @@
+[
+  {
+    "PolicyName": "AWSLambdaBasicExecutionRole-541be98a-699d-42e5-9af4-35ec7293ab10",
+    "PolicyArn": "arn:aws:iam::781540302423:policy/service-role/AWSLambdaBasicExecutionRole-541be98a-699d-42e5-9af4-35ec7293ab10"
+  }
+]

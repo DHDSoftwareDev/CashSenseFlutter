@@ -1,0 +1,16 @@
+[
+  {
+    "AuthorizerId": "kc2osu",
+    "AuthorizerType": "JWT",
+    "IdentitySource": [
+      "$request.header.Authorization"
+    ],
+    "JwtConfiguration": {
+      "Audience": [
+        "2fep4tchr2g6olsbs9nj7nd4u4"
+      ],
+      "Issuer": "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_i8OdXtL1u"
+    },
+    "Name": "CashSenseCognito"
+  }
+]

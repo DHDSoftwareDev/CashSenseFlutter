@@ -1,3 +1,4 @@
+import '../services/account_operations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -33,6 +34,7 @@ class PayBillScreen extends StatefulWidget {
 }
 
 class _PayBillScreenState extends State<PayBillScreen> {
+  final int _accountGeneration = AccountOperations.generation;
   final _formKey = GlobalKey<FormState>();
   final _amountController = TextEditingController();
   final _paymentForController = TextEditingController();
@@ -149,7 +151,8 @@ class _PayBillScreenState extends State<PayBillScreen> {
   /// Recalculate total paid for this bill occurrence and persist the
   /// bill's isPaid/paymentStatus if needed. This makes sure installments
   /// are counted and the bill is marked paid when amount due reaches zero.
-  Future<void> _recalculateAndPersistBillStatus() async {
+  Future<void> _recalculateAndPersistBillStatus() {
+    return AccountOperations.bind(_accountGeneration, () async {
     try {
       final allTransactions = DatabaseService.getAllTransactions();
       final relatedPayments = allTransactions
@@ -199,6 +202,7 @@ class _PayBillScreenState extends State<PayBillScreen> {
     } catch (_) {
       // Swallow errors - non-critical. UI will still reflect computed status.
     }
+      });
   }
 
   PaymentStatus _statusForTotalPaid(double totalPaid) {
@@ -311,7 +315,8 @@ class _PayBillScreenState extends State<PayBillScreen> {
     });
   }
 
-  Future<void> _handlePay() async {
+  Future<void> _handlePay() {
+    return AccountOperations.bind(_accountGeneration, () async {
     if (_isSaving) return;
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
@@ -494,6 +499,7 @@ class _PayBillScreenState extends State<PayBillScreen> {
         setState(() => _isSaving = false);
       }
     }
+      });
   }
 
   @override

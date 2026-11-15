@@ -1,0 +1,49 @@
+{
+  "Table": {
+    "AttributeDefinitions": [
+      {
+        "AttributeName": "transactionId",
+        "AttributeType": "S"
+      },
+      {
+        "AttributeName": "userId",
+        "AttributeType": "S"
+      }
+    ],
+    "TableName": "CashSense-Transactions",
+    "KeySchema": [
+      {
+        "AttributeName": "userId",
+        "KeyType": "HASH"
+      },
+      {
+        "AttributeName": "transactionId",
+        "KeyType": "RANGE"
+      }
+    ],
+    "TableStatus": "ACTIVE",
+    "CreationDateTime": "2026-01-12 01:29:39.120000+00:00",
+    "ProvisionedThroughput": {
+      "NumberOfDecreasesToday": 0,
+      "ReadCapacityUnits": 0,
+      "WriteCapacityUnits": 0
+    },
+    "TableSizeBytes": 461764,
+    "ItemCount": 925,
+    "TableArn": "arn:aws:dynamodb:us-east-1:781540302423:table/CashSense-Transactions",
+    "TableId": "1c803725-55c2-447a-a925-acb93dd5607a",
+    "BillingModeSummary": {
+      "BillingMode": "PAY_PER_REQUEST",
+      "LastUpdateToPayPerRequestDateTime": "2026-01-12 01:29:39.120000+00:00"
+    },
+    "TableClassSummary": {
+      "TableClass": "STANDARD"
+    },
+    "DeletionProtectionEnabled": false,
+    "WarmThroughput": {
+      "ReadUnitsPerSecond": 12000,
+      "WriteUnitsPerSecond": 4000,
+      "Status": "ACTIVE"
+    }
+  }
+}

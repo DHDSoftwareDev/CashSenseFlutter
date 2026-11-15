@@ -1,0 +1,494 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "CashSense-API",
+    "version": "2026-11-15 17:31:12UTC"
+  },
+  "servers": [
+    {
+      "url": "https://0ic4wr3xsc.execute-api.us-east-1.amazonaws.com/{basePath}",
+      "variables": {
+        "basePath": {
+          "default": ""
+        }
+      }
+    }
+  ],
+  "paths": {
+    "/cancel-reminder": {
+      "delete": {
+        "responses": {
+          "default": {
+            "description": "Default response for DELETE /cancel-reminder"
+          }
+        },
+        "security": [
+          {
+            "CashSenseCognito": []
+          }
+        ],
+        "x-amazon-apigateway-integration": {
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "httpMethod": "POST",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:781540302423:function:CashSense-CancelReminder/invocations",
+          "connectionType": "INTERNET"
+        }
+      }
+    },
+    "/devices": {
+      "get": {
+        "responses": {
+          "default": {
+            "description": "Default response for GET /devices"
+          }
+        },
+        "security": [
+          {
+            "CashSenseCognito": []
+          }
+        ],
+        "x-amazon-apigateway-integration": {
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "httpMethod": "POST",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:781540302423:function:CashSense-RegisterDevice/invocations",
+          "connectionType": "INTERNET"
+        }
+      },
+      "put": {
+        "responses": {
+          "default": {
+            "description": "Default response for PUT /devices"
+          }
+        },
+        "security": [
+          {
+            "CashSenseCognito": []
+          }
+        ],
+        "x-amazon-apigateway-integration": {
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "httpMethod": "POST",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:781540302423:function:CashSense-RegisterDevice/invocations",
+          "connectionType": "INTERNET"
+        }
+      },
+      "post": {
+        "responses": {
+          "default": {
+            "description": "Default response for POST /devices"
+          }
+        },
+        "security": [
+          {
+            "CashSenseCognito": []
+          }
+        ],
+        "x-amazon-apigateway-integration": {
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "httpMethod": "POST",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:781540302423:function:CashSense-RegisterDevice/invocations",
+          "connectionType": "INTERNET"
+        }
+      },
+      "delete": {
+        "responses": {
+          "default": {
+            "description": "Default response for DELETE /devices"
+          }
+        },
+        "security": [
+          {
+            "CashSenseCognito": []
+          }
+        ],
+        "x-amazon-apigateway-integration": {
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "httpMethod": "POST",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:781540302423:function:CashSense-RegisterDevice/invocations",
+          "connectionType": "INTERNET"
+        }
+      }
+    },
+    "/devices/{deviceToken}": {
+      "get": {
+        "responses": {
+          "default": {
+            "description": "Default response for GET /devices/{deviceToken}"
+          }
+        },
+        "security": [
+          {
+            "CashSenseCognito": []
+          }
+        ],
+        "x-amazon-apigateway-integration": {
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "httpMethod": "POST",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:781540302423:function:CashSense-RegisterDevice/invocations",
+          "connectionType": "INTERNET"
+        }
+      },
+      "put": {
+        "responses": {
+          "default": {
+            "description": "Default response for PUT /devices/{deviceToken}"
+          }
+        },
+        "security": [
+          {
+            "CashSenseCognito": []
+          }
+        ],
+        "x-amazon-apigateway-integration": {
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "httpMethod": "POST",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:781540302423:function:CashSense-RegisterDevice/invocations",
+          "connectionType": "INTERNET"
+        }
+      },
+      "post": {
+        "responses": {
+          "default": {
+            "description": "Default response for POST /devices/{deviceToken}"
+          }
+        },
+        "security": [
+          {
+            "CashSenseCognito": []
+          }
+        ],
+        "x-amazon-apigateway-integration": {
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "httpMethod": "POST",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:781540302423:function:CashSense-RegisterDevice/invocations",
+          "connectionType": "INTERNET"
+        }
+      },
+      "delete": {
+        "responses": {
+          "default": {
+            "description": "Default response for DELETE /devices/{deviceToken}"
+          }
+        },
+        "security": [
+          {
+            "CashSenseCognito": []
+          }
+        ],
+        "x-amazon-apigateway-integration": {
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "httpMethod": "POST",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:781540302423:function:CashSense-RegisterDevice/invocations",
+          "connectionType": "INTERNET"
+        }
+      },
+      "parameters": [
+        {
+          "name": "deviceToken",
+          "in": "path",
+          "description": "Generated path parameter for deviceToken",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/notification-schedules/{scheduleId}": {
+      "delete": {
+        "responses": {
+          "default": {
+            "description": "Default response for DELETE /notification-schedules/{scheduleId}"
+          }
+        },
+        "security": [
+          {
+            "CashSenseCognito": []
+          }
+        ],
+        "x-amazon-apigateway-integration": {
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "httpMethod": "POST",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:781540302423:function:CashSense-NotificationSchedules/invocations",
+          "connectionType": "INTERNET"
+        }
+      },
+      "parameters": [
+        {
+          "name": "scheduleId",
+          "in": "path",
+          "description": "Generated path parameter for scheduleId",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/backup/latest": {
+      "get": {
+        "responses": {
+          "default": {
+            "description": "Default response for GET /backup/latest"
+          }
+        },
+        "security": [
+          {
+            "CashSenseCognito": []
+          }
+        ],
+        "x-amazon-apigateway-integration": {
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "httpMethod": "POST",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:781540302423:function:CashSense-BackupLatest/invocations",
+          "connectionType": "INTERNET"
+        }
+      }
+    },
+    "/notification-schedules": {
+      "get": {
+        "responses": {
+          "default": {
+            "description": "Default response for GET /notification-schedules"
+          }
+        },
+        "security": [
+          {
+            "CashSenseCognito": []
+          }
+        ],
+        "x-amazon-apigateway-integration": {
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "httpMethod": "POST",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:781540302423:function:CashSense-NotificationSchedules/invocations",
+          "connectionType": "INTERNET"
+        }
+      },
+      "post": {
+        "responses": {
+          "default": {
+            "description": "Default response for POST /notification-schedules"
+          }
+        },
+        "security": [
+          {
+            "CashSenseCognito": []
+          }
+        ],
+        "x-amazon-apigateway-integration": {
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "httpMethod": "POST",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:781540302423:function:CashSense-NotificationSchedules/invocations",
+          "connectionType": "INTERNET"
+        }
+      }
+    },
+    "/users/me": {
+      "get": {
+        "responses": {
+          "default": {
+            "description": "Default response for GET /users/me"
+          }
+        },
+        "security": [
+          {
+            "CashSenseCognito": []
+          }
+        ],
+        "x-amazon-apigateway-integration": {
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "httpMethod": "POST",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:781540302423:function:CashSense-Users/invocations",
+          "connectionType": "INTERNET"
+        }
+      }
+    },
+    "/apple/notifications": {
+      "post": {
+        "responses": {
+          "default": {
+            "description": "Default response for POST /apple/notifications"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "httpMethod": "POST",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:781540302423:function:CashSense-AppStoreNotificationsV2/invocations",
+          "connectionType": "INTERNET"
+        }
+      }
+    },
+    "/apple/notifications-test": {
+      "post": {
+        "responses": {
+          "default": {
+            "description": "Default response for POST /apple/notifications-test"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "httpMethod": "POST",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:781540302423:function:CashSense-AppleNotifications/invocations",
+          "connectionType": "INTERNET"
+        }
+      }
+    },
+    "/backup/complete": {
+      "post": {
+        "responses": {
+          "default": {
+            "description": "Default response for POST /backup/complete"
+          }
+        },
+        "security": [
+          {
+            "CashSenseCognito": []
+          }
+        ],
+        "x-amazon-apigateway-integration": {
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "httpMethod": "POST",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:781540302423:function:CashSense-BackupComplete/invocations",
+          "connectionType": "INTERNET"
+        }
+      }
+    },
+    "/backup/init": {
+      "post": {
+        "responses": {
+          "default": {
+            "description": "Default response for POST /backup/init"
+          }
+        },
+        "security": [
+          {
+            "CashSenseCognito": []
+          }
+        ],
+        "x-amazon-apigateway-integration": {
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "httpMethod": "POST",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:781540302423:function:CashSense-BackupInit/invocations",
+          "connectionType": "INTERNET"
+        }
+      }
+    },
+    "/billing/apple/verify": {
+      "post": {
+        "responses": {
+          "default": {
+            "description": "Default response for POST /billing/apple/verify"
+          }
+        },
+        "security": [
+          {
+            "CashSenseCognito": []
+          }
+        ],
+        "x-amazon-apigateway-integration": {
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "httpMethod": "POST",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:781540302423:function:CashSense-Billing/invocations",
+          "connectionType": "INTERNET"
+        }
+      }
+    },
+    "/billing/verify": {
+      "post": {
+        "responses": {
+          "default": {
+            "description": "Default response for POST /billing/verify"
+          }
+        },
+        "security": [
+          {
+            "CashSenseCognito": []
+          }
+        ],
+        "x-amazon-apigateway-integration": {
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "httpMethod": "POST",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:781540302423:function:CashSense-Billing/invocations",
+          "connectionType": "INTERNET"
+        }
+      }
+    },
+    "/entitlements/refresh": {
+      "post": {
+        "responses": {
+          "default": {
+            "description": "Default response for POST /entitlements/refresh"
+          }
+        },
+        "security": [
+          {
+            "CashSenseCognito": []
+          }
+        ],
+        "x-amazon-apigateway-integration": {
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "httpMethod": "POST",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:781540302423:function:CashSense-EntitlementsRefresh/invocations",
+          "connectionType": "INTERNET"
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "CashSenseCognito": {
+        "type": "oauth2",
+        "flows": {},
+        "x-amazon-apigateway-authorizer": {
+          "identitySource": "$request.header.Authorization",
+          "jwtConfiguration": {
+            "audience": [
+              "2fep4tchr2g6olsbs9nj7nd4u4"
+            ],
+            "issuer": "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_i8OdXtL1u"
+          },
+          "type": "jwt"
+        }
+      }
+    }
+  },
+  "x-amazon-apigateway-cors": {
+    "allowMethods": [
+      "DELETE",
+      "GET",
+      "OPTIONS",
+      "POST",
+      "PUT"
+    ],
+    "allowHeaders": [
+      "*"
+    ],
+    "maxAge": 0,
+    "allowCredentials": false,
+    "allowOrigins": [
+      "*"
+    ]
+  },
+  "x-amazon-apigateway-importexport-version": "1.0"
+}

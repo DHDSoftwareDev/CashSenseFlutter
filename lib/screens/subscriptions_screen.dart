@@ -1,5 +1,6 @@
 // ignore_for_file: use_super_parameters, use_build_context_synchronously, unnecessary_to_list_in_spreads
 
+import '../services/account_operations.dart';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -14,6 +15,7 @@ class SubscriptionsScreen extends StatefulWidget {
 }
 
 class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
+  final int _accountGeneration = AccountOperations.generation;
   late String _currentPlan;
   final Map<String, String> _prices = {};
   final TextEditingController _promoController = TextEditingController();
@@ -53,7 +55,8 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
     _loadPrices();
   }
 
-  Future<void> _loadPrices() async {
+  Future<void> _loadPrices() {
+    return AccountOperations.bind(_accountGeneration, () async {
     for (final p in _plans) {
       final id = p['id']!;
       final price = await BillingService.getPrice(id);
@@ -61,6 +64,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
         _prices[id] = price ?? '';
       });
     }
+      });
   }
 
   BoxDecoration _cardDecoration(BuildContext context) {
@@ -691,7 +695,8 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
   }
 
   // Add this method to open the device's subscription management page
-  Future<void> _openDeviceSubscriptionPage() async {
+  Future<void> _openDeviceSubscriptionPage() {
+    return AccountOperations.bind(_accountGeneration, () async {
     String url;
     if (Platform.isIOS) {
       url = 'https://apps.apple.com/account/subscriptions';
@@ -712,5 +717,6 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
         );
       }
     }
+      });
   }
 }

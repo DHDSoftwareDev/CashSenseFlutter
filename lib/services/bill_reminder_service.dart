@@ -1,5 +1,6 @@
 // ignore_for_file: no_leading_underscores_for_local_identifiers, unnecessary_type_check, unnecessary_null_comparison, unnecessary_brace_in_string_interps, unused_local_variable
 
+import 'account_operations.dart';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -25,6 +26,8 @@ class BillReminderService {
   factory BillReminderService() => _instance;
 
   bool _initialized = false;
+
+  void resetForAccountChange() { _initialized = false; }
 
   List<ReminderOffset> _selectedReminderOffsets() {
     try {
@@ -53,7 +56,8 @@ class BillReminderService {
     }
   }
 
-  Future<void> init() async {
+  Future<void> init() {
+    return AccountOperations.run(() async {
     if (_initialized) return;
     _initialized = true;
 
@@ -73,10 +77,12 @@ class BillReminderService {
     } catch (e) {
       debugPrint('Workmanager initialize/register for reminders failed: $e');
     }
+      });
   }
 
   /// Cancel any previously scheduled notifications and reschedule all upcoming reminders.
-  Future<void> scheduleAllReminders() async {
+  Future<void> scheduleAllReminders() {
+    return AccountOperations.run(() async {
     try {
       // read global enable toggle and reminder duration preferences
       final bool globalEnabled =
@@ -155,21 +161,25 @@ class BillReminderService {
     } catch (e) {
       debugPrint('scheduleAllReminders failed: $e');
     }
+      });
   }
 
-  Future<void> refreshAllReminders() async {
+  Future<void> refreshAllReminders() {
+    return AccountOperations.run(() async {
     try {
       await cancelAllReminders();
     } catch (e) {
       debugPrint('refreshAllReminders cancel failed: $e');
     }
     await scheduleAllReminders();
+      });
   }
 
   Future<void> cancelRemindersForBillOccurrence(
     String billId,
     DateTime occurrenceDate,
-  ) async {
+  ) {
+    return AccountOperations.run(() async {
     try {
       if (!AwsApiService.isConfigured) return;
       final stored = _loadStoredScheduleIds();
@@ -200,6 +210,7 @@ class BillReminderService {
     } catch (e) {
       debugPrint('cancelRemindersForBillOccurrence failed: $e');
     }
+      });
   }
 
   Future<void> scheduleReminderForBill({
@@ -210,7 +221,8 @@ class BillReminderService {
     required int leadDays,
     required int reminderHour,
     required int reminderMinute,
-  }) async {
+  }) {
+    return AccountOperations.run(() async {
     try {
       final dueForMsg = dueDateForMessage ?? bill.dueDate;
       final runAtUtcIso = _computeRunAtUtcIsoOrNull(
@@ -281,6 +293,7 @@ class BillReminderService {
     } catch (e) {
       debugPrint('scheduleReminderForBill failed: $e');
     }
+      });
   }
 
   bool _isOccurrencePaid(Bill bill, DateTime occDate) {
@@ -333,7 +346,8 @@ class BillReminderService {
     return setting ?? true; // Default to true if setting not found
   }
 
-  Future<void> cancelAllReminders() async {
+  Future<void> cancelAllReminders() {
+    return AccountOperations.run(() async {
     try {
       if (!AwsApiService.isConfigured) return;
       final stored = _loadStoredScheduleIds();
@@ -376,6 +390,7 @@ class BillReminderService {
     } catch (e) {
       debugPrint('cancelAllReminders failed: $e');
     }
+      });
   }
 
   String? _computeRunAtUtcIsoOrNull(
@@ -426,11 +441,14 @@ class BillReminderService {
     return <String, String>{};
   }
 
-  Future<void> _saveStoredScheduleIds(Map<String, String> value) async {
+  Future<void> _saveStoredScheduleIds(Map<String, String> value) {
+    return AccountOperations.run(() async {
     await DatabaseService.setSetting(_storedScheduleIdsKey, value);
+      });
   }
 
-  Future<void> _cleanupLegacySchedules() async {
+  Future<void> _cleanupLegacySchedules() {
+    return AccountOperations.run(() async {
     final stored = _loadStoredScheduleIds();
     if (stored.isEmpty) return;
 
@@ -457,6 +475,7 @@ class BillReminderService {
     }
 
     await _saveStoredScheduleIds(stored);
+      });
   }
 
   String _buildBillName(Bill bill) {

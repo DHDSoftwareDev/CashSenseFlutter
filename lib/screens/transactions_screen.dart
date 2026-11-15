@@ -1,5 +1,6 @@
 // ignore_for_file: unused_local_variable, deprecated_member_use, unused_element, use_build_context_synchronously, dead_code, unnecessary_brace_in_string_interps
 
+import '../services/account_operations.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -25,6 +26,7 @@ class TransactionsScreen extends StatefulWidget {
 enum _TransferClearChoice { bothSides, oneSide }
 
 class _TransactionsScreenState extends State<TransactionsScreen> {
+  final int _accountGeneration = AccountOperations.generation;
   final NumberFormat _currencyFormat = NumberFormat.currency(symbol: '\$');
   List<Transaction> _transactions = [];
   String _selectedFilter = 'All';
@@ -57,7 +59,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     return '${DateFormat.yMMMd().format(date)} · $status';
   }
 
-  Future<void> _rearrangeTransactions() async {
+  Future<void> _rearrangeTransactions() {
+    return AccountOperations.bind(_accountGeneration, () async {
     final groups = <String, List<Transaction>>{};
     for (final transaction in _transactions) {
       final group = groups.putIfAbsent(
@@ -499,6 +502,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         SnackBar(content: Text('Could not save transaction order: $error')),
       );
     }
+      });
   }
 
   @override
@@ -519,7 +523,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     DatabaseService.categoriesVersion.addListener(_onCategoriesChanged);
   }
 
-  Future<void> _runLegacyCalendarHideMigrationIfNeeded() async {
+  Future<void> _runLegacyCalendarHideMigrationIfNeeded() {
+    return AccountOperations.bind(_accountGeneration, () async {
     if (widget.accountId == null || widget.accountId!.isEmpty) return;
     try {
       final updated =
@@ -536,6 +541,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     } catch (_) {
       // Non-blocking migration: ignore failures and keep screen usable.
     }
+      });
   }
 
   void _onCategoriesChanged() {
@@ -614,7 +620,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
   Future<void> _reverseAccountBalanceForDeletedTransaction(
     Transaction transaction,
-  ) async {
+  ) {
+    return AccountOperations.bind(_accountGeneration, () async {
     final accId = transaction.accountId;
     if (accId == null) return;
 
@@ -626,12 +633,14 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         : -transaction.amount;
     final updatedAcc = acc.copyWith(balance: acc.balance - effect);
     await DatabaseService.updateAccount(updatedAcc);
+      });
   }
 
   Future<void> _deleteTransferTransaction(
     Transaction transaction, {
     required bool deleteBothSides,
-  }) async {
+  }) {
+    return AccountOperations.bind(_accountGeneration, () async {
     try {
       final linked = deleteBothSides
           ? _findLinkedTransferTransaction(transaction)
@@ -659,11 +668,13 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         ),
       );
     }
+      });
   }
 
   Future<_TransferClearChoice?> _askTransferClearChoice({
     required bool newCleared,
-  }) async {
+  }) {
+    return AccountOperations.bind(_accountGeneration, () async {
     final actionLabel = newCleared ? 'cleared' : 'uncleared';
 
     return showDialog<_TransferClearChoice>(
@@ -778,6 +789,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         );
       },
     );
+      });
   }
 
   List<Transaction> get _searchResults {

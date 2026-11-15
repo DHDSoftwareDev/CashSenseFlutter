@@ -1,3 +1,4 @@
+import '../services/account_operations.dart';
 import 'package:flutter/foundation.dart';
 
 import '../models/cashsense_user.dart';
@@ -16,7 +17,8 @@ class UserSessionController extends ChangeNotifier {
 
   Future<void> refreshUser({
     required String idToken,
-  }) async {
+  }) {
+    return AccountOperations.run(() async {
     isLoadingUser = true;
     notifyListeners();
 
@@ -26,6 +28,7 @@ class UserSessionController extends ChangeNotifier {
       isLoadingUser = false;
       notifyListeners();
     }
+      });
   }
 
   void clear() {

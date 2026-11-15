@@ -1,5 +1,6 @@
 // ignore_for_file: unused_element, deprecated_member_use, no_leading_underscores_for_local_identifiers, curly_braces_in_flow_control_structures, unused_import
 
+import '../services/account_operations.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../theme/app_theme.dart';
@@ -463,6 +464,7 @@ class _AddCategoryPage extends StatefulWidget {
 
 class _AddCategoryPageState
     extends State<_AddCategoryPage> {
+  final int _accountGeneration = AccountOperations.generation;
   final TextEditingController _nameController =
       TextEditingController();
 
@@ -509,7 +511,8 @@ class _AddCategoryPageState
     Navigator.of(context).pop(category);
   }
 
-  Future<void> _pickColor() async {
+  Future<void> _pickColor() {
+    return AccountOperations.bind(_accountGeneration, () async {
     FocusScope.of(context).unfocus();
 
     final picked = await showAppColorPicker(
@@ -523,6 +526,7 @@ class _AddCategoryPageState
     setState(() {
       _selectedColor = picked;
     });
+      });
   }
 
   @override
@@ -1218,6 +1222,7 @@ class _AddPayeePage extends StatefulWidget {
 }
 
 class _AddPayeePageState extends State<_AddPayeePage> {
+  final int _accountGeneration = AccountOperations.generation;
   final TextEditingController _nameController = TextEditingController();
 
   String? _categoryId;
@@ -1259,7 +1264,8 @@ class _AddPayeePageState extends State<_AddPayeePage> {
     });
   }
 
-  Future<void> _selectCategory() async {
+  Future<void> _selectCategory() {
+    return AccountOperations.bind(_accountGeneration, () async {
     FocusScope.of(context).unfocus();
 
     final expectedType = _isIncome
@@ -1290,6 +1296,7 @@ class _AddPayeePageState extends State<_AddPayeePage> {
     setState(() {
       _categoryId = selected;
     });
+      });
   }
 
   @override
@@ -1533,6 +1540,7 @@ class _AddAccountPage extends StatefulWidget {
 }
 
 class _AddAccountPageState extends State<_AddAccountPage> {
+  final int _accountGeneration = AccountOperations.generation;
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _institutionController = TextEditingController();
   final TextEditingController _accountNumberController = TextEditingController();
@@ -1561,7 +1569,8 @@ class _AddAccountPageState extends State<_AddAccountPage> {
     Navigator.of(context).pop();
   }
 
-  Future<void> _addCustomType() async {
+  Future<void> _addCustomType() {
+    return AccountOperations.bind(_accountGeneration, () async {
     FocusScope.of(context).unfocus();
     final controller = TextEditingController();
 
@@ -1602,6 +1611,7 @@ class _AddAccountPageState extends State<_AddAccountPage> {
     setState(() {
       _customType = value.trim();
     });
+      });
   }
 
   void _save() {
@@ -2113,6 +2123,7 @@ class _CalculatorSheetState extends State<_CalculatorSheet> {
 }
 
 class _AddBillScreenState extends State<AddBillScreen> {
+  final int _accountGeneration = AccountOperations.generation;
   final _formKey = GlobalKey<FormState>();
   final _amountController = TextEditingController();
   final _notesController = TextEditingController();
@@ -2598,7 +2609,8 @@ Widget _buildSectionDivider() {
     );
   }
 
-  Future<void> _selectDueDate() async {
+  Future<void> _selectDueDate() {
+    return AccountOperations.bind(_accountGeneration, () async {
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: _dueDate,
@@ -2637,6 +2649,7 @@ Widget _buildSectionDivider() {
         }
       });
     }
+      });
   }
 
   // _buildRecurrenceSelector removed in favor of _buildRecurrenceField
@@ -3868,7 +3881,8 @@ Widget _buildNotesField() {
     });
   }
 
-  Future<void> _saveBill() async {
+  Future<void> _saveBill() {
+    return AccountOperations.bind(_accountGeneration, () async {
     if (_isSaving) return;
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
@@ -4024,6 +4038,7 @@ Widget _buildNotesField() {
         setState(() => _isSaving = false);
       }
     }
+      });
   }
 
   @override
@@ -4075,6 +4090,7 @@ class _RecurrencePage extends StatefulWidget {
 }
 
 class _RecurrencePageState extends State<_RecurrencePage> {
+  final int _accountGeneration = AccountOperations.generation;
   late Recurrence _recurrence;
   late bool _forever;
   DateTime? _endDate;
@@ -4136,7 +4152,8 @@ class _RecurrencePageState extends State<_RecurrencePage> {
         : '${singular}s';
   }
 
-  Future<void> _chooseEndDate() async {
+  Future<void> _chooseEndDate() {
+    return AccountOperations.bind(_accountGeneration, () async {
     final now = DateTime.now();
 
     final initialDate =
@@ -4159,6 +4176,7 @@ class _RecurrencePageState extends State<_RecurrencePage> {
       _endDate = picked;
       _forever = false;
     });
+      });
   }
 
   @override

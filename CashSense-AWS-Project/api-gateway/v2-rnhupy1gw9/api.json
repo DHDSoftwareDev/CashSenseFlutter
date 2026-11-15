@@ -1,0 +1,16 @@
+{
+  "ApiEndpoint": "https://rnhupy1gw9.execute-api.us-east-1.amazonaws.com",
+  "ApiId": "rnhupy1gw9",
+  "ApiKeySelectionExpression": "$request.header.x-api-key",
+  "CreatedDate": "2026-11-14 03:56:25+00:00",
+  "DisableExecuteApiEndpoint": false,
+  "IpAddressType": "ipv4",
+  "Name": "CashSense-Stg-20261114-0332-1464-BillingAPI",
+  "ProtocolType": "HTTP",
+  "RouteSelectionExpression": "$request.method $request.path",
+  "Tags": {
+    "Project": "CashSense",
+    "Environment": "staging",
+    "DeploymentId": "c0817c0e-c71e-4e7c-af28-2cc39abee288"
+  }
+}

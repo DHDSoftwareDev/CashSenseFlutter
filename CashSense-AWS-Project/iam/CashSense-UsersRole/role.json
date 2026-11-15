@@ -1,0 +1,26 @@
+{
+  "Role": {
+    "Path": "/",
+    "RoleName": "CashSense-UsersRole",
+    "RoleId": "AROA3L53OTZLRKAPMUJVT",
+    "Arn": "arn:aws:iam::781540302423:role/CashSense-UsersRole",
+    "CreateDate": "2026-06-17 02:11:05+00:00",
+    "AssumeRolePolicyDocument": {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Principal": {
+            "Service": "lambda.amazonaws.com"
+          },
+          "Action": "sts:AssumeRole"
+        }
+      ]
+    },
+    "MaxSessionDuration": 3600,
+    "RoleLastUsed": {
+      "LastUsedDate": "2026-11-14 04:40:40+00:00",
+      "Region": "us-east-1"
+    }
+  }
+}

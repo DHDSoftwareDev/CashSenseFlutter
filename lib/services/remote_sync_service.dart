@@ -1,3 +1,4 @@
+import 'account_operations.dart';
 import 'dart:convert';
 import 'dart:io';
 
@@ -12,15 +13,16 @@ import 'aws_api_service.dart';
 import 'cognito_service.dart';
 import 'database_service.dart';
 import 'amplify_service.dart';
+import 'backup_access_service.dart';
+import 'backup_payload_policy.dart';
 import 'cloud_restore_policy.dart';
-import 'cloud_sync_policy.dart';
 import 'user_api_service.dart';
-import 'user_auth_service.dart';
 
 class RemoteSyncService {
   static bool _isSyncing = false;
 
-  static Future<void> syncUserDataOnLogin() async {
+  static Future<void> syncUserDataOnLogin() {
+    return AccountOperations.run(() async {
     if (_isSyncing) return;
     if (!AwsApiService.isConfigured) return;
 
@@ -44,9 +46,11 @@ class RemoteSyncService {
     } finally {
       _isSyncing = false;
     }
+      });
   }
 
-  static Future<void> _refreshSubscriptionFromApiUser() async {
+  static Future<void> _refreshSubscriptionFromApiUser() {
+    return AccountOperations.run(() async {
     try {
       final localMode = DatabaseService.getSubscriptionModeOverride();
       if (localMode != null) {
@@ -70,17 +74,14 @@ class RemoteSyncService {
     } catch (e) {
       debugPrint('Failed to refresh subscription from /users/me: $e');
     }
+      });
   }
 
   static Future<bool> restoreLatestCloudBackup({
     required bool forceOverwrite,
-  }) async {
-    final plan = DatabaseService.subscriptionVersion.value;
-
-    if (!CloudSyncPolicy.isPremiumPlan(plan)) {
-      debugPrint('Cloud restore skipped: premium subscription required');
-      return false;
-    }
+  }) {
+    return AccountOperations.run(() async {
+    final owner = await BackupAccessService.requireCloudAccess();
 
     if (!forceOverwrite && !_isLocalSnapshotEmpty()) {
       debugPrint('Skipping cloud restore; local data already exists on device');
@@ -95,6 +96,38 @@ class RemoteSyncService {
       return false;
     }
 
+    await BackupAccessService.requireSameAccount(owner);
+    return _applySnapshot(cloudSnapshot);
+      });
+  }
+
+  static Future<bool> restoreFromJson(String raw) {
+    return AccountOperations.run(() async {
+    final snapshot = _parseBackup(raw);
+    return _applySnapshot(snapshot);
+      });
+  }
+
+  static bool _restoreInProgress = false;
+
+  static Future<bool> _applySnapshot(_CloudBackupSnapshot cloudSnapshot) {
+    return AccountOperations.run(() async {
+    if (_restoreInProgress) {
+      throw StateError('Another restore is already running.');
+    }
+    _restoreInProgress = true;
+    try {
+      return await _applySnapshotWithRecovery(cloudSnapshot);
+    } finally {
+      _restoreInProgress = false;
+    }
+      });
+  }
+
+  static Future<bool> _applySnapshotWithRecovery(
+    _CloudBackupSnapshot cloudSnapshot,
+  ) {
+    return AccountOperations.run(() async {
     // Block a new restore if an unresolved recovery file exists.
     // Also verify that current local data can be safely captured.
     try {
@@ -102,12 +135,8 @@ class RemoteSyncService {
     } catch (e, stackTrace) {
       debugPrint('Cloud restore blocked by recovery safety check: $e');
       debugPrintStack(stackTrace: stackTrace);
-      return false;
+      rethrow;
     }
-
-    // Capture the original local data in memory.
-    // This supports immediate rollback if a restore fails.
-    final localSnapshot = DatabaseService.captureLocalRestoreSnapshot();
 
     // Save the original local data to persistent storage
     // before any financial Hive records are replaced.
@@ -119,7 +148,7 @@ class RemoteSyncService {
         'file could not be created: $e',
       );
       debugPrintStack(stackTrace: stackTrace);
-      return false;
+      rethrow;
     }
 
     // At this point, the original data has been saved
@@ -156,20 +185,20 @@ class RemoteSyncService {
 
       // Recover the original local financial data.
       try {
-        await DatabaseService.restoreLocalRestoreSnapshot(localSnapshot);
+        await DatabaseService.recoverOriginalLocalDataFromRecoveryFile();
+        await DatabaseService.finalizeLocalRestoreRecovery(restoreVerified: true);
 
         debugPrint('Original local data recovered successfully.');
 
-        // The original data has been restored.
-        // Do not delete the persistent recovery file here.
-        // A later recovery step will safely resolve it.
+        // Recovery was verified before removing its durable snapshot.
       } catch (rollbackError, rollbackStackTrace) {
         debugPrint('CRITICAL: Local data recovery failed: $rollbackError');
         debugPrintStack(stackTrace: rollbackStackTrace);
       }
 
-      return false;
+      rethrow;
     }
+      });
   }
 
   static bool _isLocalSnapshotEmpty() {
@@ -202,12 +231,14 @@ class RemoteSyncService {
     return 'Lifetime';
   }
 
-  static Future<_CloudBackupSnapshot?> _fetchCloudBackupSnapshot() async {
+  static Future<_CloudBackupSnapshot?> _fetchCloudBackupSnapshot() {
+    return AccountOperations.run(() async {
+    File? downloadedFile;
     try {
       final signedIn = await CognitoService.isSignedIn();
       if (!signedIn) return null;
 
-      final userId = await UserAuthService.getCurrentUserId();
+      final userId = await BackupAccessService.requireCloudAccess();
       if (userId.isEmpty) return null;
 
       final key = 'backups/$userId/auto/latest.json';
@@ -222,16 +253,34 @@ class RemoteSyncService {
       if (!downloaded) return null;
 
       final file = File(tmpPath);
+      downloadedFile = file;
       if (!await file.exists()) return null;
 
       final raw = await file.readAsString();
       if (raw.trim().isEmpty) return null;
 
+      return _parseBackup(raw);
+    } catch (e) {
+      debugPrint('Cloud backup download or validation failed: $e');
+      rethrow;
+    } finally {
+      if (downloadedFile != null) {
+        try {
+          if (await downloadedFile.exists()) await downloadedFile.delete();
+        } catch (_) {}
+      }
+    }
+      });
+  }
+
+  static _CloudBackupSnapshot _parseBackup(String raw) {
       final decoded = jsonDecode(raw);
 
       if (decoded is! Map<String, dynamic>) {
         throw const FormatException('Cloud backup is not a valid JSON object.');
       }
+
+      BackupPayloadPolicy.validate(decoded);
 
       const requiredSections = [
         'accounts',
@@ -274,7 +323,7 @@ class RemoteSyncService {
 
       final backupSettings = settingsRaw == null
           ? <String, dynamic>{}
-          : Map<String, dynamic>.from(settingsRaw);
+          : BackupPayloadPolicy.financialSettings(Map<String, dynamic>.from(settingsRaw));
 
       final paymentsRaw = decoded['payments_history'];
       final payments = paymentsRaw is List
@@ -284,13 +333,12 @@ class RemoteSyncService {
       final statusRaw =
           decoded['bill_occurrence_status'] ??
           (paymentsRaw is Map<String, dynamic> ? paymentsRaw : null);
+      if (statusRaw != null && statusRaw is! Map<String, dynamic>) {
+        throw const FormatException('Invalid bill occurrence status section.');
+      }
       final billOccurrenceStatuses = statusRaw is Map<String, dynamic>
           ? statusRaw
           : <String, dynamic>{};
-
-      try {
-        await file.delete();
-      } catch (_) {}
 
       return _CloudBackupSnapshot(
         accounts: accounts,
@@ -303,10 +351,6 @@ class RemoteSyncService {
         billOccurrenceStatuses: billOccurrenceStatuses,
         settings: backupSettings,
       );
-    } catch (e) {
-      debugPrint('Cloud backup restore on login failed: $e');
-      return null;
-    }
   }
 
   static List<T> _parseModelList<T>(

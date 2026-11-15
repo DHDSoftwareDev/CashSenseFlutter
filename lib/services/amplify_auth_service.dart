@@ -1,4 +1,5 @@
 import 'package:amplify_flutter/amplify_flutter.dart';
+import 'cognito_service.dart';
 import 'package:amplify_auth_cognito/amplify_auth_cognito.dart';
 import 'package:amplify_api/amplify_api.dart';
 import '../amplifyconfiguration.dart';
@@ -60,8 +61,8 @@ Future<void> confirmSignUp(String email, String code) async {
 // Sign in
 Future<void> signIn(String email, String password) async {
   try {
-    final result = await Amplify.Auth.signIn(
-      username: email,
+    final result = await CognitoService.signIn(
+      email: email,
       password: password,
     );
 
@@ -78,7 +79,7 @@ Future<void> signIn(String email, String password) async {
 // Sign out
 Future<void> signOut() async {
   try {
-    await Amplify.Auth.signOut();
+    await CognitoService.signOut();
     safePrint('Signed out!');
   } catch (e) {
     safePrint('Sign out error: $e');

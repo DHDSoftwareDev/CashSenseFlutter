@@ -1,0 +1,44 @@
+{
+  "FunctionName": "CashSense-PushSender",
+  "FunctionArn": "arn:aws:lambda:us-east-1:781540302423:function:CashSense-PushSender",
+  "Runtime": "nodejs24.x",
+  "Role": "arn:aws:iam::781540302423:role/CashSense-PushSenderRole",
+  "Handler": "index.handler",
+  "CodeSize": 2957,
+  "Description": "",
+  "Timeout": 3,
+  "MemorySize": 128,
+  "LastModified": "2026-06-25T23:21:55.000+0000",
+  "CodeSha256": "qwZgPqla+LDmysszFfGt6bamAmapKkvsBTkd54/aO7k=",
+  "Version": "$LATEST",
+  "Environment": {
+    "Variables": {
+      "IOS_BUNDLE_ID": "[REDACTED]",
+      "DEVICE_REGISTRY_TABLE": "[REDACTED]"
+    }
+  },
+  "TracingConfig": {
+    "Mode": "PassThrough"
+  },
+  "RevisionId": "1643eef9-f9a3-4656-9dc3-d2ec8cda4279",
+  "State": "Active",
+  "LastUpdateStatus": "Successful",
+  "PackageType": "Zip",
+  "Architectures": [
+    "x86_64"
+  ],
+  "EphemeralStorage": {
+    "Size": 512
+  },
+  "SnapStart": {
+    "ApplyOn": "None",
+    "OptimizationStatus": "Off"
+  },
+  "RuntimeVersionConfig": {
+    "RuntimeVersionArn": "arn:aws:lambda:us-east-1::runtime:0b838743e273014328936dd3fbc15f7c9978d711cf9655fab1181c5343336a35"
+  },
+  "LoggingConfig": {
+    "LogFormat": "Text",
+    "LogGroup": "/aws/lambda/CashSense-PushSender"
+  }
+}

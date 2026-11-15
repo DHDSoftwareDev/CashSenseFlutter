@@ -1,6 +1,7 @@
 // ignore_for_file: unnecessary_non_null_assertion, duplicate_ignore, unused_field, unused_element, annotate_overrides, valid_regexps, unnecessary_brace_in_string_interps
 // ignore_for_file: no_leading_underscores_for_local_identifiers, use_build_context_synchronously
 
+import '../services/account_operations.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:intl/intl.dart';
@@ -101,6 +102,7 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
+  final int _accountGeneration = AccountOperations.generation;
   static const String _showPaidBillsSettingKey = 'dashboardShowPaidBills';
 
   // Duplicate helper removed — use the top-level _buildCategoryIconOrEmoji defined earlier.
@@ -513,7 +515,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Future<void> _syncOccurrenceStatusesInBackground() async {
+  Future<void> _syncOccurrenceStatusesInBackground() {
+    return AccountOperations.bind(_accountGeneration, () async {
     if (!mounted ||
         _occurrenceStatusSyncInFlight ||
         _suppressOccurrenceStatusSync) {
@@ -597,6 +600,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _suppressOccurrenceStatusSync = false;
       _occurrenceStatusSyncInFlight = false;
     }
+      });
   }
 
   String _occurrenceStatusKey(String billId, DateTime occDate) {
@@ -1267,10 +1271,12 @@ Widget _buildCalendarDay({
     ),
   );
 }
-  Future<void> _refreshData() async {
+  Future<void> _refreshData() {
+    return AccountOperations.bind(_accountGeneration, () async {
     _refreshCachedData();
     _scheduleOccurrenceStatusBackgroundSync();
     setState(() {});
+      });
   }
 
   void _refreshAfterBillEdit({DateTime? selectedDate}) {
@@ -2391,9 +2397,10 @@ Widget _buildFilterChips() {
     );
   }
 
-  Future<void> _handleEdit(Transaction transaction, Bill? sourceBill) async {
-    final Bill? effectiveSourceBill =
-        sourceBill ??
+  Future<void> _handleEdit(Transaction transaction, Bill? suppliedSourceBill) {
+    return AccountOperations.bind(_accountGeneration, () async {
+    final Bill? sourceBill =
+        suppliedSourceBill ??
         (() {
           final billId = transaction.billId;
           if (billId == null || billId.isEmpty) return null;
@@ -2406,7 +2413,6 @@ Widget _buildFilterChips() {
           }
         })();
 
-    sourceBill = effectiveSourceBill;
 
     if (sourceBill != null && sourceBill.recurrence != Recurrence.none) {
       // If this is a recurring bill, ask whether to edit only this occurrence or all future occurrences
@@ -2877,6 +2883,7 @@ Widget _buildFilterChips() {
         ),
       );
     }
+      });
   }
 
   bool _isSameDay(DateTime a, DateTime b) {
@@ -2930,7 +2937,8 @@ Widget _buildFilterChips() {
     required DateTime fromOccurrenceDate,
     required DateTime toOccurrenceDate,
     bool includeFutureOccurrences = false,
-  }) async {
+  }) {
+    return AccountOperations.bind(_accountGeneration, () async {
     final sourceId = fromBillId.trim();
     final targetId = toBillId.trim();
     if (sourceId.isEmpty || targetId.isEmpty) return <Transaction>[];
@@ -2982,9 +2990,11 @@ Widget _buildFilterChips() {
     }
 
     return relinked;
+      });
   }
 
-  Future<void> _removeDuplicateBillPaymentsForBill(String billId) async {
+  Future<void> _removeDuplicateBillPaymentsForBill(String billId) {
+    return AccountOperations.bind(_accountGeneration, () async {
     final id = billId.trim();
     if (id.isEmpty) return;
 
@@ -3016,11 +3026,13 @@ Widget _buildFilterChips() {
         await _deletePaymentTransactionAndReverseBalance(duplicate);
       }
     }
+      });
   }
 
   Future<void> _deletePaymentTransactionAndReverseBalance(
     Transaction tx,
-  ) async {
+  ) {
+    return AccountOperations.bind(_accountGeneration, () async {
     try {
       final accId = tx.accountId;
       if (accId != null) {
@@ -3040,12 +3052,14 @@ Widget _buildFilterChips() {
     } catch (_) {}
 
     await DatabaseService.deleteTransaction(tx.id);
+      });
   }
 
   Future<void> _deleteBillPaymentsWhere(
     Bill bill,
     bool Function(Transaction tx) shouldDelete,
-  ) async {
+  ) {
+    return AccountOperations.bind(_accountGeneration, () async {
     final payments = DatabaseService.getAllTransactions()
         .where((tx) => (tx.billId ?? '').trim() == bill.id && shouldDelete(tx))
         .toList();
@@ -3057,6 +3071,7 @@ Widget _buildFilterChips() {
     if (!mounted) return;
     _refreshCachedData();
     setState(() {});
+      });
   }
 
   bool _isWithinOriginalSeriesEnd(Bill bill, DateTime occurrenceDate) {
@@ -3079,7 +3094,8 @@ Widget _buildFilterChips() {
   Future<void> _deleteSingleRecurringOccurrence(
     Bill sourceBill,
     DateTime occurrenceDate,
-  ) async {
+  ) {
+    return AccountOperations.bind(_accountGeneration, () async {
     final DateTime occ = _dateOnly(occurrenceDate);
     final DateTime start = _dateOnly(sourceBill.dueDate);
     final DateTime dayBefore = _addCalendarDays(occ, -1);
@@ -3150,12 +3166,14 @@ Widget _buildFilterChips() {
       );
       await DatabaseService.addBill(newBill);
     }
+      });
   }
 
   Future<bool> _deleteBillFromDashboard(
     Bill sourceBill,
     DateTime occurrenceDate,
-  ) async {
+  ) {
+    return AccountOperations.bind(_accountGeneration, () async {
     if (!_hasFutureOccurrences(sourceBill, occurrenceDate)) {
       await _deleteBillOccurrencePayments(
         sourceBill,
@@ -3296,13 +3314,15 @@ Widget _buildFilterChips() {
     }
 
     return false;
+      });
   }
 
   Future<void> _deleteBillOccurrencePayments(
     Bill bill,
     DateTime occurrenceDate, {
     bool showNoPaymentsMessage = true,
-  }) async {
+  }) {
+    return AccountOperations.bind(_accountGeneration, () async {
     final relatedPayments = _getTransactionsForBillOccurrence(
       bill,
       occurrenceDate,
@@ -3328,9 +3348,11 @@ Widget _buildFilterChips() {
     if (!mounted) return;
     _refreshCachedData();
     setState(() {});
+      });
   }
 
-  Future<void> _handleDelete(Transaction transaction, Bill? sourceBill) async {
+  Future<void> _handleDelete(Transaction transaction, Bill? sourceBill) {
+    return AccountOperations.bind(_accountGeneration, () async {
     if (sourceBill != null) {
       final occurrenceDate = _transactionOccurrenceDate(transaction);
       final relatedPayments = _getTransactionsForBillOccurrence(
@@ -3506,9 +3528,11 @@ Widget _buildFilterChips() {
         }
       }
     }
+      });
   }
 
-  Future<void> _handlePay(Transaction transaction, Bill? sourceBill) async {
+  Future<void> _handlePay(Transaction transaction, Bill? sourceBill) {
+    return AccountOperations.bind(_accountGeneration, () async {
     if (sourceBill != null) {
       final occurrenceDate = _transactionOccurrenceDate(transaction);
       // Open pay bill screen
@@ -3534,12 +3558,14 @@ Widget _buildFilterChips() {
         ),
       );
     }
+      });
   }
 
   Future<void> _handleDuplicate(
     Transaction transaction,
     Bill? sourceBill,
-  ) async {
+  ) {
+    return AccountOperations.bind(_accountGeneration, () async {
     if (sourceBill != null) {
       // Open add bill screen with pre-filled information from the source bill
       // Create a template bill with the same properties but use occurrence date as due date
@@ -3591,6 +3617,7 @@ Widget _buildFilterChips() {
         });
       }
     }
+      });
   }
 
   Widget _buildCategoryIconOrEmoji(Category? category) {

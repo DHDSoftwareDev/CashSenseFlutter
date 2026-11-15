@@ -1,0 +1,44 @@
+{
+  "metadata": {
+    "Policy": {
+      "PolicyName": "AWSLambdaBasicExecutionRole-786a689b-2372-4f5c-9e6b-50342cf89418",
+      "PolicyId": "ANPA3L53OTZLZLKSV5MTI",
+      "Arn": "arn:aws:iam::781540302423:policy/service-role/AWSLambdaBasicExecutionRole-786a689b-2372-4f5c-9e6b-50342cf89418",
+      "Path": "/service-role/",
+      "DefaultVersionId": "v1",
+      "AttachmentCount": 1,
+      "PermissionsBoundaryUsageCount": 0,
+      "IsAttachable": true,
+      "CreateDate": "2026-11-13 02:54:03+00:00",
+      "UpdateDate": "2026-11-13 02:54:03+00:00",
+      "Tags": []
+    }
+  },
+  "version": {
+    "PolicyVersion": {
+      "Document": {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Effect": "Allow",
+            "Action": "logs:CreateLogGroup",
+            "Resource": "arn:aws:logs:us-east-1:781540302423:*"
+          },
+          {
+            "Effect": "Allow",
+            "Action": [
+              "logs:CreateLogStream",
+              "logs:PutLogEvents"
+            ],
+            "Resource": [
+              "arn:aws:logs:us-east-1:781540302423:log-group:/aws/lambda/CashSense-AppleNotifications:*"
+            ]
+          }
+        ]
+      },
+      "VersionId": "v1",
+      "IsDefaultVersion": true,
+      "CreateDate": "2026-11-13 02:54:03+00:00"
+    }
+  }
+}

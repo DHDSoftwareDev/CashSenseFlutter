@@ -1,0 +1,42 @@
+{
+  "RoleName": "CashSense-Stg-20261114-0332-1464-LambdaRole",
+  "PolicyName": "StagingOnly",
+  "PolicyDocument": {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Effect": "Allow",
+        "Action": [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:ConditionCheckItem",
+          "dynamodb:Scan"
+        ],
+        "Resource": [
+          "arn:aws:dynamodb:us-east-1:781540302423:table/CashSense-Stg-20261114-0332-1464-Users",
+          "arn:aws:dynamodb:us-east-1:781540302423:table/CashSense-Stg-20261114-0332-1464-Claims",
+          "arn:aws:dynamodb:us-east-1:781540302423:table/CashSense-Stg-20261114-0332-1464-AppleEvents"
+        ]
+      },
+      {
+        "Effect": "Allow",
+        "Action": [
+          "secretsmanager:GetSecretValue"
+        ],
+        "Resource": [
+          "arn:aws:secretsmanager:us-east-1:781540302423:secret:CashSense/AppleAppStoreServerAPI-V8Htjj",
+          "arn:aws:secretsmanager:us-east-1:781540302423:secret:CashSense/GooglePlayServiceAccount-ifMpy8"
+        ]
+      },
+      {
+        "Effect": "Allow",
+        "Action": [
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ],
+        "Resource": "arn:aws:logs:us-east-1:781540302423:log-group:/aws/lambda/CashSense-Stg-20261114-0332-1464-*:*"
+      }
+    ]
+  }
+}

@@ -1,0 +1,4 @@
+{
+  "Policy": "{\"Version\":\"2012-10-17\",\"Id\":\"default\",\"Statement\":[{\"Sid\":\"543a6b63-a953-5260-baf7-fb0e967bdd28\",\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"apigateway.amazonaws.com\"},\"Action\":\"lambda:InvokeFunction\",\"Resource\":\"arn:aws:lambda:us-east-1:781540302423:function:CashSense-EntitlementsRefresh\",\"Condition\":{\"ArnLike\":{\"AWS:SourceArn\":\"arn:aws:execute-api:us-east-1:781540302423:0ic4wr3xsc/*/*/entitlements/refresh\"}}}]}",
+  "RevisionId": "db302296-7b80-4780-9ee4-98fd9353c4dc"
+}

@@ -1,5 +1,6 @@
 // ignore_for_file: avoid_print, unused_field, prefer_final_fields
 
+import '../services/account_operations.dart';
 import '../widgets/banner_ad_widget.dart';
 // ignore_for_file: use_build_context_synchronously
 
@@ -29,6 +30,7 @@ class AccountsScreen extends StatefulWidget {
 }
 
 class _AccountsScreenState extends State<AccountsScreen> {
+  final int _accountGeneration = AccountOperations.generation;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
@@ -188,11 +190,14 @@ class _AccountsScreenState extends State<AccountsScreen> {
     );
   }
 
-  Future<void> _openAccountTransactions(Account acc) async {
+  Future<void> _openAccountTransactions(Account acc) {
+    return AccountOperations.bind(_accountGeneration, () async {
     navigateToRootPage(1, accountId: acc.id);
+      });
   }
 
-  Future<void> _archiveAccount(Account acc) async {
+  Future<void> _archiveAccount(Account acc) {
+    return AccountOperations.bind(_accountGeneration, () async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
@@ -273,9 +278,11 @@ class _AccountsScreenState extends State<AccountsScreen> {
     if (!mounted) return;
     setState(() {});
     ScaffoldMessenger.of(context).clearSnackBars();
+      });
   }
 
-  Future<void> _deleteAccount(Account acc) async {
+  Future<void> _deleteAccount(Account acc) {
+    return AccountOperations.bind(_accountGeneration, () async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
@@ -355,18 +362,22 @@ class _AccountsScreenState extends State<AccountsScreen> {
     if (!mounted) return;
     setState(() {});
     ScaffoldMessenger.of(context).clearSnackBars();
+      });
   }
 
-  Future<void> _editAccount(Account acc) async {
+  Future<void> _editAccount(Account acc) {
+    return AccountOperations.bind(_accountGeneration, () async {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => AddAccountScreen(account: acc)),
     );
     if (!mounted) return;
     if (result == true) setState(() {});
+      });
   }
 
-  Future<void> _toggleAccountBalanceHidden(Account acc) async {
+  Future<void> _toggleAccountBalanceHidden(Account acc) {
+    return AccountOperations.bind(_accountGeneration, () async {
     setState(() {
       if (_hiddenBalances.contains(acc.id)) {
         _hiddenBalances.remove(acc.id);
@@ -380,6 +391,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
         _hiddenBalances.toList(),
       );
     } catch (_) {}
+      });
   }
 
   @override

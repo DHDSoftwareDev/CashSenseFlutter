@@ -1,3 +1,4 @@
+import 'account_operations.dart';
 import 'dart:async';
 import 'dart:io';
 
@@ -14,6 +15,11 @@ import 'user_auth_service.dart';
 
 class PushTokenService {
   static StreamSubscription<String>? _tokenRefreshSub;
+  static Future<void> pauseForAccountChange() async {
+    await _tokenRefreshSub?.cancel();
+    _tokenRefreshSub = null;
+  }
+
   static const Duration _registrationThrottle = Duration(hours: 12);
 
   /// Optional native APNS token bridge (if you implemented it).
@@ -25,37 +31,44 @@ class PushTokenService {
   // Token capture
   // ----------------------------
 
-  static Future<String?> _getApnsTokenFromNative() async {
+  static Future<String?> _getApnsTokenFromNative() {
+    return AccountOperations.run(() async {
     if (!Platform.isIOS) return null;
     try {
       final token = await _apnsChannel.invokeMethod<String>('getAPNSToken');
       if (token != null && token.isNotEmpty) return token;
     } catch (_) {}
     return null;
+      });
   }
 
-  static Future<String?> _getApnsToken() async {
+  static Future<String?> _getApnsToken() {
+    return AccountOperations.run(() async {
     if (!Platform.isIOS) return null;
     try {
       return await FirebaseMessaging.instance.getAPNSToken();
     } catch (_) {
       return null;
     }
+      });
   }
 
-  static Future<String?> _getFcmToken() async {
+  static Future<String?> _getFcmToken() {
+    return AccountOperations.run(() async {
     try {
       return await FirebaseMessaging.instance.getToken();
     } catch (_) {
       return null;
     }
+      });
   }
 
   /// Returns the token we should send to the backend.
   /// IMPORTANT:
   /// - iOS + AWS SNS (APNS) requires the APNS token (not FCM).
   /// - Android can use FCM token if your backend is built for FCM.
-  static Future<String?> captureDeviceToken() async {
+  static Future<String?> captureDeviceToken() {
+    return AccountOperations.run(() async {
     if (kIsWeb) return null;
 
     await FirebaseMessaging.instance.requestPermission(
@@ -84,6 +97,7 @@ class PushTokenService {
     }
 
     return token;
+      });
   }
 
   // ----------------------------
@@ -93,12 +107,14 @@ class PushTokenService {
   static void initTokenRefreshListener() {
     if (kIsWeb) return;
 
-    _tokenRefreshSub ??= FirebaseMessaging.instance.onTokenRefresh.listen((
+    _tokenRefreshSub ??= AccountOperations.outsideLease(() => FirebaseMessaging.instance.onTokenRefresh.listen((
       _,
     ) async {
       debugPrint('Push token refresh event received');
-      await _handleTokenRefresh();
-    });
+      try { await _handleTokenRefresh(); } catch (e) {
+        debugPrint('Token refresh deferred during account change: $e');
+      }
+    }));
   }
 
   /// Call this right after a successful login (and whenever user re-auths).
@@ -106,7 +122,8 @@ class PushTokenService {
   /// - if token changed
   /// - OR if we haven't registered recently (throttle window)
   /// - OR if you explicitly force it (see forceRegisterNow)
-  static Future<void> registerDeviceOnLogin() async {
+  static Future<void> registerDeviceOnLogin() {
+    return AccountOperations.run(() async {
     final token = await captureDeviceToken();
     if (token == null || token.isEmpty) return;
 
@@ -122,10 +139,12 @@ class PushTokenService {
     // Save registration markers
     await UserAuthService.saveLastRegisteredToken(token);
     await UserAuthService.saveLastDeviceRegisterAt(DateTime.now());
+      });
   }
 
   /// Hook your “Sync push notifications” button to this.
-  static Future<void> forceRegisterNow() async {
+  static Future<void> forceRegisterNow() {
+    return AccountOperations.run(() async {
     final token = await captureDeviceToken();
     if (token == null || token.isEmpty) {
       return;
@@ -137,10 +156,12 @@ class PushTokenService {
     // Update markers even for manual force
     await UserAuthService.saveLastRegisteredToken(token);
     await UserAuthService.saveLastDeviceRegisterAt(DateTime.now());
+      });
   }
 
   /// Reset the server-side APNs badge counter when the user opens the app.
-  static Future<void> resetBadgeCount() async {
+  static Future<void> resetBadgeCount() {
+    return AccountOperations.run(() async {
     if (kIsWeb) return;
 
     final token = await UserAuthService.getDeviceToken();
@@ -153,9 +174,11 @@ class PushTokenService {
     } catch (e) {
       debugPrint('Failed to reset push badge count: $e');
     }
+      });
   }
 
-  static Future<void> _handleTokenRefresh() async {
+  static Future<void> _handleTokenRefresh() {
+    return AccountOperations.run(() async {
     final token = await captureDeviceToken();
     if (token == null || token.isEmpty) return;
 
@@ -170,6 +193,7 @@ class PushTokenService {
 
     await UserAuthService.saveLastRegisteredToken(token);
     await UserAuthService.saveLastDeviceRegisterAt(DateTime.now());
+      });
   }
 
   // ----------------------------
@@ -179,7 +203,8 @@ class PushTokenService {
   static Future<void> _registerDevice(
     String token, {
     required String reason,
-  }) async {
+  }) {
+    return AccountOperations.run(() async {
     bool isSignedIn = false;
     try {
       isSignedIn = await CognitoService.isSignedIn();
@@ -239,6 +264,7 @@ class PushTokenService {
       appVersion: appVersion,
       osVersion: osVersion,
     );
+      });
   }
 
   static String _platformString() {
@@ -248,7 +274,8 @@ class PushTokenService {
     return 'unknown';
   }
 
-  static Future<bool> _shouldSkipRegistration(String token) async {
+  static Future<bool> _shouldSkipRegistration(String token) {
+    return AccountOperations.run(() async {
     final lastRegisteredToken = await UserAuthService.getLastRegisteredToken();
     if (lastRegisteredToken != token) return false;
 
@@ -256,9 +283,11 @@ class PushTokenService {
     if (lastRegisteredAt == null) return false;
 
     return DateTime.now().difference(lastRegisteredAt) < _registrationThrottle;
+      });
   }
 
-  static Future<void> _ensureLocalUserContext() async {
+  static Future<void> _ensureLocalUserContext() {
+    return AccountOperations.run(() async {
     try {
       final currentUserId = await UserAuthService.getCurrentUserId();
       if (currentUserId.isEmpty) {
@@ -267,5 +296,6 @@ class PushTokenService {
     } catch (_) {
       // Continue; backend should still authorize via JWT.
     }
+      });
   }
 }

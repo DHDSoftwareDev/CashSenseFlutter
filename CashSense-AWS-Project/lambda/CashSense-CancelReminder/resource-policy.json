@@ -1,0 +1,4 @@
+{
+  "Policy": "{\"Version\":\"2012-10-17\",\"Id\":\"default\",\"Statement\":[{\"Sid\":\"719cb636-19bd-5d43-9069-6911b99a58cc\",\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"apigateway.amazonaws.com\"},\"Action\":\"lambda:InvokeFunction\",\"Resource\":\"arn:aws:lambda:us-east-1:781540302423:function:CashSense-CancelReminder\",\"Condition\":{\"ArnLike\":{\"AWS:SourceArn\":\"arn:aws:execute-api:us-east-1:781540302423:0ic4wr3xsc/*/*/cancel-reminder\"}}}]}",
+  "RevisionId": "3536608f-6788-4878-8dd9-f6a6e6b1d0fb"
+}

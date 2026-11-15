@@ -1,0 +1,97 @@
+{
+  "CashSense-Billing": {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Effect": "Allow",
+        "Action": [
+          "dynamodb:GetItem",
+          "dynamodb:UpdateItem"
+        ],
+        "Resource": "arn:aws:dynamodb:us-east-1:781540302423:table/CashSense-Users"
+      },
+      {
+        "Effect": "Allow",
+        "Action": [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:Scan"
+        ],
+        "Resource": "arn:aws:dynamodb:us-east-1:781540302423:table/CashSense-PurchaseClaims"
+      },
+      {
+        "Effect": "Allow",
+        "Action": "secretsmanager:GetSecretValue",
+        "Resource": [
+          "arn:aws:secretsmanager:us-east-1:781540302423:secret:CashSense/AppleAppStoreServerAPI-*",
+          "arn:aws:secretsmanager:us-east-1:781540302423:secret:CashSense/GooglePlayServiceAccount-*"
+        ]
+      }
+    ]
+  },
+  "CashSense-AppleNotifications": {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Effect": "Allow",
+        "Action": [
+          "dynamodb:GetItem",
+          "dynamodb:UpdateItem"
+        ],
+        "Resource": "arn:aws:dynamodb:us-east-1:781540302423:table/CashSense-Users"
+      },
+      {
+        "Effect": "Allow",
+        "Action": [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem"
+        ],
+        "Resource": "arn:aws:dynamodb:us-east-1:781540302423:table/CashSense-PurchaseClaims"
+      },
+      {
+        "Effect": "Allow",
+        "Action": [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem"
+        ],
+        "Resource": "arn:aws:dynamodb:us-east-1:781540302423:table/CashSense-AppleNotificationEvents"
+      },
+      {
+        "Effect": "Allow",
+        "Action": "secretsmanager:GetSecretValue",
+        "Resource": [
+          "arn:aws:secretsmanager:us-east-1:781540302423:secret:CashSense/AppleAppStoreServerAPI-*"
+        ]
+      }
+    ]
+  },
+  "CashSense-GoogleNotifications": {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Effect": "Allow",
+        "Action": [
+          "dynamodb:GetItem",
+          "dynamodb:UpdateItem"
+        ],
+        "Resource": "arn:aws:dynamodb:us-east-1:781540302423:table/CashSense-Users"
+      },
+      {
+        "Effect": "Allow",
+        "Action": [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem"
+        ],
+        "Resource": "arn:aws:dynamodb:us-east-1:781540302423:table/CashSense-PurchaseClaims"
+      },
+      {
+        "Effect": "Allow",
+        "Action": "secretsmanager:GetSecretValue",
+        "Resource": [
+          "arn:aws:secretsmanager:us-east-1:781540302423:secret:CashSense/GooglePlayServiceAccount-*"
+        ]
+      }
+    ]
+  }
+}

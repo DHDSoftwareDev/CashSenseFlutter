@@ -1,5 +1,6 @@
 // ignore_for_file: deprecated_member_use, use_build_context_synchronously, unused_import
 
+import '../services/account_operations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import '../services/database_service.dart';
@@ -37,6 +38,7 @@ class PayeesScreen extends StatefulWidget {
 }
 
 class _PayeesScreenState extends State<PayeesScreen> {
+  final int _accountGeneration = AccountOperations.generation;
   // true = show payees, false = show payers
   bool _showPayee = true;
   String _searchQuery = '';
@@ -66,7 +68,8 @@ class _PayeesScreenState extends State<PayeesScreen> {
     BuildContext parentContext,
     bool isPayeeChoice,
     String? currentSelected,
-  ) async {
+  ) {
+    return AccountOperations.bind(_accountGeneration, () async {
     final selected = await showModalBottomSheet<String?>(
       context: parentContext,
       isScrollControlled: true,
@@ -138,6 +141,7 @@ class _PayeesScreenState extends State<PayeesScreen> {
       ),
     );
     return selected;
+      });
   }
 
   void _loadPayees() {
@@ -513,7 +517,8 @@ class _PayeesScreenState extends State<PayeesScreen> {
     );
   }
 
-  Future<void> _showEditPayeeDialog(Map<String, dynamic> payee) async {
+  Future<void> _showEditPayeeDialog(Map<String, dynamic> payee) {
+    return AccountOperations.bind(_accountGeneration, () async {
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => _EditPayeeFormPage(
@@ -523,6 +528,7 @@ class _PayeesScreenState extends State<PayeesScreen> {
         ),
       ),
     );
+      });
   }
 
 }
@@ -538,6 +544,7 @@ class _PayeeAddCategoryPage extends StatefulWidget {
 }
 
 class _PayeeAddCategoryPageState extends State<_PayeeAddCategoryPage> {
+  final int _accountGeneration = AccountOperations.generation;
   final TextEditingController _nameController = TextEditingController();
   Color _selectedColor = const Color(0xFF607D8B);
 
@@ -572,7 +579,8 @@ class _PayeeAddCategoryPageState extends State<_PayeeAddCategoryPage> {
     );
   }
 
-  Future<void> _pickColor() async {
+  Future<void> _pickColor() {
+    return AccountOperations.bind(_accountGeneration, () async {
     FocusScope.of(context).unfocus();
     final picked = await showAppColorPicker(
       context: context,
@@ -582,6 +590,7 @@ class _PayeeAddCategoryPageState extends State<_PayeeAddCategoryPage> {
     if (picked != null && mounted) {
       setState(() => _selectedColor = picked);
     }
+      });
   }
 
   @override
@@ -782,6 +791,7 @@ class _PayeeFormPage extends StatefulWidget {
 }
 
 class _PayeeFormPageState extends State<_PayeeFormPage> {
+  final int _accountGeneration = AccountOperations.generation;
   final TextEditingController _nameCtrl = TextEditingController();
   String? _selectedCategoryId;
   String? _categoryError;
@@ -793,7 +803,8 @@ class _PayeeFormPageState extends State<_PayeeFormPage> {
     super.dispose();
   }
 
-  Future<void> _save() async {
+  Future<void> _save() {
+    return AccountOperations.bind(_accountGeneration, () async {
     final availableCategories = DatabaseService.getAllCategories().where((c) {
       return widget.isPayee
           ? c.type == CategoryType.expense && _isDisplayableCategory(c)
@@ -835,6 +846,7 @@ class _PayeeFormPageState extends State<_PayeeFormPage> {
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
+      });
   }
 
   @override
@@ -1005,6 +1017,7 @@ class _EditPayeeFormPage extends StatefulWidget {
 }
 
 class _EditPayeeFormPageState extends State<_EditPayeeFormPage> {
+  final int _accountGeneration = AccountOperations.generation;
   late final TextEditingController _nameCtrl;
   late final bool _isPayee;
   String? _selectedCategoryId;
@@ -1033,7 +1046,8 @@ class _EditPayeeFormPageState extends State<_EditPayeeFormPage> {
     }).toList();
   }
 
-  Future<void> _save() async {
+  Future<void> _save() {
+    return AccountOperations.bind(_accountGeneration, () async {
     final availableCategories = _availableCategories();
     final name = _nameCtrl.text.trim();
 
@@ -1072,6 +1086,7 @@ class _EditPayeeFormPageState extends State<_EditPayeeFormPage> {
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
+      });
   }
 
   @override

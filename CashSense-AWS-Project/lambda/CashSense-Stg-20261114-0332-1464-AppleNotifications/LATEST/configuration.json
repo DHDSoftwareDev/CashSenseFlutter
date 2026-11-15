@@ -1,0 +1,52 @@
+{
+  "FunctionName": "CashSense-Stg-20261114-0332-1464-AppleNotifications",
+  "FunctionArn": "arn:aws:lambda:us-east-1:781540302423:function:CashSense-Stg-20261114-0332-1464-AppleNotifications",
+  "Runtime": "nodejs24.x",
+  "Role": "arn:aws:iam::781540302423:role/CashSense-Stg-20261114-0332-1464-LambdaRole",
+  "Handler": "index.handler",
+  "CodeSize": 7097918,
+  "Description": "Isolated CashSense billing staging; no event sources or public endpoints",
+  "Timeout": 120,
+  "MemorySize": 512,
+  "LastModified": "2026-11-14T03:33:50.425+0000",
+  "CodeSha256": "elqYBRUMEy0egIgwQ/ZAEAFJaOhKHRvq4tkNZpvN9tg=",
+  "Version": "$LATEST",
+  "Environment": {
+    "Variables": {
+      "APPLE_NOTIFICATION_EVENTS_TABLE": "[REDACTED]",
+      "GOOGLE_PUBSUB_PUSH_EMAIL": "[REDACTED]",
+      "APPLE_BUNDLE_ID": "[REDACTED]",
+      "GOOGLE_PACKAGE_NAME": "[REDACTED]",
+      "GOOGLE_PUBSUB_AUDIENCE": "[REDACTED]",
+      "USERS_TABLE": "[REDACTED]",
+      "APPLE_SECRET_ID": "[REDACTED]",
+      "GOOGLE_SECRET_ID": "[REDACTED]",
+      "APPLE_APP_ID": "[REDACTED]",
+      "PURCHASE_CLAIMS_TABLE": "[REDACTED]"
+    }
+  },
+  "TracingConfig": {
+    "Mode": "PassThrough"
+  },
+  "RevisionId": "87cc12cb-793f-4746-b2e2-7fff8909a8f9",
+  "State": "Active",
+  "LastUpdateStatus": "Successful",
+  "PackageType": "Zip",
+  "Architectures": [
+    "x86_64"
+  ],
+  "EphemeralStorage": {
+    "Size": 512
+  },
+  "SnapStart": {
+    "ApplyOn": "None",
+    "OptimizationStatus": "Off"
+  },
+  "RuntimeVersionConfig": {
+    "RuntimeVersionArn": "arn:aws:lambda:us-east-1::runtime:e2a10cf4a19b479b41df57bd581034ae0e89a78d399639a11cf95e6e63c9b669"
+  },
+  "LoggingConfig": {
+    "LogFormat": "Text",
+    "LogGroup": "/aws/lambda/CashSense-Stg-20261114-0332-1464-AppleNotifications"
+  }
+}

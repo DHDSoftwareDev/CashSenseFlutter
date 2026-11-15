@@ -1,0 +1,4 @@
+{
+  "Policy": "{\"Version\":\"2012-10-17\",\"Id\":\"default\",\"Statement\":[{\"Sid\":\"0ccd38ce-d806-58a5-b07c-96ef89a0476a\",\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"apigateway.amazonaws.com\"},\"Action\":\"lambda:InvokeFunction\",\"Resource\":\"arn:aws:lambda:us-east-1:781540302423:function:CashSense-ScheduleBillReminder\",\"Condition\":{\"ArnLike\":{\"AWS:SourceArn\":\"arn:aws:execute-api:us-east-1:781540302423:0ic4wr3xsc/*/*/schedule-bill-reminder\"}}}]}",
+  "RevisionId": "223a676f-bd68-4a03-b4de-e56423da6092"
+}

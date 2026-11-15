@@ -1,0 +1,28 @@
+{
+  "RoleName": "CashSense-Billing-role-blgteyg7",
+  "PolicyName": "CashSenseBillingDynamoDBAccess",
+  "PolicyDocument": {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Sid": "CashSenseBillingUsers",
+        "Effect": "Allow",
+        "Action": [
+          "dynamodb:GetItem",
+          "dynamodb:UpdateItem"
+        ],
+        "Resource": "arn:aws:dynamodb:us-east-1:781540302423:table/CashSense-Users"
+      },
+      {
+        "Sid": "CashSensePurchaseClaims",
+        "Effect": "Allow",
+        "Action": [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem"
+        ],
+        "Resource": "arn:aws:dynamodb:us-east-1:781540302423:table/CashSense-PurchaseClaims"
+      }
+    ]
+  }
+}

@@ -1,3 +1,4 @@
+import 'account_operations.dart';
 import 'package:flutter/foundation.dart';
 
 import '../models/lookup_item.dart';
@@ -34,7 +35,8 @@ class LookupsState extends ChangeNotifier {
     return label;
   }
 
-  Future<void> loadFromLocal() async {
+  Future<void> loadFromLocal() {
+    return AccountOperations.run(() async {
     final cachedCategories = await repository.getLocalByType('category');
     final cachedPayees = await repository.getLocalByType('payee');
     final cachedPayers = await repository.getLocalByType('payer');
@@ -97,9 +99,11 @@ class LookupsState extends ChangeNotifier {
     payeesById = payees;
     payersById = payers;
     notifyListeners();
+      });
   }
 
-  Future<void> syncRemote() async {
+  Future<void> syncRemote() {
+    return AccountOperations.run(() async {
     if (!CloudSyncPolicy.syncUserFinanceDataToAws) {
       // Remote finance APIs are intentionally disabled. A premium restore may
       // just have updated Hive, so refresh the display maps from local data.
@@ -120,6 +124,7 @@ class LookupsState extends ChangeNotifier {
     payeesById = {for (final x in payees) x.id: x};
     payersById = {for (final x in payers) x.id: x};
     notifyListeners();
+      });
   }
 
   String categoryName(String? id, {String? fallbackName}) {

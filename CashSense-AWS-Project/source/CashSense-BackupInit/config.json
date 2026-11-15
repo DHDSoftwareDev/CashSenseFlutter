@@ -1,0 +1,45 @@
+{
+    "FunctionName": "CashSense-BackupInit",
+    "FunctionArn": "arn:aws:lambda:us-east-1:781540302423:function:CashSense-BackupInit",
+    "Runtime": "nodejs24.x",
+    "Role": "arn:aws:iam::781540302423:role/CashSense-LambdaExecutionRole",
+    "Handler": "index.handler",
+    "CodeSize": 2383,
+    "Description": "",
+    "Timeout": 3,
+    "MemorySize": 128,
+    "LastModified": "2026-02-08T18:45:53.000+0000",
+    "CodeSha256": "R69CwmkFREeUYRZkXLJBnm91H51ZBTt8w9xFMMT/eDA=",
+    "Version": "$LATEST",
+    "Environment": {
+        "Variables": {
+            "USERS_TABLE": "CashSense-Users",
+            "BACKUPS_TABLE": "CashSense-Backups",
+            "BACKUPS_BUCKET": "cashsense-backups-prod"
+        }
+    },
+    "TracingConfig": {
+        "Mode": "PassThrough"
+    },
+    "RevisionId": "374200bb-6e3f-42d6-906f-ec0cba5fe098",
+    "State": "Active",
+    "LastUpdateStatus": "Successful",
+    "PackageType": "Zip",
+    "Architectures": [
+        "x86_64"
+    ],
+    "EphemeralStorage": {
+        "Size": 512
+    },
+    "SnapStart": {
+        "ApplyOn": "None",
+        "OptimizationStatus": "Off"
+    },
+    "RuntimeVersionConfig": {
+        "RuntimeVersionArn": "arn:aws:lambda:us-east-1::runtime:c2302199ed31b0efd546d792325846c2846e78ac566d3f1f711dfae134309d24"
+    },
+    "LoggingConfig": {
+        "LogFormat": "Text",
+        "LogGroup": "/aws/lambda/CashSense-BackupInit"
+    }
+}

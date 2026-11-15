@@ -1,0 +1,58 @@
+[
+  {
+    "apiId": "0ic4wr3xsc",
+    "routeKey": "POST /billing/apple/verify",
+    "function": "CashSense-Billing",
+    "authorization": "JWT kc2osu",
+    "action": "Keep"
+  },
+  {
+    "apiId": "0ic4wr3xsc",
+    "routeKey": "POST /billing/google-play/verify",
+    "function": "CashSense-Billing",
+    "authorization": "JWT kc2osu",
+    "action": "Create route and Lambda invoke permission"
+  },
+  {
+    "apiId": "0ic4wr3xsc",
+    "routeKey": "POST /billing/verify",
+    "function": "CashSense-Billing",
+    "authorization": "JWT kc2osu",
+    "action": "Keep; candidate dispatches by exclusive purchaseToken or transactionId"
+  },
+  {
+    "apiId": "0ic4wr3xsc",
+    "routeKey": "POST /entitlements/refresh",
+    "function": "CashSense-Billing",
+    "authorization": "JWT kc2osu",
+    "action": "Repoint from legacy CashSense-EntitlementsRefresh and add invoke permission"
+  },
+  {
+    "apiId": "0ic4wr3xsc",
+    "routeKey": "GET /users/me",
+    "function": "CashSense-Users",
+    "authorization": "JWT kc2osu",
+    "action": "Keep"
+  },
+  {
+    "apiId": "0ic4wr3xsc",
+    "routeKey": "POST /apple/notifications",
+    "function": "CashSense-AppleNotifications",
+    "authorization": "NONE; signed Apple payload required",
+    "action": "Repoint from broken CashSense-AppStoreNotificationsV2 and add invoke permission"
+  },
+  {
+    "apiId": "0ic4wr3xsc",
+    "routeKey": "POST /apple/notifications-test",
+    "function": "CashSense-AppleNotifications",
+    "authorization": "NONE; signed Apple payload required",
+    "action": "Keep"
+  },
+  {
+    "apiId": "ndb7fnhvck",
+    "routeKey": "POST /google-play/notifications",
+    "function": "CashSense-GoogleNotifications",
+    "authorization": "NONE; Google OIDC verified inside Lambda",
+    "action": "Keep; replace placeholder Lambda code"
+  }
+]

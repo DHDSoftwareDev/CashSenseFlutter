@@ -1,0 +1,29 @@
+{
+  "ApiEndpoint": "https://0ic4wr3xsc.execute-api.us-east-1.amazonaws.com",
+  "ApiId": "0ic4wr3xsc",
+  "ApiKeySelectionExpression": "$request.header.x-api-key",
+  "CorsConfiguration": {
+    "AllowCredentials": false,
+    "AllowHeaders": [
+      "*"
+    ],
+    "AllowMethods": [
+      "GET",
+      "POST",
+      "PUT",
+      "DELETE",
+      "OPTIONS"
+    ],
+    "AllowOrigins": [
+      "*"
+    ],
+    "MaxAge": 0
+  },
+  "CreatedDate": "2026-01-13 01:05:06+00:00",
+  "DisableExecuteApiEndpoint": false,
+  "IpAddressType": "ipv4",
+  "Name": "CashSense-API",
+  "ProtocolType": "HTTP",
+  "RouteSelectionExpression": "$request.method $request.path",
+  "Tags": {}
+}

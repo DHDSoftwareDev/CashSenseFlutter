@@ -1,20 +1,21 @@
+import 'account_operations.dart';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:background_fetch/background_fetch.dart' as bf;
 import 'package:flutter/foundation.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:workmanager/workmanager.dart' as wm;
 
 import 'amplify_service.dart';
-import 'cognito_service.dart';
+import 'backup_access_service.dart';
+import 'backup_payload_policy.dart';
 import 'database_service.dart';
-import 'user_auth_service.dart';
 
 class AutoBackupService {
-  static Future<void> initialize() async {
+  static Future<void> initialize() {
+    return AccountOperations.run(() async {
     // Automatic backups were retired. Cancel legacy jobs so users who had
     // enabled the old setting do not continue uploading in the background.
     if (Platform.isAndroid) {
@@ -35,15 +36,19 @@ class AutoBackupService {
     }
 
     await DatabaseService.setSetting('autoBackupEnabled', false);
+      });
   }
 
-  static Future<String?> buildBackupJsonString() async {
+  static Future<String?> buildBackupJsonString() {
+    return AccountOperations.run(() async {
     try {
       final transactions = DatabaseService.getAllTransactions();
       final categories = DatabaseService.getAllCategories();
       final accounts = DatabaseService.getAllAccountsForBackup();
       final bills = DatabaseService.getAllBills();
-      final settings = DatabaseService.exportAllSettings();
+      final settings = BackupPayloadPolicy.financialSettings(
+        DatabaseService.exportAllSettings(),
+      );
     final billOccurrences = DatabaseService.exportBillOccurrenceStatuses();
 
 final allContacts = DatabaseService.getAllPayees();
@@ -95,24 +100,21 @@ final payers = allContacts.where((contact) {
 'bill_occurrence_status': billOccurrences,
       };
 
+      BackupPayloadPolicy.validate(backupData);
       return const JsonEncoder.withIndent('  ').convert(backupData);
     } catch (e) {
       debugPrint('buildBackupJsonString failed: $e');
       return null;
     }
+      });
   }
 
-  static Future<bool> backupToCloud() async {
+  static Future<bool> backupToCloud() {
+    return AccountOperations.run(() async {
     File? tempFile;
     try {
-      final subscription = DatabaseService.subscriptionVersion.value;
-      if (subscription == 'Free') {
-        debugPrint(
-          'Skipping manual cloud backup: premium subscription required',
-        );
-        return false;
-      }
-
+      await DatabaseService.ensureSafeToBeginCloudRestore();
+      final owner = await BackupAccessService.requireCloudAccess();
       final jsonString = await buildBackupJsonString();
       if (jsonString == null) {
         debugPrint(
@@ -129,7 +131,7 @@ final payers = allContacts.where((contact) {
       tempFile = File('${tmpDir.path}/$filename');
       await tempFile.writeAsString(jsonString);
 
-      final uploaded = await _uploadBackupToCloud(tempFile.path, filename);
+      final uploaded = await _uploadBackupToCloud(tempFile.path, filename, owner);
       if (uploaded) {
         await DatabaseService.setSetting(
           'lastManualCloudBackupAt',
@@ -149,34 +151,16 @@ final payers = allContacts.where((contact) {
         } catch (_) {}
       }
     }
+      });
   }
 
   static Future<bool> _uploadBackupToCloud(
     String localFilePath,
     String filename,
-  ) async {
-    final subscription = DatabaseService.subscriptionVersion.value;
-    if (subscription == 'Free') {
-      return false;
-    }
-
-    final bucketRaw = (dotenv.env['S3_BUCKET'] ?? '').trim();
-    if (bucketRaw.isEmpty) {
-      debugPrint('Skipping cloud backup: S3_BUCKET is not configured');
-      return false;
-    }
-
-    final signedIn = await CognitoService.isSignedIn();
-    if (!signedIn) {
-      debugPrint('Skipping cloud backup: user not signed in');
-      return false;
-    }
-
-    final userId = await UserAuthService.getCurrentUserId();
-    if (userId.isEmpty) {
-      debugPrint('Skipping cloud backup: missing userId');
-      return false;
-    }
+    String userId,
+  ) {
+    return AccountOperations.run(() async {
+    await BackupAccessService.requireSameAccount(userId);
 
     final key = 'backups/$userId/auto/$filename';
     final latestKey = 'backups/$userId/auto/latest.json';
@@ -191,6 +175,7 @@ if (!uploaded) {
   return false;
 }
 
+await BackupAccessService.requireSameAccount(userId);
 final latestUploaded = await AmplifyService.uploadFile(
   localFilePath,
   latestKey,
@@ -217,6 +202,7 @@ await DatabaseService.setSetting(
 debugPrint('Cloud backup successfully uploaded: $latestKey');
 
 return true;
+      });
   }
 }
 

@@ -1,3 +1,4 @@
+import '../services/account_operations.dart';
 import 'package:flutter/material.dart';
 import '../services/database_service.dart';
 import '../models/account.dart';
@@ -12,6 +13,7 @@ class ReorderAccountsScreen extends StatefulWidget {
 }
 
 class _ReorderAccountsScreenState extends State<ReorderAccountsScreen> {
+  final int _accountGeneration = AccountOperations.generation;
   late List<Account> _accounts;
   late List<String> _accountOrder;
   late List<String> _accountTypeOrder;
@@ -144,7 +146,8 @@ class _ReorderAccountsScreenState extends State<ReorderAccountsScreen> {
     }
   }
 
-  Future<void> _saveOrder() async {
+  Future<void> _saveOrder() {
+    return AccountOperations.bind(_accountGeneration, () async {
     // Rebuild account order to reflect the current group ordering so that
     // accounts are shown in the same grouped order everywhere in the app.
     final allAccounts = DatabaseService.getAllAccounts();
@@ -180,6 +183,7 @@ class _ReorderAccountsScreenState extends State<ReorderAccountsScreen> {
     await DatabaseService.setSetting('accountInstitutionOrder', _institutionOrder);
     // notify accountsVersion so screens refresh
     DatabaseService.accountsVersion.value++;
+      });
   }
 
   BoxDecoration _cardDecoration(BuildContext context) {

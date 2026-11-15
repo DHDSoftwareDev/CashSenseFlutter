@@ -62,6 +62,8 @@ class UserAuthService {
     // Don’t overwrite with null
     if (displayName != null && displayName.trim().isNotEmpty) {
       await prefs.setString(_userDisplayNameKey, displayName.trim());
+    } else {
+      await prefs.remove(_userDisplayNameKey);
     }
   }
 

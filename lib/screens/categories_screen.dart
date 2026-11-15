@@ -1,5 +1,6 @@
 // ignore_for_file: use_build_context_synchronously, deprecated_member_use
 
+import '../services/account_operations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import '../utils/formatters.dart';
@@ -16,6 +17,7 @@ class CategoriesScreen extends StatefulWidget {
 }
 
 class _CategoriesScreenState extends State<CategoriesScreen> {
+  final int _accountGeneration = AccountOperations.generation;
   List<Category> _allCategories = [];
   List<Category> _categories = [];
   // true = show expense categories, false = show income categories
@@ -378,7 +380,8 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     );
   }
 
-  Future<void> _handleCategoryMenuSelection(String value, Category category) async {
+  Future<void> _handleCategoryMenuSelection(String value, Category category) {
+    return AccountOperations.bind(_accountGeneration, () async {
     if (value == 'edit') {
       await Navigator.of(context).push(
         MaterialPageRoute(
@@ -513,6 +516,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
       }
       return;
     }
+      });
   }
 
   void _showAddCategoryDialog() {
@@ -564,6 +568,7 @@ class _CategoryFormPage extends StatefulWidget {
 }
 
 class _CategoryFormPageState extends State<_CategoryFormPage> {
+  final int _accountGeneration = AccountOperations.generation;
   late final TextEditingController _nameCtrl;
   late Color _selectedColor;
   bool _isSaving = false;
@@ -581,7 +586,8 @@ class _CategoryFormPageState extends State<_CategoryFormPage> {
     super.dispose();
   }
 
-  Future<void> _save() async {
+  Future<void> _save() {
+    return AccountOperations.bind(_accountGeneration, () async {
     final name = _nameCtrl.text.trim();
     if (name.isEmpty || _isSaving) return;
 
@@ -598,6 +604,7 @@ class _CategoryFormPageState extends State<_CategoryFormPage> {
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
+      });
   }
 
   @override

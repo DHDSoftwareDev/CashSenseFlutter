@@ -1,5 +1,6 @@
 // ignore_for_file: unused_element, deprecated_member_use
 
+import '../services/account_operations.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -18,6 +19,7 @@ class NotificationsScreen extends StatefulWidget {
 }
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
+  final int _accountGeneration = AccountOperations.generation;
   bool _billReminders = false;
   int _billRemindersLeadDays = 1; // 0 = on due date, 1 = 1 day before, etc.
   List<ReminderOffset> selectedReminders = [];
@@ -84,7 +86,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     selectedReminders = [];
   }
 
-  Future<void> _persistSelectedReminders() async {
+  Future<void> _persistSelectedReminders() {
+    return AccountOperations.bind(_accountGeneration, () async {
     final encoded = jsonEncode(
       selectedReminders.map((r) => r.toJson()).toList(),
     );
@@ -98,14 +101,18 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         _billRemindersLeadDays,
       );
     }
+      });
   }
 
-  Future<void> _setSetting(String key, bool value) async {
+  Future<void> _setSetting(String key, bool value) {
+    return AccountOperations.bind(_accountGeneration, () async {
     await DatabaseService.setSetting(key, value);
     // optionally reconfigure background scheduling or services here
+      });
   }
 
-  Future<void> _setBillReminders(bool value) async {
+  Future<void> _setBillReminders(bool value) {
+    return AccountOperations.bind(_accountGeneration, () async {
     // Persist toggle
     await DatabaseService.setSetting('notif_billReminders', value);
     setState(() {
@@ -154,9 +161,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         await BillReminderService().cancelAllReminders();
       }
     } catch (_) {}
+      });
   }
 
-  Future<void> _updateReminderOffsets(List<ReminderOffset> reminders) async {
+  Future<void> _updateReminderOffsets(List<ReminderOffset> reminders) {
+    return AccountOperations.bind(_accountGeneration, () async {
     setState(() {
       selectedReminders = reminders;
     });
@@ -165,6 +174,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     try {
       if (_billReminders) await BillReminderService().refreshAllReminders();
     } catch (_) {}
+      });
   }
 
   String _billReminderSubtitle(bool enabled) {
@@ -201,7 +211,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
-  Future<void> _syncDeviceToken() async {
+  Future<void> _syncDeviceToken() {
+    return AccountOperations.bind(_accountGeneration, () async {
     if (_syncingToken) return;
     setState(() => _syncingToken = true);
     try {
@@ -243,9 +254,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     } finally {
       if (mounted) setState(() => _syncingToken = false);
     }
+      });
   }
 
-  Future<void> _rescheduleBillRemindersNow() async {
+  Future<void> _rescheduleBillRemindersNow() {
+    return AccountOperations.bind(_accountGeneration, () async {
     if (_reschedulingReminders) return;
     setState(() => _reschedulingReminders = true);
 
@@ -281,6 +294,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     } finally {
       if (mounted) setState(() => _reschedulingReminders = false);
     }
+      });
   }
 
   BoxDecoration _cardDecoration(BuildContext context) {

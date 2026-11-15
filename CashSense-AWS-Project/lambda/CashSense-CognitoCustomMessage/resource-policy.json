@@ -1,0 +1,4 @@
+{
+  "Policy": "{\"Version\":\"2012-10-17\",\"Id\":\"default\",\"Statement\":[{\"Sid\":\"CognitoCustomMessageInvoke\",\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"cognito-idp.amazonaws.com\"},\"Action\":\"lambda:InvokeFunction\",\"Resource\":\"arn:aws:lambda:us-east-1:781540302423:function:CashSense-CognitoCustomMessage\",\"Condition\":{\"ArnLike\":{\"AWS:SourceArn\":\"arn:aws:cognito-idp:us-east-1:781540302423:userpool/us-east-1_i8OdXtL1u\"}}}]}",
+  "RevisionId": "095d5d78-d2e2-49f1-aed5-bf5c4946426e"
+}

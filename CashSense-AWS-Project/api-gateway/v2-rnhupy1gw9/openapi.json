@@ -1,0 +1,152 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "CashSense-Stg-20261114-0332-1464-BillingAPI",
+    "version": "2026-11-15 17:31:13UTC"
+  },
+  "servers": [
+    {
+      "url": "https://rnhupy1gw9.execute-api.us-east-1.amazonaws.com/{basePath}",
+      "variables": {
+        "basePath": {
+          "default": ""
+        }
+      }
+    }
+  ],
+  "tags": [
+    {
+      "name": "Project",
+      "x-amazon-apigateway-tag-value": "CashSense"
+    },
+    {
+      "name": "Environment",
+      "x-amazon-apigateway-tag-value": "staging"
+    },
+    {
+      "name": "DeploymentId",
+      "x-amazon-apigateway-tag-value": "c0817c0e-c71e-4e7c-af28-2cc39abee288"
+    }
+  ],
+  "paths": {
+    "/users/me": {
+      "get": {
+        "responses": {
+          "default": {
+            "description": "Default response for GET /users/me"
+          }
+        },
+        "security": [
+          {
+            "CashSenseCognito": []
+          }
+        ],
+        "x-amazon-apigateway-integration": {
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "httpMethod": "POST",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:781540302423:function:CashSense-Stg-20261114-0332-1464-Users/invocations",
+          "connectionType": "INTERNET",
+          "timeoutInMillis": 30000
+        }
+      }
+    },
+    "/billing/apple/verify": {
+      "post": {
+        "responses": {
+          "default": {
+            "description": "Default response for POST /billing/apple/verify"
+          }
+        },
+        "security": [
+          {
+            "CashSenseCognito": []
+          }
+        ],
+        "x-amazon-apigateway-integration": {
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "httpMethod": "POST",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:781540302423:function:CashSense-Stg-20261114-0332-1464-Billing/invocations",
+          "connectionType": "INTERNET",
+          "timeoutInMillis": 30000
+        }
+      }
+    },
+    "/billing/google-play/verify": {
+      "post": {
+        "responses": {
+          "default": {
+            "description": "Default response for POST /billing/google-play/verify"
+          }
+        },
+        "security": [
+          {
+            "CashSenseCognito": []
+          }
+        ],
+        "x-amazon-apigateway-integration": {
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "httpMethod": "POST",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:781540302423:function:CashSense-Stg-20261114-0332-1464-Billing/invocations",
+          "connectionType": "INTERNET",
+          "timeoutInMillis": 30000
+        }
+      }
+    },
+    "/notifications/apple": {
+      "post": {
+        "responses": {
+          "default": {
+            "description": "Default response for POST /notifications/apple"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "httpMethod": "POST",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:781540302423:function:CashSense-Stg-20261114-0332-1464-AppleNotifications/invocations",
+          "connectionType": "INTERNET",
+          "timeoutInMillis": 30000
+        }
+      }
+    },
+    "/notifications/google": {
+      "post": {
+        "responses": {
+          "default": {
+            "description": "Default response for POST /notifications/google"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "payloadFormatVersion": "2.0",
+          "type": "aws_proxy",
+          "httpMethod": "POST",
+          "uri": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:781540302423:function:CashSense-Stg-20261114-0332-1464-GoogleNotifications/invocations",
+          "connectionType": "INTERNET",
+          "timeoutInMillis": 30000
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "CashSenseCognito": {
+        "type": "oauth2",
+        "flows": {},
+        "x-amazon-apigateway-authorizer": {
+          "identitySource": "$request.header.Authorization",
+          "jwtConfiguration": {
+            "audience": [
+              "2fep4tchr2g6olsbs9nj7nd4u4"
+            ],
+            "issuer": "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_i8OdXtL1u"
+          },
+          "type": "jwt"
+        }
+      }
+    }
+  },
+  "x-amazon-apigateway-importexport-version": "1.0"
+}

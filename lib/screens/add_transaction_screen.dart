@@ -1,5 +1,6 @@
 // ignore_for_file: prefer_collection_literals, curly_braces_in_flow_control_structures, deprecated_member_use, unused_element, unused_local_variable, unnecessary_null_comparison, unused_field, use_build_context_synchronously, prefer_conditional_assignment, unrelated_type_equality_checks, prefer_null_aware_operators, prefer_interpolation_to_compose_strings, dead_code, unnecessary_null_in_if_null_operators
 
+import '../services/account_operations.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -55,6 +56,7 @@ class AddTransactionScreen extends StatefulWidget {
 }
 
 class _AddTransactionScreenState extends State<AddTransactionScreen> {
+  final int _accountGeneration = AccountOperations.generation;
   // Add back the missing _buildNotesField method
   final _formKey = GlobalKey<FormState>();
   final _amountController = TextEditingController();
@@ -1082,7 +1084,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     );
   }
 
-  Future<void> _saveTransaction() async {
+  Future<void> _saveTransaction() {
+    return AccountOperations.bind(_accountGeneration, () async {
     if (_isSaving) return;
     FocusScope.of(context).unfocus();
     // Subscription gating: limit free users to 50 transactions per account
@@ -1922,6 +1925,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         setState(() => _isSaving = false);
       }
     }
+      });
   }
 
   @override
@@ -2195,6 +2199,7 @@ class _TransactionAddAccountPage extends StatefulWidget {
 
 class _TransactionAddAccountPageState
     extends State<_TransactionAddAccountPage> {
+  final int _accountGeneration = AccountOperations.generation;
   final _nameController = TextEditingController();
   final _institutionController = TextEditingController();
   final _accountNumberController = TextEditingController();
@@ -2243,7 +2248,8 @@ class _TransactionAddAccountPageState
     );
   }
 
-  Future<void> _pickType() async {
+  Future<void> _pickType() {
+    return AccountOperations.bind(_accountGeneration, () async {
     final builtIn = AccountType.values.map((t) => t.name).toList();
     final custom = DatabaseService.getAllCustomAccountTypes();
     final types = [...builtIn, ...custom].toSet().toList();
@@ -2355,6 +2361,7 @@ class _TransactionAddAccountPageState
         _customType = picked;
       }
     });
+      });
   }
 
   void _save() {
@@ -2744,6 +2751,7 @@ class _TransactionCategorySelectorPage extends StatefulWidget {
 
 class _TransactionCategorySelectorPageState
     extends State<_TransactionCategorySelectorPage> {
+  final int _accountGeneration = AccountOperations.generation;
   late List<Category> _all;
   late List<Category> _filtered;
   String _query = '';
@@ -2787,7 +2795,8 @@ class _TransactionCategorySelectorPageState
     });
   }
 
-  Future<void> _addCategory() async {
+  Future<void> _addCategory() {
+    return AccountOperations.bind(_accountGeneration, () async {
     FocusScope.of(context).unfocus();
     final result = await Navigator.of(context).push<Category>(
       MaterialPageRoute(
@@ -2814,6 +2823,7 @@ class _TransactionCategorySelectorPageState
         SnackBar(content: Text('Unable to save category: $e')),
       );
     }
+      });
   }
 
   @override
@@ -2956,6 +2966,7 @@ class _TransactionAddCategoryPage extends StatefulWidget {
 }
 
 class _TransactionAddCategoryPageState extends State<_TransactionAddCategoryPage> {
+  final int _accountGeneration = AccountOperations.generation;
   final _nameController = TextEditingController();
   Color _selectedColor = const Color(0xFF607D8B);
 
@@ -2992,7 +3003,8 @@ class _TransactionAddCategoryPageState extends State<_TransactionAddCategoryPage
     );
   }
 
-  Future<void> _pickColor() async {
+  Future<void> _pickColor() {
+    return AccountOperations.bind(_accountGeneration, () async {
     FocusScope.of(context).unfocus();
     final picked = await showAppColorPicker(
       context: context,
@@ -3000,6 +3012,7 @@ class _TransactionAddCategoryPageState extends State<_TransactionAddCategoryPage
       title: 'Pick Category Color',
     );
     if (picked != null && mounted) setState(() => _selectedColor = picked);
+      });
   }
 
   @override
@@ -3149,6 +3162,7 @@ class _TransactionPayeeSelectorPage extends StatefulWidget {
 }
 
 class _TransactionPayeeSelectorPageState extends State<_TransactionPayeeSelectorPage> {
+  final int _accountGeneration = AccountOperations.generation;
   late List<Map<String, dynamic>> _all;
   late List<Map<String, dynamic>> _filtered;
   String _query = '';
@@ -3174,7 +3188,8 @@ class _TransactionPayeeSelectorPageState extends State<_TransactionPayeeSelector
     });
   }
 
-  Future<void> _addPayee() async {
+  Future<void> _addPayee() {
+    return AccountOperations.bind(_accountGeneration, () async {
     FocusScope.of(context).unfocus();
     final result = await Navigator.of(context).push<Map<String, dynamic>>(
       MaterialPageRoute(
@@ -3203,6 +3218,7 @@ class _TransactionPayeeSelectorPageState extends State<_TransactionPayeeSelector
         SnackBar(content: Text(_isIncome ? 'Unable to save payer: $e' : 'Unable to save payee: $e')),
       );
     }
+      });
   }
 
   @override
@@ -3337,6 +3353,7 @@ class _TransactionAddPayeePage extends StatefulWidget {
 }
 
 class _TransactionAddPayeePageState extends State<_TransactionAddPayeePage> {
+  final int _accountGeneration = AccountOperations.generation;
   final _nameController = TextEditingController();
   String? _categoryId;
   bool get _isIncome => widget.transactionType == TransactionScreenType.income;
@@ -3347,7 +3364,8 @@ class _TransactionAddPayeePageState extends State<_TransactionAddPayeePage> {
     super.dispose();
   }
 
-  Future<void> _selectCategory() async {
+  Future<void> _selectCategory() {
+    return AccountOperations.bind(_accountGeneration, () async {
     FocusScope.of(context).unfocus();
     final type = _isIncome ? CategoryType.income : CategoryType.expense;
     final categories = DatabaseService.getAllCategories().where((c) => c.type == type).toList();
@@ -3362,6 +3380,7 @@ class _TransactionAddPayeePageState extends State<_TransactionAddPayeePage> {
       ),
     );
     if (selected != null && mounted) setState(() => _categoryId = selected);
+      });
   }
 
   void _save() {

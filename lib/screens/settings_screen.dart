@@ -1,5 +1,6 @@
 // ignore_for_file: deprecated_member_use, unnecessary_to_list_in_spreads, use_build_context_synchronously, unused_element, unnecessary_import, unused_local_variable, await_only_futures, unused_import, unused_field
 
+import '../services/account_operations.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -51,6 +52,7 @@ enum _ClearDataOption {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  final int _accountGeneration = AccountOperations.generation;
   static const String _developerUnlockPassword = 'dev2026';
   static const String _testerUnlockPassword = 'tester30days';
 
@@ -116,7 +118,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
   }
 
-  Future<void> _setBillRemindersEnabled(bool value) async {
+  Future<void> _setBillRemindersEnabled(bool value) {
+    return AccountOperations.bind(_accountGeneration, () async {
     await DatabaseService.setSetting('notif_billReminders', value);
     if (!mounted) return;
     setState(() {
@@ -135,9 +138,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
         SnackBar(content: Text('Failed to update bill reminders: $e')),
       );
     }
+      });
   }
 
-  Future<void> _setBillReminderOffsets(List<ReminderOffset> offsets) async {
+  Future<void> _setBillReminderOffsets(List<ReminderOffset> offsets) {
+    return AccountOperations.bind(_accountGeneration, () async {
     final encoded = jsonEncode(offsets.map((r) => r.toJson()).toList());
     await DatabaseService.setSetting('notif_billReminderOffsets', encoded);
     if (offsets.isNotEmpty) {
@@ -164,9 +169,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
         SnackBar(content: Text('Failed to refresh bill reminders: $e')),
       );
     }
+      });
   }
 
-  Future<void> _syncPushNotifications() async {
+  Future<void> _syncPushNotifications() {
+    return AccountOperations.bind(_accountGeneration, () async {
     if (_syncingNotificationToken) return;
     setState(() => _syncingNotificationToken = true);
     try {
@@ -206,9 +213,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } finally {
       if (mounted) setState(() => _syncingNotificationToken = false);
     }
+      });
   }
 
-  Future<void> _rescheduleBillRemindersNow() async {
+  Future<void> _rescheduleBillRemindersNow() {
+    return AccountOperations.bind(_accountGeneration, () async {
     if (_reschedulingBillReminders) return;
     setState(() => _reschedulingBillReminders = true);
     try {
@@ -243,9 +252,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } finally {
       if (mounted) setState(() => _reschedulingBillReminders = false);
     }
+      });
   }
 
-  Future<void> _loadBiometricSettings() async {
+  Future<void> _loadBiometricSettings() {
+    return AccountOperations.bind(_accountGeneration, () async {
     final enabled = await BiometricAuthService.isBiometricEnabled();
     final available = await BiometricAuthService.canUseBiometrics();
     final label = await BiometricAuthService.getBiometricLabel();
@@ -255,9 +266,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _biometricAvailable = available;
       _biometricLabel = label;
     });
+      });
   }
 
-  Future<void> _setBiometricEnabled(bool value) async {
+  Future<void> _setBiometricEnabled(bool value) {
+    return AccountOperations.bind(_accountGeneration, () async {
     if (value) {
       final available = await BiometricAuthService.canUseBiometrics();
       if (!available) {
@@ -294,9 +307,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() {
       _biometricEnabled = value;
     });
+      });
   }
 
-  Future<void> _loadVersion() async {
+  Future<void> _loadVersion() {
+    return AccountOperations.bind(_accountGeneration, () async {
     try {
       final info = await PackageInfo.fromPlatform();
       if (!mounted) return;
@@ -306,9 +321,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } catch (e) {
       debugPrint('Failed to load package info: $e');
     }
+      });
   }
 
-  Future<void> _loadUserInfo() async {
+  Future<void> _loadUserInfo() {
+    return AccountOperations.bind(_accountGeneration, () async {
     // Check Cognito auth status first
     final isLoggedIn = await CognitoService.isSignedIn();
     String email = '';
@@ -330,6 +347,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _isLoggedIn = isLoggedIn;
       _userEmail = email;
     });
+      });
   }
 
   void _shareFCMToken() {
@@ -437,7 +455,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Future<bool> _promptDeveloperPasswordAndUnlock() async {
+  Future<bool> _promptDeveloperPasswordAndUnlock() {
+    return AccountOperations.bind(_accountGeneration, () async {
     final controller = TextEditingController();
     final enteredPassword = await showDialog<String>(
       context: context,
@@ -481,9 +500,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context,
     ).showSnackBar(const SnackBar(content: Text('Developer mode enabled.')));
     return true;
+      });
   }
 
-  Future<bool> _promptTesterPasswordAndUnlock30Days() async {
+  Future<bool> _promptTesterPasswordAndUnlock30Days() {
+    return AccountOperations.bind(_accountGeneration, () async {
     final controller = TextEditingController();
     final enteredPassword = await showDialog<String>(
       context: context,
@@ -533,6 +554,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       const SnackBar(content: Text('Tester mode enabled for 30 days.')),
     );
     return true;
+      });
   }
 
   @override
@@ -1199,6 +1221,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 if (mounted) {
                   context.read<UserSessionController>().clear();
                 }
+                if (!mounted) return;
                 Navigator.pop(context);
 
                 // Navigate to LoginScreen and clear navigation stack
@@ -1209,6 +1232,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   );
                 }
               } catch (e) {
+                if (!mounted) return;
                 Navigator.pop(context);
                 if (mounted) {
                   ScaffoldMessenger.of(
@@ -1536,36 +1560,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _signOut() async {
     try {
-      // Attempt Cognito sign out (clears server-side session)
       await CognitoService.signOut();
     } catch (e) {
-      // Don't block local cleanup if remote sign-out fails
-      debugPrint('Cognito signOut error: $e');
-    } finally {
-      if (mounted) {
-        context.read<UserSessionController>().clear();
-      }
-      // Ensure any locally stored user info is cleared
-      try {
-        await UserAuthService.logout();
-        await UserAuthService.clearDeviceToken();
-        await UserAuthService.clearEndpointArn();
-      } catch (e) {
-        debugPrint('Error clearing local user data: $e');
-      }
-
-      if (mounted) {
-        setState(() {
-          _isLoggedIn = false;
-          _userEmail = '';
-        });
-
-        // Navigate to login and clear navigation stack
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const LoginScreen()),
-          (route) => false,
-        );
-      }
+      if (!mounted) { return; }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Sign out failed: $e')),
+      );
     }
   }
 
@@ -1803,7 +1803,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  Future<void> _performRestore(String jsonData) async {
+  Future<void> _performRestore(String jsonData) {
+    return AccountOperations.bind(_accountGeneration, () async {
     try {
       // Parse JSON
       final Map<String, dynamic> backupData = jsonDecode(jsonData);
@@ -1974,6 +1975,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         );
       }
     }
+      });
   }
 
   void _showClearDataDialog() {
@@ -2148,7 +2150,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Future<void> _clearData(_ClearDataOption option) async {
+  Future<void> _clearData(_ClearDataOption option) {
+    return AccountOperations.bind(_accountGeneration, () async {
     try {
       switch (option) {
         case _ClearDataOption.accounts:
@@ -2192,6 +2195,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         );
       }
     }
+      });
   }
 
   void _showVersionDialog() async {
@@ -2594,7 +2598,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Future<void> _openNotificationSettings() async {
+  Future<void> _openNotificationSettings() {
+    return AccountOperations.bind(_accountGeneration, () async {
     // Open device notification settings for this app
     String url;
 
@@ -2634,6 +2639,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _showNotificationInstructions();
       }
     }
+      });
   }
 
   void _showNotificationInstructions() {
@@ -2807,7 +2813,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await _openRatingPage();
   }
 
-  Future<void> _openRatingPage() async {
+  Future<void> _openRatingPage() {
+    return AccountOperations.bind(_accountGeneration, () async {
     // Define your app's store URLs
     const iosAppStoreUrl =
         'https://apps.apple.com/app/id6741378616'; // App Store ID provided by user
@@ -2861,5 +2868,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
       return;
     }
+      });
   }
 }

@@ -1,0 +1,168 @@
+[
+  {
+    "ApiKeyRequired": false,
+    "AuthorizationType": "JWT",
+    "AuthorizerId": "kc2osu",
+    "RouteId": "02c97ea",
+    "RouteKey": "POST /devices",
+    "Target": "integrations/7z3x636"
+  },
+  {
+    "ApiKeyRequired": false,
+    "AuthorizationType": "JWT",
+    "AuthorizerId": "kc2osu",
+    "RouteId": "0e89v04",
+    "RouteKey": "DELETE /devices/{deviceToken}",
+    "Target": "integrations/7z3x636"
+  },
+  {
+    "ApiKeyRequired": false,
+    "AuthorizationType": "JWT",
+    "AuthorizerId": "kc2osu",
+    "RouteId": "1lwt6up",
+    "RouteKey": "POST /devices/{deviceToken}",
+    "Target": "integrations/7z3x636"
+  },
+  {
+    "ApiKeyRequired": false,
+    "AuthorizationType": "JWT",
+    "AuthorizerId": "kc2osu",
+    "RouteId": "1ot3hzc",
+    "RouteKey": "POST /entitlements/refresh",
+    "Target": "integrations/2stc4k4"
+  },
+  {
+    "ApiKeyRequired": false,
+    "AuthorizationType": "JWT",
+    "AuthorizerId": "kc2osu",
+    "RouteId": "4slmgfk",
+    "RouteKey": "GET /backup/latest",
+    "Target": "integrations/724rwdn"
+  },
+  {
+    "ApiKeyRequired": false,
+    "AuthorizationType": "NONE",
+    "RouteId": "579rjmq",
+    "RouteKey": "POST /apple/notifications-test",
+    "Target": "integrations/ukon0ac"
+  },
+  {
+    "ApiKeyRequired": false,
+    "AuthorizationType": "JWT",
+    "AuthorizerId": "kc2osu",
+    "RouteId": "5jvany4",
+    "RouteKey": "DELETE /cancel-reminder",
+    "Target": "integrations/wldrowo"
+  },
+  {
+    "ApiKeyRequired": false,
+    "AuthorizationType": "JWT",
+    "AuthorizerId": "kc2osu",
+    "RouteId": "74rwgc2",
+    "RouteKey": "POST /backup/init",
+    "Target": "integrations/4vtubtq"
+  },
+  {
+    "ApiKeyRequired": false,
+    "AuthorizationType": "JWT",
+    "AuthorizerId": "kc2osu",
+    "RouteId": "7wes9mp",
+    "RouteKey": "GET /notification-schedules",
+    "Target": "integrations/y1etf3m"
+  },
+  {
+    "ApiKeyRequired": false,
+    "AuthorizationType": "NONE",
+    "RouteId": "9ppfbqo",
+    "RouteKey": "POST /apple/notifications",
+    "Target": "integrations/lcvo822"
+  },
+  {
+    "ApiKeyRequired": false,
+    "AuthorizationType": "JWT",
+    "AuthorizerId": "kc2osu",
+    "RouteId": "dceyrcm",
+    "RouteKey": "POST /backup/complete",
+    "Target": "integrations/fr9r930"
+  },
+  {
+    "ApiKeyRequired": false,
+    "AuthorizationType": "JWT",
+    "AuthorizerId": "kc2osu",
+    "RouteId": "ecb1zkn",
+    "RouteKey": "DELETE /notification-schedules/{scheduleId}",
+    "Target": "integrations/y1etf3m"
+  },
+  {
+    "ApiKeyRequired": false,
+    "AuthorizationType": "JWT",
+    "AuthorizerId": "kc2osu",
+    "RouteId": "ed9k9uf",
+    "RouteKey": "DELETE /devices",
+    "Target": "integrations/7z3x636"
+  },
+  {
+    "ApiKeyRequired": false,
+    "AuthorizationType": "JWT",
+    "AuthorizerId": "kc2osu",
+    "RouteId": "g823v9k",
+    "RouteKey": "POST /notification-schedules",
+    "Target": "integrations/y1etf3m"
+  },
+  {
+    "ApiKeyRequired": false,
+    "AuthorizationType": "JWT",
+    "AuthorizerId": "kc2osu",
+    "RouteId": "hflum1o",
+    "RouteKey": "GET /devices/{deviceToken}",
+    "Target": "integrations/7z3x636"
+  },
+  {
+    "ApiKeyRequired": false,
+    "AuthorizationType": "JWT",
+    "AuthorizerId": "kc2osu",
+    "RouteId": "iplpwff",
+    "RouteKey": "GET /devices",
+    "Target": "integrations/7z3x636"
+  },
+  {
+    "ApiKeyRequired": false,
+    "AuthorizationType": "JWT",
+    "AuthorizerId": "kc2osu",
+    "RouteId": "ixz32il",
+    "RouteKey": "POST /billing/apple/verify",
+    "Target": "integrations/5c6qp45"
+  },
+  {
+    "ApiKeyRequired": false,
+    "AuthorizationType": "JWT",
+    "AuthorizerId": "kc2osu",
+    "RouteId": "l54izub",
+    "RouteKey": "PUT /devices/{deviceToken}",
+    "Target": "integrations/7z3x636"
+  },
+  {
+    "ApiKeyRequired": false,
+    "AuthorizationType": "JWT",
+    "AuthorizerId": "kc2osu",
+    "RouteId": "ugyhddt",
+    "RouteKey": "POST /billing/verify",
+    "Target": "integrations/9z8kc52"
+  },
+  {
+    "ApiKeyRequired": false,
+    "AuthorizationType": "JWT",
+    "AuthorizerId": "kc2osu",
+    "RouteId": "uyb9q8v",
+    "RouteKey": "PUT /devices",
+    "Target": "integrations/7z3x636"
+  },
+  {
+    "ApiKeyRequired": false,
+    "AuthorizationType": "JWT",
+    "AuthorizerId": "kc2osu",
+    "RouteId": "zexhn0u",
+    "RouteKey": "GET /users/me",
+    "Target": "integrations/esz4f8p"
+  }
+]

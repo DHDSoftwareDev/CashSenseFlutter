@@ -1,6 +1,7 @@
 // ignore_for_file: await_only_futures, unused_import, unnecessary_import
 
 import 'dart:convert';
+import 'cognito_service.dart';
 import 'dart:io';
 
 import 'package:amplify_flutter/amplify_flutter.dart';
@@ -14,7 +15,7 @@ class AmplifyService {
   /// Returns true when signed in successfully.
   static Future<bool> signIn(String username, String password) async {
     try {
-      final result = await Amplify.Auth.signIn(username: username, password: password);
+      final result = await CognitoService.signIn(email: username, password: password);
       return result.isSignedIn;
     } on AuthException catch (e) {
       debugPrint('Amplify signIn error: ${e.message}');
@@ -34,7 +35,7 @@ class AmplifyService {
   /// Sign out the current user.
   static Future<void> signOut() async {
     try {
-      await Amplify.Auth.signOut();
+      await CognitoService.signOut();
     } on AuthException catch (e) {
       debugPrint('Amplify signOut error: ${e.message}');
     }

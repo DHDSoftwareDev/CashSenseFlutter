@@ -1,3 +1,4 @@
+import 'account_operations.dart';
 import '../models/lookup_item.dart';
 import 'lookups_api.dart';
 
@@ -14,16 +15,20 @@ class LookupsRepository {
 
   LookupsRepository({required this.api, required this.localStore});
 
-  Future<List<LookupItem>> syncType(String type) async {
+  Future<List<LookupItem>> syncType(String type) {
+    return AccountOperations.run(() async {
     final remote = await api.fetchByType(type);
     await localStore.saveAll(type, remote);
     return remote;
+      });
   }
 
-  Future<void> syncAll() async {
+  Future<void> syncAll() {
+    return AccountOperations.run(() async {
     await syncType('category');
     await syncType('payee');
     await syncType('payer');
+      });
   }
 
   Future<List<LookupItem>> getLocalByType(String type) {
@@ -39,7 +44,8 @@ class LookupsRepository {
     String? categoryId,
     bool? isIncome,
     int sortOrder = 0,
-  }) async {
+  }) {
+    return AccountOperations.run(() async {
     final saved = await api.upsert(
       type: type,
       id: id,
@@ -56,10 +62,13 @@ class LookupsRepository {
         : saved;
     await localStore.upsertOne(toStore);
     return toStore;
+      });
   }
 
-  Future<void> delete({required String type, required String id}) async {
+  Future<void> delete({required String type, required String id}) {
+    return AccountOperations.run(() async {
     await api.delete(type: type, id: id);
     await localStore.deleteOne(type, id);
+      });
   }
 }

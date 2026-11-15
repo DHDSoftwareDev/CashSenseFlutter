@@ -1,0 +1,40 @@
+[
+  {
+    "ApiKeyRequired": false,
+    "AuthorizationType": "JWT",
+    "AuthorizerId": "qkfg99",
+    "RouteId": "8hy9jl0",
+    "RouteKey": "POST /billing/apple/verify",
+    "Target": "integrations/42okkwe"
+  },
+  {
+    "ApiKeyRequired": false,
+    "AuthorizationType": "NONE",
+    "RouteId": "b8c0yb0",
+    "RouteKey": "POST /notifications/apple",
+    "Target": "integrations/7frd6i8"
+  },
+  {
+    "ApiKeyRequired": false,
+    "AuthorizationType": "JWT",
+    "AuthorizerId": "qkfg99",
+    "RouteId": "nfc8j2p",
+    "RouteKey": "POST /billing/google-play/verify",
+    "Target": "integrations/42okkwe"
+  },
+  {
+    "ApiKeyRequired": false,
+    "AuthorizationType": "JWT",
+    "AuthorizerId": "qkfg99",
+    "RouteId": "q6vpwld",
+    "RouteKey": "GET /users/me",
+    "Target": "integrations/bt74bti"
+  },
+  {
+    "ApiKeyRequired": false,
+    "AuthorizationType": "NONE",
+    "RouteId": "yblzqhn",
+    "RouteKey": "POST /notifications/google",
+    "Target": "integrations/hikdfko"
+  }
+]

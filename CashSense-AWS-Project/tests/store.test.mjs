@@ -1,0 +1,27 @@
+import {test,mock} from 'node:test';
+import assert from 'node:assert/strict';
+import {GoogleAuth} from '../source/CashSense-Billing/node_modules/google-auth-library/build/src/index.js';
+import {SecretsManagerClient} from '../source/CashSense-Billing/node_modules/@aws-sdk/client-secrets-manager/dist-cjs/index.js';
+import {AppStoreServerAPIClient,SignedDataVerifier} from '../source/CashSense-Billing/node_modules/@apple/app-store-server-library/dist/index.js';
+process.env.GOOGLE_SECRET_ID='google';process.env.APPLE_SECRET_ID='apple';process.env.APPLE_APP_ID='1234';
+let google={},tx={},latest={},status=1,grace=0,ack=0;
+mock.method(SecretsManagerClient.prototype,'send',async c=>({SecretString:JSON.stringify(c.input.SecretId==='google'?{type:'service_account',client_email:'x@y',private_key:'fixture'}:{privateKey:'-----BEGIN PRIVATE KEY-----\nfixture\n-----END PRIVATE KEY-----',issuerId:'issuer',keyId:'key'})}));
+mock.method(GoogleAuth.prototype,'getClient',async()=>({request:async req=>{if(req.method==='POST'){ack++;return {data:{}};}return {data:google};}}));
+mock.method(AppStoreServerAPIClient.prototype,'getTransactionInfo',async()=>({signedTransactionInfo:'initial'}));
+mock.method(AppStoreServerAPIClient.prototype,'getAllSubscriptionStatuses',async()=>({data:[{lastTransactions:[{originalTransactionId:'123456789',status,signedTransactionInfo:'latest',signedRenewalInfo:'renewal'}]}]}));
+mock.method(SignedDataVerifier.prototype,'verifyAndDecodeTransaction',async s=>s==='initial'?tx:latest);
+mock.method(SignedDataVerifier.prototype,'verifyAndDecodeRenewalInfo',async()=>({originalTransactionId:'123456789',gracePeriodExpiresDate:grace}));
+const {verifyGoogle,verifyApple}=await import('../source/CashSense-Billing/store.mjs');
+const monthly='cashsense_premium_monthly',appleMonthly='cashsense.app.premium.monthly';
+const exp=()=>Date.now()+3600000;
+for(const state of ['ACTIVE','IN_GRACE_PERIOD','CANCELED','EXPIRED','ON_HOLD','PAUSED','PENDING'])test('Google store '+state,async()=>{google={subscriptionState:'SUBSCRIPTION_STATE_'+state,lineItems:[{productId:monthly,expiryTime:new Date(exp()).toISOString()}],latestOrderId:'order'};const r=await verifyGoogle(monthly,'token');assert.equal(r.premiumUntil>0,['ACTIVE','IN_GRACE_PERIOD','CANCELED'].includes(state));});
+test('Google canceled term in past stays expired',async()=>{google={subscriptionState:'SUBSCRIPTION_STATE_CANCELED',lineItems:[{productId:monthly,expiryTime:'2020-01-01T00:00:00Z'}]};const r=await verifyGoogle(monthly,'token');assert.ok(r.premiumUntil<Date.now()/1000);});
+test('Google plan replacement uses supported current product',async()=>{google={subscriptionState:'SUBSCRIPTION_STATE_ACTIVE',lineItems:[{productId:'cashsense_premium_annual',expiryTime:new Date(exp()).toISOString()}]};assert.equal((await verifyGoogle(monthly,'token')).productId,'cashsense_premium_annual');});
+for(const state of [0,1,2])test('Google Lifetime state '+state,async()=>{google={purchaseState:state,orderId:'order',acknowledgementState:0};const r=await verifyGoogle('cashsense_premium_lifetime','token');assert.equal(r.premiumUntil>0,state===0);});
+function apple(){tx={bundleId:'name.dhdsoftware.cashsense.CashSenseMM',originalTransactionId:'123456789',transactionId:'123456789',productId:appleMonthly,type:'Auto-Renewable Subscription',expiresDate:Date.now()-1000};latest={...tx,transactionId:'987654321',expiresDate:exp(),purchaseDate:Date.now()};status=1;grace=0;}
+test('Apple old transaction restores latest renewal',async()=>{apple();const r=await verifyApple(appleMonthly,'123456789');assert.equal(r.orderId,'987654321');assert.ok(r.premiumUntil>Date.now()/1000);});
+for(const st of [2,3,5])test('Apple non entitled status '+st,async()=>{apple();status=st;assert.equal((await verifyApple(appleMonthly,'123456789')).premiumUntil,0);});
+test('Apple grace uses signed grace expiry',async()=>{apple();status=4;latest.expiresDate=Date.now()-1000;grace=exp();assert.equal((await verifyApple(appleMonthly,'123456789')).premiumUntil,Math.floor(grace/1000));});
+test('Apple revoked latest transaction denied even if status active',async()=>{apple();latest.revocationDate=Date.now();assert.equal((await verifyApple(appleMonthly,'123456789')).premiumUntil,0);});
+test('Apple Lifetime grants and revokes using verified transaction',async()=>{apple();tx.productId='cashsense.app.premium.lifetime';tx.type='Non-Consumable';assert.equal((await verifyApple(tx.productId,'123456789')).premiumUntil,253402300799);tx.revocationDate=Date.now();assert.equal((await verifyApple(tx.productId,'123456789')).premiumUntil,0);});
+test('Apple transaction/product mismatch rejected',async()=>{apple();await assert.rejects(verifyApple('cashsense.app.premium.annual','123456789'),{status:422});});

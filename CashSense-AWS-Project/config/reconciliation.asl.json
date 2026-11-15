@@ -1,0 +1,124 @@
+{
+  "Comment": "Substitute BillingFunctionArn; schedule every 15 minutes. Failures per claim are logged and returned.",
+  "StartAt": "VoidFirst",
+  "TimeoutSeconds": 14400,
+  "States": {
+    "VoidFirst": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${BillingFunctionArn}",
+        "Payload": {
+          "source": "aws.events",
+          "mode": "voided"
+        }
+      },
+      "ResultPath": "$.page",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "States.TaskFailed"
+          ],
+          "IntervalSeconds": 10,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Next": "MoreVoids"
+    },
+    "MoreVoids": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.page.Payload.nextToken",
+          "IsPresent": true,
+          "Next": "VoidNext"
+        }
+      ],
+      "Default": "ScanFirst"
+    },
+    "VoidNext": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${BillingFunctionArn}",
+        "Payload": {
+          "source": "aws.events",
+          "mode": "voided",
+          "token.$": "$.page.Payload.nextToken"
+        }
+      },
+      "ResultPath": "$.page",
+      "Next": "MoreVoids",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "States.TaskFailed"
+          ],
+          "IntervalSeconds": 10,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ]
+    },
+    "ScanFirst": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${BillingFunctionArn}",
+        "Payload": {
+          "source": "aws.events"
+        }
+      },
+      "ResultPath": "$.page",
+      "Next": "MoreClaims",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "States.TaskFailed"
+          ],
+          "IntervalSeconds": 10,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ]
+    },
+    "MoreClaims": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.page.Payload.nextKey",
+          "IsPresent": true,
+          "Next": "ScanNext"
+        }
+      ],
+      "Default": "Done"
+    },
+    "ScanNext": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${BillingFunctionArn}",
+        "Payload": {
+          "source": "aws.events",
+          "startKey.$": "$.page.Payload.nextKey"
+        }
+      },
+      "ResultPath": "$.page",
+      "Next": "MoreClaims",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "States.TaskFailed"
+          ],
+          "IntervalSeconds": 10,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ]
+    },
+    "Done": {
+      "Type": "Succeed"
+    }
+  }
+}

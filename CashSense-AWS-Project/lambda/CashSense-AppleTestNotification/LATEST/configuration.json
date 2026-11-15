@@ -1,0 +1,44 @@
+{
+  "FunctionName": "CashSense-AppleTestNotification",
+  "FunctionArn": "arn:aws:lambda:us-east-1:781540302423:function:CashSense-AppleTestNotification",
+  "Runtime": "nodejs24.x",
+  "Role": "arn:aws:iam::781540302423:role/service-role/CashSense-AppleTestNotification-role-ky785dcj",
+  "Handler": "index.handler",
+  "CodeSize": 1158,
+  "Description": "",
+  "Timeout": 3,
+  "MemorySize": 128,
+  "LastModified": "2026-11-13T17:27:34.000+0000",
+  "CodeSha256": "k+ZaQOLmWvb6N+snWgQ+cqlpLVjCvLuDFL1KGeYfLAY=",
+  "Version": "$LATEST",
+  "Environment": {
+    "Variables": {
+      "APPLE_BUNDLE_ID": "[REDACTED]",
+      "APPLE_SECRET_ID": "[REDACTED]"
+    }
+  },
+  "TracingConfig": {
+    "Mode": "PassThrough"
+  },
+  "RevisionId": "13a9d915-15c1-4f15-8cab-5fbe51cbcfab",
+  "State": "Active",
+  "LastUpdateStatus": "Successful",
+  "PackageType": "Zip",
+  "Architectures": [
+    "x86_64"
+  ],
+  "EphemeralStorage": {
+    "Size": 512
+  },
+  "SnapStart": {
+    "ApplyOn": "None",
+    "OptimizationStatus": "Off"
+  },
+  "RuntimeVersionConfig": {
+    "RuntimeVersionArn": "arn:aws:lambda:us-east-1::runtime:e2a10cf4a19b479b41df57bd581034ae0e89a78d399639a11cf95e6e63c9b669"
+  },
+  "LoggingConfig": {
+    "LogFormat": "Text",
+    "LogGroup": "/aws/lambda/CashSense-AppleTestNotification"
+  }
+}

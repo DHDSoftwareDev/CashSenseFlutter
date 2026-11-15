@@ -1,0 +1,43 @@
+{
+  "Table": {
+    "AttributeDefinitions": [
+      {
+        "AttributeName": "claimId",
+        "AttributeType": "S"
+      }
+    ],
+    "TableName": "CashSense-Stg-20261114-0332-1464-Claims",
+    "KeySchema": [
+      {
+        "AttributeName": "claimId",
+        "KeyType": "HASH"
+      }
+    ],
+    "TableStatus": "ACTIVE",
+    "CreationDateTime": "2026-11-14 03:33:06.499000+00:00",
+    "ProvisionedThroughput": {
+      "NumberOfDecreasesToday": 0,
+      "ReadCapacityUnits": 0,
+      "WriteCapacityUnits": 0
+    },
+    "TableSizeBytes": 0,
+    "ItemCount": 0,
+    "TableArn": "arn:aws:dynamodb:us-east-1:781540302423:table/CashSense-Stg-20261114-0332-1464-Claims",
+    "TableId": "e5bfad20-54f2-430e-951b-03faf00c7cb4",
+    "BillingModeSummary": {
+      "BillingMode": "PAY_PER_REQUEST",
+      "LastUpdateToPayPerRequestDateTime": "2026-11-14 03:33:06.499000+00:00"
+    },
+    "SSEDescription": {
+      "Status": "ENABLED",
+      "SSEType": "KMS",
+      "KMSMasterKeyArn": "arn:aws:kms:us-east-1:781540302423:key/4255a3fd-7f1e-4351-8ff2-a9e4309095d0"
+    },
+    "DeletionProtectionEnabled": false,
+    "WarmThroughput": {
+      "ReadUnitsPerSecond": 12000,
+      "WriteUnitsPerSecond": 4000,
+      "Status": "ACTIVE"
+    }
+  }
+}

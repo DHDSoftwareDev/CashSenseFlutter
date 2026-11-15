@@ -1,5 +1,6 @@
 // ignore_for_file: unused_field, prefer_final_fields, unused_element, use_super_parameters, deprecated_member_use, use_build_context_synchronously, curly_braces_in_flow_control_structures
 
+import '../services/account_operations.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../widgets/report_details_list.dart';
@@ -37,6 +38,7 @@ class ReportsScreen extends StatefulWidget {
 }
 
 class _ReportsScreenState extends State<ReportsScreen> {
+  final int _accountGeneration = AccountOperations.generation;
   bool _isDisplayableCategory(Category category) {
     final name = category.name.trim();
     if (name.isEmpty) return false;
@@ -60,10 +62,12 @@ class _ReportsScreenState extends State<ReportsScreen> {
   List<Category> get _filterableCategories =>
       _categories.where(_isDisplayableCategory).toList();
 
-  Future<void> _refreshReports() async {
+  Future<void> _refreshReports() {
+    return AccountOperations.bind(_accountGeneration, () async {
     _loadCategories();
     _loadPayees();
     setState(() {});
+      });
   }
 
   // Extract a normalized payee/payer name from a transaction description.

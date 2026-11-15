@@ -5,6 +5,7 @@ import 'package:amplify_flutter/amplify_flutter.dart';
 import 'package:flutter/foundation.dart';
 import 'package:amplify_auth_cognito/amplify_auth_cognito.dart';
 import 'user_auth_service.dart';
+import 'account_session_service.dart';
 import 'push_token_service.dart';
 import 'dart:convert';
 import 'dart:math';
@@ -70,44 +71,32 @@ class CognitoService {
     required String email,
     required String password,
   }) async {
+    await AccountSessionService.beginAuthChange();
     try {
       final result = await Amplify.Auth.signIn(
         username: email,
         password: password,
       );
 
-      // If sign in successful, sync with local storage
-      if (result.isSignedIn) {
-        await _syncUserToLocal();
-        // Register device for push notifications after login
-        try {
-          await PushTokenService.registerDeviceOnLogin();
-          PushTokenService.initTokenRefreshListener();
-        } catch (e) {
-          debugPrint('Device registration failed: $e');
-        }
-      }
-
       return result;
     } on AuthException catch (e) {
       safePrint('Error signing in: ${e.message}');
       rethrow;
+    } finally {
+      await AccountSessionService.finishAuthChange();
     }
   }
 
   /// Sign out the current user
   static Future<void> signOut() async {
+    await AccountSessionService.beginAuthChange();
     try {
       await Amplify.Auth.signOut();
-      // Clear local storage
-      await UserAuthService.logout();
-    } on AuthException catch (e) {
-      safePrint('Error signing out: ${e.message}');
-      rethrow;
+    } finally {
+      // Check actual Cognito state even when sign-out reports a failure.
+      await AccountSessionService.finishAuthChange();
     }
   }
-
-  
 
   static String _generateNonce([int length = 32]) {
     const charset = '0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._';
@@ -263,13 +252,11 @@ class CognitoService {
 
   /// Delete user account
   static Future<void> deleteUser() async {
+    await AccountSessionService.beginAuthChange();
     try {
       await Amplify.Auth.deleteUser();
-      // Clear local storage
-      await UserAuthService.logout();
-    } on AuthException catch (e) {
-      safePrint('Error deleting user: ${e.message}');
-      rethrow;
+    } finally {
+      await AccountSessionService.finishAuthChange();
     }
   }
 
