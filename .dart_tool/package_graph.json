@@ -5,13 +5,14 @@
   "packages": [
     {
       "name": "cashsenseflutter",
-      "version": "2.3.32+63",
+      "version": "2.3.34+65",
       "dependencies": [
         "amplify_api",
         "amplify_auth_cognito",
         "amplify_flutter",
         "amplify_storage_s3",
         "background_fetch",
+        "cashsense_refund_test",
         "characters",
         "crypto",
         "cupertino_icons",
@@ -393,6 +394,13 @@
         "firebase_messaging_web",
         "flutter",
         "meta"
+      ]
+    },
+    {
+      "name": "cashsense_refund_test",
+      "version": "0.1.0",
+      "dependencies": [
+        "flutter"
       ]
     },
     {

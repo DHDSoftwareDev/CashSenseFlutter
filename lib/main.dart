@@ -30,8 +30,6 @@ import 'screens/login_screen.dart';
 import 'screens/signup_screen.dart';
 import 'services/cognito_service.dart';
 import 'services/aws_api_service.dart';
-import 'services/billing_service.dart';
-import 'screens/billing_staging_screen.dart';
 import 'services/user_api_service.dart';
 import 'services/lookups_api.dart';
 import 'services/lookups_repository.dart';
@@ -365,12 +363,10 @@ class CashSenseApp extends StatelessWidget {
 
 class AppLifecycleBiometricLock extends StatefulWidget {
   final Widget child;
-  final bool showBillingShortcut;
 
   const AppLifecycleBiometricLock({
     super.key,
     required this.child,
-    this.showBillingShortcut = true,
   });
 
   @override
@@ -536,27 +532,6 @@ class _AppLifecycleBiometricLockState extends State<AppLifecycleBiometricLock>
     return Stack(
       children: [
         widget.child,
-        if (widget.showBillingShortcut && BillingService.isStaging)
-          Positioned(
-            right: 12,
-            bottom: 12 + MediaQuery.of(context).padding.bottom,
-            child: Material(
-              elevation: 6,
-              borderRadius: BorderRadius.circular(24),
-              child: TextButton.icon(
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const AppLifecycleBiometricLock(
-                      showBillingShortcut: false,
-                      child: BillingStagingScreen(),
-                    ),
-                  ),
-                ),
-                icon: const Icon(Icons.science_outlined),
-                label: const Text('Billing Staging Tests'),
-              ),
-            ),
-          ),
         if (_showBiometricLockOverlay)
           Positioned.fill(
             child: Material(

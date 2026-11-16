@@ -1,0 +1,15 @@
+name: cashsense_refund_test
+description: Sandbox-only Apple refund sheet for CashSense billing diagnostics.
+version: 0.1.0
+publish_to: none
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+  flutter: '>=3.22.0'
+dependencies:
+  flutter:
+    sdk: flutter
+flutter:
+  plugin:
+    platforms:
+      ios:
+        pluginClass: CashSenseRefundTestPlugin

@@ -19,6 +19,8 @@ import '../widgets/app_color_picker.dart';
 import '../widgets/bill_reminder_picker.dart';
 import 'subscriptions_screen.dart';
 import 'backup_restore_screen.dart';
+import 'legacy_recovery_screen.dart';
+import '../services/account_session_service.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -667,6 +669,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _buildHomeScreenWidgetsSection(),
           // General section removed (notification options hidden)
           _buildSection('Data', [
+            FutureBuilder<bool>(
+              future: AccountSessionService.hasUnassignedLegacyRecords(),
+              builder: (context, snapshot) {
+                if (snapshot.data != true) { return const SizedBox.shrink(); }
+                return _buildSettingsTile(
+                  'Recover previous local records',
+                  'Unassigned records are preserved on this device',
+                  Icons.history,
+                  () => Navigator.of(context).push(MaterialPageRoute<void>(
+                    builder: (_) => const LegacyRecoveryScreen(),
+                  )),
+                );
+              },
+            ),
             _buildSettingsTile(
               'Backup/Restore',
               'Backup or restore your data',

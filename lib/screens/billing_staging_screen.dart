@@ -1,5 +1,6 @@
 import '../services/account_operations.dart';
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../services/aws_api_service.dart';
 import '../services/billing_service.dart';
@@ -20,6 +21,7 @@ class _BillingStagingScreenState extends State<BillingStagingScreen> {
   String _message = 'Loading staging membership…';
   bool _busy = false;
   bool _refreshing = false;
+  String? _refundMessage;
 
   @override
   void initState() {
@@ -114,6 +116,50 @@ class _BillingStagingScreenState extends State<BillingStagingScreen> {
       });
   }
 
+  Future<void> _requestTestRefund() {
+    return AccountOperations.bind(_accountGeneration, () async {
+      if (_busy) { return; }
+      setState(() { _busy = true; _refundMessage = null; });
+      try {
+        final transactions = await BillingService.refundableTestTransactions();
+        if (!mounted) { return; }
+        if (transactions.isEmpty) {
+          setState(() => _refundMessage = 'No eligible sandbox purchases were found for this CashSense account. '
+              'Make or restore a sandbox purchase first. Purchases without an account token cannot be selected.');
+          return;
+        }
+        final selected = await showDialog<Map<String, String>>(
+          context: context,
+          builder: (dialogContext) => SimpleDialog(
+            title: const Text('Choose a sandbox transaction'),
+            children: [
+              for (final transaction in transactions)
+                SimpleDialogOption(
+                  onPressed: () => Navigator.pop(dialogContext, transaction),
+                  child: Text('${transaction['productId']}\n${transaction['purchaseDate']}\nTransaction ${transaction['id']}'),
+                ),
+              SimpleDialogOption(onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cancel')),
+            ],
+          ),
+        );
+        if (selected == null || !mounted) { return; }
+        final status = await BillingService.requestTestRefund(selected);
+        if (!mounted) { return; }
+        setState(() => _refundMessage = status == 'submitted'
+            ? 'Request submitted to Apple. Await AWS refund notification, then refresh staging membership. '
+              'Submission alone does not confirm approval or removal of Premium.'
+            : status == 'cancelled' ? 'Refund request cancelled. No request was submitted.'
+            : 'Apple returned an unknown refund-request result. Refresh staging membership.');
+        if (status == 'submitted') { await _refresh(); }
+      } catch (e) {
+        if (mounted) { setState(() => _refundMessage = 'Refund request could not complete: $e'); }
+      } finally {
+        if (mounted) { setState(() => _busy = false); }
+      }
+    });
+  }
+
   @override
   void dispose() {
     _timer?.cancel();
@@ -157,6 +203,12 @@ class _BillingStagingScreenState extends State<BillingStagingScreen> {
             ),
           OutlinedButton(onPressed: enabled && !_busy ? _restore : null,
               child: const Text('Restore Purchases in Staging')),
+          if (enabled && Platform.isIOS)
+            OutlinedButton(onPressed: !_busy ? _requestTestRefund : null,
+              child: const Text('Request Test Refund')),
+          if (_refundMessage != null)
+            Padding(padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Text(_refundMessage!)),
           TextButton(onPressed: enabled ? _refresh : null,
               child: const Text('Refresh Staging Membership')),
           const SizedBox(height: 16),

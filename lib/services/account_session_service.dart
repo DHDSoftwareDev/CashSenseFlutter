@@ -167,20 +167,12 @@ class AccountSessionService {
     final original = await legacy.exists() ? legacy : oldLegacy;
     final recovery = File('${support.path}/cashsense_restore_recovery.json');
     final journal = await store.readBinding();
+    // A binding or an explicit recovery request establishes ownership.
+    // Unassigned shared files remain untouched; startup never asks the user
+    // to choose an owner or guesses from the most recent login.
+    await store.completeAuthorizedRecovery(key, original, recovery);
     if (journal != null && journal['owner'] == key && journal['state'] == 'copying') {
       await store.claim(key, original, recovery);
-    } else if (journal == null && key != AccountStorage.keyFor(null) &&
-        !await store.profile(key).exists() && await original.exists()) {
-      final attributes = await Amplify.Auth.fetchUserAttributes();
-      final email = attributes.where((a) => a.userAttributeKey == AuthUserAttributeKey.email)
-          .map((a) => a.value).join();
-      final answer = Completer<bool>();
-      runApp(MaterialApp(debugShowCheckedModeBanner: false, home: _OriginalDataChoice(email: email, answer: answer)));
-      if (await answer.future) {
-        // Fetch again after the prompt so a changed session cannot claim data.
-        if (await currentKey() != key) { throw StateError('Account changed during recovery.'); }
-        await store.claim(key, original, recovery);
-      }
     }
     if (await currentKey() != key) { throw StateError('Account changed during startup.'); }
     if (key != AccountStorage.keyFor(null)) {
@@ -203,6 +195,41 @@ class AccountSessionService {
     return profile;
   }
 
+  static Future<bool> hasUnassignedLegacyRecords() async {
+    final key = await currentKey();
+    if (key == AccountStorage.keyFor(null)) { return false; }
+    final support = await getApplicationSupportDirectory();
+    final store = AccountStorage(Directory('${support.path}/cashsense_accounts'));
+    if (await store.readBinding() != null) { return false; }
+    final legacy = Directory('${support.path}/.hive');
+    final old = Directory('${(await getApplicationDocumentsDirectory()).path}/CashSense/.hive');
+    return await legacy.exists() || await old.exists();
+  }
+
+  static Future<void> recoverLegacyForCurrentAccount(String expectedKey) async {
+    if (expectedKey != _openedKey || await currentKey() != expectedKey ||
+        expectedKey == AccountStorage.keyFor(null)) {
+      throw StateError('Sign in to the record owner before recovery.');
+    }
+    await beginAuthChange();
+    try {
+      if (await currentKey() != expectedKey) {
+        throw StateError('Account changed before recovery.');
+      }
+      final support = await getApplicationSupportDirectory();
+      final store = AccountStorage(Directory('${support.path}/cashsense_accounts'));
+      await store.authorizeRecovery(expectedKey);
+    } catch (_) {
+      await finishAuthChange();
+      rethrow;
+    }
+    try {
+      await enforceCurrentAccount(force: true);
+    } finally {
+      _managedAuthChange = false;
+    }
+  }
+
   static Future<void> markProfileOpened() async {
     if (_preparedKey == null || await currentKey() != _preparedKey) {
       throw StateError('Authentication changed while opening account storage.');
@@ -220,45 +247,3 @@ class AccountSessionService {
   }
 }
 
-class _OriginalDataChoice extends StatefulWidget {
-  final String email;
-  final Completer<bool> answer;
-  const _OriginalDataChoice({required this.email, required this.answer});
-  @override
-  State<_OriginalDataChoice> createState() => _OriginalDataChoiceState();
-}
-
-class _OriginalDataChoiceState extends State<_OriginalDataChoice> {
-  final _email = TextEditingController();
-  bool _confirmed = false;
-  @override
-  void dispose() { _email.dispose(); super.dispose(); }
-  void _finish(bool claim) {
-    if (!widget.answer.isCompleted) { widget.answer.complete(claim); }
-  }
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Protect original account data')),
-    body: SafeArea(child: SingleChildScrollView(padding: const EdgeInsets.all(24), child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text('Signed in as: ${widget.email}'),
-        const SizedBox(height: 16),
-        const Text('Previous local records have been preserved. Recover them only if they belong to the account shown above. Otherwise, keep them reserved for their owner.'),
-        const SizedBox(height: 16),
-        OutlinedButton(onPressed: () => _finish(false), child: const Text('Keep original records reserved')),
-        const SizedBox(height: 24),
-        const Text('Only for the original account: confirm ownership and enter its email to copy the preserved records. The original files will be kept.'),
-        TextField(controller: _email, keyboardType: TextInputType.emailAddress,
-          decoration: const InputDecoration(labelText: 'Original account email'),
-          onChanged: (_) => setState(() {})),
-        CheckboxListTile(value: _confirmed, onChanged: (value) => setState(() => _confirmed = value ?? false),
-          title: const Text('These existing records belong to the account signed in above.')),
-        ElevatedButton(onPressed: _confirmed && widget.email.isNotEmpty &&
-            _email.text.trim().toLowerCase() == widget.email.trim().toLowerCase()
-            ? () => _finish(true) : null,
-          child: const Text('Recover original account records')),
-      ],
-    ))),
-  );
-}

@@ -1,42 +1,41 @@
-CashSense automatic account transition update
+CashSense: Request Test Refund button
 
-Behavior
-- Signing out keeps the user's local records and opens the sign-in screen.
-- Signing into the same account opens its saved local profile automatically.
-- Another account receives its own local profile.
-- Free and Premium accounts both retain local records after sign-out.
-- Existing backup/restore access checks are retained. Signing in does not automatically restore a cloud backup.
-- Authentication changes drain pending database, backup, restore, billing and push work; close Hive; rebuild providers and routes; and clear widgets before opening another profile.
-- Delayed operations from a previous screen/session are rejected.
-- The normal account-change restart screen is removed. Failed transitions keep records and show a retry action.
-- Original shared-database files are never deleted or automatically assigned to an unverified owner. An uninitialized profile may still need the one-time ownership choice. Existing profiles do not repeat that choice.
+This adds an iOS-only Request Test Refund button to Billing Staging Tests, using Apple's native StoreKit refund sheet. It does not change financial records or AWS resources.
 
 Install
-Stop the simulator app without uninstalling it or clearing its data. Extract this ZIP, then run:
-
-python3 "$HOME/Downloads/CashSense-Account-Transition-Fix/install_account_transition.py" --project "/Users/siler/Projects/CashSenseFlutter"
-
-The installer checks every input hash before editing, verifies installed bytes, backs up changed source outside the project and refuses files modified since the reviewed upload. Repeating installation is safe. It does not modify device data or AWS.
-
-Verify on the Mac
+Stop the app without uninstalling or clearing its data. Extract the ZIP into Downloads, then run:
+python3 "$HOME/Downloads/CashSense-Test-Refund-Button/install_test_refund.py" --project "/Users/siler/Projects/CashSenseFlutter"
 cd /Users/siler/Projects/CashSenseFlutter
+flutter pub get
+(cd ios && pod install)
 flutter analyze --no-pub
-dart run checks/account_transition_check.dart
-dart run checks/account_storage_check.dart
-dart run checks/backup_payload_check.dart
 
-The last two checks are from the previously installed packages; this ZIP does not replace them. Run a full simulator restart after installing this source once (not hot reload). Subsequent sign-ins/sign-outs should not require closing the app.
+Build and upload a new staging TestFlight build using the same billing staging configuration as the previous successful purchase test. A full native rebuild is necessary; hot reload is insufficient. Flutter registers the local iOS plugin automatically; AppDelegate edits are not needed. pubspec.lock and Podfile.lock will update on the Mac; these files are not overwritten by the package. Keep the existing build number/version management process.
 
-Simulator acceptance
-1. In account A, create a clearly identified test transaction and note its amount and balance.
-2. Sign out. The sign-in screen should open automatically.
-3. Sign into A. The transaction and balance should return without closing the app.
-4. Sign out and sign into B. A's transaction and other financial records must be absent.
-5. Create a different transaction in B. Sign out/in to B and verify it returns.
-6. Switch back to A and verify B's transaction is absent and A's amount/balance are unchanged.
-7. Repeat with an incorrect password. The sign-in screen must remain usable.
-8. Check widgets during sign-out and account switching for previous-account records.
-9. Test a local backup/restore with disposable records separately. Cloud upload/download, cross-device restoration, and store billing need their own end-to-end tests.
+Test
+1. Install the new staging build over the current app.
+2. Sign into the SAME CashSense account and use the SAME Apple testing account as the original test purchase.
+3. Open Billing Staging Tests > Request Test Refund.
+4. Select the desired transaction, using product ID, purchase date and transaction ID. History is newest first.
+5. Choose a refund reason in Apple's sheet and submit. To test an approved refund, select a normal reason (do not use Other with DECLINE).
+6. The app reports submitted, cancelled or an error. Submitted means a request was sent, not proof of AWS processing or a completed refund.
+7. Refresh Staging Membership after Apple's sandbox REFUND notification reaches AWS. Premium should become false if no other valid subscription, Lifetime entitlement or override remains.
+8. Test Restore Purchases afterward. A refunded transaction must not reactivate Premium. Capture the result and membership status.
 
-Validation limits
-The packaging environment has neither Flutter nor Dart installed. Flutter analysis, the Dart coordinator checks and the Hive/Cognito simulator acceptance tests have NOT been executed here. Python installer checks and source delimiter screening do not establish runtime correctness. Keep this build on the simulator until the Mac checks and account-switching acceptance test pass.
+Restrictions
+- Button is shown only on iOS staging builds. Android is unchanged.
+- The native bridge requires iOS 16 or later to verify StoreKit's signed transaction environment. iOS 15 receives an unsupported message.
+- Only StoreKit-verified sandbox transactions for the three CashSense product IDs are eligible. Production and Xcode-local transactions are excluded.
+- The transaction's appAccountToken must match the authenticated CashSense account ID. Purchases missing that token are refused instead of guessing ownership; make a fresh test purchase with the current account if necessary.
+- The system sheet remains responsible for eligibility and handling duplicate refund requests.
+- The native bridge revalidates the selected transaction immediately before opening the sheet.
+- The app does not mark Premium refunded locally or modify AWS directly. Apple's sandbox notifications and the existing AWS implementation determine the eventual result.
+- Settings > Developer is not needed to open this in-app refund sheet for an eligible sandbox transaction.
+
+Validation
+Five Python installer checks and source screening passed. The packaging environment has no Flutter, Dart, Swift, Ruby or Xcode. Dependency resolution, CocoaPods installation, Swift compilation, Flutter analysis, native sheet presentation and AWS refund handling have NOT been tested here. Paste the Mac check output before proceeding with the new TestFlight build.
+
+Apple references
+https://developer.apple.com/documentation/storekit/testing-refund-requests
+https://developer.apple.com/documentation/storekit/transaction/beginrefundrequest(in:)-9k0pj
+https://developer.apple.com/documentation/storekit/transaction/environment

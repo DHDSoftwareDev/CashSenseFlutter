@@ -1,4 +1,5 @@
 import 'account_operations.dart';
+import 'package:cashsense_refund_test/cashsense_refund_test.dart';
 import 'database_service.dart';
 import 'aws_api_service.dart';
 import 'dart:async';
@@ -39,6 +40,36 @@ class BillingService {
     _stagingProfileController.add(_latestStagingProfile!);
     return _latestStagingProfile!;
       });
+  }
+
+  /// Only diagnostics are refreshed; a submitted sheet is not AWS approval.
+  static Future<List<Map<String, String>>> refundableTestTransactions() {
+    return AccountOperations.run(() async {
+      if (!isStaging || !Platform.isIOS) {
+        throw StateError('Test refunds are available only in iOS staging builds.');
+      }
+      final owner = await _verifiedAccountId();
+      if (owner == null) { throw StateError('Sign in to your test account first.'); }
+      final transactions = await CashSenseRefundTest.transactions(owner);
+      if (await _verifiedAccountId() != owner) {
+        throw StateError('Account changed while loading test purchases.');
+      }
+      return transactions.map((row) => {...row, 'owner': owner}).toList();
+    });
+  }
+
+  static Future<String> requestTestRefund(Map<String, String> transaction) {
+    return AccountOperations.run(() async {
+      if (!isStaging || !Platform.isIOS) {
+        throw StateError('Test refunds are available only in iOS staging builds.');
+      }
+      final owner = await _verifiedAccountId();
+      final id = transaction['id'];
+      if (owner == null || owner != transaction['owner'] || id == null) {
+        throw StateError('Sign back into the owner of this test purchase.');
+      }
+      return CashSenseRefundTest.request(owner, id);
+    });
   }
 
   static final StreamController<String> _statusController =

@@ -200,6 +200,12 @@
       "languageVersion": "3.0"
     },
     {
+      "name": "cashsense_refund_test",
+      "rootUri": "../packages/cashsense_refund_test",
+      "packageUri": "lib/",
+      "languageVersion": "3.4"
+    },
+    {
       "name": "characters",
       "rootUri": "file:///Users/siler/.pub-cache/hosted/pub.dev/characters-1.4.1",
       "packageUri": "lib/",
